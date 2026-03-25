@@ -9,6 +9,8 @@ Focus of this module:
 Data sources used here:
 1) Yahoo Finance chart API (ETF prices)
 2) FRED public CSV endpoint (yields, inflation, growth, labor)
+3) Polymarket public Gamma API (prediction market contracts)
+4) PredictIt public market data endpoint (prediction contracts)
 """
 
 from __future__ import annotations
@@ -19,7 +21,7 @@ import json
 import urllib.parse
 import urllib.request
 from urllib.error import URLError, HTTPError
-from typing import Dict, Iterable, List, Optional
+from typing import Any, Dict, Iterable, List, Optional
 
 
 DEFAULT_ETFS = [
@@ -66,6 +68,18 @@ FRED_SERIES = {
 class DataPoint:
     ds: str
     value: Optional[float]
+
+
+@dataclass(frozen=True)
+class PredictionMarketQuote:
+    source: str
+    market_id: str
+    question: str
+    yes_price: Optional[float]
+    no_price: Optional[float]
+    volume: Optional[float]
+    liquidity: Optional[float]
+    end_date: Optional[str]
 
 
 def _read_url(url: str, timeout: int = 20) -> str:
@@ -184,6 +198,115 @@ def fetch_fred_latest(series_ids: Iterable[str]) -> Dict[str, Optional[float]]:
     return latest
 
 
+def _safe_float(value: Any) -> Optional[float]:
+    if value is None:
+        return None
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return None
+
+
+def fetch_polymarket_markets(limit: int = 20) -> List[PredictionMarketQuote]:
+    """Fetch active markets from Polymarket Gamma API.
+
+    Gamma API is public and commonly used for read-only market snapshots.
+    """
+    params = urllib.parse.urlencode(
+        {
+            "active": "true",
+            "closed": "false",
+            "archived": "false",
+            "limit": str(limit),
+            "order": "volume",
+            "ascending": "false",
+        }
+    )
+    url = f"https://gamma-api.polymarket.com/markets?{params}"
+    text = _read_url(url)
+    markets = json.loads(text)
+
+    out: List[PredictionMarketQuote] = []
+    if not isinstance(markets, list):
+        raise ValueError("Unexpected Polymarket response format")
+
+    for m in markets:
+        if not isinstance(m, dict):
+            continue
+
+        yes_price = _safe_float(m.get("lastTradePrice"))
+        if yes_price is None:
+            yes_price = _safe_float(m.get("outcomePrices", [None])[0] if isinstance(m.get("outcomePrices"), list) else None)
+        no_price = None if yes_price is None else max(0.0, min(1.0, 1.0 - yes_price))
+
+        out.append(
+            PredictionMarketQuote(
+                source="polymarket",
+                market_id=str(m.get("id", "")),
+                question=str(m.get("question", "")),
+                yes_price=yes_price,
+                no_price=no_price,
+                volume=_safe_float(m.get("volume")),
+                liquidity=_safe_float(m.get("liquidity")),
+                end_date=(m.get("endDate") or m.get("end_date")),
+            )
+        )
+    return out
+
+
+def fetch_predictit_markets(limit: int = 20) -> List[PredictionMarketQuote]:
+    """Fetch markets from PredictIt public market data endpoint."""
+    url = "https://www.predictit.org/api/marketdata/all/"
+    text = _read_url(url)
+    payload = json.loads(text)
+    markets = payload.get("markets", [])
+    if not isinstance(markets, list):
+        raise ValueError("Unexpected PredictIt response format")
+
+    out: List[PredictionMarketQuote] = []
+    for m in markets[:limit]:
+        if not isinstance(m, dict):
+            continue
+
+        contracts = m.get("contracts", [])
+        top_contract = contracts[0] if isinstance(contracts, list) and contracts else {}
+        yes_price = _safe_float(top_contract.get("lastTradePrice"))
+        no_price = _safe_float(top_contract.get("bestNoPrice"))
+
+        out.append(
+            PredictionMarketQuote(
+                source="predictit",
+                market_id=str(m.get("id", "")),
+                question=str(m.get("name", "")),
+                yes_price=yes_price,
+                no_price=no_price,
+                volume=_safe_float(top_contract.get("tradeVolume")),
+                liquidity=None,
+                end_date=top_contract.get("dateEnd") or m.get("dateEnd"),
+            )
+        )
+    return out
+
+
+def fetch_prediction_market_reserve(limit_each: int = 20) -> Dict[str, List[PredictionMarketQuote]]:
+    """Best-effort cache-oriented fetcher for external prediction market data."""
+    reserve: Dict[str, List[PredictionMarketQuote]] = {
+        "polymarket": [],
+        "predictit": [],
+    }
+    try:
+        reserve["polymarket"] = fetch_polymarket_markets(limit=limit_each)
+    except (URLError, HTTPError, ValueError, json.JSONDecodeError):
+        reserve["polymarket"] = []
+
+    try:
+        reserve["predictit"] = fetch_predictit_markets(limit=limit_each)
+    except (URLError, HTTPError, ValueError, json.JSONDecodeError):
+        reserve["predictit"] = []
+
+    return reserve
+
+
 def get_common_market_snapshot() -> Dict[str, Dict[str, Optional[float]]]:
     """Convenience snapshot for regime dashboard scaffolding."""
     etf_prices = fetch_yahoo_latest_prices(DEFAULT_ETFS)
@@ -196,11 +319,17 @@ def get_common_market_snapshot() -> Dict[str, Dict[str, Optional[float]]]:
     inflation_data = fetch_fred_latest(inflation_ids)
     growth_data = fetch_fred_latest(growth_ids)
 
+    prediction_data = fetch_prediction_market_reserve(limit_each=10)
+
     return {
         "etf_prices": etf_prices,
         "bond_and_curve": yield_data,
         "inflation": inflation_data,
         "growth_and_jobs": growth_data,
+        "prediction_market_reserve_counts": {
+            "polymarket": float(len(prediction_data["polymarket"])),
+            "predictit": float(len(prediction_data["predictit"])),
+        },
     }
 
 
@@ -221,6 +350,10 @@ def demo() -> None:
 
     print("\n=== Growth & Jobs (FRED) ===")
     for k, v in snapshot["growth_and_jobs"].items():
+        print(f"{k:>10}: {v}")
+
+    print("\n=== Prediction Market Reserve (counts) ===")
+    for k, v in snapshot["prediction_market_reserve_counts"].items():
         print(f"{k:>10}: {v}")
 
 
