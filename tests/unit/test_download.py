@@ -34,7 +34,7 @@ class DownloadTests(unittest.TestCase):
         )
         self.assertEqual(built, "https://example.com/data?series_id=INDPRO")
 
-    @patch("market_helper.download.urlopen")
+    @patch("market_helper.data_library.loader.urlopen")
     def test_download_json_parses_payload(self, mock_urlopen) -> None:
         mock_urlopen.return_value = FakeResponse('{"ok": true, "count": 2}')
 
@@ -44,7 +44,7 @@ class DownloadTests(unittest.TestCase):
         request = mock_urlopen.call_args[0][0]
         self.assertIn("https://example.com/data?a=b", request.full_url)
 
-    @patch("market_helper.download.urlopen")
+    @patch("market_helper.data_library.loader.urlopen")
     def test_download_fred_series_filters_missing_values(self, mock_urlopen) -> None:
         mock_urlopen.return_value = FakeResponse(
             """
@@ -78,7 +78,7 @@ class DownloadTests(unittest.TestCase):
         self.assertIn("series_id=INDPRO", request.full_url)
         self.assertIn("file_type=json", request.full_url)
 
-    @patch("market_helper.download.urlopen")
+    @patch("market_helper.data_library.loader.urlopen")
     def test_download_news_feed_parses_rss_items(self, mock_urlopen) -> None:
         mock_urlopen.return_value = FakeResponse(
             """
@@ -104,7 +104,7 @@ class DownloadTests(unittest.TestCase):
         self.assertEqual(items[0].summary, "Inflation slows.")
         self.assertTrue(items[0].published_at.startswith("2026-03-24T09:00:00"))
 
-    @patch("market_helper.download.urlopen")
+    @patch("market_helper.data_library.loader.urlopen")
     def test_download_feed_collection_keeps_feed_names(self, mock_urlopen) -> None:
         mock_urlopen.side_effect = [
             FakeResponse(
