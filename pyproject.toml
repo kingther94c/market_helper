@@ -1,0 +1,13 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "market-helper"
+version = "0.1.0"
+description = "Utilities for downloading free macro, market, and news data."
+readme = "README.md"
+requires-python = ">=3.13"
+
+[tool.setuptools.packages.find]
+include = ["market_helper*"]

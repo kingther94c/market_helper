@@ -1,65 +1,58 @@
-# Market Helper
+# market_helper
 
-先从 **data utility** 开始，不急着做完整 regime engine。
+Small Python utilities for downloading the inputs a market regime helper needs first:
 
-This repository now provides a Python utility module to source free/open market and macro data for later regime work.
+- FRED economic and market series
+- RSS/Atom news headlines
+- Generic JSON, text, and CSV HTTP helpers
 
-## Current scope (Phase 1: Data Utility)
+## Environment
 
-- Source ETF prices from **Yahoo Finance**
-- Source yields / inflation / growth / jobs data from **FRED**
-- Source prediction market data from **Polymarket** and **PredictIt**
-- Expose reusable utility functions and a snapshot helper
+Create or verify the project environment:
 
-## File
+```bash
+./scripts/setup_python_env.sh
+conda activate py313
+```
 
-- `data_utility.py`
+The setup script checks whether `py313` already exists. If it does not, it recreates the environment from [`environment.yml`](/Users/kelvin/git_projects/market_helper/environment.yml).
 
-## Data coverage
+Update the existing environment after dependency or metadata changes:
 
-### Yahoo Finance (prices)
-Default ETF universe includes:
-- SPY, QQQ, IWM, EFA, EEM
-- TLT, IEF, LQD, HYG
-- GLD, USO, DBC
-- XLE, XLK, XLF
+```bash
+conda env update -f environment.yml --prune
+conda activate py313
+```
 
-### FRED (macro)
-- Bond/yield/curve: `DGS10`, `DGS2`, `T10Y2Y`, `DFF`
-- Inflation: `CPIAUCSL`, `CPILFESL`, `PCEPI`, `PCEPILFE`, `T5YIE`
-- Growth/jobs: `GDPC1`, `INDPRO`, `PAYEMS`, `UNRATE`, `RSAFS`
+Remove and rebuild it cleanly when needed:
 
-### Prediction markets (reserve)
-- Polymarket Gamma API active markets (`fetch_polymarket_markets`)
-- PredictIt public market data (`fetch_predictit_markets`)
-- Unified best-effort reserve fetcher (`fetch_prediction_market_reserve`)
+```bash
+conda env remove -n py313
+conda env create -f environment.yml
+```
 
 ## Quick start
 
 ```bash
-python data_utility.py
+conda activate py313
+python -m unittest discover -s tests
 ```
 
-This prints a simple snapshot with:
-- latest ETF prices
-- latest bond/curve values
-- latest inflation values
-- latest growth/jobs values
+```python
+from market_helper.download import download_feed_collection, download_fred_series
 
-## Main utility functions
+series = download_fred_series(
+    series_id="INDPRO",
+    api_key="your_fred_api_key",
+    observation_start="2024-01-01",
+)
 
-- `fetch_yahoo_price_history(symbol, start, end, interval)`
-- `fetch_yahoo_latest_prices(symbols)`
-- `fetch_fred_series(series_id, start, end)`
-- `fetch_fred_latest(series_ids)`
-- `fetch_polymarket_markets(limit)`
-- `fetch_predictit_markets(limit)`
-- `fetch_prediction_market_reserve(limit_each)`
-- `get_common_market_snapshot()`
+feeds = download_feed_collection(
+    {
+        "Fed": "https://www.federalreserve.gov/feeds/press_all.xml",
+    },
+    limit=5,
+)
+```
 
-## Next
-
-After this utility layer is stable, next step can be:
-- cleaning/alignment utilities (frequency alignment, missing handling)
-- simple derived features (YoY inflation, 3m trend, curve slope changes)
-- then regime rulebook layer on top
+The project is pinned to Python 3.13 and uses a shared `py313` conda environment definition in [`environment.yml`](/Users/kelvin/git_projects/market_helper/environment.yml) so setup stays repeatable across machines.
