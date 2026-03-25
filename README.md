@@ -8,6 +8,7 @@ This repository now provides a Python utility module to source free/open market 
 
 - Source ETF prices from **Yahoo Finance**
 - Source yields / inflation / growth / jobs data from **FRED**
+- Source prediction market data from **Polymarket** and **PredictIt**
 - Expose reusable utility functions and a snapshot helper
 
 ## File
@@ -28,6 +29,11 @@ Default ETF universe includes:
 - Inflation: `CPIAUCSL`, `CPILFESL`, `PCEPI`, `PCEPILFE`, `T5YIE`
 - Growth/jobs: `GDPC1`, `INDPRO`, `PAYEMS`, `UNRATE`, `RSAFS`
 
+### Prediction markets (reserve)
+- Polymarket Gamma API active markets (`fetch_polymarket_markets`)
+- PredictIt public market data (`fetch_predictit_markets`)
+- Unified best-effort reserve fetcher (`fetch_prediction_market_reserve`)
+
 ## Quick start
 
 ```bash
@@ -46,6 +52,9 @@ This prints a simple snapshot with:
 - `fetch_yahoo_latest_prices(symbols)`
 - `fetch_fred_series(series_id, start, end)`
 - `fetch_fred_latest(series_ids)`
+- `fetch_polymarket_markets(limit)`
+- `fetch_predictit_markets(limit)`
+- `fetch_prediction_market_reserve(limit_each)`
 - `get_common_market_snapshot()`
 
 ## Next
