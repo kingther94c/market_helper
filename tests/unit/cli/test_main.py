@@ -81,15 +81,19 @@ def test_cli_ibkr_live_position_report_dispatches_to_live_workflow(monkeypatch, 
     def fake_generate_live_ibkr_position_report(
         *,
         output_path,
-        base_url,
+        host,
+        port,
+        client_id,
         account_id,
-        verify_ssl,
+        timeout,
         as_of,
     ):
         captured["output_path"] = output_path
-        captured["base_url"] = base_url
+        captured["host"] = host
+        captured["port"] = port
+        captured["client_id"] = client_id
         captured["account_id"] = account_id
-        captured["verify_ssl"] = verify_ssl
+        captured["timeout"] = timeout
         captured["as_of"] = as_of
         return output_path
 
@@ -103,10 +107,16 @@ def test_cli_ibkr_live_position_report_dispatches_to_live_workflow(monkeypatch, 
             "ibkr-live-position-report",
             "--output",
             str(tmp_path / "live_position_report.csv"),
-            "--base-url",
-            "https://localhost:5000/v1/api",
+            "--host",
+            "127.0.0.1",
+            "--port",
+            "7497",
+            "--client-id",
+            "7",
             "--account",
             "U12345",
+            "--timeout",
+            "9.5",
             "--as-of",
             "2026-03-26T00:00:00+00:00",
         ]
@@ -114,7 +124,9 @@ def test_cli_ibkr_live_position_report_dispatches_to_live_workflow(monkeypatch, 
 
     assert exit_code == 0
     assert str(captured["output_path"]).endswith("live_position_report.csv")
-    assert captured["base_url"] == "https://localhost:5000/v1/api"
+    assert captured["host"] == "127.0.0.1"
+    assert captured["port"] == 7497
+    assert captured["client_id"] == 7
     assert captured["account_id"] == "U12345"
-    assert captured["verify_ssl"] is False
+    assert captured["timeout"] == 9.5
     assert captured["as_of"] == "2026-03-26T00:00:00+00:00"

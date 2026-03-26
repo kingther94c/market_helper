@@ -4,16 +4,18 @@ import json
 from pathlib import Path
 
 from market_helper.portfolio import (
-    ClientPortalClient,
     PriceSnapshot,
     PositionSnapshot,
     SecurityReferenceTable,
     build_price_lookup,
-    choose_account,
-    ensure_authenticated_session,
     normalize_ibkr_latest_prices,
     normalize_ibkr_positions,
-    position_rows_to_price_rows,
+)
+from market_helper.providers.tws_ib_async import (
+    TwsIbAsyncClient,
+    choose_tws_account,
+    portfolio_items_to_ibkr_position_rows,
+    portfolio_items_to_ibkr_price_rows,
 )
 from market_helper.reporting import build_position_report_rows, export_position_report_csv
 
@@ -42,36 +44,60 @@ def generate_ibkr_position_report(
     raw_prices = _load_json_rows(ibkr_prices_path)
     positions = normalize_ibkr_positions(raw_positions, reference_table, as_of=as_of)
     prices = normalize_ibkr_latest_prices(raw_prices, reference_table, as_of=as_of)
-    rows = build_position_report_rows(positions, build_price_lookup(prices))
+    rows = build_position_report_rows(
+        positions,
+        build_price_lookup(prices),
+        reference_table.to_security_lookup(),
+    )
     return export_position_report_csv(rows, output_path)
 
 
 def generate_live_ibkr_position_report(
     *,
     output_path: str | Path,
-    base_url: str = "https://localhost:5000/v1/api",
+    host: str = "127.0.0.1",
+    port: int = 7497,
+    client_id: int = 1,
     account_id: str | None = None,
-    verify_ssl: bool = False,
+    timeout: float = 4.0,
     as_of: str | None = None,
-    client: ClientPortalClient | None = None,
+    client: object | None = None,
 ) -> Path:
-    live_client = client or ClientPortalClient(base_url=base_url, verify_ssl=verify_ssl)
-    ensure_authenticated_session(live_client)
-    live_client.tickle()
-
-    accounts = live_client.list_accounts()
-    selected_account_id = choose_account(accounts, account_id)
-    raw_positions = live_client.list_positions(selected_account_id)
-
-    reference_table = SecurityReferenceTable()
-    positions = normalize_ibkr_positions(raw_positions, reference_table, as_of=as_of)
-    prices = normalize_ibkr_latest_prices(
-        position_rows_to_price_rows(raw_positions),
-        reference_table,
-        as_of=as_of,
+    live_client = client or TwsIbAsyncClient(
+        host=host,
+        port=port,
+        client_id=client_id,
+        timeout=timeout,
+        account=account_id or "",
     )
-    rows = build_position_report_rows(positions, build_price_lookup(prices))
-    return export_position_report_csv(rows, output_path)
+    connect = getattr(live_client, "connect")
+    disconnect = getattr(live_client, "disconnect", None)
+    connect()
+    try:
+        accounts = live_client.list_accounts()
+        selected_account_id = choose_tws_account(accounts, account_id)
+        portfolio_items = live_client.list_portfolio(selected_account_id)
+
+        reference_table = SecurityReferenceTable()
+        positions = normalize_ibkr_positions(
+            portfolio_items_to_ibkr_position_rows(portfolio_items),
+            reference_table,
+            as_of=as_of,
+        )
+        prices = normalize_ibkr_latest_prices(
+            portfolio_items_to_ibkr_price_rows(portfolio_items),
+            reference_table,
+            as_of=as_of,
+        )
+        rows = build_position_report_rows(
+            positions,
+            build_price_lookup(prices),
+            reference_table.to_security_lookup(),
+        )
+        return export_position_report_csv(rows, output_path)
+    finally:
+        if callable(disconnect):
+            disconnect()
 
 
 def _load_positions(path: str | Path) -> list[PositionSnapshot]:

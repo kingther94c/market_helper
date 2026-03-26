@@ -46,23 +46,36 @@ def build_parser() -> argparse.ArgumentParser:
 
     ibkr_live_position_report = subparsers.add_parser(
         "ibkr-live-position-report",
-        help="Generate a CSV position report from a live local IBKR Client Portal Gateway session.",
+        help="Generate a CSV position report from a live TWS / IB Gateway session via ib_async.",
     )
     ibkr_live_position_report.add_argument("--output", required=True, help="Path to output CSV.")
     ibkr_live_position_report.add_argument(
-        "--base-url",
-        default="https://localhost:5000/v1/api",
-        help="Local Client Portal Gateway base URL.",
+        "--host",
+        default="127.0.0.1",
+        help="Local TWS / IB Gateway host.",
+    )
+    ibkr_live_position_report.add_argument(
+        "--port",
+        type=int,
+        default=7497,
+        help="Local TWS / IB Gateway API port.",
+    )
+    ibkr_live_position_report.add_argument(
+        "--client-id",
+        type=int,
+        default=1,
+        help="ib_async client id for the TWS / IB Gateway connection.",
     )
     ibkr_live_position_report.add_argument(
         "--account",
         required=False,
-        help="Optional account id. Defaults to the first account returned by /portfolio/accounts.",
+        help="Optional account id. Defaults to the first account returned by managedAccounts().",
     )
     ibkr_live_position_report.add_argument(
-        "--verify-ssl",
-        action="store_true",
-        help="Enable local SSL verification for the Client Portal Gateway.",
+        "--timeout",
+        type=float,
+        default=4.0,
+        help="Connection timeout in seconds for the TWS / IB Gateway session.",
     )
     ibkr_live_position_report.add_argument(
         "--as-of",
@@ -95,9 +108,11 @@ def main(argv: Sequence[str] | None = None) -> int:
     if args.command == "ibkr-live-position-report":
         generate_live_ibkr_position_report(
             output_path=Path(args.output),
-            base_url=args.base_url,
+            host=args.host,
+            port=args.port,
+            client_id=args.client_id,
             account_id=args.account,
-            verify_ssl=args.verify_ssl,
+            timeout=args.timeout,
             as_of=args.as_of,
         )
         return 0

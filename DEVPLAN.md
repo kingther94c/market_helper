@@ -8,7 +8,7 @@
 **Every PR must update DEVPLAN.md to reflect completed work, current status, and next steps.**
 
 ## Objective
-Build a broker-agnostic, read-only IBKR integration layer for market monitoring and portfolio analytics, with IBKR Client Portal Web API as the primary path and clean extension points for future providers/services. The immediate delivery path is a reliable position-report workflow that can run from normalized snapshots, raw IBKR payloads, and live local Client Portal Gateway sessions.
+Build a broker-agnostic, read-only IBKR integration layer for market monitoring and portfolio analytics, with IBKR Client Portal Web API as the primary path and clean extension points for future providers/services. The immediate delivery path is a reliable position-report workflow that can run from normalized snapshots, raw IBKR payloads, and live local TWS / IB Gateway sessions.
 
 ## In Scope
 - Read-only provider adapters for:
@@ -38,17 +38,20 @@ Build a broker-agnostic, read-only IBKR integration layer for market monitoring 
 - Local position-report CSV path added for normalized snapshots.
 - Raw IBKR payload to CSV workflow added, including CLI support for direct report generation from IBKR JSON dumps.
 - Live local Client Portal Gateway to CSV workflow added for authenticated read-only IBKR sessions.
+- Executable `scripts/run_report.sh` wrapper added for snapshot, raw-IBKR, and live report runs.
+- Live report path switched to TWS / IB Gateway via `ib_async`, including a thin adapter and portfolio-to-report mappers.
+- Script-level live-account defaults moved to local gitignored config, with explicit `--account` override support.
+- Report CSV now includes instrument metadata columns such as `con_id`, `symbol`, `local_symbol`, `exchange`, and `currency`.
 - Unit tests added and expanded across config, domain, providers, portfolio normalization, reporting, workflows, and read-only guard behavior.
 
 ## In Progress
-- Tightening the live Client Portal report path with better account metadata, richer report fields, stronger session ergonomics, and eventual broader provider coverage.
+- Tightening the live TWS / `ib_async` report path with better account metadata, richer report fields, stronger session ergonomics, and eventual broader provider coverage.
 
 ## Next Steps
-1. Add richer report columns such as symbol, exchange, currency, and concentration ordering.
-2. Add keepalive / reauth ergonomics and clearer session diagnostics for live runs.
-3. Add HTML report rendering once CSV output is stable.
-4. Add fixture sets from real IBKR payloads to harden compatibility.
-5. Optionally add a broader Client Portal Web API wrapper layer if we need more endpoints beyond position reporting.
+1. Add clearer connection diagnostics and account-selection ergonomics for live TWS / IB Gateway runs.
+2. Add HTML report rendering once CSV output is stable.
+3. Add fixture sets from real IBKR payloads to harden compatibility.
+4. Optionally add a broader Client Portal Web API wrapper layer if we need more endpoints beyond position reporting.
 
 ## Backlog / Future Phases
 - Implement TWS thin adapters via `ib_async` (`client`, `portfolio`, `market_data`, `mapper`).

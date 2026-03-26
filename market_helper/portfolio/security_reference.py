@@ -106,6 +106,9 @@ class SecurityReferenceTable:
     def get_security(self, internal_id: str) -> Optional[SecurityReference]:
         return self._security_by_id.get(internal_id)
 
+    def to_security_lookup(self) -> Dict[str, SecurityReference]:
+        return dict(self._security_by_id)
+
     def to_rows(self) -> List[Dict[str, str]]:
         rows: List[Dict[str, str]] = []
         for (source, external_id), internal_id in sorted(self._mapping_to_internal.items()):
