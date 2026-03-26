@@ -29,3 +29,13 @@ This repository follows a domain-first layout:
 ```bash
 conda run -n py313 python -m unittest discover -s tests
 ```
+
+## IBKR Web API Setup
+
+Use [`configs/settings.example.json`](configs/settings.example.json) as the local config template for the read-only Web API path.
+
+- Put your IBKR username in `provider.username`.
+- Keep the password in an env var such as `IBKR_CP_PASSWORD`, referenced by `provider.password_env_var`.
+- For most individual-account setups, start with username/password plus the local gateway session rather than looking for an API key first.
+
+More detail is in [`docs/ibkr_web_api_auth.md`](docs/ibkr_web_api_auth.md).

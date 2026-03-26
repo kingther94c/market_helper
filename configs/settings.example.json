@@ -1,0 +1,10 @@
+{
+  "mode": "read_only",
+  "provider": {
+    "web_api_base_url": "https://localhost:5000/v1/api",
+    "account_id": "U1234567",
+    "username": "your_ibkr_username",
+    "password_env_var": "IBKR_CP_PASSWORD",
+    "oauth_consumer_key_env_var": ""
+  }
+}
