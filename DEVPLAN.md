@@ -8,7 +8,7 @@
 **Every PR must update DEVPLAN.md to reflect completed work, current status, and next steps.**
 
 ## Objective
-Build a broker-agnostic, read-only IBKR integration layer for market monitoring and portfolio analytics, with IBKR Client Portal Web API as the primary path and clean extension points for future providers/services.
+Build a broker-agnostic, read-only IBKR integration layer for market monitoring and portfolio analytics, with IBKR Client Portal Web API as the primary path and clean extension points for future providers/services. The immediate delivery path is a reliable position-report workflow that can run from normalized snapshots, raw IBKR payloads, and live local Client Portal Gateway sessions.
 
 ## In Scope
 - Read-only provider adapters for:
@@ -31,20 +31,24 @@ Build a broker-agnostic, read-only IBKR integration layer for market monitoring 
 - Provider base protocols and fake provider test seam added.
 - Runtime read-only guards added in `safety/read_only_guards.py`.
 - Web API skeleton client added with read-only guard checks.
-- **New in this PR:** Web API mapping utilities for account summary, positions, and quote snapshots.
-- **New in this PR:** generic retry helper (`with_retry`) for transient Web API operations.
-- **New in this PR:** Web API session/auth + account-summary/positions/snapshot wrappers with injectable transport seams.
-- **New in this PR:** config fields and setup docs for IBKR username/password vs OAuth consumer-key usage.
-- Unit tests added/expanded for config/domain/provider/safety + web API mapper/retry behavior.
+- Web API mapping utilities added for account summary, positions, and quote snapshots.
+- Generic retry helper (`with_retry`) added for transient Web API operations.
+- Web API session/auth + account-summary/positions/snapshot wrappers added with injectable transport seams.
+- Config fields and setup docs added for IBKR username/password vs OAuth consumer-key usage.
+- Local position-report CSV path added for normalized snapshots.
+- Raw IBKR payload to CSV workflow added, including CLI support for direct report generation from IBKR JSON dumps.
+- Live local Client Portal Gateway to CSV workflow added for authenticated read-only IBKR sessions.
+- Unit tests added and expanded across config, domain, providers, portfolio normalization, reporting, workflows, and read-only guard behavior.
 
 ## In Progress
-- Wiring the new Web API wrapper to a real HTTP transport, localhost TLS handling, and stable fixture coverage.
+- Tightening the live Client Portal report path with better account metadata, richer report fields, stronger session ergonomics, and eventual broader provider coverage.
 
 ## Next Steps
-1. Add a real HTTP transport for the Web API wrapper, including localhost SSL/session ergonomics.
-2. Add websocket streaming wrapper with normalized quote events.
-3. Introduce Web API fixture payload sets for integration-style tests.
-4. Decide whether institutional OAuth support is needed beyond the local username/password gateway path.
+1. Add richer report columns such as symbol, exchange, currency, and concentration ordering.
+2. Add keepalive / reauth ergonomics and clearer session diagnostics for live runs.
+3. Add HTML report rendering once CSV output is stable.
+4. Add fixture sets from real IBKR payloads to harden compatibility.
+5. Optionally add a broader Client Portal Web API wrapper layer if we need more endpoints beyond position reporting.
 
 ## Backlog / Future Phases
 - Implement TWS thin adapters via `ib_async` (`client`, `portfolio`, `market_data`, `mapper`).
@@ -58,10 +62,10 @@ Build a broker-agnostic, read-only IBKR integration layer for market monitoring 
 - Session/auth behavior may vary by account configuration and runtime environment.
 - Existing legacy modules and new provider layer will coexist temporarily during migration.
 - Read-only policy must remain explicit in config + runtime guards to avoid accidental drift.
+- Initial report output favors correctness and inspectability over presentation polish.
 
 ## Testing Status
-- Web API wrapper smoke checks pass under `py313` for default transport, canned endpoint payloads, and retry behavior.
-- Unit-test command passes under `py313`: `conda run -n py313 python -m pytest -q tests/unit/config tests/unit/domain tests/unit/providers tests/unit/test_read_only_guards.py`
+- Unit-test command passes under `py313`: `conda run -n py313 python -m pytest -q tests/unit`
 
 ## Notes
 - Execution/trading support remains intentionally unimplemented.
