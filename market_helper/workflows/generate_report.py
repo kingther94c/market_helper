@@ -17,7 +17,11 @@ from market_helper.providers.tws_ib_async import (
     portfolio_items_to_ibkr_position_rows,
     portfolio_items_to_ibkr_price_rows,
 )
-from market_helper.reporting import build_position_report_rows, export_position_report_csv
+from market_helper.reporting import (
+    build_position_report_rows,
+    build_risk_html_report,
+    export_position_report_csv,
+)
 
 
 def generate_position_report(
@@ -99,6 +103,21 @@ def generate_live_ibkr_position_report(
         if callable(disconnect):
             disconnect()
 
+
+
+def generate_risk_html_report(
+    *,
+    positions_csv_path: str | Path,
+    returns_path: str | Path,
+    output_path: str | Path,
+    proxy_path: str | Path | None = None,
+) -> Path:
+    return build_risk_html_report(
+        positions_csv_path=positions_csv_path,
+        returns_path=returns_path,
+        output_path=output_path,
+        proxy_path=proxy_path,
+    )
 
 def _load_positions(path: str | Path) -> list[PositionSnapshot]:
     payload = _load_json_rows(path)
