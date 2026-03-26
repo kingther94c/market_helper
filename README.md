@@ -39,3 +39,33 @@ Use [`configs/settings.example.json`](configs/settings.example.json) as the loca
 - For most individual-account setups, start with username/password plus the local gateway session rather than looking for an API key first.
 
 More detail is in [`docs/ibkr_web_api_auth.md`](docs/ibkr_web_api_auth.md).
+
+## Position report
+
+Generate a CSV position report from local normalized snapshot files:
+
+```bash
+conda run -n py313 python -m market_helper.cli.main position-report \
+  --positions positions.json \
+  --prices prices.json \
+  --output outputs/position_report.csv
+```
+
+Generate a CSV position report directly from raw IBKR payload files:
+
+```bash
+conda run -n py313 python -m market_helper.cli.main ibkr-position-report \
+  --ibkr-positions ibkr_positions.json \
+  --ibkr-prices ibkr_prices.json \
+  --output outputs/ibkr_position_report.csv
+```
+
+Generate a CSV position report directly from a live local IBKR Client Portal Gateway session:
+
+```bash
+conda run -n py313 python -m market_helper.cli.main ibkr-live-position-report \
+  --output outputs/live_ibkr_position_report.csv \
+  --account U12345
+```
+
+Before running the live command, launch the IBKR Client Portal Gateway and sign in at `https://localhost:5000`, including 2FA. By default the command talks to `https://localhost:5000/v1/api` and skips local SSL verification.

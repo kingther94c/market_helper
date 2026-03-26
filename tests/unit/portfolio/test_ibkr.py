@@ -116,6 +116,38 @@ def test_normalize_ibkr_latest_prices_accepts_market_price_alias() -> None:
     assert prices[0].last_price == 214.8
 
 
+def test_normalize_ibkr_client_portal_payloads_use_conid_avg_cost_and_field_code() -> None:
+    table = SecurityReferenceTable()
+    positions = normalize_ibkr_positions(
+        [
+            {
+                "accountId": "U12345",
+                "conid": "756733",
+                "secType": "STK",
+                "symbol": "AAPL",
+                "currency": "USD",
+                "exchange": "SMART",
+                "position": "20",
+                "avgCost": "210.5",
+                "marketValue": "4300",
+            }
+        ],
+        table,
+        as_of="2026-03-26T00:00:00+00:00",
+    )
+
+    prices = normalize_ibkr_latest_prices(
+        [{"conid": "756733", "31": "214.8"}],
+        table,
+        as_of="2026-03-26T00:00:00+00:00",
+    )
+
+    assert positions[0].account == "U12345"
+    assert positions[0].avg_cost == 210.5
+    assert positions[0].internal_id == "IBKR:756733"
+    assert prices[0].last_price == 214.8
+
+
 def test_normalize_ibkr_latest_prices_raises_when_no_price_fields() -> None:
     table = SecurityReferenceTable()
     normalize_ibkr_positions(

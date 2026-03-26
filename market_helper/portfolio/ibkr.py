@@ -76,7 +76,7 @@ def normalize_ibkr_positions(
     for item in raw_positions:
         row = _as_ibkr_dict(item)
         contract = IbkrContract(
-            con_id=str(_require_any(row, "con_id", "conId")),
+            con_id=str(_require_any(row, "con_id", "conid", "conId")),
             sec_type=str(_first_non_null(row, "sec_type", "secType", default="")),
             symbol=str(_first_non_null(row, "symbol", default="")),
             currency=str(_first_non_null(row, "currency", default="")),
@@ -94,12 +94,12 @@ def normalize_ibkr_positions(
         normalized.append(
             PositionSnapshot(
                 as_of=timestamp,
-                account=str(_first_non_null(row, "account", default="")),
+                account=str(_first_non_null(row, "account", "accountId", default="")),
                 internal_id=internal_id,
                 source=IBKR_SOURCE,
                 quantity=float(_first_non_null(row, "position", default=0.0)),
                 avg_cost=_optional_float(
-                    _first_non_null(row, "avg_cost", "averageCost", default=None)
+                    _first_non_null(row, "avg_cost", "avgCost", "averageCost", default=None)
                 ),
                 market_value=_optional_float(
                     _first_non_null(row, "market_value", "marketValue", default=None)
@@ -121,13 +121,13 @@ def normalize_ibkr_latest_prices(
 
     for item in raw_prices:
         row = _as_ibkr_dict(item)
-        con_id = str(_require_any(row, "con_id", "conId"))
+        con_id = str(_require_any(row, "con_id", "conid", "conId"))
         internal_id = reference_table.require_internal_id(
             source=IBKR_SOURCE,
             external_id=con_id,
         )
 
-        last_price = _optional_float(_first_non_null(row, "last", default=None))
+        last_price = _optional_float(_first_non_null(row, "last", "31", default=None))
         if last_price is None:
             last_price = _optional_float(_first_non_null(row, "close", default=None))
         if last_price is None:
