@@ -3,7 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Iterable, Mapping, Optional
 
-from market_helper.portfolio import PositionSnapshot
+from market_helper.portfolio import PositionSnapshot, SecurityReference
 
 
 @dataclass(frozen=True)
@@ -11,6 +11,11 @@ class PositionReportRow:
     as_of: str
     account: str
     internal_id: str
+    con_id: Optional[str]
+    symbol: str
+    local_symbol: str
+    exchange: str
+    currency: str
     source: str
     quantity: float
     avg_cost: Optional[float]
@@ -24,8 +29,10 @@ class PositionReportRow:
 def build_position_report_rows(
     positions: Iterable[PositionSnapshot],
     prices: Mapping[str, float],
+    security_lookup: Mapping[str, SecurityReference] | None = None,
 ) -> list[PositionReportRow]:
     materialized_positions = list(positions)
+    metadata_lookup = security_lookup or {}
     effective_market_values = [
         _effective_market_value(position=position, latest_price=prices.get(position.internal_id))
         for position in materialized_positions
@@ -35,6 +42,7 @@ def build_position_report_rows(
     rows: list[PositionReportRow] = []
     for position, effective_market_value in zip(materialized_positions, effective_market_values):
         latest_price = prices.get(position.internal_id)
+        security = metadata_lookup.get(position.internal_id)
         cost_basis = _cost_basis(position)
         unrealized_pnl = (
             effective_market_value - cost_basis
@@ -51,6 +59,11 @@ def build_position_report_rows(
                 as_of=position.as_of,
                 account=position.account,
                 internal_id=position.internal_id,
+                con_id=_con_id(security),
+                symbol=security.symbol if security is not None else "",
+                local_symbol=security.description if security is not None else "",
+                exchange=security.exchange if security is not None else "",
+                currency=security.currency if security is not None else "",
                 source=position.source,
                 quantity=position.quantity,
                 avg_cost=position.avg_cost,
@@ -63,6 +76,12 @@ def build_position_report_rows(
         )
 
     return rows
+
+
+def _con_id(security: Optional[SecurityReference]) -> Optional[str]:
+    if security is None:
+        return None
+    return security.metadata.get("ibkr_con_id")
 
 
 def _effective_market_value(

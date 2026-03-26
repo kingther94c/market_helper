@@ -51,6 +51,14 @@ conda run -n py313 python -m market_helper.cli.main position-report \
   --output outputs/position_report.csv
 ```
 
+Or use the workflow wrapper script:
+
+```bash
+./scripts/run_report.sh snapshot \
+  --positions positions.json \
+  --prices prices.json
+```
+
 Generate a CSV position report directly from raw IBKR payload files:
 
 ```bash
@@ -60,12 +68,50 @@ conda run -n py313 python -m market_helper.cli.main ibkr-position-report \
   --output outputs/ibkr_position_report.csv
 ```
 
-Generate a CSV position report directly from a live local IBKR Client Portal Gateway session:
+Or use the workflow wrapper script:
+
+```bash
+./scripts/run_report.sh ibkr-json \
+  --ibkr-positions ibkr_positions.json \
+  --ibkr-prices ibkr_prices.json
+```
+
+Generate a CSV position report directly from a live TWS / IB Gateway session via `ib_async`:
 
 ```bash
 conda run -n py313 python -m market_helper.cli.main ibkr-live-position-report \
   --output outputs/live_ibkr_position_report.csv \
+  --host 127.0.0.1 \
+  --port 7497 \
+  --client-id 7 \
   --account U12345
 ```
 
-Before running the live command, launch the IBKR Client Portal Gateway and sign in at `https://localhost:5000`, including 2FA. By default the command talks to `https://localhost:5000/v1/api` and skips local SSL verification.
+Before running the live command, launch TWS or IB Gateway, enable API access, and confirm the host/port/client-id match your local API settings. The defaults are `127.0.0.1:7497` with `client_id=1`.
+
+The script wrapper also supports the live path:
+
+```bash
+./scripts/run_report.sh ibkr-live \
+  --host 127.0.0.1 \
+  --port 7497 \
+  --client-id 7 \
+  --account U12345
+```
+
+If `--account` is omitted, `./scripts/run_report.sh ibkr-live` now defaults to:
+- `ACCOUNT_ENV=prod` -> `DEFAULT_PROD_ACCOUNT_ID`
+- `ACCOUNT_ENV=dev` -> `DEFAULT_DEV_ACCOUNT_ID`
+
+Keep those defaults in the local-only file `configs/report_accounts.local.env`, which is gitignored. A tracked template lives at `configs/report_accounts.example.env`.
+
+Example:
+
+```bash
+ACCOUNT_ENV=dev ./scripts/run_report.sh ibkr-live --client-id 7
+```
+
+If `--output` is omitted, the script writes to:
+- `outputs/reports/position_report.csv`
+- `outputs/reports/ibkr_position_report.csv`
+- `outputs/reports/live_ibkr_position_report.csv`

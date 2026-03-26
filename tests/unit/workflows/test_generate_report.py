@@ -52,4 +52,5 @@ def test_generate_position_report_reads_json_and_writes_csv(tmp_path) -> None:
 
     assert len(rows) == 1
     assert rows[0]["internal_id"] == "SEC:SPY"
+    assert rows[0]["symbol"] == ""
     assert rows[0]["unrealized_pnl"] == "1000.0"

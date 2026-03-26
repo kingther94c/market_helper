@@ -49,6 +49,11 @@ def test_generate_ibkr_position_report_normalizes_raw_payloads_and_writes_csv(tm
             "as_of": "2026-03-26T00:00:00+00:00",
             "account": "U12345",
             "internal_id": "IBKR:756733",
+            "con_id": "756733",
+            "symbol": "AAPL",
+            "local_symbol": "",
+            "exchange": "SMART",
+            "currency": "USD",
             "source": "ibkr",
             "quantity": "20.0",
             "avg_cost": "210.5",
@@ -101,4 +106,5 @@ def test_generate_ibkr_position_report_accepts_wrapped_json_arrays(tmp_path) -> 
         rows = list(reader)
 
     assert rows[0]["internal_id"] == "IBKR:756733"
+    assert rows[0]["symbol"] == "AAPL"
     assert rows[0]["latest_price"] == "214.8"
