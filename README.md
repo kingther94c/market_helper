@@ -111,7 +111,31 @@ Example:
 ACCOUNT_ENV=dev ./scripts/run_report.sh ibkr-live --client-id 7
 ```
 
+
+Generate an HTML risk report (historical vol + estimate vol + correlation-based portfolio risk):
+
+```bash
+conda run -n py313 python -m market_helper.cli.main risk-html-report \
+  --positions-csv outputs/reports/live_ibkr_position_report.csv \
+  --returns data/processed/returns.json \
+  --proxy data/processed/risk_proxy.json \
+  --output outputs/reports/portfolio_risk_report.html
+```
+
+- `--returns` expects JSON: `{"INTERNAL_ID": [daily_return_1, ...]}`
+- `--proxy` is optional JSON for estimate-vol inputs (e.g. `VIX`, `MOVE`, `GVZ`, `OVX`).
+
+Script wrapper:
+
+```bash
+./scripts/run_report.sh risk-html \
+  --positions-csv outputs/reports/live_ibkr_position_report.csv \
+  --returns data/processed/returns.json \
+  --proxy data/processed/risk_proxy.json
+```
+
 If `--output` is omitted, the script writes to:
 - `outputs/reports/position_report.csv`
 - `outputs/reports/ibkr_position_report.csv`
 - `outputs/reports/live_ibkr_position_report.csv`
+- `outputs/reports/portfolio_risk_report.html`
