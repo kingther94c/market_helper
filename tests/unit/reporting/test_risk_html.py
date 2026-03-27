@@ -48,12 +48,36 @@ def test_build_risk_html_report_renders_summary_and_tables(tmp_path: Path) -> No
     proxy_json = tmp_path / "proxy.json"
     proxy_json.write_text(json.dumps({"VIX": 20.0, "MOVE": 120.0}), encoding="utf-8")
 
+    regime_json = tmp_path / "regime.json"
+    regime_json.write_text(
+        json.dumps(
+            [
+                {
+                    "as_of": "2026-03-26",
+                    "regime": "Goldilocks Expansion",
+                    "scores": {
+                        "VOL": 0.2,
+                        "CREDIT": 0.2,
+                        "RATES": -0.1,
+                        "GROWTH": 0.6,
+                        "TREND": 0.7,
+                        "STRESS": 0.2,
+                    },
+                    "inputs": {},
+                    "flags": {},
+                }
+            ]
+        ),
+        encoding="utf-8",
+    )
+
     output_path = tmp_path / "risk_report.html"
     written = build_risk_html_report(
         positions_csv_path=positions_csv,
         returns_path=returns_json,
         output_path=output_path,
         proxy_path=proxy_json,
+        regime_path=regime_json,
     )
 
     assert written == output_path
@@ -61,6 +85,8 @@ def test_build_risk_html_report_renders_summary_and_tables(tmp_path: Path) -> No
     assert "Portfolio Risk Report" in rendered
     assert "Historical portfolio vol" in rendered
     assert "Allocation Summary" in rendered
+    assert "Regime Snapshot" in rendered
+    assert "Goldilocks Expansion" in rendered
     assert "SPY" in rendered
     assert "ZN" in rendered
 

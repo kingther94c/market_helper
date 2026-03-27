@@ -111,12 +111,14 @@ def generate_risk_html_report(
     returns_path: str | Path,
     output_path: str | Path,
     proxy_path: str | Path | None = None,
+    regime_path: str | Path | None = None,
 ) -> Path:
     return build_risk_html_report(
         positions_csv_path=positions_csv_path,
         returns_path=returns_path,
         output_path=output_path,
         proxy_path=proxy_path,
+        regime_path=regime_path,
     )
 
 def _load_positions(path: str | Path) -> list[PositionSnapshot]:
