@@ -44,6 +44,14 @@ Build a broker-agnostic, read-only IBKR integration layer for market monitoring 
 - Report CSV now includes instrument metadata columns such as `con_id`, `symbol`, `local_symbol`, `exchange`, and `currency`.
 - Mock e2e coverage added for the live TWS report path, including futures-shaped rows such as `ZFM6` and `ZNM6` and fixture-based CSV format assertions.
 - Added a first-pass HTML risk report workflow that computes per-position historical vol (1M/3M geomean), asset-class proxy estimate vol (VIX/MOVE/GVZ/OVX), historical and estimated correlation matrices, portfolio-level risk, and allocation summary from the generated position CSV plus returns/proxy inputs.
+
+- Implemented deterministic regime detection v1 (`market_helper/regimes`) with explicit factor computation, rulebook hysteresis/persistence, JSON snapshot models, and service orchestration for latest/full-history outputs.
+- Added CLI commands `regime-detect` and `regime-report`, plus workflow wrapper and script updates for reproducible local runs.
+- Integrated optional regime banner + factor-score display into the HTML risk report (`--regime`), preserving backward compatibility when regime data is absent.
+- Added a separate regime policy layer (`market_helper/suggest/regime_policy.py`) mapping regime labels to risk multipliers and target asset-class tilts (suggestion only, no execution).
+- Added minimal regime evaluation scaffold (`market_helper/backtest/regime_eval.py`) for basic performance/turnover metrics on regime-conditioned targets.
+- Added unit/e2e tests for indicator transforms, rulebook hysteresis/mutual exclusivity, policy mapping, CLI dispatch, and CLI regime output schema.
+- Added example configs: `configs/regime_config.example.yml` and `configs/regime_policy.example.yml`.
 - Unit tests added and expanded across config, domain, providers, portfolio normalization, reporting, workflows, and read-only guard behavior.
 
 ## In Progress
@@ -104,3 +112,16 @@ Build a broker-agnostic, read-only IBKR integration layer for market monitoring 
 ## Notes
 - Execution/trading support remains intentionally unimplemented.
 - Plan remains incremental; unrelated repo areas were not refactored.
+
+## Known Limitations (Regime v1)
+- Inputs currently rely on local JSON artifacts; direct FRED pull-through adapters are not yet wired into the regime service.
+- Threshold defaults are practical heuristics and require calibration/validation across longer history.
+- Backtest scaffold uses simple periodic target application and does not model execution costs/slippage/futures carry.
+- Risk report regime integration is intentionally lightweight (banner + scores), without regime-conditioned covariance modeling yet.
+
+## Next Suggested PRs (Regime Track)
+1. Add explicit FRED adapter wiring + cached ingestion path for VIX-like, MOVE-like, HY OAS, and Treasury yield series.
+2. Add calibration notebook/tests for threshold sensitivity and persistence settings by market episode.
+3. Extend policy schema with DM_EQ/EM_EQ split and defensive bucket sub-allocation overlays.
+4. Expand backtest scaffold into scenario validation with walk-forward windows and robustness checks.
+5. Add report panels for regime transition history and drawdown behavior by regime segment.
