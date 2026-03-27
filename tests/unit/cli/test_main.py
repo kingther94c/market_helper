@@ -135,11 +135,12 @@ def test_cli_ibkr_live_position_report_dispatches_to_live_workflow(monkeypatch, 
 def test_cli_risk_html_report_dispatches_to_workflow(monkeypatch, tmp_path) -> None:
     captured: dict[str, object] = {}
 
-    def fake_generate_risk_html_report(*, positions_csv_path, returns_path, output_path, proxy_path):
+    def fake_generate_risk_html_report(*, positions_csv_path, returns_path, output_path, proxy_path, regime_path):
         captured["positions_csv_path"] = positions_csv_path
         captured["returns_path"] = returns_path
         captured["output_path"] = output_path
         captured["proxy_path"] = proxy_path
+        captured["regime_path"] = regime_path
         return output_path
 
     monkeypatch.setattr(
@@ -156,6 +157,8 @@ def test_cli_risk_html_report_dispatches_to_workflow(monkeypatch, tmp_path) -> N
             str(tmp_path / "returns.json"),
             "--proxy",
             str(tmp_path / "proxy.json"),
+            "--regime",
+            str(tmp_path / "regime.json"),
             "--output",
             str(tmp_path / "portfolio_risk_report.html"),
         ]
@@ -165,4 +168,52 @@ def test_cli_risk_html_report_dispatches_to_workflow(monkeypatch, tmp_path) -> N
     assert str(captured["positions_csv_path"]).endswith("live_ibkr_position_report.csv")
     assert str(captured["returns_path"]).endswith("returns.json")
     assert str(captured["proxy_path"]).endswith("proxy.json")
+    assert str(captured["regime_path"]).endswith("regime.json")
     assert str(captured["output_path"]).endswith("portfolio_risk_report.html")
+
+
+def test_cli_regime_detect_dispatches_to_workflow(monkeypatch, tmp_path) -> None:
+    captured: dict[str, object] = {}
+
+    def fake_generate_regime_snapshots(
+        *,
+        returns_path,
+        proxy_path,
+        output_path,
+        config_path,
+        latest_only,
+        indicator_output_path,
+    ):
+        captured["returns_path"] = returns_path
+        captured["proxy_path"] = proxy_path
+        captured["output_path"] = output_path
+        captured["config_path"] = config_path
+        captured["latest_only"] = latest_only
+        captured["indicator_output_path"] = indicator_output_path
+        return []
+
+    monkeypatch.setattr(
+        "market_helper.cli.main.generate_regime_snapshots",
+        fake_generate_regime_snapshots,
+    )
+
+    exit_code = main(
+        [
+            "regime-detect",
+            "--returns",
+            str(tmp_path / "returns.json"),
+            "--proxy",
+            str(tmp_path / "proxy.json"),
+            "--output",
+            str(tmp_path / "regime.json"),
+            "--indicators-output",
+            str(tmp_path / "indicators.json"),
+            "--config",
+            str(tmp_path / "regime.yml"),
+            "--latest-only",
+        ]
+    )
+
+    assert exit_code == 0
+    assert captured["latest_only"] is True
+    assert str(captured["returns_path"]).endswith("returns.json")
