@@ -21,6 +21,8 @@ from market_helper.reporting import (
     build_position_report_rows,
     build_risk_html_report,
     export_position_report_csv,
+    export_report_mapping_table_json,
+    extract_report_mapping_table,
 )
 
 
@@ -104,7 +106,6 @@ def generate_live_ibkr_position_report(
             disconnect()
 
 
-
 def generate_risk_html_report(
     *,
     positions_csv_path: str | Path,
@@ -112,6 +113,7 @@ def generate_risk_html_report(
     output_path: str | Path,
     proxy_path: str | Path | None = None,
     regime_path: str | Path | None = None,
+    mapping_table_path: str | Path | None = None,
 ) -> Path:
     return build_risk_html_report(
         positions_csv_path=positions_csv_path,
@@ -119,7 +121,18 @@ def generate_risk_html_report(
         output_path=output_path,
         proxy_path=proxy_path,
         regime_path=regime_path,
+        mapping_table_path=mapping_table_path,
     )
+
+
+def generate_report_mapping_table(
+    *,
+    workbook_path: str | Path,
+    output_path: str | Path,
+) -> Path:
+    table = extract_report_mapping_table(workbook_path)
+    return export_report_mapping_table_json(table, output_path)
+
 
 def _load_positions(path: str | Path) -> list[PositionSnapshot]:
     payload = _load_json_rows(path)

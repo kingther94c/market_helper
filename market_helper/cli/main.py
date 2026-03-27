@@ -11,6 +11,7 @@ from market_helper.workflows.generate_report import (
     generate_ibkr_position_report,
     generate_live_ibkr_position_report,
     generate_position_report,
+    generate_report_mapping_table,
     generate_risk_html_report,
 )
 
@@ -57,6 +58,11 @@ def build_parser() -> argparse.ArgumentParser:
     risk_html_report.add_argument("--output", required=True, help="Path to output HTML.")
     risk_html_report.add_argument("--proxy", required=False, help="Optional estimate vol proxy JSON.")
     risk_html_report.add_argument("--regime", required=False, help="Optional regime snapshot JSON path.")
+    risk_html_report.add_argument(
+        "--mapping-table",
+        required=False,
+        help="Optional JSON mapping table extracted from a target workbook.",
+    )
 
     regime_detect = subparsers.add_parser(
         "regime-detect",
@@ -75,6 +81,21 @@ def build_parser() -> argparse.ArgumentParser:
     )
     regime_report.add_argument("--regime", required=True, help="Path to regime snapshots JSON.")
     regime_report.add_argument("--policy", required=False, help="Optional policy YAML overrides.")
+
+    mapping_table_report = subparsers.add_parser(
+        "extract-report-mapping",
+        help="Extract stable mapping fields from a target workbook into a JSON mapping table.",
+    )
+    mapping_table_report.add_argument(
+        "--workbook",
+        required=True,
+        help="Path to the source workbook, e.g. outputs/reports/target_report.xlsx.",
+    )
+    mapping_table_report.add_argument(
+        "--output",
+        required=True,
+        help="Path to output mapping-table JSON.",
+    )
 
     return parser
 
@@ -112,6 +133,13 @@ def main(argv: Sequence[str] | None = None) -> int:
             output_path=Path(args.output),
             proxy_path=Path(args.proxy) if args.proxy else None,
             regime_path=Path(args.regime) if args.regime else None,
+            mapping_table_path=Path(args.mapping_table) if args.mapping_table else None,
+        )
+        return 0
+    if args.command == "extract-report-mapping":
+        generate_report_mapping_table(
+            workbook_path=Path(args.workbook),
+            output_path=Path(args.output),
         )
         return 0
     if args.command == "regime-detect":
