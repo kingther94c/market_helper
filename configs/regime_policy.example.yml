@@ -1,0 +1,10 @@
+policy:
+  Goldilocks Expansion:
+    vol_multiplier: 1.05
+    asset_class_targets:
+      EQ: 0.80
+      FI: 0.12
+      GOLD: 0.03
+      CM: 0.03
+      CASH: 0.02
+    notes: "Mild risk-on while preserving defensive bucket structure."

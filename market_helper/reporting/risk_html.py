@@ -7,7 +7,9 @@ import math
 from dataclasses import dataclass
 from pathlib import Path
 from statistics import stdev
-from typing import Mapping
+from typing import Any, Mapping
+
+from market_helper.regimes.taxonomy import REGIME_INTERPRETATIONS
 
 TRADING_DAYS = 252
 HIST_1M_DAYS = 21
@@ -44,16 +46,25 @@ class PortfolioRiskSummary:
     estimated_vol: float
 
 
+@dataclass(frozen=True)
+class RegimeReportSummary:
+    as_of: str
+    regime: str
+    scores: dict[str, float]
+
+
 def build_risk_html_report(
     *,
     positions_csv_path: str | Path,
     returns_path: str | Path,
     output_path: str | Path,
     proxy_path: str | Path | None = None,
+    regime_path: str | Path | None = None,
 ) -> Path:
     rows = load_position_rows(positions_csv_path)
     returns = _load_returns(returns_path)
     proxy = _load_proxy(proxy_path)
+    regime_summary = _load_regime_summary(regime_path)
 
     historical_vols = {
         row.internal_id: historical_geomean_vol(returns.get(row.internal_id, [])) for row in rows
@@ -89,7 +100,12 @@ def build_risk_html_report(
         estimated_vol=portfolio_est_vol,
     )
 
-    rendered = render_html(risk_rows=risk_rows, summary=summary, allocation_summary=allocation_summary)
+    rendered = render_html(
+        risk_rows=risk_rows,
+        summary=summary,
+        allocation_summary=allocation_summary,
+        regime_summary=regime_summary,
+    )
 
     output = Path(output_path)
     output.parent.mkdir(parents=True, exist_ok=True)
@@ -249,6 +265,7 @@ def render_html(
     risk_rows: list[RiskMetricsRow],
     summary: PortfolioRiskSummary,
     allocation_summary: list[tuple[str, float, float]],
+    regime_summary: RegimeReportSummary | None,
 ) -> str:
     position_rows = "\n".join(
         "<tr>"
@@ -275,6 +292,24 @@ def render_html(
         for asset_class, market_value, weight in allocation_summary
     )
 
+    regime_block = ""
+    if regime_summary is not None:
+        banner = REGIME_INTERPRETATIONS.get(regime_summary.regime, "Regime-aware view active.")
+        score_list = " ".join(
+            f"<span><strong>{html.escape(name)}</strong>: {value:.2f}</span>"
+            for name, value in sorted(regime_summary.scores.items())
+            if name in {"VOL", "CREDIT", "RATES", "GROWTH", "TREND", "STRESS"}
+        )
+        regime_block = (
+            "<div class='card'>"
+            "<h2>Regime Snapshot</h2>"
+            f"<p><strong>{html.escape(regime_summary.regime)}</strong> as of {html.escape(regime_summary.as_of)}</p>"
+            f"<p>{html.escape(banner)}</p>"
+            f"<div class='scores'>{score_list}</div>"
+            "<p><em>Risk interpretation note: historical/estimated metrics above should be read in the context of this active regime.</em></p>"
+            "</div>"
+        )
+
     return f"""<!doctype html>
 <html lang='en'>
 <head>
@@ -292,10 +327,13 @@ def render_html(
     .metric {{ background: #f1f5f9; padding: 10px 12px; border-radius: 8px; min-width: 220px; }}
     .metric span {{ display: block; color: #475569; font-size: 12px; }}
     .metric strong {{ font-size: 20px; }}
+    .scores {{ display: flex; gap: 12px; flex-wrap: wrap; color: #334155; }}
   </style>
 </head>
 <body>
   <h1>Portfolio Risk Report</h1>
+
+  {regime_block}
 
   <div class='card'>
     <h2>Portfolio Summary</h2>
@@ -345,4 +383,21 @@ def _load_proxy(path: str | Path | None) -> dict[str, float]:
     loaded = json.loads(Path(path).read_text(encoding="utf-8"))
     if not isinstance(loaded, dict):
         raise ValueError("Expected proxy JSON object, e.g. {'VIX': 19.2}")
-    return {str(k).upper(): float(v) for k, v in loaded.items()}
+    return {str(k).upper(): float(v) for k, v in loaded.items() if isinstance(v, (int, float, str))}
+
+
+def _load_regime_summary(path: str | Path | None) -> RegimeReportSummary | None:
+    if path is None:
+        return None
+    loaded: Any = json.loads(Path(path).read_text(encoding="utf-8"))
+    if not isinstance(loaded, list) or not loaded:
+        return None
+    row = loaded[-1]
+    if not isinstance(row, dict):
+        return None
+    scores = row.get("scores") if isinstance(row.get("scores"), dict) else {}
+    return RegimeReportSummary(
+        as_of=str(row.get("as_of") or ""),
+        regime=str(row.get("regime") or "Unknown"),
+        scores={str(k): float(v) for k, v in scores.items()},
+    )

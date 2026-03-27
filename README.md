@@ -124,6 +124,7 @@ conda run -n py313 python -m market_helper.cli.main risk-html-report \
 
 - `--returns` expects JSON: `{"INTERNAL_ID": [daily_return_1, ...]}`
 - `--proxy` is optional JSON for estimate-vol inputs (e.g. `VIX`, `MOVE`, `GVZ`, `OVX`).
+- `--regime` is optional regime snapshot JSON (from `regime-detect`) to add a top-of-report regime banner and factor scores.
 
 Script wrapper:
 
@@ -139,3 +140,55 @@ If `--output` is omitted, the script writes to:
 - `outputs/reports/ibkr_position_report.csv`
 - `outputs/reports/live_ibkr_position_report.csv`
 - `outputs/reports/portfolio_risk_report.html`
+
+## Deterministic regime detection (v1)
+
+The repo now includes a rule-based, deterministic regime layer under `market_helper/regimes/`. It computes factor scores (`VOL`, `CREDIT`, `RATES`, `GROWTH`, `TREND`) from proxy + returns inputs, then resolves exactly one active regime label per date with explicit crisis hysteresis and persistence rules.
+
+Supported v1 regime labels:
+- `Deflationary Crisis`
+- `Inflationary Crisis`
+- `Recovery / Pivot`
+- `Goldilocks Expansion`
+- `Reflation / Tightening-with-growth`
+- `Deflationary Slowdown`
+- `Stagflation / Supply Shock`
+
+Run full detection:
+
+```bash
+conda run -n py313 python -m market_helper.cli.main regime-detect \
+  --returns data/processed/regime_returns.json \
+  --proxy data/processed/regime_proxies.json \
+  --output data/processed/regime_snapshots.json \
+  --indicators-output data/processed/indicator_snapshots.json
+```
+
+Latest-only snapshot:
+
+```bash
+conda run -n py313 python -m market_helper.cli.main regime-detect \
+  --returns data/processed/regime_returns.json \
+  --proxy data/processed/regime_proxies.json \
+  --output data/processed/regime_snapshots.json \
+  --latest-only
+```
+
+Human-readable summary + policy suggestion:
+
+```bash
+conda run -n py313 python -m market_helper.cli.main regime-report \
+  --regime data/processed/regime_snapshots.json \
+  --policy configs/regime_policy.example.yml
+```
+
+Input expectations:
+- Proxy JSON keys: `VIX`, `MOVE`, `HY_OAS`, `UST2Y`, `UST10Y`
+- Returns JSON keys: `EQ`, `FI`
+- Each series can be `{date: value}` or a list form with `{as_of/date, value}` entries.
+
+Outputs:
+- `regime_snapshots.json` contains `RegimeSnapshot` rows with scores, flags, and diagnostics.
+- `indicator_snapshots.json` contains factor snapshot history for validation and future backtests.
+
+Policy layer (`market_helper/suggest/regime_policy.py`) maps regime -> `vol_multiplier` and asset-class target buckets (`EQ`, `FI`, `GOLD`, `CM`, `CASH`) for read/analyze/report suggestions only (no execution).
