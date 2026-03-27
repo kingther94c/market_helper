@@ -43,11 +43,23 @@ Build a broker-agnostic, read-only IBKR integration layer for market monitoring 
 - Script-level live-account defaults moved to local gitignored config, with explicit `--account` override support.
 - Report CSV now includes instrument metadata columns such as `con_id`, `symbol`, `local_symbol`, `exchange`, and `currency`.
 - Mock e2e coverage added for the live TWS report path, including futures-shaped rows such as `ZFM6` and `ZNM6` and fixture-based CSV format assertions.
+- Added a first-pass HTML risk report workflow that computes per-position historical vol (1M/3M geomean), asset-class proxy estimate vol (VIX/MOVE/GVZ/OVX), historical and estimated correlation matrices, portfolio-level risk, and allocation summary from the generated position CSV plus returns/proxy inputs.
+- Added duration support in risk HTML reporting via optional `duration_map` overrides (by `internal_id` or `symbol`) plus a temporary fixed-income fallback duration for missing mappings.
+- Added optional CTD/conversion-factor based dynamic futures DV01 inputs (`futures_dv01_map`) and surfaced DV01 rollups in HTML output, plus strict-mode validation when CTD/CF inputs are missing.
 - Unit tests added and expanded across config, domain, providers, portfolio normalization, reporting, workflows, and read-only guard behavior.
 
 ## In Progress
 - Tightening the live TWS / `ib_async` report path with better account metadata, richer report fields, stronger session ergonomics, and eventual broader provider coverage.
 - Designing a persistent instrument-master and multi-source symbology mapping layer that can support IBKR, Yahoo Finance, Google Finance, Bloomberg, and manual overrides without leaking provider-specific IDs into downstream business logic.
+- Hardening the new risk HTML workflow with richer asset-class bucketing, better derivatives treatment, live market proxy ingestion, and direct CTD/CF sourced DV01 inputs for rates futures.
+
+
+## Plan Review (2026-03-27)
+- Current plan is directionally correct but too wide for the next delivery window; the immediate bottleneck is not another provider adapter, but data quality and reproducibility for risk inputs (returns, regime proxies, CTD/CF maps).
+- The HTML risk workflow should remain a thin rendering layer; risk math and data ingestion need to be moved into separate reusable services before workbook-format expansion.
+- `strict_futures_dv01` should become default-on in production profiles after we finalize CTD/CF sourcing playbooks and coverage thresholds.
+- We should gate report publication on data completeness checks (missing mappings, stale proxy timestamps, short return histories) instead of only unit-test success.
+- Recommended short-horizon focus order: (1) persistent instrument + mapping store, (2) automated proxy/returns ingestion, (3) CTD/CF ingestion + validation, (4) covariance-consistent risk attribution, (5) workbook formatting layer.
 
 ## Next Steps
 1. Add a persistent instrument master store for `security_reference` and `security_mapping` so mappings survive across runs.
@@ -57,10 +69,12 @@ Build a broker-agnostic, read-only IBKR integration layer for market monitoring 
 5. Add local manual-override files for account-specific or still-unverified mappings that should not be committed.
 6. Add a resolver service that applies mappings in a strict order: strong provider IDs first, then manual overrides, then deterministic rules, then low-confidence heuristics.
 7. Add clearer connection diagnostics and account-selection ergonomics for live TWS / IB Gateway runs.
-8. Close the gap from the current flat CSV report to the two-sheet target workbook format in `outputs/reports/target_report.xlsx`.
-9. Add HTML report rendering once CSV output is stable.
-10. Add fixture sets from real IBKR payloads to harden compatibility.
-11. Optionally add a broader Client Portal Web API wrapper layer if we need more endpoints beyond position reporting.
+8. Replace heuristic asset-class inference in risk reporting with mapping-driven classification (especially for futures/options).
+9. Add data-library loaders for benchmark proxies (VIX/MOVE/GVZ/OVX) and historical return time series so risk metrics are sourced automatically.
+10. Extend risk decomposition from simple weight*vol contributions to covariance-consistent marginal/component risk attribution.
+11. Close the gap from the current flat CSV + HTML report to the two-sheet target workbook format in `outputs/reports/target_report.xlsx`.
+12. Add fixture sets from real IBKR payloads to harden compatibility.
+13. Optionally add a broader Client Portal Web API wrapper layer if we need more endpoints beyond position reporting.
 
 ## Instrument Mapping Plan
 - Keep `internal_id` as a system-owned canonical key; do not let Yahoo, Bloomberg, Google, or IBKR identifiers become the system primary key.

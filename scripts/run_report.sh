@@ -20,11 +20,13 @@ Usage:
   ./scripts/run_report.sh snapshot --positions PATH --prices PATH [--output PATH]
   ./scripts/run_report.sh ibkr-json --ibkr-positions PATH --ibkr-prices PATH [--output PATH] [--as-of ISO8601]
   ./scripts/run_report.sh ibkr-live [--output PATH] [--account ACCOUNT_ID] [--host HOST] [--port PORT] [--client-id ID] [--timeout SECONDS] [--as-of ISO8601]
+  ./scripts/run_report.sh risk-html --positions-csv PATH --returns PATH [--proxy PATH] [--duration-map PATH] [--futures-dv01-map PATH] [--strict-futures-dv01] [--output PATH]
 
 Modes:
   snapshot    Generate a report from normalized position/price snapshots.
   ibkr-json   Generate a report from raw IBKR positions/prices payloads.
   ibkr-live   Generate a report from a live local TWS / IB Gateway session via ib_async.
+  risk-html   Generate an HTML risk report from a position CSV plus return/proxy inputs.
 
 Environment:
   ENV_NAME    Conda environment name to use. Defaults to: py313
@@ -83,6 +85,10 @@ case "${MODE}" in
         CLI_COMMAND="ibkr-live-position-report"
         DEFAULT_OUTPUT="${ROOT_DIR}/outputs/reports/live_ibkr_position_report.csv"
         ;;
+    risk-html)
+        CLI_COMMAND="risk-html-report"
+        DEFAULT_OUTPUT="${ROOT_DIR}/outputs/reports/portfolio_risk_report.html"
+        ;;
     *)
         fail "Unknown mode: ${MODE}"
         ;;
@@ -99,6 +105,12 @@ PORT="7497"
 CLIENT_ID="1"
 TIMEOUT="4.0"
 AS_OF=""
+POSITIONS_CSV_PATH=""
+RETURNS_PATH=""
+PROXY_PATH=""
+DURATION_MAP_PATH=""
+FUTURES_DV01_MAP_PATH=""
+STRICT_FUTURES_DV01="0"
 
 while [[ $# -gt 0 ]]; do
     case "$1" in
@@ -151,6 +163,35 @@ while [[ $# -gt 0 ]]; do
             require_value "$1" "${2:-}"
             AS_OF="$2"
             shift 2
+            ;;
+        --positions-csv)
+            require_value "$1" "${2:-}"
+            POSITIONS_CSV_PATH="$2"
+            shift 2
+            ;;
+        --returns)
+            require_value "$1" "${2:-}"
+            RETURNS_PATH="$2"
+            shift 2
+            ;;
+        --proxy)
+            require_value "$1" "${2:-}"
+            PROXY_PATH="$2"
+            shift 2
+            ;;
+        --duration-map)
+            require_value "$1" "${2:-}"
+            DURATION_MAP_PATH="$2"
+            shift 2
+            ;;
+        --futures-dv01-map)
+            require_value "$1" "${2:-}"
+            FUTURES_DV01_MAP_PATH="$2"
+            shift 2
+            ;;
+        --strict-futures-dv01)
+            STRICT_FUTURES_DV01="1"
+            shift 1
             ;;
         --timeout)
             require_value "$1" "${2:-}"
@@ -210,6 +251,17 @@ case "${MODE}" in
         fi
         COMMAND+=(--host "${HOST}" --port "${PORT}" --client-id "${CLIENT_ID}" --timeout "${TIMEOUT}")
         [[ -n "${ACCOUNT_ID}" ]] && COMMAND+=(--account "${ACCOUNT_ID}")
+        ;;
+    risk-html)
+        [[ -n "${POSITIONS_CSV_PATH}" ]] || fail "risk-html mode requires --positions-csv"
+        [[ -n "${RETURNS_PATH}" ]] || fail "risk-html mode requires --returns"
+        require_file "positions csv" "${POSITIONS_CSV_PATH}"
+        require_file "returns" "${RETURNS_PATH}"
+        COMMAND+=(--positions-csv "${POSITIONS_CSV_PATH}" --returns "${RETURNS_PATH}")
+        [[ -n "${PROXY_PATH}" ]] && { require_file "proxy" "${PROXY_PATH}"; COMMAND+=(--proxy "${PROXY_PATH}"); }
+        [[ -n "${DURATION_MAP_PATH}" ]] && { require_file "duration map" "${DURATION_MAP_PATH}"; COMMAND+=(--duration-map "${DURATION_MAP_PATH}"); }
+        [[ -n "${FUTURES_DV01_MAP_PATH}" ]] && { require_file "futures dv01 map" "${FUTURES_DV01_MAP_PATH}"; COMMAND+=(--futures-dv01-map "${FUTURES_DV01_MAP_PATH}"); }
+        [[ "${STRICT_FUTURES_DV01}" == "1" ]] && COMMAND+=(--strict-futures-dv01)
         ;;
 esac
 

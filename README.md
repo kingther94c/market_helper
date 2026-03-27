@@ -111,7 +111,47 @@ Example:
 ACCOUNT_ENV=dev ./scripts/run_report.sh ibkr-live --client-id 7
 ```
 
+
+Generate an HTML risk report (historical vol + estimate vol + correlation-based portfolio risk):
+
+```bash
+conda run -n py313 python -m market_helper.cli.main risk-html-report \
+  --positions-csv outputs/reports/live_ibkr_position_report.csv \
+  --returns data/processed/returns.json \
+  --proxy data/processed/risk_proxy.json \
+  --duration-map data/processed/duration_map.json \
+  --futures-dv01-map data/processed/futures_dv01_map.json \
+  --strict-futures-dv01 \
+  --output outputs/reports/portfolio_risk_report.html
+```
+
+- `--returns` expects JSON: `{"INTERNAL_ID": [daily_return_1, ...]}`
+- `--proxy` is optional JSON for estimate-vol inputs (e.g. `VIX`, `MOVE`, `GVZ`, `OVX`).
+- `--duration-map` is optional JSON for duration overrides (key by `internal_id` or `symbol`), e.g. `{"IBKR:497222760": 6.8, "IEF": 7.1}`.
+- `--futures-dv01-map` is optional JSON for CTD/conversion-factor based dynamic DV01. Example:
+  `{"tenor_dv01_per_1mm": 85.0, "rows": {"IBKR:497222760": {"conversion_factor": 0.79, "ctd_duration": 7.4, "contract_multiplier": 1000}}}`
+- `--strict-futures-dv01` will fail the report if rates-futures rows miss CTD/CF specs.
+- CTD/CF 数据来源建议：
+  1) `contract_multiplier` 从 IBKR/TWS contract details 拿；
+  2) `conversion_factor` 与 CTD 对应久期从交易所公告或 Bloomberg CTD 页拿；
+  3) 汇总后落到 `futures_dv01_map` 供报表读取。
+- 如果未提供 `--duration-map`，当前实现会对 `FI` 资产先用保守默认值 `7.0`，其他资产为 `0.0`。
+- 如果未提供 `--futures-dv01-map`，futures DV01 默认为 `0`，并等待映射补全。
+
+Script wrapper:
+
+```bash
+./scripts/run_report.sh risk-html \
+  --positions-csv outputs/reports/live_ibkr_position_report.csv \
+  --returns data/processed/returns.json \
+  --proxy data/processed/risk_proxy.json \
+  --duration-map data/processed/duration_map.json \
+  --futures-dv01-map data/processed/futures_dv01_map.json \
+  --strict-futures-dv01
+```
+
 If `--output` is omitted, the script writes to:
 - `outputs/reports/position_report.csv`
 - `outputs/reports/ibkr_position_report.csv`
 - `outputs/reports/live_ibkr_position_report.csv`
+- `outputs/reports/portfolio_risk_report.html`

@@ -130,3 +130,59 @@ def test_cli_ibkr_live_position_report_dispatches_to_live_workflow(monkeypatch, 
     assert captured["account_id"] == "U12345"
     assert captured["timeout"] == 9.5
     assert captured["as_of"] == "2026-03-26T00:00:00+00:00"
+
+
+def test_cli_risk_html_report_dispatches_to_workflow(monkeypatch, tmp_path) -> None:
+    captured: dict[str, object] = {}
+
+    def fake_generate_risk_html_report(
+        *,
+        positions_csv_path,
+        returns_path,
+        output_path,
+        proxy_path,
+        duration_path,
+        futures_dv01_path,
+        strict_futures_dv01,
+    ):
+        captured["positions_csv_path"] = positions_csv_path
+        captured["returns_path"] = returns_path
+        captured["output_path"] = output_path
+        captured["proxy_path"] = proxy_path
+        captured["duration_path"] = duration_path
+        captured["futures_dv01_path"] = futures_dv01_path
+        captured["strict_futures_dv01"] = strict_futures_dv01
+        return output_path
+
+    monkeypatch.setattr(
+        "market_helper.cli.main.generate_risk_html_report",
+        fake_generate_risk_html_report,
+    )
+
+    exit_code = main(
+        [
+            "risk-html-report",
+            "--positions-csv",
+            str(tmp_path / "live_ibkr_position_report.csv"),
+            "--returns",
+            str(tmp_path / "returns.json"),
+            "--proxy",
+            str(tmp_path / "proxy.json"),
+            "--duration-map",
+            str(tmp_path / "duration_map.json"),
+            "--futures-dv01-map",
+            str(tmp_path / "futures_dv01_map.json"),
+            "--strict-futures-dv01",
+            "--output",
+            str(tmp_path / "portfolio_risk_report.html"),
+        ]
+    )
+
+    assert exit_code == 0
+    assert str(captured["positions_csv_path"]).endswith("live_ibkr_position_report.csv")
+    assert str(captured["returns_path"]).endswith("returns.json")
+    assert str(captured["proxy_path"]).endswith("proxy.json")
+    assert str(captured["duration_path"]).endswith("duration_map.json")
+    assert str(captured["futures_dv01_path"]).endswith("futures_dv01_map.json")
+    assert captured["strict_futures_dv01"] is True
+    assert str(captured["output_path"]).endswith("portfolio_risk_report.html")
