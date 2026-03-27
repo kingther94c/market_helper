@@ -20,13 +20,15 @@ Usage:
   ./scripts/run_report.sh snapshot --positions PATH --prices PATH [--output PATH]
   ./scripts/run_report.sh ibkr-json --ibkr-positions PATH --ibkr-prices PATH [--output PATH] [--as-of ISO8601]
   ./scripts/run_report.sh ibkr-live [--output PATH] [--account ACCOUNT_ID] [--host HOST] [--port PORT] [--client-id ID] [--timeout SECONDS] [--as-of ISO8601]
-  ./scripts/run_report.sh risk-html --positions-csv PATH --returns PATH [--proxy PATH] [--output PATH]
+  ./scripts/run_report.sh risk-html --positions-csv PATH --returns PATH [--proxy PATH] [--regime PATH] [--mapping-table PATH] [--output PATH]
+  ./scripts/run_report.sh mapping-table --workbook PATH [--output PATH]
 
 Modes:
   snapshot    Generate a report from normalized position/price snapshots.
   ibkr-json   Generate a report from raw IBKR positions/prices payloads.
   ibkr-live   Generate a report from a live local TWS / IB Gateway session via ib_async.
   risk-html   Generate an HTML risk report from a position CSV plus return/proxy inputs.
+  mapping-table Extract a JSON mapping table from a target workbook.
 
 Environment:
   ENV_NAME    Conda environment name to use. Defaults to: py313
@@ -89,6 +91,10 @@ case "${MODE}" in
         CLI_COMMAND="risk-html-report"
         DEFAULT_OUTPUT="${ROOT_DIR}/outputs/reports/portfolio_risk_report.html"
         ;;
+    mapping-table)
+        CLI_COMMAND="extract-report-mapping"
+        DEFAULT_OUTPUT="${ROOT_DIR}/outputs/reports/target_report_mapping.json"
+        ;;
     *)
         fail "Unknown mode: ${MODE}"
         ;;
@@ -108,6 +114,9 @@ AS_OF=""
 POSITIONS_CSV_PATH=""
 RETURNS_PATH=""
 PROXY_PATH=""
+REGIME_PATH=""
+MAPPING_TABLE_PATH=""
+WORKBOOK_PATH=""
 
 while [[ $# -gt 0 ]]; do
     case "$1" in
@@ -176,6 +185,21 @@ while [[ $# -gt 0 ]]; do
             PROXY_PATH="$2"
             shift 2
             ;;
+        --regime)
+            require_value "$1" "${2:-}"
+            REGIME_PATH="$2"
+            shift 2
+            ;;
+        --mapping-table)
+            require_value "$1" "${2:-}"
+            MAPPING_TABLE_PATH="$2"
+            shift 2
+            ;;
+        --workbook)
+            require_value "$1" "${2:-}"
+            WORKBOOK_PATH="$2"
+            shift 2
+            ;;
         --timeout)
             require_value "$1" "${2:-}"
             TIMEOUT="$2"
@@ -242,6 +266,13 @@ case "${MODE}" in
         require_file "returns" "${RETURNS_PATH}"
         COMMAND+=(--positions-csv "${POSITIONS_CSV_PATH}" --returns "${RETURNS_PATH}")
         [[ -n "${PROXY_PATH}" ]] && { require_file "proxy" "${PROXY_PATH}"; COMMAND+=(--proxy "${PROXY_PATH}"); }
+        [[ -n "${REGIME_PATH}" ]] && { require_file "regime" "${REGIME_PATH}"; COMMAND+=(--regime "${REGIME_PATH}"); }
+        [[ -n "${MAPPING_TABLE_PATH}" ]] && { require_file "mapping table" "${MAPPING_TABLE_PATH}"; COMMAND+=(--mapping-table "${MAPPING_TABLE_PATH}"); }
+        ;;
+    mapping-table)
+        [[ -n "${WORKBOOK_PATH}" ]] || fail "mapping-table mode requires --workbook"
+        require_file "workbook" "${WORKBOOK_PATH}"
+        COMMAND+=(--workbook "${WORKBOOK_PATH}")
         ;;
 esac
 

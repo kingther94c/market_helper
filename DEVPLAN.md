@@ -44,7 +44,6 @@ Build a broker-agnostic, read-only IBKR integration layer for market monitoring 
 - Report CSV now includes instrument metadata columns such as `con_id`, `symbol`, `local_symbol`, `exchange`, and `currency`.
 - Mock e2e coverage added for the live TWS report path, including futures-shaped rows such as `ZFM6` and `ZNM6` and fixture-based CSV format assertions.
 - Added a first-pass HTML risk report workflow that computes per-position historical vol (1M/3M geomean), asset-class proxy estimate vol (VIX/MOVE/GVZ/OVX), historical and estimated correlation matrices, portfolio-level risk, and allocation summary from the generated position CSV plus returns/proxy inputs.
-
 - Implemented deterministic regime detection v1 (`market_helper/regimes`) with explicit factor computation, rulebook hysteresis/persistence, JSON snapshot models, and service orchestration for latest/full-history outputs.
 - Added CLI commands `regime-detect` and `regime-report`, plus workflow wrapper and script updates for reproducible local runs.
 - Integrated optional regime banner + factor-score display into the HTML risk report (`--regime`), preserving backward compatibility when regime data is absent.
@@ -52,12 +51,14 @@ Build a broker-agnostic, read-only IBKR integration layer for market monitoring 
 - Added minimal regime evaluation scaffold (`market_helper/backtest/regime_eval.py`) for basic performance/turnover metrics on regime-conditioned targets.
 - Added unit/e2e tests for indicator transforms, rulebook hysteresis/mutual exclusivity, policy mapping, CLI dispatch, and CLI regime output schema.
 - Added example configs: `configs/regime_config.example.yml` and `configs/regime_policy.example.yml`.
+- Added a workbook-to-JSON mapping-table extraction path so stable portfolio metadata can be seeded from `target_report.xlsx` without making the HTML report depend directly on the workbook at runtime.
 - Unit tests added and expanded across config, domain, providers, portfolio normalization, reporting, workflows, and read-only guard behavior.
 
 ## In Progress
 - Tightening the live TWS / `ib_async` report path with better account metadata, richer report fields, stronger session ergonomics, and eventual broader provider coverage.
 - Designing a persistent instrument-master and multi-source symbology mapping layer that can support IBKR, Yahoo Finance, Google Finance, Bloomberg, and manual overrides without leaking provider-specific IDs into downstream business logic.
 - Hardening the new risk HTML workflow with richer asset-class bucketing, better derivatives treatment, and live market proxy ingestion.
+- Wiring the new JSON mapping table into the HTML risk report so category/name/type/duration/expected-vol assumptions come from stored mappings while prices/FX/proxies continue to migrate toward live sources.
 
 ## Next Steps
 1. Add a persistent instrument master store for `security_reference` and `security_mapping` so mappings survive across runs.
@@ -70,9 +71,10 @@ Build a broker-agnostic, read-only IBKR integration layer for market monitoring 
 8. Replace heuristic asset-class inference in risk reporting with mapping-driven classification (especially for futures/options).
 9. Add data-library loaders for benchmark proxies (VIX/MOVE/GVZ/OVX) and historical return time series so risk metrics are sourced automatically.
 10. Extend risk decomposition from simple weight*vol contributions to covariance-consistent marginal/component risk attribution.
-11. Close the gap from the current flat CSV + HTML report to the two-sheet target workbook format in `outputs/reports/target_report.xlsx`.
-12. Add fixture sets from real IBKR payloads to harden compatibility.
-13. Optionally add a broader Client Portal Web API wrapper layer if we need more endpoints beyond position reporting.
+11. Move live price/FX/proxy sourcing behind explicit provider adapters (IBKR/Yahoo/Google/manual) instead of relying on workbook-seeded hints.
+12. Keep evolving the HTML report toward the target portfolio view without coupling runtime rendering to `outputs/reports/target_report.xlsx`.
+13. Add fixture sets from real IBKR payloads to harden compatibility.
+14. Optionally add a broader Client Portal Web API wrapper layer if we need more endpoints beyond position reporting.
 
 ## Instrument Mapping Plan
 - Keep `internal_id` as a system-owned canonical key; do not let Yahoo, Bloomberg, Google, or IBKR identifiers become the system primary key.
@@ -84,6 +86,7 @@ Build a broker-agnostic, read-only IBKR integration layer for market monitoring 
 
 ## Target Report Gap
 - Current output is a single flat CSV with 16 columns, while `outputs/reports/target_report.xlsx` is a structured workbook with at least two sheets: `Position` and `Risk`.
+- We should treat the workbook as a source for seed mappings and reporting assumptions, not as a runtime dependency for the HTML report.
 - The `Position` sheet includes presentation-oriented portfolio sections and summaries that we do not compute yet, including AUM blocks, bucket totals such as `EQ`, `FI`, `GOLD`, `CM`, `CASH`, and allocation views such as `Dollar Allocation`.
 - The `Position` sheet expects richer analytics columns than the current CSV, including display `Ticker`, display `Name`, `Multiplier`, `Exposure(USD)`, normalized instrument `Type`, duration-based fixed-income exposure fields, `FX`, `Expected Vol`, and `Vol Contribution`.
 - The current report has raw `market_value`, `cost_basis`, and `weight`, but it does not yet compute target-style risk decomposition, cross-asset bucket rollups, or derivative-equivalent exposure transformations for futures and options.

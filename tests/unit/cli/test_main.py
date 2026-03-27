@@ -135,12 +135,21 @@ def test_cli_ibkr_live_position_report_dispatches_to_live_workflow(monkeypatch, 
 def test_cli_risk_html_report_dispatches_to_workflow(monkeypatch, tmp_path) -> None:
     captured: dict[str, object] = {}
 
-    def fake_generate_risk_html_report(*, positions_csv_path, returns_path, output_path, proxy_path, regime_path):
+    def fake_generate_risk_html_report(
+        *,
+        positions_csv_path,
+        returns_path,
+        output_path,
+        proxy_path,
+        regime_path,
+        mapping_table_path,
+    ):
         captured["positions_csv_path"] = positions_csv_path
         captured["returns_path"] = returns_path
         captured["output_path"] = output_path
         captured["proxy_path"] = proxy_path
         captured["regime_path"] = regime_path
+        captured["mapping_table_path"] = mapping_table_path
         return output_path
 
     monkeypatch.setattr(
@@ -159,6 +168,8 @@ def test_cli_risk_html_report_dispatches_to_workflow(monkeypatch, tmp_path) -> N
             str(tmp_path / "proxy.json"),
             "--regime",
             str(tmp_path / "regime.json"),
+            "--mapping-table",
+            str(tmp_path / "target_report_mapping.json"),
             "--output",
             str(tmp_path / "portfolio_risk_report.html"),
         ]
@@ -169,6 +180,7 @@ def test_cli_risk_html_report_dispatches_to_workflow(monkeypatch, tmp_path) -> N
     assert str(captured["returns_path"]).endswith("returns.json")
     assert str(captured["proxy_path"]).endswith("proxy.json")
     assert str(captured["regime_path"]).endswith("regime.json")
+    assert str(captured["mapping_table_path"]).endswith("target_report_mapping.json")
     assert str(captured["output_path"]).endswith("portfolio_risk_report.html")
 
 
@@ -217,3 +229,31 @@ def test_cli_regime_detect_dispatches_to_workflow(monkeypatch, tmp_path) -> None
     assert exit_code == 0
     assert captured["latest_only"] is True
     assert str(captured["returns_path"]).endswith("returns.json")
+
+
+def test_cli_extract_report_mapping_dispatches_to_workflow(monkeypatch, tmp_path) -> None:
+    captured: dict[str, object] = {}
+
+    def fake_generate_report_mapping_table(*, workbook_path, output_path):
+        captured["workbook_path"] = workbook_path
+        captured["output_path"] = output_path
+        return output_path
+
+    monkeypatch.setattr(
+        "market_helper.cli.main.generate_report_mapping_table",
+        fake_generate_report_mapping_table,
+    )
+
+    exit_code = main(
+        [
+            "extract-report-mapping",
+            "--workbook",
+            str(tmp_path / "target_report.xlsx"),
+            "--output",
+            str(tmp_path / "target_report_mapping.json"),
+        ]
+    )
+
+    assert exit_code == 0
+    assert str(captured["workbook_path"]).endswith("target_report.xlsx")
+    assert str(captured["output_path"]).endswith("target_report_mapping.json")
