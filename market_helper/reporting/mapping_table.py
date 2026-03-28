@@ -1,13 +1,18 @@
 from __future__ import annotations
 
-import json
 import re
 import xml.etree.ElementTree as ET
-from dataclasses import asdict, dataclass
+from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Optional
 from zipfile import ZipFile
+
+from market_helper.portfolio.security_reference import (
+    SecurityReference,
+    SecurityReferenceTable,
+    export_security_reference_csv,
+    normalize_contract_root,
+)
 
 
 WORKBOOK_NS = {
@@ -16,56 +21,14 @@ WORKBOOK_NS = {
     "pr": "http://schemas.openxmlformats.org/package/2006/relationships",
 }
 FUTURES_VENUES = {"CBOT", "CME", "COMEX", "ICE", "NYMEX"}
-MONTH_CODES = "FGHJKMNQUVXZ"
-DEFAULT_TEN_YEAR_EQUIV_DURATION = 7.627
+FX_FUTURE_SYMBOLS = {"AUD", "CAD", "CHF", "EUR", "GBP", "JPY", "MXN", "NZD"}
 
 
 @dataclass(frozen=True)
-class LiveDataSource:
-    provider: str
-    symbol: str
-
-
-@dataclass(frozen=True)
-class InstrumentMappingRow:
-    symbol_key: str
-    venue: str
-    display_ticker: str
-    display_name: str
-    category: str
-    risk_bucket: str
-    instrument_type: str
-    multiplier: float
-    duration: float | None = None
-    expected_vol: float | None = None
-    quote_source: LiveDataSource | None = None
-
-
-@dataclass(frozen=True)
-class FxSourceRow:
-    currency_pair: str
-    provider: str
-    symbol: str
-
-
-@dataclass(frozen=True)
-class RiskProxySourceRow:
-    risk_bucket: str
-    provider: str
-    symbol: str
-    proxy_name: str
-    unit: str
-    tail_level: float | None = None
-
-
-@dataclass(frozen=True)
-class ReportMappingTable:
+class SecurityReferenceSeedTable:
     source_workbook: str
     generated_at: str
-    ten_year_equiv_duration: float
-    instruments: list[InstrumentMappingRow]
-    fx_sources: list[FxSourceRow]
-    risk_proxies: list[RiskProxySourceRow]
+    rows: list[SecurityReference]
 
 
 @dataclass(frozen=True)
@@ -74,126 +37,42 @@ class WorkbookCell:
     formula: str | None
 
 
-def extract_report_mapping_table(workbook_path: str | Path) -> ReportMappingTable:
+def extract_security_reference_seed(workbook_path: str | Path) -> SecurityReferenceSeedTable:
     workbook = Path(workbook_path)
     sheets = _load_sheet_rows(workbook)
     position_rows = sheets.get("Position", [])
-    risk_rows = sheets.get("Risk", [])
-
-    instruments = _extract_instrument_rows(position_rows)
     fx_sources = _extract_fx_sources(position_rows)
-    risk_proxies = _extract_risk_proxy_sources(risk_rows)
 
-    ten_year_equiv_duration = next(
-        (
-            row.duration
-            for row in instruments
-            if row.symbol_key == "ZN" and row.venue == "CBOT" and row.duration is not None
-        ),
-        DEFAULT_TEN_YEAR_EQUIV_DURATION,
-    )
+    extracted: list[SecurityReference] = []
+    for row in position_rows:
+        reference = _extract_security_reference_row(row, fx_sources=fx_sources)
+        if reference is None:
+            continue
+        extracted.append(reference)
 
-    return ReportMappingTable(
+    return SecurityReferenceSeedTable(
         source_workbook=str(workbook),
         generated_at=datetime.now(timezone.utc).isoformat(timespec="seconds"),
-        ten_year_equiv_duration=ten_year_equiv_duration,
-        instruments=instruments,
-        fx_sources=fx_sources,
-        risk_proxies=risk_proxies,
+        rows=extracted,
     )
 
 
-def export_report_mapping_table_json(
-    table: ReportMappingTable,
+def export_security_reference_seed_csv(
+    table: SecurityReferenceSeedTable,
     output_path: str | Path,
 ) -> Path:
-    destination = Path(output_path)
-    destination.parent.mkdir(parents=True, exist_ok=True)
-    destination.write_text(json.dumps(asdict(table), indent=2, sort_keys=True), encoding="utf-8")
-    return destination
+    return export_security_reference_csv(table.rows, output_path)
 
 
-def load_report_mapping_table(path: str | Path) -> ReportMappingTable:
-    loaded = json.loads(Path(path).read_text(encoding="utf-8"))
-    if not isinstance(loaded, dict):
-        raise ValueError("Expected mapping table JSON object")
-
-    instruments = [
-        InstrumentMappingRow(
-            symbol_key=str(row["symbol_key"]),
-            venue=str(row["venue"]),
-            display_ticker=str(row["display_ticker"]),
-            display_name=str(row["display_name"]),
-            category=str(row["category"]),
-            risk_bucket=str(row["risk_bucket"]),
-            instrument_type=str(row["instrument_type"]),
-            multiplier=float(row["multiplier"]),
-            duration=_optional_float(row.get("duration")),
-            expected_vol=_optional_float(row.get("expected_vol")),
-            quote_source=_load_live_data_source(row.get("quote_source")),
-        )
-        for row in loaded.get("instruments", [])
-        if isinstance(row, dict)
-    ]
-    fx_sources = [
-        FxSourceRow(
-            currency_pair=str(row["currency_pair"]),
-            provider=str(row["provider"]),
-            symbol=str(row["symbol"]),
-        )
-        for row in loaded.get("fx_sources", [])
-        if isinstance(row, dict)
-    ]
-    risk_proxies = [
-        RiskProxySourceRow(
-            risk_bucket=str(row["risk_bucket"]),
-            provider=str(row["provider"]),
-            symbol=str(row["symbol"]),
-            proxy_name=str(row["proxy_name"]),
-            unit=str(row.get("unit", "")),
-            tail_level=_optional_float(row.get("tail_level")),
-        )
-        for row in loaded.get("risk_proxies", [])
-        if isinstance(row, dict)
-    ]
-    return ReportMappingTable(
-        source_workbook=str(loaded.get("source_workbook", "")),
-        generated_at=str(loaded.get("generated_at", "")),
-        ten_year_equiv_duration=float(
-            loaded.get("ten_year_equiv_duration", DEFAULT_TEN_YEAR_EQUIV_DURATION)
-        ),
-        instruments=instruments,
-        fx_sources=fx_sources,
-        risk_proxies=risk_proxies,
-    )
-
-
-def build_instrument_mapping_indexes(
-    table: ReportMappingTable,
-) -> tuple[dict[tuple[str, str], InstrumentMappingRow], dict[str, InstrumentMappingRow]]:
-    exact: dict[tuple[str, str], InstrumentMappingRow] = {}
-    counts: dict[str, int] = {}
-    last_seen: dict[str, InstrumentMappingRow] = {}
-
-    for row in table.instruments:
-        key = (row.symbol_key.upper(), row.venue.upper())
-        exact[key] = row
-        counts[row.symbol_key.upper()] = counts.get(row.symbol_key.upper(), 0) + 1
-        last_seen[row.symbol_key.upper()] = row
-
-    unique = {
-        symbol_key: last_seen[symbol_key]
-        for symbol_key, count in counts.items()
-        if count == 1
-    }
-    return exact, unique
+def load_security_reference_seed_table(path: str | Path) -> SecurityReferenceTable:
+    return SecurityReferenceTable.from_csv(path)
 
 
 def normalize_mapping_venue(raw_exchange: str) -> str:
     exchange = raw_exchange.strip().upper()
     if exchange in FUTURES_VENUES:
         return exchange
-    if exchange in {"LSEETF", "SBF", "LSE", "SWX"}:
+    if exchange in {"LSEETF", "SBF", "LSE", "SWX", "INTL"}:
         return "INTL"
     return "US"
 
@@ -205,10 +84,10 @@ def normalize_mapping_symbol(raw_symbol: str) -> str:
     if ":" in symbol:
         left, right = symbol.split(":", 1)
         if right in FUTURES_VENUES:
-            return _normalize_contract_root(left)
-        if left in {"LON", "NYSE", "NASDAQ"}:
+            return normalize_contract_root(left)
+        if left in {"LON", "NYSE", "NASDAQ", "PAR"}:
             return right
-    return _normalize_contract_root(symbol)
+    return normalize_contract_root(symbol)
 
 
 def risk_bucket_for_category(category: str) -> str:
@@ -228,105 +107,71 @@ def risk_bucket_for_category(category: str) -> str:
     return normalized or "EQ"
 
 
-def _load_live_data_source(value: object) -> LiveDataSource | None:
-    if not isinstance(value, dict):
+def _extract_security_reference_row(
+    row: dict[str, WorkbookCell],
+    *,
+    fx_sources: dict[str, tuple[str, str]],
+) -> SecurityReference | None:
+    category = _cell_value(row, "H")
+    display_ticker = _cell_value(row, "I")
+    display_name = _cell_value(row, "J")
+    instrument_type = _cell_value(row, "O")
+    if category in (None, "", "Category"):
         return None
-    provider = value.get("provider")
-    symbol = value.get("symbol")
-    if provider in (None, "") or symbol in (None, ""):
+    if display_ticker in (None, "", "Ticker"):
         return None
-    return LiveDataSource(provider=str(provider), symbol=str(symbol))
+    if instrument_type in (None, "", "Type"):
+        return None
+    if str(display_ticker).startswith("CURRENCY:"):
+        return None
 
-
-def _extract_instrument_rows(
-    rows: list[dict[str, WorkbookCell]],
-) -> list[InstrumentMappingRow]:
-    extracted: list[InstrumentMappingRow] = []
-
-    for row in rows:
-        category = _cell_value(row, "H")
-        display_ticker = _cell_value(row, "I")
-        display_name = _cell_value(row, "J")
-        instrument_type = _cell_value(row, "O")
-        if category in (None, "", "Category"):
-            continue
-        if display_ticker in (None, "", "Ticker"):
-            continue
-        if instrument_type in (None, "", "Type"):
-            continue
-        if str(display_ticker).startswith("CURRENCY:"):
-            continue
-
-        symbol_key = normalize_mapping_symbol(display_ticker)
-        venue = _mapping_venue_for_ticker(display_ticker)
-        quote_formula = _cell_formula(row, "M")
-        extracted.append(
-            InstrumentMappingRow(
-                symbol_key=symbol_key,
-                venue=venue,
-                display_ticker=str(display_ticker),
-                display_name=str(display_name or display_ticker),
-                category=str(category),
-                risk_bucket=risk_bucket_for_category(str(category)),
-                instrument_type=str(instrument_type),
-                multiplier=_optional_float(_cell_value(row, "L")) or 1.0,
-                duration=_optional_float(_cell_value(row, "P")),
-                expected_vol=_optional_float(_cell_value(row, "T")),
-                quote_source=LiveDataSource(
-                    provider=_provider_from_formula(quote_formula),
-                    symbol=str(display_ticker),
-                ),
-            )
-        )
-
-    return extracted
-
-
-def _extract_fx_sources(rows: list[dict[str, WorkbookCell]]) -> list[FxSourceRow]:
-    extracted: list[FxSourceRow] = []
-
-    for row in rows:
-        symbol = _cell_value(row, "I")
-        if symbol is None or not str(symbol).startswith("CURRENCY:"):
-            continue
-        currency_pair = str(symbol).split(":", 1)[1]
-        extracted.append(
-            FxSourceRow(
-                currency_pair=currency_pair,
-                provider=_provider_from_formula(_cell_formula(row, "J")),
-                symbol=str(symbol),
-            )
-        )
-
-    return extracted
-
-
-def _extract_risk_proxy_sources(
-    rows: list[dict[str, WorkbookCell]],
-) -> list[RiskProxySourceRow]:
-    extracted: list[RiskProxySourceRow] = []
-
-    for row in rows:
-        category = _cell_value(row, "A")
-        symbol = _cell_value(row, "B")
-        if category in (None, "", "Latest") or symbol in (None, ""):
-            continue
-        if ":" not in str(symbol):
-            continue
-
-        proxy_name = str(symbol).split(":", 1)[1]
-        extracted.append(
-            RiskProxySourceRow(
-                risk_bucket=risk_bucket_for_category(str(category)),
-                provider=_provider_from_formula(_cell_formula(row, "C")),
-                symbol=str(symbol),
-                proxy_name=proxy_name,
-                unit=str(_cell_value(row, "J") or ""),
-                tail_level=_optional_float(_cell_value(row, "I")),
-            )
-        )
-
-    return extracted
+    normalized_category = str(category).strip().upper()
+    symbol_key = normalize_mapping_symbol(str(display_ticker))
+    venue = _mapping_venue_for_ticker(str(display_ticker))
+    risk_bucket = risk_bucket_for_category(normalized_category)
+    universe_type = _infer_universe_type(
+        symbol_key=symbol_key,
+        instrument_type=str(instrument_type),
+        risk_bucket=risk_bucket,
+    )
+    primary_exchange = _ibkr_exchange_for_venue(venue)
+    quote_formula = _cell_formula(row, "M")
+    price_provider = _provider_from_formula(quote_formula)
+    price_symbol = str(display_ticker).strip()
+    fx_provider, fx_symbol = _fx_hint_for_row(
+        display_ticker=str(display_ticker).strip(),
+        venue=venue,
+        fx_sources=fx_sources,
+    )
+    return SecurityReference(
+        internal_id=_build_internal_id(
+            universe_type=universe_type,
+            canonical_symbol=symbol_key,
+            primary_exchange=primary_exchange,
+        ),
+        is_active=True,
+        universe_type=universe_type,
+        canonical_symbol=_canonical_symbol(symbol_key),
+        display_ticker=str(display_ticker).strip(),
+        display_name=str(display_name or display_ticker).strip(),
+        currency="USD",
+        primary_exchange=primary_exchange,
+        multiplier=_optional_float(_cell_value(row, "L")) or 1.0,
+        ibkr_sec_type=_ibkr_sec_type_for_universe(universe_type),
+        ibkr_symbol=symbol_key,
+        ibkr_exchange=primary_exchange,
+        google_symbol=price_symbol if price_provider == "google_finance" else "",
+        yahoo_symbol=price_symbol if price_provider == "yahoo_finance" else "",
+        bbg_symbol="",
+        report_category=normalized_category,
+        risk_bucket=risk_bucket,
+        mod_duration=_optional_float(_cell_value(row, "P")),
+        default_expected_vol=_optional_float(_cell_value(row, "T")),
+        price_source_provider=price_provider,
+        price_source_symbol=price_symbol,
+        fx_source_provider=fx_provider,
+        fx_source_symbol=fx_symbol,
+    )
 
 
 def _load_sheet_rows(workbook_path: Path) -> dict[str, list[dict[str, WorkbookCell]]]:
@@ -403,6 +248,87 @@ def _load_shared_strings(archive: ZipFile) -> list[str]:
     ]
 
 
+def _extract_fx_sources(rows: list[dict[str, WorkbookCell]]) -> dict[str, tuple[str, str]]:
+    extracted: dict[str, tuple[str, str]] = {}
+
+    for row in rows:
+        symbol = _cell_value(row, "I")
+        if symbol is None or not str(symbol).startswith("CURRENCY:"):
+            continue
+        currency_pair = str(symbol).split(":", 1)[1].upper()
+        extracted[currency_pair] = (
+            _provider_from_formula(_cell_formula(row, "J")),
+            str(symbol).strip(),
+        )
+
+    return extracted
+
+
+def _build_internal_id(
+    *,
+    universe_type: str,
+    canonical_symbol: str,
+    primary_exchange: str,
+) -> str:
+    safe_symbol = _canonical_symbol(canonical_symbol)
+    safe_exchange = _canonical_symbol(primary_exchange or "GENERIC")
+    return f"{universe_type}:{safe_symbol}:{safe_exchange}"
+
+
+def _canonical_symbol(value: str) -> str:
+    upper = value.strip().upper()
+    return re.sub(r"[^A-Z0-9]+", "_", upper).strip("_")
+
+
+def _infer_universe_type(
+    *,
+    symbol_key: str,
+    instrument_type: str,
+    risk_bucket: str,
+) -> str:
+    normalized_type = instrument_type.strip().upper()
+    if normalized_type == "CASH":
+        return "CASH"
+    if normalized_type == "FUTURES":
+        if risk_bucket == "FI":
+            return "FI_FUT"
+        if symbol_key in FX_FUTURE_SYMBOLS or risk_bucket == "MACRO":
+            return "FX_FUT"
+        return "OTHER_FUT"
+    if symbol_key in {"TSLA"}:
+        return "EQ"
+    return "ETF"
+
+
+def _ibkr_sec_type_for_universe(universe_type: str) -> str:
+    if universe_type in {"FI_FUT", "FX_FUT", "OTHER_FUT"}:
+        return "FUT"
+    if universe_type == "CASH":
+        return "CASH"
+    return "STK"
+
+
+def _ibkr_exchange_for_venue(venue: str) -> str:
+    if venue == "INTL":
+        return "LSEETF"
+    if venue == "US":
+        return "SMART"
+    return venue
+
+
+def _fx_hint_for_row(
+    *,
+    display_ticker: str,
+    venue: str,
+    fx_sources: dict[str, tuple[str, str]],
+) -> tuple[str, str]:
+    if venue == "INTL" and "GBPUSD" in fx_sources:
+        return fx_sources["GBPUSD"]
+    if display_ticker.upper().startswith("CASH (SGD") and "SGDUSD" in fx_sources:
+        return fx_sources["SGDUSD"]
+    return ("", "")
+
+
 def _mapping_venue_for_ticker(display_ticker: str) -> str:
     ticker = display_ticker.strip().upper()
     if ticker.startswith("LON:"):
@@ -412,19 +338,6 @@ def _mapping_venue_for_ticker(display_ticker: str) -> str:
         if right in FUTURES_VENUES:
             return right
     return "US"
-
-
-def _normalize_contract_root(symbol: str) -> str:
-    upper = symbol.strip().upper()
-    if "_" in upper:
-        return upper
-    if upper.endswith("W00") and len(upper) > 3:
-        return upper[:-3]
-
-    match = re.match(rf"^([A-Z0-9]+?)[{MONTH_CODES}]\d{{1,2}}$", upper)
-    if match is not None:
-        return match.group(1)
-    return upper
 
 
 def _provider_from_formula(formula: str | None) -> str:

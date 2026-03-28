@@ -52,29 +52,29 @@ Build a broker-agnostic, read-only IBKR integration layer for market monitoring 
 - Added unit/e2e tests for indicator transforms, rulebook hysteresis/mutual exclusivity, policy mapping, CLI dispatch, and CLI regime output schema.
 - Added example configs: `configs/regime_config.example.yml` and `configs/regime_policy.example.yml`.
 - Added a workbook-to-JSON mapping-table extraction path so stable portfolio metadata can be seeded from `target_report.xlsx` without making the HTML report depend directly on the workbook at runtime.
+- Replaced the old in-memory / workbook-JSON mapping split with a curated wide `configs/security_reference.csv` source of truth covering `ETF`, `EQ`, `FX_FUT`, `FI_FUT`, `OTHER_FUT`, and `CASH`.
+- Reworked `market_helper/portfolio/security_reference.py` around CSV loading, provider indexes, and runtime `UNMAPPED` / `OUTSIDE_SCOPE` fallbacks while keeping compatibility helpers for existing report code.
+- Updated IBKR normalization to resolve positions against the curated universe first (exact `conId`, then alias/family lookup, then cash), with futures canonicalized at family level rather than expiry-contract level.
+- Moved the HTML risk report off workbook-derived runtime JSON so category/display/duration/expected-vol enrichment now comes from curated security reference rows.
+- Downgraded workbook extraction into a bootstrap importer that exports a security-reference CSV seed instead of a runtime JSON mapping table.
 - Unit tests added and expanded across config, domain, providers, portfolio normalization, reporting, workflows, and read-only guard behavior.
 
 ## In Progress
 - Tightening the live TWS / `ib_async` report path with better account metadata, richer report fields, stronger session ergonomics, and eventual broader provider coverage.
-- Designing a persistent instrument-master and multi-source symbology mapping layer that can support IBKR, Yahoo Finance, Google Finance, Bloomberg, and manual overrides without leaking provider-specific IDs into downstream business logic.
 - Hardening the new risk HTML workflow with richer asset-class bucketing, better derivatives treatment, and live market proxy ingestion.
-- Wiring the new JSON mapping table into the HTML risk report so category/name/type/duration/expected-vol assumptions come from stored mappings while prices/FX/proxies continue to migrate toward live sources.
+- Expanding the curated `security_reference` maintenance workflow so live price/FX/proxy sourcing can be driven by provider hints stored on each row.
 
 ## Next Steps
-1. Add a persistent instrument master store for `security_reference` and `security_mapping` so mappings survive across runs.
-2. Expand `security_mapping` beyond `(source, external_id)` to include concepts such as `id_type`, mapping level, mapping method, and confidence.
-3. Split derivative symbology into family-level and contract-level mapping so cases like IBKR `ZNM6` vs Bloomberg `TYM6 Comdty` can resolve through a shared canonical futures family plus expiry.
-4. Add tracked alias/rule files for common cross-vendor symbology, especially futures root-symbol differences across IBKR, Bloomberg, and Yahoo.
-5. Add local manual-override files for account-specific or still-unverified mappings that should not be committed.
-6. Add a resolver service that applies mappings in a strict order: strong provider IDs first, then manual overrides, then deterministic rules, then low-confidence heuristics.
+1. Add explicit provider fetchers for live price / FX / risk-proxy data keyed off `security_reference.csv` source hints (`IBKR`, `Yahoo`, `Google`, `manual`).
+2. Add tracked alias/rule rows for more cross-vendor futures symbology, especially roots that differ between IBKR, Bloomberg, and Yahoo.
+3. Add a local manual-override layer for provisional or account-specific security-reference entries that should not be committed.
+4. Improve derivatives treatment in risk reporting, especially how `OUTSIDE_SCOPE` options are surfaced or excluded from aggregate risk.
+5. Add data-library loaders for benchmark proxies (VIX/MOVE/GVZ/OVX) and historical return time series so risk metrics are sourced automatically.
+6. Extend risk decomposition from simple weight*vol contributions to covariance-consistent marginal/component risk attribution.
 7. Add clearer connection diagnostics and account-selection ergonomics for live TWS / IB Gateway runs.
-8. Replace heuristic asset-class inference in risk reporting with mapping-driven classification (especially for futures/options).
-9. Add data-library loaders for benchmark proxies (VIX/MOVE/GVZ/OVX) and historical return time series so risk metrics are sourced automatically.
-10. Extend risk decomposition from simple weight*vol contributions to covariance-consistent marginal/component risk attribution.
-11. Move live price/FX/proxy sourcing behind explicit provider adapters (IBKR/Yahoo/Google/manual) instead of relying on workbook-seeded hints.
-12. Keep evolving the HTML report toward the target portfolio view without coupling runtime rendering to `outputs/reports/target_report.xlsx`.
-13. Add fixture sets from real IBKR payloads to harden compatibility.
-14. Optionally add a broader Client Portal Web API wrapper layer if we need more endpoints beyond position reporting.
+8. Keep evolving the HTML report toward the target portfolio view without coupling runtime rendering to `outputs/reports/target_report.xlsx`.
+9. Add fixture sets from real IBKR payloads to harden compatibility.
+10. Optionally add a broader Client Portal Web API wrapper layer if we need more endpoints beyond position reporting.
 
 ## Instrument Mapping Plan
 - Keep `internal_id` as a system-owned canonical key; do not let Yahoo, Bloomberg, Google, or IBKR identifiers become the system primary key.

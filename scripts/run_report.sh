@@ -20,7 +20,7 @@ Usage:
   ./scripts/run_report.sh snapshot --positions PATH --prices PATH [--output PATH]
   ./scripts/run_report.sh ibkr-json --ibkr-positions PATH --ibkr-prices PATH [--output PATH] [--as-of ISO8601]
   ./scripts/run_report.sh ibkr-live [--output PATH] [--account ACCOUNT_ID] [--host HOST] [--port PORT] [--client-id ID] [--timeout SECONDS] [--as-of ISO8601]
-  ./scripts/run_report.sh risk-html --positions-csv PATH --returns PATH [--proxy PATH] [--regime PATH] [--mapping-table PATH] [--output PATH]
+  ./scripts/run_report.sh risk-html --positions-csv PATH --returns PATH [--proxy PATH] [--regime PATH] [--security-reference PATH] [--output PATH]
   ./scripts/run_report.sh mapping-table --workbook PATH [--output PATH]
 
 Modes:
@@ -28,7 +28,7 @@ Modes:
   ibkr-json   Generate a report from raw IBKR positions/prices payloads.
   ibkr-live   Generate a report from a live local TWS / IB Gateway session via ib_async.
   risk-html   Generate an HTML risk report from a position CSV plus return/proxy inputs.
-  mapping-table Extract a JSON mapping table from a target workbook.
+  mapping-table Extract a security-reference CSV seed from a target workbook.
 
 Environment:
   ENV_NAME    Conda environment name to use. Defaults to: py313
@@ -93,7 +93,7 @@ case "${MODE}" in
         ;;
     mapping-table)
         CLI_COMMAND="extract-report-mapping"
-        DEFAULT_OUTPUT="${ROOT_DIR}/outputs/reports/target_report_mapping.json"
+        DEFAULT_OUTPUT="${ROOT_DIR}/outputs/reports/target_report_security_reference.csv"
         ;;
     *)
         fail "Unknown mode: ${MODE}"
@@ -115,7 +115,7 @@ POSITIONS_CSV_PATH=""
 RETURNS_PATH=""
 PROXY_PATH=""
 REGIME_PATH=""
-MAPPING_TABLE_PATH=""
+SECURITY_REFERENCE_PATH=""
 WORKBOOK_PATH=""
 
 while [[ $# -gt 0 ]]; do
@@ -190,9 +190,9 @@ while [[ $# -gt 0 ]]; do
             REGIME_PATH="$2"
             shift 2
             ;;
-        --mapping-table)
+        --security-reference|--mapping-table)
             require_value "$1" "${2:-}"
-            MAPPING_TABLE_PATH="$2"
+            SECURITY_REFERENCE_PATH="$2"
             shift 2
             ;;
         --workbook)
@@ -267,7 +267,7 @@ case "${MODE}" in
         COMMAND+=(--positions-csv "${POSITIONS_CSV_PATH}" --returns "${RETURNS_PATH}")
         [[ -n "${PROXY_PATH}" ]] && { require_file "proxy" "${PROXY_PATH}"; COMMAND+=(--proxy "${PROXY_PATH}"); }
         [[ -n "${REGIME_PATH}" ]] && { require_file "regime" "${REGIME_PATH}"; COMMAND+=(--regime "${REGIME_PATH}"); }
-        [[ -n "${MAPPING_TABLE_PATH}" ]] && { require_file "mapping table" "${MAPPING_TABLE_PATH}"; COMMAND+=(--mapping-table "${MAPPING_TABLE_PATH}"); }
+        [[ -n "${SECURITY_REFERENCE_PATH}" ]] && { require_file "security reference" "${SECURITY_REFERENCE_PATH}"; COMMAND+=(--security-reference "${SECURITY_REFERENCE_PATH}"); }
         ;;
     mapping-table)
         [[ -n "${WORKBOOK_PATH}" ]] || fail "mapping-table mode requires --workbook"
