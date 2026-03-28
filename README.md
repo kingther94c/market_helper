@@ -11,6 +11,22 @@ Create or verify the project environment:
 conda activate py313
 ```
 
+The shared Conda spec lives in `env.yml`.
+
+Notebook support is included in the environment. To register this env as a Jupyter kernel:
+
+```bash
+conda run -n py313 python -m ipykernel install --user --name py313 --display-name "Python (py313)"
+```
+
+Then launch either interface:
+
+```bash
+conda run -n py313 jupyter lab
+# or
+conda run -n py313 jupyter notebook
+```
+
 ## Project structure
 
 This repository follows a domain-first layout:
