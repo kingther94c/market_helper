@@ -59,6 +59,9 @@ Build a broker-agnostic, read-only IBKR integration layer for market monitoring 
 - Downgraded workbook extraction into a bootstrap importer that exports a security-reference CSV seed instead of a runtime JSON mapping table.
 - Expanded the shared Python environment definitions to include Jupyter notebook support (`ipykernel`, `notebook`, `jupyterlab`) for exploratory work under `notebooks/`.
 - Consolidated duplicate Conda environment files into a single repo-level `env.yml`, aligned to the active `py313` notebook stack and explicit `matplotlib` dependency.
+- Synced additional top-level `py313` packages back into `env.yml` where they appear intentional and repo-relevant, specifically `pytest` for the test workflow and `yfinance` for notebook/data exploration.
+- Added explicit notebook-analysis staples used in local project notebooks to `env.yml`, specifically `numpy` and `pandas`, so exploratory work is reproducible from the shared environment spec.
+- Expanded `env.yml` further with common stats / quant-analysis packages (`scipy`, `scikit-learn`, `statsmodels`) so the shared environment covers typical research notebooks without ad hoc local installs.
 - Unit tests added and expanded across config, domain, providers, portfolio normalization, reporting, workflows, and read-only guard behavior.
 
 ## In Progress

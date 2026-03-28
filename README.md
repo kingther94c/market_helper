@@ -43,7 +43,7 @@ This repository follows a domain-first layout:
 ## Quick test
 
 ```bash
-conda run -n py313 python -m unittest discover -s tests
+conda run -n py313 python -m pytest -q tests/unit
 ```
 
 ## IBKR Web API Setup
