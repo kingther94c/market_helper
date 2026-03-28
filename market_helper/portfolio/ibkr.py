@@ -6,6 +6,8 @@ from typing import Iterable, List, Mapping, Optional
 from .security_reference import (
     PriceSnapshot,
     PositionSnapshot,
+    RUNTIME_OUTSIDE_SCOPE_PREFIX,
+    RUNTIME_UNMAPPED_PREFIX,
     SecurityMapping,
     SecurityReference,
     SecurityReferenceTable,
@@ -30,21 +32,42 @@ def contract_to_internal_id(contract: IbkrContract) -> str:
     return "IBKR:{con_id}".format(con_id=contract.con_id)
 
 
-def contract_to_security_reference(contract: IbkrContract) -> SecurityReference:
+def contract_to_security_reference(
+    contract: IbkrContract,
+    *,
+    status: str = "unmapped",
+) -> SecurityReference:
     try:
         multiplier = float(contract.multiplier)
     except (TypeError, ValueError):
         multiplier = 1.0
 
+    prefix = (
+        RUNTIME_OUTSIDE_SCOPE_PREFIX
+        if status == "outside_scope"
+        else RUNTIME_UNMAPPED_PREFIX
+    )
     return SecurityReference(
-        internal_id=contract_to_internal_id(contract),
-        asset_class=contract.sec_type.lower(),
-        symbol=contract.symbol,
-        currency=contract.currency,
-        exchange=contract.exchange,
+        internal_id=f"{prefix}IBKR:{contract.con_id}",
+        symbol=contract.symbol.upper(),
+        currency=contract.currency.upper(),
+        exchange=contract.exchange.upper(),
         description=contract.local_symbol,
         multiplier=multiplier,
-        metadata={"ibkr_con_id": contract.con_id},
+        metadata={
+            "ibkr_con_id": contract.con_id,
+            "local_symbol": contract.local_symbol,
+            "runtime_sec_type": contract.sec_type.upper(),
+        },
+        canonical_symbol=contract.symbol.upper(),
+        display_ticker=contract.symbol.upper(),
+        display_name=contract.local_symbol or contract.symbol.upper(),
+        primary_exchange=contract.exchange.upper(),
+        ibkr_sec_type=contract.sec_type.upper(),
+        ibkr_symbol=contract.symbol.upper(),
+        ibkr_exchange=contract.exchange.upper(),
+        ibkr_conid=contract.con_id,
+        report_category="OUTSIDE_SCOPE" if status == "outside_scope" else "",
     )
 
 
@@ -52,7 +75,17 @@ def register_ibkr_contract(
     reference_table: SecurityReferenceTable,
     contract: IbkrContract,
 ) -> str:
-    security = contract_to_security_reference(contract)
+    security = resolve_ibkr_contract(reference_table, contract)
+    if security.mapping_status == "mapped":
+        return reference_table.register_runtime_contract(
+            security=security,
+            con_id=contract.con_id,
+            symbol=contract.symbol,
+            exchange=contract.exchange,
+            local_symbol=contract.local_symbol,
+            sec_type=contract.sec_type,
+        )
+
     reference_table.upsert_security(security)
     reference_table.upsert_mapping(
         SecurityMapping(
@@ -62,6 +95,42 @@ def register_ibkr_contract(
         )
     )
     return security.internal_id
+
+
+def resolve_ibkr_contract(
+    reference_table: SecurityReferenceTable,
+    contract: IbkrContract,
+) -> SecurityReference:
+    existing = reference_table.resolve_by_ibkr_conid(contract.con_id)
+    if existing is not None:
+        return existing
+
+    existing_internal_id = reference_table.resolve_internal_id(IBKR_SOURCE, contract.con_id)
+    if existing_internal_id is not None:
+        existing = reference_table.get_security(existing_internal_id)
+        if existing is not None:
+            return existing
+
+    alias_match = reference_table.resolve_by_ibkr_alias(
+        symbol=contract.symbol,
+        sec_type=contract.sec_type,
+        exchange=contract.exchange,
+    )
+    if alias_match is not None:
+        return alias_match
+
+    if contract.sec_type.upper() == "CASH":
+        cash_match = reference_table.resolve_cash_reference(
+            symbol=contract.symbol,
+            currency=contract.currency,
+        )
+        if cash_match is not None:
+            return cash_match
+
+    if contract.sec_type.upper() == "OPT":
+        return contract_to_security_reference(contract, status="outside_scope")
+
+    return contract_to_security_reference(contract, status="unmapped")
 
 
 def normalize_ibkr_positions(
@@ -77,10 +146,10 @@ def normalize_ibkr_positions(
         row = _as_ibkr_dict(item)
         contract = IbkrContract(
             con_id=str(_require_any(row, "con_id", "conid", "conId")),
-            sec_type=str(_first_non_null(row, "sec_type", "secType", default="")),
-            symbol=str(_first_non_null(row, "symbol", default="")),
-            currency=str(_first_non_null(row, "currency", default="")),
-            exchange=str(_first_non_null(row, "exchange", default="")),
+            sec_type=str(_first_non_null(row, "sec_type", "secType", default="")).upper(),
+            symbol=str(_first_non_null(row, "symbol", default="")).upper(),
+            currency=str(_first_non_null(row, "currency", default="")).upper(),
+            exchange=str(_first_non_null(row, "exchange", default="")).upper(),
             local_symbol=str(
                 _first_non_null(row, "local_symbol", "localSymbol", default="")
             ),

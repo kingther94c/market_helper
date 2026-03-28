@@ -59,9 +59,11 @@ def build_parser() -> argparse.ArgumentParser:
     risk_html_report.add_argument("--proxy", required=False, help="Optional estimate vol proxy JSON.")
     risk_html_report.add_argument("--regime", required=False, help="Optional regime snapshot JSON path.")
     risk_html_report.add_argument(
+        "--security-reference",
         "--mapping-table",
+        dest="security_reference",
         required=False,
-        help="Optional JSON mapping table extracted from a target workbook.",
+        help="Optional curated security-reference CSV path. Defaults to configs/security_reference.csv.",
     )
 
     regime_detect = subparsers.add_parser(
@@ -84,7 +86,7 @@ def build_parser() -> argparse.ArgumentParser:
 
     mapping_table_report = subparsers.add_parser(
         "extract-report-mapping",
-        help="Extract stable mapping fields from a target workbook into a JSON mapping table.",
+        help="Extract stable mapping fields from a target workbook into a security-reference CSV seed.",
     )
     mapping_table_report.add_argument(
         "--workbook",
@@ -94,7 +96,7 @@ def build_parser() -> argparse.ArgumentParser:
     mapping_table_report.add_argument(
         "--output",
         required=True,
-        help="Path to output mapping-table JSON.",
+        help="Path to output security-reference CSV seed.",
     )
 
     return parser
@@ -133,7 +135,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             output_path=Path(args.output),
             proxy_path=Path(args.proxy) if args.proxy else None,
             regime_path=Path(args.regime) if args.regime else None,
-            mapping_table_path=Path(args.mapping_table) if args.mapping_table else None,
+            security_reference_path=Path(args.security_reference) if args.security_reference else None,
         )
         return 0
     if args.command == "extract-report-mapping":

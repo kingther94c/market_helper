@@ -60,10 +60,10 @@ def test_generate_position_report_reads_json_and_writes_csv(tmp_path) -> None:
     assert rows[0]["unrealized_pnl"] == "1000.0"
 
 
-def test_generate_report_mapping_table_reads_workbook_and_writes_json(tmp_path: Path) -> None:
+def test_generate_report_mapping_table_reads_workbook_and_writes_csv(tmp_path: Path) -> None:
     repo_root = Path(__file__).resolve().parents[3]
     workbook_path = repo_root / "outputs" / "reports" / "target_report.xlsx"
-    output_path = tmp_path / "outputs" / "target_report_mapping.json"
+    output_path = tmp_path / "outputs" / "target_report_security_reference.csv"
 
     written_path = generate_report_mapping_table(
         workbook_path=workbook_path,
@@ -71,6 +71,8 @@ def test_generate_report_mapping_table_reads_workbook_and_writes_json(tmp_path: 
     )
 
     assert written_path == output_path
-    loaded = json.loads(output_path.read_text(encoding="utf-8"))
-    assert loaded["source_workbook"].endswith("target_report.xlsx")
-    assert any(row["display_ticker"] == "LON:SPYL" for row in loaded["instruments"])
+    with output_path.open("r", encoding="utf-8", newline="") as handle:
+        rows = list(csv.DictReader(handle))
+
+    assert any(row["display_ticker"] == "LON:SPYL" for row in rows)
+    assert any(row["display_ticker"] == "ZNW00:CBOT" for row in rows)

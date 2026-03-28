@@ -3,12 +3,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from market_helper.reporting.mapping_table import (
-    InstrumentMappingRow,
-    LiveDataSource,
-    ReportMappingTable,
-    export_report_mapping_table_json,
-)
+from market_helper.portfolio import SecurityReference, export_security_reference_csv
 from market_helper.reporting.risk_html import (
     annualized_vol,
     build_risk_html_report,
@@ -37,16 +32,16 @@ def test_build_risk_html_report_renders_summary_and_tables(tmp_path: Path) -> No
         "\n".join(
             [
                 "as_of,account,internal_id,con_id,symbol,local_symbol,exchange,currency,source,quantity,avg_cost,latest_price,market_value,cost_basis,unrealized_pnl,weight",
-                "2026-03-26T00:00:00+00:00,U1,IBKR:1,1,SPY,SPY,ARCA,USD,ibkr,10,500,510,5100,5000,100,0.6",
-                "2026-03-26T00:00:00+00:00,U1,IBKR:2,2,ZN,ZNM6,CBOT,USD,ibkr,1,110,111,3400,3300,100,0.4",
+                "2026-03-26T00:00:00+00:00,U1,ETF:SPY:ARCA,756733,SPY,SPY,ARCA,USD,ibkr,10,500,510,5100,5000,100,0.6",
+                "2026-03-26T00:00:00+00:00,U1,FI_FUT:ZN:CBOT,815824229,ZN,ZNM6,CBOT,USD,ibkr,1,110,111,111000,110000,1000,0.4",
             ]
         ),
         encoding="utf-8",
     )
 
     returns_payload = {
-        "IBKR:1": [0.001 * ((idx % 7) - 3) for idx in range(90)],
-        "IBKR:2": [0.0007 * ((idx % 5) - 2) for idx in range(90)],
+        "ETF:SPY:ARCA": [0.001 * ((idx % 7) - 3) for idx in range(90)],
+        "FI_FUT:ZN:CBOT": [0.0007 * ((idx % 5) - 2) for idx in range(90)],
     }
     returns_json = tmp_path / "returns.json"
     returns_json.write_text(json.dumps(returns_payload), encoding="utf-8")
@@ -94,17 +89,17 @@ def test_build_risk_html_report_renders_summary_and_tables(tmp_path: Path) -> No
     assert "Regime Snapshot" in rendered
     assert "Goldilocks Expansion" in rendered
     assert "SPY" in rendered
-    assert "ZN" in rendered
+    assert "ZNW00:CBOT" in rendered
 
 
-def test_build_risk_html_report_uses_mapping_table_for_enrichment(tmp_path: Path) -> None:
+def test_build_risk_html_report_uses_security_reference_for_enrichment(tmp_path: Path) -> None:
     positions_csv = tmp_path / "positions.csv"
     positions_csv.write_text(
         "\n".join(
             [
                 "as_of,account,internal_id,con_id,symbol,local_symbol,exchange,currency,source,quantity,avg_cost,latest_price,market_value,cost_basis,unrealized_pnl,weight",
-                "2026-03-26T00:00:00+00:00,U1,IBKR:1,1,SPYL,SPYL,LSEETF,USD,ibkr,4000,17,16.25,65000,68000,-3000,0.5",
-                "2026-03-26T00:00:00+00:00,U1,IBKR:2,2,ZN,ZNM6,CBOT,USD,ibkr,1,110,111,111000,110000,1000,0.5",
+                "2026-03-26T00:00:00+00:00,U1,ETF:SPYL:LSEETF,663368035,SPYL,SPYL,LSEETF,USD,ibkr,4000,17,16.25,65000,68000,-3000,0.5",
+                "2026-03-26T00:00:00+00:00,U1,FI_FUT:ZN:CBOT,999001,ZN,ZNM6,CBOT,USD,ibkr,1,110,111,111000,110000,1000,0.5",
             ]
         ),
         encoding="utf-8",
@@ -114,57 +109,64 @@ def test_build_risk_html_report_uses_mapping_table_for_enrichment(tmp_path: Path
     returns_json.write_text(
         json.dumps(
             {
-                "IBKR:1": [0.001 * ((idx % 7) - 3) for idx in range(90)],
-                "IBKR:2": [0.0007 * ((idx % 5) - 2) for idx in range(90)],
+                "ETF:SPYL:LSEETF": [0.001 * ((idx % 7) - 3) for idx in range(90)],
+                "FI_FUT:ZN:CBOT": [0.0007 * ((idx % 5) - 2) for idx in range(90)],
             }
         ),
         encoding="utf-8",
     )
 
-    mapping_table = ReportMappingTable(
-        source_workbook="target_report.xlsx",
-        generated_at="2026-03-26T00:00:00+00:00",
-        ten_year_equiv_duration=7.627,
-        instruments=[
-            InstrumentMappingRow(
-                symbol_key="SPYL",
-                venue="INTL",
+    security_reference_path = tmp_path / "security_reference.csv"
+    export_security_reference_csv(
+        [
+            SecurityReference(
+                internal_id="ETF:SPYL:LSEETF",
+                universe_type="ETF",
+                canonical_symbol="SPYL",
                 display_ticker="LON:SPYL",
                 display_name="US",
-                category="DMEQ",
-                risk_bucket="EQ",
-                instrument_type="ETF",
+                currency="USD",
+                primary_exchange="LSEETF",
                 multiplier=1.0,
-                duration=1.0,
-                expected_vol=0.18,
-                quote_source=LiveDataSource(provider="google_finance", symbol="LON:SPYL"),
+                ibkr_sec_type="STK",
+                ibkr_symbol="SPYL",
+                ibkr_exchange="LSEETF",
+                report_category="DMEQ",
+                risk_bucket="EQ",
+                mod_duration=1.0,
+                default_expected_vol=0.18,
+                price_source_provider="google_finance",
+                price_source_symbol="LON:SPYL",
             ),
-            InstrumentMappingRow(
-                symbol_key="ZN",
-                venue="CBOT",
+            SecurityReference(
+                internal_id="FI_FUT:ZN:CBOT",
+                universe_type="FI_FUT",
+                canonical_symbol="ZN",
                 display_ticker="ZNW00:CBOT",
                 display_name="10Y TF",
-                category="FI",
-                risk_bucket="FI",
-                instrument_type="Futures",
+                currency="USD",
+                primary_exchange="CBOT",
                 multiplier=1000.0,
-                duration=7.627,
-                expected_vol=0.07,
-                quote_source=LiveDataSource(provider="google_finance", symbol="ZNW00:CBOT"),
+                ibkr_sec_type="FUT",
+                ibkr_symbol="ZN",
+                ibkr_exchange="CBOT",
+                report_category="FI",
+                risk_bucket="FI",
+                mod_duration=7.627,
+                default_expected_vol=0.07,
+                price_source_provider="google_finance",
+                price_source_symbol="ZNW00:CBOT",
             ),
         ],
-        fx_sources=[],
-        risk_proxies=[],
+        security_reference_path,
     )
-    mapping_path = tmp_path / "target_report_mapping.json"
-    export_report_mapping_table_json(mapping_table, mapping_path)
 
     output_path = tmp_path / "risk_report.html"
     build_risk_html_report(
         positions_csv_path=positions_csv,
         returns_path=returns_json,
         output_path=output_path,
-        mapping_table_path=mapping_path,
+        security_reference_path=security_reference_path,
     )
 
     rendered = output_path.read_text(encoding="utf-8")

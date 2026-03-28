@@ -16,9 +16,9 @@ def test_generate_ibkr_position_report_normalizes_raw_payloads_and_writes_csv(tm
                     "accountId": "U12345",
                     "conid": "756733",
                     "secType": "STK",
-                    "symbol": "AAPL",
+                    "symbol": "SPY",
                     "currency": "USD",
-                    "exchange": "SMART",
+                    "exchange": "ARCA",
                     "position": "20",
                     "avgCost": "210.5",
                     "marketValue": "4300",
@@ -48,11 +48,11 @@ def test_generate_ibkr_position_report_normalizes_raw_payloads_and_writes_csv(tm
         {
             "as_of": "2026-03-26T00:00:00+00:00",
             "account": "U12345",
-            "internal_id": "IBKR:756733",
+            "internal_id": "ETF:SPY:ARCA",
             "con_id": "756733",
-            "symbol": "AAPL",
-            "local_symbol": "",
-            "exchange": "SMART",
+            "symbol": "SPY",
+            "local_symbol": "US",
+            "exchange": "ARCA",
             "currency": "USD",
             "source": "ibkr",
             "quantity": "20.0",
@@ -79,9 +79,9 @@ def test_generate_ibkr_position_report_accepts_wrapped_json_arrays(tmp_path) -> 
                         "account": "U12345",
                         "con_id": "756733",
                         "sec_type": "STK",
-                        "symbol": "AAPL",
+                        "symbol": "SPY",
                         "currency": "USD",
-                        "exchange": "SMART",
+                        "exchange": "ARCA",
                         "position": "20",
                     }
                 ]
@@ -105,6 +105,6 @@ def test_generate_ibkr_position_report_accepts_wrapped_json_arrays(tmp_path) -> 
         reader = csv.DictReader(handle)
         rows = list(reader)
 
-    assert rows[0]["internal_id"] == "IBKR:756733"
-    assert rows[0]["symbol"] == "AAPL"
+    assert rows[0]["internal_id"] == "ETF:SPY:ARCA"
+    assert rows[0]["symbol"] == "SPY"
     assert rows[0]["latest_price"] == "214.8"

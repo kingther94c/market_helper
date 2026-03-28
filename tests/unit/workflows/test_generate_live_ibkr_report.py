@@ -7,11 +7,11 @@ class FakeContract:
     def __init__(self) -> None:
         self.conId = 756733
         self.secType = "STK"
-        self.symbol = "AAPL"
+        self.symbol = "SPY"
         self.currency = "USD"
-        self.exchange = "SMART"
-        self.primaryExchange = "NASDAQ"
-        self.localSymbol = "AAPL"
+        self.exchange = "ARCA"
+        self.primaryExchange = "ARCA"
+        self.localSymbol = "SPY"
         self.multiplier = "1"
 
 
@@ -62,10 +62,10 @@ def test_generate_live_ibkr_position_report_writes_csv_from_gateway_client(tmp_p
         reader = csv.DictReader(handle)
         rows = list(reader)
 
-    assert rows[0]["internal_id"] == "IBKR:756733"
+    assert rows[0]["internal_id"] == "ETF:SPY:ARCA"
     assert rows[0]["con_id"] == "756733"
-    assert rows[0]["symbol"] == "AAPL"
-    assert rows[0]["exchange"] == "NASDAQ"
+    assert rows[0]["symbol"] == "SPY"
+    assert rows[0]["exchange"] == "ARCA"
     assert rows[0]["currency"] == "USD"
     assert rows[0]["latest_price"] == "214.8"
     assert rows[0]["unrealized_pnl"] == "90.0"

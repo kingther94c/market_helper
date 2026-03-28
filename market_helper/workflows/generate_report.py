@@ -21,8 +21,8 @@ from market_helper.reporting import (
     build_position_report_rows,
     build_risk_html_report,
     export_position_report_csv,
-    export_report_mapping_table_json,
-    extract_report_mapping_table,
+    export_security_reference_seed_csv,
+    extract_security_reference_seed,
 )
 
 
@@ -45,7 +45,7 @@ def generate_ibkr_position_report(
     output_path: str | Path,
     as_of: str | None = None,
 ) -> Path:
-    reference_table = SecurityReferenceTable()
+    reference_table = SecurityReferenceTable.from_default_csv()
     raw_positions = _load_json_rows(ibkr_positions_path)
     raw_prices = _load_json_rows(ibkr_prices_path)
     positions = normalize_ibkr_positions(raw_positions, reference_table, as_of=as_of)
@@ -84,7 +84,7 @@ def generate_live_ibkr_position_report(
         selected_account_id = choose_tws_account(accounts, account_id)
         portfolio_items = live_client.list_portfolio(selected_account_id)
 
-        reference_table = SecurityReferenceTable()
+        reference_table = SecurityReferenceTable.from_default_csv()
         positions = normalize_ibkr_positions(
             portfolio_items_to_ibkr_position_rows(portfolio_items),
             reference_table,
@@ -113,7 +113,7 @@ def generate_risk_html_report(
     output_path: str | Path,
     proxy_path: str | Path | None = None,
     regime_path: str | Path | None = None,
-    mapping_table_path: str | Path | None = None,
+    security_reference_path: str | Path | None = None,
 ) -> Path:
     return build_risk_html_report(
         positions_csv_path=positions_csv_path,
@@ -121,7 +121,7 @@ def generate_risk_html_report(
         output_path=output_path,
         proxy_path=proxy_path,
         regime_path=regime_path,
-        mapping_table_path=mapping_table_path,
+        security_reference_path=security_reference_path,
     )
 
 
@@ -130,8 +130,8 @@ def generate_report_mapping_table(
     workbook_path: str | Path,
     output_path: str | Path,
 ) -> Path:
-    table = extract_report_mapping_table(workbook_path)
-    return export_report_mapping_table_json(table, output_path)
+    table = extract_security_reference_seed(workbook_path)
+    return export_security_reference_seed_csv(table, output_path)
 
 
 def _load_positions(path: str | Path) -> list[PositionSnapshot]:

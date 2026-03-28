@@ -10,16 +10,12 @@ from pathlib import Path
 from statistics import stdev
 from typing import Any, Mapping
 
-from market_helper.regimes.taxonomy import REGIME_INTERPRETATIONS
-
-from .mapping_table import (
-    ReportMappingTable,
-    build_instrument_mapping_indexes,
-    load_report_mapping_table,
-    normalize_mapping_symbol,
-    normalize_mapping_venue,
-    risk_bucket_for_category,
+from market_helper.portfolio.security_reference import (
+    DEFAULT_SECURITY_REFERENCE_PATH,
+    SecurityReference,
+    SecurityReferenceTable,
 )
+from market_helper.regimes.taxonomy import REGIME_INTERPRETATIONS
 
 
 TRADING_DAYS = 252
@@ -28,6 +24,7 @@ HIST_3M_DAYS = 63
 FUTURES_VENUES = {"CBOT", "CME", "COMEX", "ICE", "NYMEX"}
 FX_FUTURE_SYMBOLS = {"AUD", "CAD", "CHF", "EUR", "GBP", "JPY", "MXN", "NZD"}
 OPTION_LOCAL_SYMBOL_RE = re.compile(r"\s\d{6}[CP]\d+")
+DEFAULT_TEN_YEAR_EQUIV_DURATION = 7.627
 
 
 @dataclass(frozen=True)
@@ -114,12 +111,10 @@ def build_risk_html_report(
     output_path: str | Path,
     proxy_path: str | Path | None = None,
     regime_path: str | Path | None = None,
-    mapping_table_path: str | Path | None = None,
+    security_reference_path: str | Path | None = None,
 ) -> Path:
-    mapping_table = (
-        load_report_mapping_table(mapping_table_path) if mapping_table_path is not None else None
-    )
-    rows = load_position_rows(positions_csv_path, mapping_table=mapping_table)
+    reference_table = _load_security_reference_table(security_reference_path)
+    rows = load_position_rows(positions_csv_path, security_reference_table=reference_table)
     returns = _load_returns(returns_path)
     proxy = _load_proxy(proxy_path)
     regime_summary = _load_regime_summary(regime_path)
@@ -140,9 +135,7 @@ def build_risk_html_report(
     portfolio_hist_vol = portfolio_volatility(rows, historical_vols, historical_corr)
     portfolio_est_vol = portfolio_volatility(rows, estimated_vols, estimated_corr)
 
-    ten_year_duration = (
-        mapping_table.ten_year_equiv_duration if mapping_table is not None else 7.627
-    )
+    ten_year_duration = _ten_year_equiv_duration(reference_table)
     risk_rows = [
         RiskMetricsRow(
             internal_id=row.internal_id,
@@ -190,7 +183,6 @@ def build_risk_html_report(
         summary=summary,
         allocation_summary=allocation_summary,
         regime_summary=regime_summary,
-        mapping_table=mapping_table,
     )
 
     output = Path(output_path)
@@ -202,21 +194,21 @@ def build_risk_html_report(
 def load_position_rows(
     path: str | Path,
     *,
-    mapping_table: ReportMappingTable | None = None,
+    security_reference_table: SecurityReferenceTable | None = None,
 ) -> list[RiskInputRow]:
     with Path(path).open("r", encoding="utf-8", newline="") as handle:
         reader = csv.DictReader(handle)
         loaded = list(reader)
 
     total_market_value = sum(float(row.get("market_value") or 0.0) for row in loaded)
-    mapping_index, unique_mappings = (
-        build_instrument_mapping_indexes(mapping_table)
-        if mapping_table is not None
-        else ({}, {})
-    )
-
     parsed_rows: list[dict[str, object]] = []
     for row in loaded:
+        internal_id = str(row.get("internal_id") or "")
+        security = (
+            security_reference_table.get_security(internal_id)
+            if security_reference_table is not None
+            else None
+        )
         symbol = str(row.get("symbol") or "").upper()
         local_symbol = str(row.get("local_symbol") or "")
         exchange = str(row.get("exchange") or "").upper()
@@ -224,40 +216,45 @@ def load_position_rows(
         latest_price = float(row.get("latest_price") or 0.0)
         quantity = float(row.get("quantity") or 0.0)
         raw_weight = row.get("weight")
-        mapping = _resolve_mapping(
-            symbol=symbol,
-            exchange=exchange,
-            local_symbol=local_symbol,
-            mapping_index=mapping_index,
-            unique_mappings=unique_mappings,
-        )
+        mapping_status = _mapping_status(security)
 
-        instrument_type = (
-            mapping.instrument_type if mapping is not None else infer_instrument_type(local_symbol, exchange)
+        instrument_type = _instrument_type(
+            security=security,
+            local_symbol=local_symbol,
+            exchange=exchange,
         )
-        multiplier = (
-            mapping.multiplier
-            if mapping is not None
-            else infer_multiplier(
-                quantity=quantity,
-                latest_price=latest_price,
-                market_value=market_value,
-                local_symbol=local_symbol,
-            )
+        multiplier = _multiplier(
+            security=security,
+            quantity=quantity,
+            latest_price=latest_price,
+            market_value=market_value,
+            local_symbol=local_symbol,
+            mapping_status=mapping_status,
         )
         exposure_usd = market_value if market_value != 0.0 else quantity * multiplier * latest_price
-        category = mapping.category if mapping is not None else infer_category(symbol, exchange, local_symbol)
-        asset_class = mapping.risk_bucket if mapping is not None else risk_bucket_for_category(category)
-        display_ticker = (
-            mapping.display_ticker
-            if mapping is not None
-            else infer_display_ticker(symbol, exchange, local_symbol)
-        )
-        display_name = (
-            mapping.display_name
-            if mapping is not None
-            else infer_display_name(symbol, local_symbol, instrument_type)
-        )
+
+        if mapping_status == "mapped":
+            category = security.report_category or infer_category(symbol, exchange, local_symbol)
+            asset_class = security.risk_bucket or infer_asset_class(symbol, exchange)
+            display_ticker = security.display_ticker or infer_display_ticker(symbol, exchange, local_symbol)
+            display_name = security.display_name or infer_display_name(symbol, local_symbol, instrument_type)
+            duration = security.mod_duration
+            expected_vol = security.default_expected_vol
+        elif mapping_status == "outside_scope":
+            category = security.report_category or "OUTSIDE_SCOPE"
+            asset_class = security.risk_bucket or "OUTSIDE_SCOPE"
+            display_ticker = security.display_ticker or infer_display_ticker(symbol, exchange, local_symbol)
+            display_name = security.display_name or infer_display_name(symbol, local_symbol, instrument_type)
+            duration = None
+            expected_vol = None
+        else:
+            category = infer_category(symbol, exchange, local_symbol)
+            asset_class = infer_asset_class(symbol, exchange)
+            display_ticker = infer_display_ticker(symbol, exchange, local_symbol)
+            display_name = infer_display_name(symbol, local_symbol, instrument_type)
+            duration = None
+            expected_vol = None
+
         weight = (
             float(raw_weight)
             if raw_weight not in (None, "")
@@ -266,7 +263,7 @@ def load_position_rows(
 
         parsed_rows.append(
             {
-                "internal_id": str(row.get("internal_id") or ""),
+                "internal_id": internal_id,
                 "symbol": symbol,
                 "account": str(row.get("account") or ""),
                 "market_value": market_value,
@@ -280,11 +277,11 @@ def load_position_rows(
                 "latest_price": latest_price,
                 "multiplier": multiplier,
                 "exposure_usd": exposure_usd,
-                "duration": mapping.duration if mapping is not None else None,
-                "expected_vol": mapping.expected_vol if mapping is not None else None,
+                "duration": duration,
+                "expected_vol": expected_vol,
                 "local_symbol": local_symbol,
                 "exchange": exchange,
-                "mapping_status": "mapped" if mapping is not None else "heuristic",
+                "mapping_status": mapping_status,
             }
         )
 
@@ -332,7 +329,7 @@ def infer_asset_class(symbol: str, exchange: str) -> str:
         return "CM"
     if upper_symbol in {"GLD", "GDX", "IAU", "SLV", "XAUUSD"}:
         return "GOLD"
-    if upper_symbol in {"BIL", "BOXX", "CASH", "SGOV", "SHV"}:
+    if upper_symbol in {"BIL", "BOXX", "CASH", "SGOV", "SHV", "USD"}:
         return "CASH"
     if upper_symbol in {"DBMF"}:
         return "MACRO"
@@ -344,7 +341,7 @@ def infer_category(symbol: str, exchange: str, local_symbol: str) -> str:
         return "EQ"
     asset_class = infer_asset_class(symbol, exchange)
     if asset_class == "MACRO":
-        return "Macro"
+        return "MACRO"
     return asset_class
 
 
@@ -380,7 +377,7 @@ def infer_display_ticker(symbol: str, exchange: str, local_symbol: str) -> str:
         return " ".join(local_symbol.split())
     if exchange.upper() in FUTURES_VENUES and local_symbol:
         return f"{local_symbol}:{exchange.upper()}"
-    if normalize_mapping_venue(exchange) == "INTL":
+    if exchange.upper() in {"LSEETF", "SBF", "LSE", "SWX"}:
         return f"LON:{symbol}"
     return symbol
 
@@ -527,7 +524,6 @@ def render_html(
     summary: PortfolioRiskSummary,
     allocation_summary: list[CategorySummaryRow],
     regime_summary: RegimeReportSummary | None,
-    mapping_table: ReportMappingTable | None,
 ) -> str:
     position_rows = "\n".join(
         "<tr>"
@@ -576,31 +572,6 @@ def render_html(
             f"<div class='scores'>{score_list}</div>"
             "<p><em>Risk interpretation note: historical/estimated metrics above should be read in the context of this active regime.</em></p>"
             "</div>"
-        )
-
-    proxy_rows = ""
-    if mapping_table is not None and mapping_table.risk_proxies:
-        proxy_rows = "\n".join(
-            "<tr>"
-            f"<td>{html.escape(row.risk_bucket)}</td>"
-            f"<td>{html.escape(row.proxy_name)}</td>"
-            f"<td>{html.escape(row.provider)}</td>"
-            f"<td>{html.escape(row.symbol)}</td>"
-            f"<td class='num'>{'' if row.tail_level is None else f'{row.tail_level:,.2f}'}</td>"
-            f"<td>{html.escape(row.unit)}</td>"
-            "</tr>"
-            for row in mapping_table.risk_proxies
-        )
-
-    fx_rows = ""
-    if mapping_table is not None and mapping_table.fx_sources:
-        fx_rows = "\n".join(
-            "<tr>"
-            f"<td>{html.escape(row.currency_pair)}</td>"
-            f"<td>{html.escape(row.provider)}</td>"
-            f"<td>{html.escape(row.symbol)}</td>"
-            "</tr>"
-            for row in mapping_table.fx_sources
         )
 
     return f"""<!doctype html>
@@ -662,30 +633,62 @@ def render_html(
       <tbody>{position_rows}</tbody>
     </table>
   </div>
-  {"" if not proxy_rows else f"<div class='card'><h2>Live Proxy Hints</h2><table><thead><tr><th>Risk Bucket</th><th>Proxy</th><th>Provider</th><th>Lookup</th><th class='num'>Tail</th><th>Unit</th></tr></thead><tbody>{proxy_rows}</tbody></table></div>"}
-  {"" if not fx_rows else f"<div class='card'><h2>FX Source Hints</h2><table><thead><tr><th>Pair</th><th>Provider</th><th>Lookup</th></tr></thead><tbody>{fx_rows}</tbody></table></div>"}
 </body>
 </html>
 """
 
 
-def _resolve_mapping(
-    *,
-    symbol: str,
-    exchange: str,
-    local_symbol: str,
-    mapping_index: Mapping[tuple[str, str], object],
-    unique_mappings: Mapping[str, object],
-):
-    if _looks_like_option(local_symbol):
-        return None
+def _mapping_status(security: SecurityReference | None) -> str:
+    if security is None:
+        return "heuristic"
+    return security.mapping_status
 
-    symbol_key = normalize_mapping_symbol(symbol)
-    venue = normalize_mapping_venue(exchange)
-    exact = mapping_index.get((symbol_key, venue))
-    if exact is not None:
-        return exact
-    return unique_mappings.get(symbol_key)
+
+def _instrument_type(
+    *,
+    security: SecurityReference | None,
+    local_symbol: str,
+    exchange: str,
+) -> str:
+    if security is None:
+        return infer_instrument_type(local_symbol, exchange)
+    if security.mapping_status == "outside_scope":
+        return "Option" if _looks_like_option(local_symbol) else "Outside Scope"
+    if security.universe_type in {"FI_FUT", "FX_FUT", "OTHER_FUT"}:
+        return "Futures"
+    if security.universe_type == "CASH":
+        return "CASH"
+    if security.universe_type == "EQ":
+        return "EQ"
+    return "ETF"
+
+
+def _multiplier(
+    *,
+    security: SecurityReference | None,
+    quantity: float,
+    latest_price: float,
+    market_value: float,
+    local_symbol: str,
+    mapping_status: str,
+) -> float:
+    if security is not None and mapping_status == "mapped" and security.multiplier not in (None, 0):
+        return float(security.multiplier)
+    return infer_multiplier(
+        quantity=quantity,
+        latest_price=latest_price,
+        market_value=market_value,
+        local_symbol=local_symbol,
+    )
+
+
+def _ten_year_equiv_duration(reference_table: SecurityReferenceTable) -> float:
+    for security in reference_table.to_security_lookup().values():
+        if security.mapping_status != "mapped":
+            continue
+        if security.risk_bucket == "FI" and security.canonical_symbol == "ZN" and security.mod_duration is not None:
+            return security.mod_duration
+    return DEFAULT_TEN_YEAR_EQUIV_DURATION
 
 
 def _fi_10y_equivalent(
@@ -770,3 +773,10 @@ def _load_regime_summary(path: str | Path | None) -> RegimeReportSummary | None:
         regime=str(row.get("regime") or "Unknown"),
         scores={str(k): float(v) for k, v in scores.items()},
     )
+
+
+def _load_security_reference_table(path: str | Path | None) -> SecurityReferenceTable:
+    try:
+        return SecurityReferenceTable.from_csv(path or DEFAULT_SECURITY_REFERENCE_PATH)
+    except FileNotFoundError:
+        return SecurityReferenceTable()

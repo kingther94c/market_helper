@@ -81,7 +81,7 @@ def build_position_report_rows(
 def _con_id(security: Optional[SecurityReference]) -> Optional[str]:
     if security is None:
         return None
-    return security.metadata.get("ibkr_con_id")
+    return security.metadata.get("ibkr_con_id") or security.ibkr_conid or None
 
 
 def _effective_market_value(
