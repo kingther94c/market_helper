@@ -7,7 +7,7 @@ Create a read-only IBKR integration layer for monitoring and portfolio analytics
 1. Read accounts, positions, account summary, and market quotes.
 2. Support three provider paths:
    - Client Portal Web API (primary)
-   - TWS/IB Gateway via `ib_async` (thin adapter only)
+   - TWS/IB Gateway via `ib_async` (default TWS implementation)
    - Flex Web Service (archival/report ingestion)
 3. Normalize provider payloads into internal domain models before analytics/reporting.
 4. Compute allocation and risk metrics using normalized models.
@@ -18,6 +18,7 @@ Create a read-only IBKR integration layer for monitoring and portfolio analytics
 - Typed interfaces and focused modules.
 - Read-only safety checks must be explicit.
 - Tests should run without live broker connectivity by default.
+- TWS / IB Gateway code should prefer `ib_async`; only introduce `ibapi` when `ib_async` has a confirmed capability gap.
 
 ## Delivery Strategy
 Use phased, incremental implementation with test coverage added in each phase and synchronized updates to `DEVPLAN.md`.
