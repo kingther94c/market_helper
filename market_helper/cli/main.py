@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+"""CLI entrypoint for the read-only market_helper workflows."""
+
 import argparse
 from pathlib import Path
 from typing import Sequence
@@ -20,6 +22,11 @@ from market_helper.domain.regime_detection.services.detection_service import loa
 
 
 def build_parser() -> argparse.ArgumentParser:
+    """Build the top-level CLI parser.
+
+    The command names are intentionally kept stable even though the underlying
+    implementation has been moved into the new domain-driven package layout.
+    """
     parser = argparse.ArgumentParser(prog="market-helper")
     subparsers = parser.add_subparsers(dest="command", required=True)
 
@@ -109,6 +116,8 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser = build_parser()
     args = parser.parse_args(argv)
 
+    # Keep dispatch explicit instead of clever: this is the stable public API
+    # surface and it is easier to maintain when each command branch is visible.
     if args.command == "position-report":
         generate_position_report(positions_path=Path(args.positions), prices_path=Path(args.prices), output_path=Path(args.output))
         return 0

@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+"""Pipeline entrypoints for portfolio-monitor reporting flows."""
+
 import json
 from pathlib import Path
 
@@ -34,6 +36,7 @@ def generate_position_report(
     prices_path: str | Path,
     output_path: str | Path,
 ) -> Path:
+    """Build a plain CSV report from already-normalized snapshots."""
     positions = _load_positions(positions_path)
     prices = _load_prices(prices_path)
     rows = build_position_report_rows(positions, build_price_lookup(prices))
@@ -47,6 +50,7 @@ def generate_ibkr_position_report(
     output_path: str | Path,
     as_of: str | None = None,
 ) -> Path:
+    """Normalize raw IBKR payload dumps, then render the standard report shape."""
     reference_table = SecurityReferenceTable.from_default_csv()
     raw_positions = _load_json_rows(ibkr_positions_path)
     raw_prices = _load_json_rows(ibkr_prices_path)
@@ -71,6 +75,7 @@ def generate_live_ibkr_position_report(
     as_of: str | None = None,
     client: object | None = None,
 ) -> Path:
+    """Pull live TWS portfolio data and route it through the same normalization path."""
     live_client = client or TwsIbAsyncClient(
         host=host,
         port=port,
@@ -86,6 +91,8 @@ def generate_live_ibkr_position_report(
         selected_account_id = choose_tws_account(accounts, account_id)
         portfolio_items = live_client.list_portfolio(selected_account_id)
 
+        # The report pipeline always works from normalized snapshots so that
+        # live, raw JSON, and local-file workflows stay behaviorally aligned.
         reference_table = SecurityReferenceTable.from_default_csv()
         positions = normalize_ibkr_positions(
             portfolio_items_to_ibkr_position_rows(portfolio_items),
@@ -117,6 +124,7 @@ def generate_risk_html_report(
     regime_path: str | Path | None = None,
     security_reference_path: str | Path | None = None,
 ) -> Path:
+    """Render the HTML risk report from a previously generated position CSV."""
     return build_risk_html_report(
         positions_csv_path=positions_csv_path,
         returns_path=returns_path,
@@ -132,6 +140,7 @@ def generate_report_mapping_table(
     workbook_path: str | Path,
     output_path: str | Path,
 ) -> Path:
+    """Convert the workbook seed into the tracked security-reference CSV format."""
     table = extract_security_reference_seed(workbook_path)
     return export_security_reference_seed_csv(table, output_path)
 
@@ -170,6 +179,8 @@ def _load_json_rows(path: str | Path) -> list[dict[str, object]]:
     if isinstance(loaded, list):
         return [dict(row) for row in loaded]
     if isinstance(loaded, dict):
+        # Keep accepting legacy wrapper shapes so notebook artifacts and older
+        # fixtures do not all have to move in lockstep with the new pipelines.
         for key in ("rows", "positions", "prices", "data"):
             value = loaded.get(key)
             if isinstance(value, list):

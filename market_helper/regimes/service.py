@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+"""Orchestration helpers for deterministic regime detection."""
+
 import json
 from dataclasses import dataclass
 from pathlib import Path
@@ -55,6 +57,8 @@ def detect_regimes(
     """Run end-to-end deterministic regime detection from local JSON inputs."""
     cfg = load_service_config(config_path)
     bundle = load_regime_inputs(proxy_path=proxy_path, returns_path=returns_path)
+    # Keep feature construction and rule resolution separate so the same factor
+    # snapshots can later power validation notebooks and backtests.
     factors = compute_factor_snapshots(
         dates=bundle.dates,
         vix=bundle.vix,
@@ -85,6 +89,7 @@ def _attach_source_info(
     snapshots: list[RegimeSnapshot],
     source_info: dict[str, str],
 ) -> list[RegimeSnapshot]:
+    """Copy provenance into each snapshot so downstream artifacts remain auditable."""
     return [
         RegimeSnapshot(
             as_of=item.as_of,
@@ -101,6 +106,7 @@ def _attach_source_info(
 
 
 def _write_json(path: str | Path, payload: list[dict[str, Any]]) -> None:
+    """Persist JSON artifacts while creating parent directories on demand."""
     output_path = Path(path)
     output_path.parent.mkdir(parents=True, exist_ok=True)
     output_path.write_text(json.dumps(payload, indent=2), encoding="utf-8")

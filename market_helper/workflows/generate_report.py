@@ -1,3 +1,10 @@
+"""Backward-compatible workflow facade for portfolio-monitor reporting.
+
+This module intentionally mirrors the legacy workflow API so existing tests,
+notebooks, and monkeypatch-based fixtures can keep targeting the old import path
+while the real implementation lives under ``domain.portfolio_monitor``.
+"""
+
 from pathlib import Path
 
 from market_helper.data_sources.ibkr.tws import TwsIbAsyncClient
@@ -56,6 +63,8 @@ def generate_live_ibkr_position_report(
         timeout=timeout,
         account=account_id or "",
     )
+    # Instantiate the client in this legacy facade so old tests can still
+    # monkeypatch ``market_helper.workflows.generate_report.TwsIbAsyncClient``.
     return _generate_live_ibkr_position_report(
         output_path=output_path,
         host=host,
@@ -96,6 +105,7 @@ def generate_report_mapping_table(
         workbook_path=workbook_path,
         output_path=output_path,
     )
+
 
 __all__ = [
     "TwsIbAsyncClient",

@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+"""Build a lightweight regime dashboard payload for notebooks or future UIs."""
+
 from pathlib import Path
 from typing import Any
 
@@ -12,6 +14,8 @@ def generate_regime_dashboard(
     regime_path: str | Path,
     policy_path: str | Path | None = None,
 ) -> dict[str, Any]:
+    # The dashboard stays intentionally small for now: latest regime snapshot
+    # plus the read-only policy interpretation for that state.
     snapshots = load_regime_snapshots(regime_path)
     if not snapshots:
         return {"latest": None, "policy": None}

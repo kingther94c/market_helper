@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+"""Thin ib_async-based client for read-only TWS / IB Gateway access."""
+
 import asyncio
 from dataclasses import dataclass, field
 from typing import Callable
@@ -13,6 +15,7 @@ class TwsIbAsyncError(RuntimeError):
 
 
 def choose_tws_account(accounts: list[str], requested_account_id: str | None) -> str:
+    """Resolve the account id to use for live portfolio/report workflows."""
     if requested_account_id:
         if accounts and requested_account_id not in accounts:
             raise TwsIbAsyncError(
@@ -70,6 +73,8 @@ def _patch_nested_asyncio() -> None:
 
 
 def _ensure_ib_async_notebook_compat() -> None:
+    # ``ib_async`` may need the nested event-loop patch when called from a
+    # notebook kernel that already owns the running asyncio loop.
     try:
         loop = asyncio.get_running_loop()
     except RuntimeError:
@@ -93,6 +98,7 @@ def _build_ib_contract(
     conid: int | None = None,
     local_symbol: str | None = None,
 ) -> object:
+    """Create the lightest contract object needed for contract-detail lookup."""
     try:
         from ib_async import Contract
     except ModuleNotFoundError as error:
@@ -195,6 +201,8 @@ class TwsIbAsyncClient:
         if self._ib is not None and _is_connected(self._ib):
             return
 
+        # Keep notebook compatibility here so all higher-level workflows can
+        # reuse the same client without caring where they are executed from.
         _ensure_ib_async_notebook_compat()
         ib = self.ib_factory() if self.ib_factory is not None else _default_ib_factory()
 
@@ -306,7 +314,8 @@ class TwsIbAsyncClient:
 
         try:
             details = req_contract_details(contract)
-            # support both synchronous and coroutine-based implementations
+            # Support both synchronous and coroutine-returning ib_async shims so
+            # tests can fake the method without perfectly matching the runtime.
             if hasattr(details, "__await__"):
                 import asyncio
 
@@ -344,6 +353,7 @@ class TwsIbAsyncClient:
         local_symbol: str | None = None,
         contract: object | None = None,
     ) -> dict[str, object]:
+        """Return exactly one contract match or fail with a diagnostic error."""
         details = self.fetch_security_info(
             symbol=symbol,
             sec_type=sec_type,

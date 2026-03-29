@@ -1,5 +1,12 @@
 from __future__ import annotations
 
+"""Portfolio-monitor service helpers around risk-report inputs.
+
+These wrappers exist to give the new domain package a stable place to depend on
+while the heavier implementation is still being extracted from the legacy
+reporting module.
+"""
+
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -22,6 +29,7 @@ from market_helper.reporting.risk_html import (
 
 @dataclass(frozen=True)
 class RiskReportBundle:
+    """Container for the intermediate objects used during report assembly."""
     rows: list[RiskInputRow]
     historical_correlation: dict[tuple[str, str], float]
     estimated_correlation: dict[tuple[str, str], float]
@@ -40,6 +48,7 @@ def load_risk_inputs(
     positions_csv_path: str | Path,
     security_reference_path: str | Path | None = None,
 ) -> list[RiskInputRow]:
+    """Load the position CSV with optional curated security-reference enrichment."""
     reference_table = (
         SecurityReferenceTable.from_csv(security_reference_path)
         if security_reference_path is not None
@@ -55,6 +64,7 @@ def summarize_asset_class_vol(
     asset_class: str,
     proxy: dict[str, float],
 ) -> float:
+    """Expose the proxy-based vol heuristic through the domain service layer."""
     return estimated_asset_class_vol(asset_class, proxy)
 
 
