@@ -29,7 +29,7 @@ conda run -n py313 jupyter notebook
 
 For TWS / IB Gateway work, `market_helper` is `ib_async`-first. Standard live lookup and report flows should use the `market_helper.providers.tws_ib_async` adapter rather than `ibapi` directly.
 
-The live single-security lookup notebook lives at `notebooks/gather_data/derive_sec_table.ipynb`. It uses `market_helper` plus a local TWS / IB Gateway session to fetch raw IBKR contract details.
+The live single-security lookup notebook lives at `notebooks/dev_lab/derive_sec_table.ipynb` and serves as the DevLab-style entry point for sample-first exploration. It uses `market_helper` plus a local TWS / IB Gateway session to fetch raw IBKR contract details.
 
 ## Project structure
 
@@ -43,6 +43,25 @@ This repository follows a domain-first layout:
 - `scripts/` for executable workflow entrypoints
 - `tests/` for unit and e2e tests
 - `docs/` for architecture and strategy notes
+
+## Refactor orientation (Portfolio + Regime)
+
+Current architecture direction is a two-engine model:
+- **Portfolio Monitor**: IBKR data -> security-reference enrichment -> portfolio risk/allocation reports.
+- **Regime Detection**: market/macro data -> regime classification -> dashboard + policy tilt suggestions.
+
+Cross-engine integration lives in `suggest` + `backtest` for scenario stress testing and allocation-adjustment guidance.
+
+Planning docs:
+- Master: `DEVPLAN.md`
+- Portfolio track: `DEVPLAN.portfolio.md`
+- Regime track: `DEVPLAN.regime.md`
+- Refactor blueprint: `docs/refactor_blueprint.md`
+
+Shared utility guidance:
+- Put **cross-engine, domain-agnostic** functions in `market_helper/utils/`.
+- Keep **engine-specific business logic** inside `portfolio/` or `regimes/`.
+- Promote to shared utils only after repeated use and dedicated tests.
 
 ## Quick test
 
@@ -109,7 +128,7 @@ conda run -n py313 python -m market_helper.cli.main ibkr-live-position-report \
 
 Before running the live command, launch TWS or IB Gateway, enable API access, and confirm the host/port/client-id match your local API settings. The defaults are `127.0.0.1:7497` with `client_id=1`.
 
-The same `ib_async`-first TWS layer is also used by `notebooks/gather_data/derive_sec_table.ipynb` for live contract lookup and notebook-led provider development.
+The same `ib_async`-first TWS layer is also used by `notebooks/dev_lab/derive_sec_table.ipynb` for live contract lookup and notebook-led provider development.
 
 The script wrapper also supports the live path:
 

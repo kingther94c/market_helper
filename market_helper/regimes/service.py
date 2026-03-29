@@ -1,11 +1,10 @@
 from __future__ import annotations
 
-import json
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-import yaml
+from market_helper.utils.io import read_json, read_yaml_mapping, write_json
 
 from .indicators import compute_factor_snapshots
 from .models import FactorSnapshot, RegimeSnapshot
@@ -26,9 +25,7 @@ def load_service_config(path: str | Path | None) -> RegimeServiceConfig:
     """Load optional YAML config for regime service."""
     if path is None:
         return RegimeServiceConfig()
-    payload = yaml.safe_load(Path(path).read_text(encoding="utf-8")) or {}
-    if not isinstance(payload, dict):
-        raise ValueError("regime config must be a mapping")
+    payload = read_yaml_mapping(path)
     rulebook_payload = payload.get("rulebook") if isinstance(payload.get("rulebook"), dict) else {}
     return RegimeServiceConfig(
         stress_weight_vol=float(payload.get("stress_weight_vol", 0.55)),
@@ -101,14 +98,12 @@ def _attach_source_info(
 
 
 def _write_json(path: str | Path, payload: list[dict[str, Any]]) -> None:
-    output_path = Path(path)
-    output_path.parent.mkdir(parents=True, exist_ok=True)
-    output_path.write_text(json.dumps(payload, indent=2), encoding="utf-8")
+    write_json(path, payload, indent=2)
 
 
 def load_regime_snapshots(path: str | Path) -> list[RegimeSnapshot]:
     """Load regime snapshots from JSON artifact."""
-    payload = json.loads(Path(path).read_text(encoding="utf-8"))
+    payload = read_json(path)
     if not isinstance(payload, list):
         raise ValueError("Expected regime snapshots JSON array")
     return [RegimeSnapshot.from_dict(dict(item)) for item in payload if isinstance(item, dict)]
@@ -116,7 +111,7 @@ def load_regime_snapshots(path: str | Path) -> list[RegimeSnapshot]:
 
 def load_factor_snapshots(path: str | Path) -> list[FactorSnapshot]:
     """Load indicator/factor snapshots from JSON artifact."""
-    payload = json.loads(Path(path).read_text(encoding="utf-8"))
+    payload = read_json(path)
     if not isinstance(payload, list):
         raise ValueError("Expected indicator snapshots JSON array")
     out: list[FactorSnapshot] = []

@@ -4,9 +4,8 @@ from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Any
 
-import yaml
-
 from market_helper.regimes.models import RegimeSnapshot
+from market_helper.utils.io import read_yaml_mapping
 from market_helper.regimes.taxonomy import (
     REGIME_DEFLATIONARY_CRISIS,
     REGIME_DEFLATIONARY_SLOWDOWN,
@@ -74,9 +73,7 @@ def load_regime_policy(path: str | Path | None = None) -> dict[str, dict[str, An
     """Load optional YAML policy overrides keyed by regime label."""
     if path is None:
         return DEFAULT_POLICY
-    payload = yaml.safe_load(Path(path).read_text(encoding="utf-8")) or {}
-    if not isinstance(payload, dict):
-        raise ValueError("Policy config must be a mapping")
+    payload = read_yaml_mapping(path)
     if "policy" in payload and isinstance(payload["policy"], dict):
         payload = dict(payload["policy"])
     merged = dict(DEFAULT_POLICY)

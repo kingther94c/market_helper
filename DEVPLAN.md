@@ -10,6 +10,31 @@
 ## Objective
 Build a broker-agnostic, read-only IBKR integration layer for market monitoring and portfolio analytics, with IBKR Client Portal Web API as the primary path and clean extension points for future providers/services. The immediate delivery path is a reliable position-report workflow plus notebook-led live TWS / IB Gateway lookup tooling that can run from normalized snapshots, raw IBKR payloads, and live local TWS / IB Gateway sessions.
 
+## Refactor Reset (2026-03-29)
+
+### Program framing
+- Reframe the project into two primary engines:
+  1. **Portfolio Monitor** (IBKR ingestion -> security reference enrichment -> portfolio report).
+  2. **Regime Detection** (market/macro ingestion -> policy/rule regime classification -> regime dashboard).
+- Add a final integration lane that combines both outputs for scenario stress tests and portfolio-adjustment suggestions.
+
+### DevPlan structure update
+- Maintain one **master DevPlan** (this file) plus two dedicated tracks:
+  - Portfolio Monitor track
+  - Regime Detection track
+- Treat integration work (`suggest` + `backtest`) as a cross-track layer with explicit deliverables and validation criteria.
+
+### Development method
+- Keep `notebooks/dev_lab/derive_sec_table.ipynb` as DevLab entry point for sample-first exploration.
+- Expected loop: DevLab prototype -> workflow/package implementation -> tests -> docs/plan refresh.
+
+### Immediate priorities
+1. Clarify ownership boundaries per package so code maps cleanly to Portfolio/Regime/Integration.
+2. Standardize data contracts between monitor output and regime output for stress-test composition.
+3. Keep a minimal policy-based backtester as a required dependency for regime-policy changes.
+4. Ensure every PR updates this master plan and the relevant module track.
+5. Introduce a governed shared-utility layer (`market_helper/utils`) for cross-engine pure helpers, with explicit promotion criteria.
+
 ## In Scope
 - Read-only provider adapters for:
   - Client Portal Web API (primary, custom wrapper)
@@ -68,6 +93,8 @@ Build a broker-agnostic, read-only IBKR integration layer for market monitoring 
 - Expanded TWS provider tests to cover `ib_async` contract construction, `primaryExchange` propagation, and explicit no-match / ambiguous-match lookup failures.
 - Updated README and provider docs so the documented TWS strategy now matches the code: `ib_async` is the default TWS stack and the live notebook is part of the supported local workflow.
 - Unit tests added and expanded across config, domain, providers, portfolio normalization, reporting, workflows, and read-only guard behavior.
+- Refactor execution started for shared utility extraction: introduced centralized JSON/YAML IO helpers under `market_helper/utils/io.py` and migrated selected regime/workflow/policy loaders to use them.
+- Extended shared IO refactor into risk-report ingestion paths by migrating `reporting/risk_html.py` JSON loaders to `market_helper.utils.io.read_json`.
 
 ## In Progress
 - Tightening the live TWS / `ib_async` report path with better account metadata, richer report fields, stronger multi-account/session ergonomics, and eventual broader provider coverage.
