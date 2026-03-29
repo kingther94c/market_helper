@@ -1,6 +1,6 @@
 # market_helper
 
-A scaffolded market research and workflow project organized for data, regime detection, signal generation, backtesting, reporting, and UI workflows.
+A scaffolded market research and workflow project organized around data sources, domain services, presentation outputs, and CLI workflows.
 
 ## Environment
 
@@ -38,10 +38,24 @@ This repository follows a domain-first layout:
 - `configs/{app,portfolio_monitor,regime_detection,integration}/` for runtime config
 - `data/{raw,interim,processed,cache,artifacts}/` for datasets and generated outputs
 - `notebooks/{dev_lab,portfolio_monitor,regime_detection,integration}/` for exploration
-- `market_helper/{app,common,data_sources,domain,presentation,cli}/` for package code
+- `market_helper/{data_sources,domain,presentation,cli,common,app}/` for package code
 - `scripts/` for executable workflow entrypoints
 - `tests/` for unit, integration, and e2e coverage
 - `docs/` for architecture notes and devplans
+
+
+### Package organization direction
+
+Within `market_helper/`, the recommended internal layout is:
+
+- `data_sources/` for IBKR / Yahoo / FRED and provider adapters
+- `domain/portfolio_monitor/` for portfolio report, security-reference enrichment, allocation/risk logic
+- `domain/regime_detection/` for macro/regime/policy/backtester/dashboard domain workflows
+- `domain/integration/` for cross-domain stress tests, recommendations, and combined reports
+- `presentation/` for HTML/table/chart/dashboard-facing formatting and rendering
+- `cli/` for user-facing command entrypoints
+
+Legacy modules (for example `market_helper.ui.*`) remain as compatibility wrappers where needed, but new imports should target the package layout above.
 
 ## Quick test
 
