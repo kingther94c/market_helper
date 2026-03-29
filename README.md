@@ -27,6 +27,10 @@ conda run -n py313 jupyter lab
 conda run -n py313 jupyter notebook
 ```
 
+For TWS / IB Gateway work, `market_helper` is `ib_async`-first. Standard live lookup and report flows should use the `market_helper.providers.tws_ib_async` adapter rather than `ibapi` directly.
+
+The live single-security lookup notebook lives at `notebooks/gather_data/derive_sec_table.ipynb`. It uses `market_helper` plus a local TWS / IB Gateway session to fetch raw IBKR contract details.
+
 ## Project structure
 
 This repository follows a domain-first layout:
@@ -104,6 +108,8 @@ conda run -n py313 python -m market_helper.cli.main ibkr-live-position-report \
 ```
 
 Before running the live command, launch TWS or IB Gateway, enable API access, and confirm the host/port/client-id match your local API settings. The defaults are `127.0.0.1:7497` with `client_id=1`.
+
+The same `ib_async`-first TWS layer is also used by `notebooks/gather_data/derive_sec_table.ipynb` for live contract lookup and notebook-led provider development.
 
 The script wrapper also supports the live path:
 

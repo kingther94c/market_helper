@@ -8,12 +8,12 @@
 **Every PR must update DEVPLAN.md to reflect completed work, current status, and next steps.**
 
 ## Objective
-Build a broker-agnostic, read-only IBKR integration layer for market monitoring and portfolio analytics, with IBKR Client Portal Web API as the primary path and clean extension points for future providers/services. The immediate delivery path is a reliable position-report workflow that can run from normalized snapshots, raw IBKR payloads, and live local TWS / IB Gateway sessions.
+Build a broker-agnostic, read-only IBKR integration layer for market monitoring and portfolio analytics, with IBKR Client Portal Web API as the primary path and clean extension points for future providers/services. The immediate delivery path is a reliable position-report workflow plus notebook-led live TWS / IB Gateway lookup tooling that can run from normalized snapshots, raw IBKR payloads, and live local TWS / IB Gateway sessions.
 
 ## In Scope
 - Read-only provider adapters for:
   - Client Portal Web API (primary, custom wrapper)
-  - TWS / IB Gateway via `ib_async` (thin wrapper only)
+  - TWS / IB Gateway via `ib_async` (default TWS implementation; only fall back to `ibapi` for confirmed gaps)
   - Flex Web Service (archival/reconciliation)
 - Domain normalization before business logic.
 - Allocation/risk/reporting services built on broker-agnostic models.
@@ -62,24 +62,30 @@ Build a broker-agnostic, read-only IBKR integration layer for market monitoring 
 - Synced additional top-level `py313` packages back into `env.yml` where they appear intentional and repo-relevant, specifically `pytest` for the test workflow and `yfinance` for notebook/data exploration.
 - Added explicit notebook-analysis staples used in local project notebooks to `env.yml`, specifically `numpy` and `pandas`, so exploratory work is reproducible from the shared environment spec.
 - Expanded `env.yml` further with common stats / quant-analysis packages (`scipy`, `scikit-learn`, `statsmodels`) so the shared environment covers typical research notebooks without ad hoc local installs.
+- Formalized the TWS / IB Gateway path as `ib_async`-first for local live work and removed the unnecessary `ibapi` dependency from IBKR contract lookup.
+- Extended `market_helper.providers.tws_ib_async.TwsIbAsyncClient` with primary-exchange-aware contract lookup and a fail-fast `require_security_info()` helper for single-instrument live exploration.
+- Replaced the old offline/demo `derive_sec_table` notebook flow with a live, `market_helper`-only IBKR contract lookup notebook that pulls real raw contract details from local TWS / IB Gateway.
+- Expanded TWS provider tests to cover `ib_async` contract construction, `primaryExchange` propagation, and explicit no-match / ambiguous-match lookup failures.
+- Updated README and provider docs so the documented TWS strategy now matches the code: `ib_async` is the default TWS stack and the live notebook is part of the supported local workflow.
 - Unit tests added and expanded across config, domain, providers, portfolio normalization, reporting, workflows, and read-only guard behavior.
 
 ## In Progress
-- Tightening the live TWS / `ib_async` report path with better account metadata, richer report fields, stronger session ergonomics, and eventual broader provider coverage.
+- Tightening the live TWS / `ib_async` report path with better account metadata, richer report fields, stronger multi-account/session ergonomics, and eventual broader provider coverage.
 - Hardening the new risk HTML workflow with richer asset-class bucketing, better derivatives treatment, and live market proxy ingestion.
 - Expanding the curated `security_reference` maintenance workflow so live price/FX/proxy sourcing can be driven by provider hints stored on each row.
 
 ## Next Steps
-1. Add explicit provider fetchers for live price / FX / risk-proxy data keyed off `security_reference.csv` source hints (`IBKR`, `Yahoo`, `Google`, `manual`).
-2. Add tracked alias/rule rows for more cross-vendor futures symbology, especially roots that differ between IBKR, Bloomberg, and Yahoo.
-3. Add a local manual-override layer for provisional or account-specific security-reference entries that should not be committed.
-4. Improve derivatives treatment in risk reporting, especially how `OUTSIDE_SCOPE` options are surfaced or excluded from aggregate risk.
-5. Add data-library loaders for benchmark proxies (VIX/MOVE/GVZ/OVX) and historical return time series so risk metrics are sourced automatically.
-6. Extend risk decomposition from simple weight*vol contributions to covariance-consistent marginal/component risk attribution.
-7. Add clearer connection diagnostics and account-selection ergonomics for live TWS / IB Gateway runs.
-8. Keep evolving the HTML report toward the target portfolio view without coupling runtime rendering to `outputs/reports/target_report.xlsx`.
-9. Add fixture sets from real IBKR payloads to harden compatibility.
-10. Optionally add a broader Client Portal Web API wrapper layer if we need more endpoints beyond position reporting.
+1. Add a next notebook-to-library step that converts live `require_security_info()` results into `SecurityReference` candidate rows for manual curation.
+2. Add explicit provider fetchers for live price / FX / risk-proxy data keyed off `security_reference.csv` source hints (`IBKR`, `Yahoo`, `Google`, `manual`).
+3. Add tracked alias/rule rows for more cross-vendor futures symbology, especially roots that differ between IBKR, Bloomberg, and Yahoo.
+4. Add a local manual-override layer for provisional or account-specific security-reference entries that should not be committed.
+5. Improve derivatives treatment in risk reporting, especially how `OUTSIDE_SCOPE` options are surfaced or excluded from aggregate risk.
+6. Add data-library loaders for benchmark proxies (VIX/MOVE/GVZ/OVX) and historical return time series so risk metrics are sourced automatically.
+7. Extend risk decomposition from simple weight*vol contributions to covariance-consistent marginal/component risk attribution.
+8. Add richer account-selection ergonomics and account/session metadata surfacing for live TWS / IB Gateway runs.
+9. Keep evolving the HTML report toward the target portfolio view without coupling runtime rendering to `outputs/reports/target_report.xlsx`.
+10. Add fixture sets from real IBKR payloads to harden compatibility.
+11. Optionally add a broader Client Portal Web API wrapper layer if we need more endpoints beyond position reporting.
 
 ## Instrument Mapping Plan
 - Keep `internal_id` as a system-owned canonical key; do not let Yahoo, Bloomberg, Google, or IBKR identifiers become the system primary key.
@@ -101,7 +107,7 @@ Build a broker-agnostic, read-only IBKR integration layer for market monitoring 
 - A practical delivery sequence is: stabilize instrument mapping and exposure normalization first, add bucket/risk calculations second, then implement workbook generation and formatting last.
 
 ## Backlog / Future Phases
-- Implement TWS thin adapters via `ib_async` (`client`, `portfolio`, `market_data`, `mapper`).
+- Extend the TWS `ib_async` adapter surface beyond the current client/portfolio/report/contract-lookup coverage, especially market-data and richer account/session tooling.
 - Implement Flex fetch/parse/map archival flow.
 - Build broker-agnostic business services (portfolio/quote/allocation/risk/monitor).
 - Build HTML monitor rendering and snapshot tests.
@@ -116,6 +122,8 @@ Build a broker-agnostic, read-only IBKR integration layer for market monitoring 
 
 ## Testing Status
 - Unit-test command passes under `py313`: `conda run -n py313 python -m pytest -q tests/unit`
+- Targeted TWS provider/workflow tests pass under `py313`: `conda run -n py313 pytest -q tests/unit/providers/test_tws_ib_async_client.py tests/unit/providers/test_tws_ib_async_mappers.py tests/unit/workflows/test_generate_live_ibkr_report.py`
+- Live smoke validation succeeded against local TWS / IB Gateway for `XLK` contract lookup through `market_helper.providers.tws_ib_async`, and the `derive_sec_table` notebook cells executed successfully end to end from `notebooks/gather_data`.
 
 ## Notes
 - Execution/trading support remains intentionally unimplemented.
