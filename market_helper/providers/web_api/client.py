@@ -1,5 +1,11 @@
 from __future__ import annotations
 
+"""Read-only Client Portal Web API adapter.
+
+The client keeps transport, retry, and payload coercion in one place so that
+domain code can work with normalized snapshots instead of raw endpoint shapes.
+"""
+
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 
@@ -37,6 +43,8 @@ class WebApiClient:
     retry_delay_seconds: float = 0.2
 
     def __post_init__(self) -> None:
+        # Keep the guard close to object construction so invalid modes fail
+        # before any HTTP call can be attempted.
         assert_read_only_mode(self.mode)
 
     def session_status(self) -> dict[str, object]:
@@ -57,6 +65,8 @@ class WebApiClient:
             account_id = str(_first_value(row, "accountId", "id", default=""))
             if not account_id:
                 continue
+            # Reuse the account-summary endpoint as the canonical normalized
+            # shape rather than returning the lighter `/portfolio/accounts` rows.
             accounts.append(self.read_account_summary(account_id))
         return accounts
 
@@ -99,6 +109,8 @@ class WebApiClient:
         body: Mapping[str, object] | None = None,
     ) -> object:
         url = self._build_url(path)
+        # Retry is deliberately centralized here so each read_* method stays
+        # focused on endpoint semantics instead of transport concerns.
         return with_retry(
             lambda: self.transport(method, url, params, body),
             attempts=self.retry_attempts,
@@ -122,6 +134,7 @@ def _coerce_mapping(payload: object) -> dict[str, object]:
 
 
 def _coerce_rows(payload: object, *, key: str | None = None) -> list[Mapping[str, object]]:
+    """Accept either a top-level JSON list or a list nested under ``key``."""
     if isinstance(payload, list):
         return [row for row in payload if isinstance(row, Mapping)]
     if isinstance(payload, Mapping):

@@ -26,6 +26,7 @@ Build a broker-agnostic, read-only IBKR integration layer for market monitoring 
 - Full interactive frontend app in this phase.
 
 ## Completed
+- Added a readability pass across core workflow, provider, risk, and security-reference modules with higher-signal docstrings/comments to reduce maintenance friction during the ongoing refactor.
 - Began the domain-driven refactor inside the existing top-level package without introducing a `src/` migration, preserving the VS Code notebook workflow.
 - Added new package roots: `market_helper/app`, `market_helper/common`, `market_helper/data_sources`, `market_helper/domain`, and `market_helper/presentation`.
 - Added compatibility wrappers so legacy `config`, `safety`, `utils`, `workflows`, and CLI entrypoints now resolve through the new domain-driven package structure.

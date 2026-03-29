@@ -1,5 +1,13 @@
 from __future__ import annotations
 
+"""HTML risk-report builder plus its current risk-calculation helpers.
+
+This module still contains both domain calculations and rendering because the
+refactor is being done incrementally. New code should prefer the
+``domain.portfolio_monitor`` and ``presentation.html`` entrypoints, but the
+shared helpers stay here until the split is fully complete.
+"""
+
 import csv
 import html
 import json
@@ -113,15 +121,19 @@ def build_risk_html_report(
     regime_path: str | Path | None = None,
     security_reference_path: str | Path | None = None,
 ) -> Path:
+    """Build the end-to-end HTML report from position, return, and proxy inputs."""
     reference_table = _load_security_reference_table(security_reference_path)
     rows = load_position_rows(positions_csv_path, security_reference_table=reference_table)
     returns = _load_returns(returns_path)
     proxy = _load_proxy(proxy_path)
     regime_summary = _load_regime_summary(regime_path)
 
+    # Historical vols are instrument-specific when return history exists.
     historical_vols = {
         row.internal_id: historical_geomean_vol(returns.get(row.internal_id, [])) for row in rows
     }
+    # Estimated vols fall back to asset-class proxies so the report still works
+    # for instruments that do not have local return history yet.
     estimated_vols = {
         row.internal_id: row.expected_vol
         if row.expected_vol is not None
@@ -196,6 +208,7 @@ def load_position_rows(
     *,
     security_reference_table: SecurityReferenceTable | None = None,
 ) -> list[RiskInputRow]:
+    """Load the position CSV and enrich it into risk-oriented rows."""
     with Path(path).open("r", encoding="utf-8", newline="") as handle:
         reader = csv.DictReader(handle)
         loaded = list(reader)
@@ -218,6 +231,8 @@ def load_position_rows(
         raw_weight = row.get("weight")
         mapping_status = _mapping_status(security)
 
+        # Prefer curated security-reference fields whenever the instrument is
+        # mapped; only fall back to heuristics for unmapped/out-of-scope rows.
         instrument_type = _instrument_type(
             security=security,
             local_symbol=local_symbol,
@@ -318,6 +333,7 @@ def load_position_rows(
 
 
 def infer_asset_class(symbol: str, exchange: str) -> str:
+    """Best-effort fallback asset-class inference for unmapped rows."""
     upper_symbol = symbol.upper()
     upper_exchange = exchange.upper()
 
@@ -407,6 +423,7 @@ def annualized_vol(returns: list[float]) -> float:
 
 
 def estimated_asset_class_vol(asset_class: str, proxy: Mapping[str, float]) -> float:
+    """Map asset classes to proxy vols used when instrument history is missing."""
     name = asset_class.upper()
     if name == "EQ":
         return proxy.get("VIX", 18.0) / 100.0
@@ -438,6 +455,7 @@ def build_historical_correlation(
 
 
 def build_estimated_correlation(rows: list[RiskInputRow]) -> dict[tuple[str, str], float]:
+    """Simple heuristic correlation matrix for the first report version."""
     corr: dict[tuple[str, str], float] = {}
     for left in rows:
         for right in rows:
@@ -477,6 +495,7 @@ def portfolio_volatility(
     vols: Mapping[str, float],
     corr: Mapping[tuple[str, str], float],
 ) -> float:
+    """Compute portfolio volatility from weights, vols, and a correlation matrix."""
     variance = 0.0
     for left in rows:
         for right in rows:

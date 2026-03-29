@@ -1,5 +1,12 @@
 from __future__ import annotations
 
+"""Security reference primitives and lookup/indexing helpers.
+
+The curated CSV is the main source of truth for instrument identity. Runtime
+lookups are allowed to add temporary IBKR-specific details, but they should
+still resolve back into tracked internal ids whenever possible.
+"""
+
 import csv
 import re
 from dataclasses import dataclass, field, replace
@@ -82,6 +89,8 @@ class SecurityReference:
     fx_source_symbol: str = ""
 
     def __post_init__(self) -> None:
+        # Normalize optional fields aggressively so downstream matching code can
+        # assume a stable representation regardless of how a row was created.
         metadata = {str(k): str(v) for k, v in (self.metadata or {}).items()}
         ibkr_conid = _clean_optional_str(self.ibkr_conid) or metadata.get("ibkr_con_id", "")
         normalized_risk_bucket = _normalize_risk_bucket(self.risk_bucket or self.asset_class)
@@ -150,6 +159,8 @@ class SecurityReference:
         local_symbol: str,
         sec_type: str,
     ) -> SecurityReference:
+        # Runtime contract details should enrich a mapped security row without
+        # changing its canonical identity.
         metadata = dict(self.metadata)
         metadata.update(
             {
@@ -359,6 +370,9 @@ class SecurityReferenceTable:
             self._mapping_to_internal[("ibkr", security.ibkr_conid)] = security.internal_id
 
         if security.ibkr_symbol and security.ibkr_sec_type and security.ibkr_exchange:
+            # IBKR futures often arrive as concrete contracts (`ZNM6`) while the
+            # curated table is keyed at the family/root level (`ZN`). The alias
+            # normalizer collapses those runtime symbols into the family lookup.
             alias_key = self._normalize_ibkr_alias(
                 symbol=security.ibkr_symbol,
                 sec_type=security.ibkr_sec_type,
@@ -385,6 +399,9 @@ class SecurityReferenceTable:
             self._mapping_to_internal[("bloomberg", normalized)] = security.internal_id
 
         if security.risk_bucket == "CASH" or security.universe_type == "CASH":
+            # Cash needs looser aliasing than other instruments because broker
+            # payloads might identify it by symbol, currency, or a synthetic
+            # cash bucket label depending on the source.
             aliases = {
                 security.canonical_symbol,
                 security.display_ticker,
@@ -469,6 +486,8 @@ class SecurityReferenceTable:
         symbol: str,
         currency: str,
     ) -> Optional[SecurityReference]:
+        # Accept several cash spellings because the same balance can appear as
+        # `USD`, `CASH_USD`, or just `CASH` depending on the upstream payload.
         aliases = [
             symbol,
             currency,
@@ -495,6 +514,8 @@ class SecurityReferenceTable:
         local_symbol: str,
         sec_type: str,
     ) -> str:
+        # Runtime registration is the last step after a curated row has been
+        # resolved. It makes future price snapshots for the same conId cheap.
         runtime_security = security.with_runtime_contract(
             con_id=con_id,
             symbol=symbol,
@@ -573,6 +594,7 @@ def join_positions_with_latest_price(
 
 
 def normalize_contract_root(symbol: str) -> str:
+    """Collapse vendor-specific futures contract tickers to a stable root."""
     upper = _normalize_lookup_value(symbol)
     if "_" in upper:
         return upper
