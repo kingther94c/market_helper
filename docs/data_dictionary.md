@@ -5,7 +5,7 @@ Track raw, interim, and processed datasets in this document.
 ## Security reference and holdings datasets
 
 ### `security_reference`
-Curated wide instrument master table. This tracked CSV lives at `configs/security_reference.csv`
+Curated wide instrument master table. This tracked CSV lives at `configs/portfolio_monitor/security_reference.csv`
 and defines the supported investment universe for reporting/risk v1.
 
 | column | type | description |

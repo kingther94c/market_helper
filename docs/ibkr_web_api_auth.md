@@ -11,7 +11,7 @@
 - If you are just connecting your own individual account, you usually do not need to go fetch an API key before starting the Client Portal Web API flow.
 
 ## Suggested Local Setup
-1. Copy the structure from `configs/settings.example.json` into your local settings file.
+1. Copy the structure from `configs/app/settings.example.json` into your local settings file.
 2. Fill `provider.account_id` with your IBKR account id such as `U1234567`.
 3. Fill `provider.username` with your IBKR login username.
 4. Export your password in the shell: `export IBKR_CP_PASSWORD='your-password'`
