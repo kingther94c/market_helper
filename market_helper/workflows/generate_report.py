@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import json
 from pathlib import Path
 
 from market_helper.portfolio import (
@@ -24,6 +23,7 @@ from market_helper.reporting import (
     export_security_reference_seed_csv,
     extract_security_reference_seed,
 )
+from market_helper.utils.io import read_json
 
 
 def generate_position_report(
@@ -164,7 +164,7 @@ def _load_prices(path: str | Path) -> list[PriceSnapshot]:
 
 
 def _load_json_rows(path: str | Path) -> list[dict[str, object]]:
-    loaded = json.loads(Path(path).read_text(encoding="utf-8"))
+    loaded = read_json(path)
     if isinstance(loaded, list):
         return [dict(row) for row in loaded]
     if isinstance(loaded, dict):

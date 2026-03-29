@@ -2,13 +2,14 @@ from __future__ import annotations
 
 import csv
 import html
-import json
 import math
 import re
 from dataclasses import dataclass
 from pathlib import Path
 from statistics import stdev
 from typing import Any, Mapping
+
+from market_helper.utils.io import read_json
 
 from market_helper.portfolio.security_reference import (
     DEFAULT_SECURITY_REFERENCE_PATH,
@@ -743,7 +744,7 @@ def _optional_float(value: object) -> float | None:
 
 
 def _load_returns(path: str | Path) -> dict[str, list[float]]:
-    loaded = json.loads(Path(path).read_text(encoding="utf-8"))
+    loaded = read_json(path)
     if not isinstance(loaded, dict):
         raise ValueError("Expected returns JSON object: {internal_id: [daily_returns...]}")
     return {str(k): [float(v) for v in values] for k, values in loaded.items() if isinstance(values, list)}
@@ -752,7 +753,7 @@ def _load_returns(path: str | Path) -> dict[str, list[float]]:
 def _load_proxy(path: str | Path | None) -> dict[str, float]:
     if path is None:
         return {}
-    loaded = json.loads(Path(path).read_text(encoding="utf-8"))
+    loaded = read_json(path)
     if not isinstance(loaded, dict):
         raise ValueError("Expected proxy JSON object, e.g. {'VIX': 19.2}")
     return {str(k).upper(): float(v) for k, v in loaded.items() if isinstance(v, (int, float, str))}
@@ -761,7 +762,7 @@ def _load_proxy(path: str | Path | None) -> dict[str, float]:
 def _load_regime_summary(path: str | Path | None) -> RegimeReportSummary | None:
     if path is None:
         return None
-    loaded: Any = json.loads(Path(path).read_text(encoding="utf-8"))
+    loaded: Any = read_json(path)
     if not isinstance(loaded, list) or not loaded:
         return None
     row = loaded[-1]
