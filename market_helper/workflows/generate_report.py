@@ -1,28 +1,12 @@
-from __future__ import annotations
-
-import json
 from pathlib import Path
 
-from market_helper.portfolio import (
-    PriceSnapshot,
-    PositionSnapshot,
-    SecurityReferenceTable,
-    build_price_lookup,
-    normalize_ibkr_latest_prices,
-    normalize_ibkr_positions,
-)
-from market_helper.providers.tws_ib_async import (
-    TwsIbAsyncClient,
-    choose_tws_account,
-    portfolio_items_to_ibkr_position_rows,
-    portfolio_items_to_ibkr_price_rows,
-)
-from market_helper.reporting import (
-    build_position_report_rows,
-    build_risk_html_report,
-    export_position_report_csv,
-    export_security_reference_seed_csv,
-    extract_security_reference_seed,
+from market_helper.data_sources.ibkr.tws import TwsIbAsyncClient
+from market_helper.domain.portfolio_monitor.pipelines.generate_portfolio_report import (
+    generate_ibkr_position_report as _generate_ibkr_position_report,
+    generate_live_ibkr_position_report as _generate_live_ibkr_position_report,
+    generate_position_report as _generate_position_report,
+    generate_report_mapping_table as _generate_report_mapping_table,
+    generate_risk_html_report as _generate_risk_html_report,
 )
 
 
@@ -32,10 +16,11 @@ def generate_position_report(
     prices_path: str | Path,
     output_path: str | Path,
 ) -> Path:
-    positions = _load_positions(positions_path)
-    prices = _load_prices(prices_path)
-    rows = build_position_report_rows(positions, build_price_lookup(prices))
-    return export_position_report_csv(rows, output_path)
+    return _generate_position_report(
+        positions_path=positions_path,
+        prices_path=prices_path,
+        output_path=output_path,
+    )
 
 
 def generate_ibkr_position_report(
@@ -45,17 +30,12 @@ def generate_ibkr_position_report(
     output_path: str | Path,
     as_of: str | None = None,
 ) -> Path:
-    reference_table = SecurityReferenceTable.from_default_csv()
-    raw_positions = _load_json_rows(ibkr_positions_path)
-    raw_prices = _load_json_rows(ibkr_prices_path)
-    positions = normalize_ibkr_positions(raw_positions, reference_table, as_of=as_of)
-    prices = normalize_ibkr_latest_prices(raw_prices, reference_table, as_of=as_of)
-    rows = build_position_report_rows(
-        positions,
-        build_price_lookup(prices),
-        reference_table.to_security_lookup(),
+    return _generate_ibkr_position_report(
+        ibkr_positions_path=ibkr_positions_path,
+        ibkr_prices_path=ibkr_prices_path,
+        output_path=output_path,
+        as_of=as_of,
     )
-    return export_position_report_csv(rows, output_path)
 
 
 def generate_live_ibkr_position_report(
@@ -76,34 +56,16 @@ def generate_live_ibkr_position_report(
         timeout=timeout,
         account=account_id or "",
     )
-    connect = getattr(live_client, "connect")
-    disconnect = getattr(live_client, "disconnect", None)
-    connect()
-    try:
-        accounts = live_client.list_accounts()
-        selected_account_id = choose_tws_account(accounts, account_id)
-        portfolio_items = live_client.list_portfolio(selected_account_id)
-
-        reference_table = SecurityReferenceTable.from_default_csv()
-        positions = normalize_ibkr_positions(
-            portfolio_items_to_ibkr_position_rows(portfolio_items),
-            reference_table,
-            as_of=as_of,
-        )
-        prices = normalize_ibkr_latest_prices(
-            portfolio_items_to_ibkr_price_rows(portfolio_items),
-            reference_table,
-            as_of=as_of,
-        )
-        rows = build_position_report_rows(
-            positions,
-            build_price_lookup(prices),
-            reference_table.to_security_lookup(),
-        )
-        return export_position_report_csv(rows, output_path)
-    finally:
-        if callable(disconnect):
-            disconnect()
+    return _generate_live_ibkr_position_report(
+        output_path=output_path,
+        host=host,
+        port=port,
+        client_id=client_id,
+        account_id=account_id,
+        timeout=timeout,
+        as_of=as_of,
+        client=live_client,
+    )
 
 
 def generate_risk_html_report(
@@ -115,7 +77,7 @@ def generate_risk_html_report(
     regime_path: str | Path | None = None,
     security_reference_path: str | Path | None = None,
 ) -> Path:
-    return build_risk_html_report(
+    return _generate_risk_html_report(
         positions_csv_path=positions_csv_path,
         returns_path=returns_path,
         output_path=output_path,
@@ -130,52 +92,16 @@ def generate_report_mapping_table(
     workbook_path: str | Path,
     output_path: str | Path,
 ) -> Path:
-    table = extract_security_reference_seed(workbook_path)
-    return export_security_reference_seed_csv(table, output_path)
+    return _generate_report_mapping_table(
+        workbook_path=workbook_path,
+        output_path=output_path,
+    )
 
-
-def _load_positions(path: str | Path) -> list[PositionSnapshot]:
-    payload = _load_json_rows(path)
-    return [
-        PositionSnapshot(
-            as_of=str(row["as_of"]),
-            account=str(row["account"]),
-            internal_id=str(row["internal_id"]),
-            source=str(row["source"]),
-            quantity=float(row["quantity"]),
-            avg_cost=_optional_float(row.get("avg_cost")),
-            market_value=_optional_float(row.get("market_value")),
-        )
-        for row in payload
-    ]
-
-
-def _load_prices(path: str | Path) -> list[PriceSnapshot]:
-    payload = _load_json_rows(path)
-    return [
-        PriceSnapshot(
-            as_of=str(row["as_of"]),
-            internal_id=str(row["internal_id"]),
-            source=str(row["source"]),
-            last_price=float(row["last_price"]),
-        )
-        for row in payload
-    ]
-
-
-def _load_json_rows(path: str | Path) -> list[dict[str, object]]:
-    loaded = json.loads(Path(path).read_text(encoding="utf-8"))
-    if isinstance(loaded, list):
-        return [dict(row) for row in loaded]
-    if isinstance(loaded, dict):
-        for key in ("rows", "positions", "prices", "data"):
-            value = loaded.get(key)
-            if isinstance(value, list):
-                return [dict(row) for row in value]
-    raise ValueError("Expected a JSON array of snapshot rows or a wrapper object containing one")
-
-
-def _optional_float(value: object) -> float | None:
-    if value in (None, ""):
-        return None
-    return float(value)
+__all__ = [
+    "TwsIbAsyncClient",
+    "generate_ibkr_position_report",
+    "generate_live_ibkr_position_report",
+    "generate_position_report",
+    "generate_report_mapping_table",
+    "generate_risk_html_report",
+]

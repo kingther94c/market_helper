@@ -41,7 +41,7 @@ CURATED_SECURITY_REFERENCE_HEADERS = [
 ]
 MONTH_CODES = "FGHJKMNQUVXZ"
 DEFAULT_SECURITY_REFERENCE_PATH = (
-    Path(__file__).resolve().parents[2] / "configs" / "security_reference.csv"
+    Path(__file__).resolve().parents[2] / "configs" / "portfolio_monitor" / "security_reference.csv"
 )
 RUNTIME_UNMAPPED_PREFIX = "UNMAPPED:"
 RUNTIME_OUTSIDE_SCOPE_PREFIX = "OUTSIDE_SCOPE:"

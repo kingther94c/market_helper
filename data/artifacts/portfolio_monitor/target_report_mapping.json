@@ -1,0 +1,639 @@
+{
+  "fx_sources": [
+    {
+      "currency_pair": "EURUSD",
+      "provider": "google_finance",
+      "symbol": "CURRENCY:EURUSD"
+    },
+    {
+      "currency_pair": "SGDUSD",
+      "provider": "google_finance",
+      "symbol": "CURRENCY:SGDUSD"
+    },
+    {
+      "currency_pair": "GBPUSD",
+      "provider": "google_finance",
+      "symbol": "CURRENCY:GBPUSD"
+    },
+    {
+      "currency_pair": "AUDUSD",
+      "provider": "google_finance",
+      "symbol": "CURRENCY:AUDUSD"
+    }
+  ],
+  "generated_at": "2026-03-27T14:32:38+00:00",
+  "instruments": [
+    {
+      "category": "DMEQ",
+      "display_name": "US",
+      "display_ticker": "SPY",
+      "duration": 1.0,
+      "expected_vol": 0.15,
+      "instrument_type": "ETF",
+      "multiplier": 1.0,
+      "quote_source": {
+        "provider": "google_finance",
+        "symbol": "SPY"
+      },
+      "risk_bucket": "EQ",
+      "symbol_key": "SPY",
+      "venue": "US"
+    },
+    {
+      "category": "DMEQ",
+      "display_name": "US",
+      "display_ticker": "VOO",
+      "duration": 1.0,
+      "expected_vol": 0.15,
+      "instrument_type": "ETF",
+      "multiplier": 1.0,
+      "quote_source": {
+        "provider": "google_finance",
+        "symbol": "VOO"
+      },
+      "risk_bucket": "EQ",
+      "symbol_key": "VOO",
+      "venue": "US"
+    },
+    {
+      "category": "DMEQ",
+      "display_name": "US",
+      "display_ticker": "LON:SPYL",
+      "duration": 1.0,
+      "expected_vol": 0.18,
+      "instrument_type": "ETF",
+      "multiplier": 1.0,
+      "quote_source": {
+        "provider": "google_finance",
+        "symbol": "LON:SPYL"
+      },
+      "risk_bucket": "EQ",
+      "symbol_key": "SPYL",
+      "venue": "INTL"
+    },
+    {
+      "category": "DMEQ",
+      "display_name": "US",
+      "display_ticker": "SOXX",
+      "duration": 1.0,
+      "expected_vol": 0.18,
+      "instrument_type": "ETF",
+      "multiplier": 1.0,
+      "quote_source": {
+        "provider": "google_finance",
+        "symbol": "SOXX"
+      },
+      "risk_bucket": "EQ",
+      "symbol_key": "SOXX",
+      "venue": "US"
+    },
+    {
+      "category": "DMEQ",
+      "display_name": "TSLA",
+      "display_ticker": "TSLA",
+      "duration": 1.0,
+      "expected_vol": 0.25,
+      "instrument_type": "ETF",
+      "multiplier": 1.0,
+      "quote_source": {
+        "provider": "google_finance",
+        "symbol": "TSLA"
+      },
+      "risk_bucket": "EQ",
+      "symbol_key": "TSLA",
+      "venue": "US"
+    },
+    {
+      "category": "DMEQ",
+      "display_name": "EU",
+      "display_ticker": "IEUR",
+      "duration": 1.0,
+      "expected_vol": 0.15,
+      "instrument_type": "ETF",
+      "multiplier": 1.0,
+      "quote_source": {
+        "provider": "google_finance",
+        "symbol": "IEUR"
+      },
+      "risk_bucket": "EQ",
+      "symbol_key": "IEUR",
+      "venue": "US"
+    },
+    {
+      "category": "DMEQ",
+      "display_name": "DM",
+      "display_ticker": "VEA",
+      "duration": 1.0,
+      "expected_vol": 0.15,
+      "instrument_type": "ETF",
+      "multiplier": 1.0,
+      "quote_source": {
+        "provider": "google_finance",
+        "symbol": "VEA"
+      },
+      "risk_bucket": "EQ",
+      "symbol_key": "VEA",
+      "venue": "US"
+    },
+    {
+      "category": "EMEQ",
+      "display_name": "EM",
+      "display_ticker": "LON:XMME",
+      "duration": 1.0,
+      "expected_vol": 0.2,
+      "instrument_type": "ETF",
+      "multiplier": 1.0,
+      "quote_source": {
+        "provider": "google_finance",
+        "symbol": "LON:XMME"
+      },
+      "risk_bucket": "EQ",
+      "symbol_key": "XMME",
+      "venue": "INTL"
+    },
+    {
+      "category": "EMEQ",
+      "display_name": "KR",
+      "display_ticker": "FLKR",
+      "duration": 1.0,
+      "expected_vol": 0.2,
+      "instrument_type": "ETF",
+      "multiplier": 1.0,
+      "quote_source": {
+        "provider": "google_finance",
+        "symbol": "FLKR"
+      },
+      "risk_bucket": "EQ",
+      "symbol_key": "FLKR",
+      "venue": "US"
+    },
+    {
+      "category": "EMEQ",
+      "display_name": "China",
+      "display_ticker": "KWEB",
+      "duration": 1.0,
+      "expected_vol": 0.25,
+      "instrument_type": "ETF",
+      "multiplier": 1.0,
+      "quote_source": {
+        "provider": "google_finance",
+        "symbol": "KWEB"
+      },
+      "risk_bucket": "EQ",
+      "symbol_key": "KWEB",
+      "venue": "US"
+    },
+    {
+      "category": "EMEQ",
+      "display_name": "China",
+      "display_ticker": "ASHR",
+      "duration": 1.0,
+      "expected_vol": 0.2,
+      "instrument_type": "ETF",
+      "multiplier": 1.0,
+      "quote_source": {
+        "provider": "google_finance",
+        "symbol": "ASHR"
+      },
+      "risk_bucket": "EQ",
+      "symbol_key": "ASHR",
+      "venue": "US"
+    },
+    {
+      "category": "EMEQ",
+      "display_name": "EM",
+      "display_ticker": "IEMG",
+      "duration": 1.0,
+      "expected_vol": 0.2,
+      "instrument_type": "ETF",
+      "multiplier": 1.0,
+      "quote_source": {
+        "provider": "google_finance",
+        "symbol": "IEMG"
+      },
+      "risk_bucket": "EQ",
+      "symbol_key": "IEMG",
+      "venue": "US"
+    },
+    {
+      "category": "EQ",
+      "display_name": "ACWI",
+      "display_ticker": "LON:ACWD",
+      "duration": 1.0,
+      "expected_vol": 0.15,
+      "instrument_type": "ETF",
+      "multiplier": 1.0,
+      "quote_source": {
+        "provider": "google_finance",
+        "symbol": "LON:ACWD"
+      },
+      "risk_bucket": "EQ",
+      "symbol_key": "ACWD",
+      "venue": "INTL"
+    },
+    {
+      "category": "CASH",
+      "display_name": "Cash",
+      "display_ticker": "CASH (SGD value)",
+      "duration": 1.0,
+      "expected_vol": 0.0,
+      "instrument_type": "CASH",
+      "multiplier": 1.0,
+      "quote_source": {
+        "provider": "manual",
+        "symbol": "CASH (SGD value)"
+      },
+      "risk_bucket": "CASH",
+      "symbol_key": "CASH (SGD VALUE)",
+      "venue": "US"
+    },
+    {
+      "category": "CASH",
+      "display_name": "Cash",
+      "display_ticker": "BOXX",
+      "duration": 1.0,
+      "expected_vol": 0.0,
+      "instrument_type": "CASH",
+      "multiplier": 1.0,
+      "quote_source": {
+        "provider": "google_finance",
+        "symbol": "BOXX"
+      },
+      "risk_bucket": "CASH",
+      "symbol_key": "BOXX",
+      "venue": "US"
+    },
+    {
+      "category": "FI",
+      "display_name": "IG Duration-Hedged CR",
+      "display_ticker": "DHB",
+      "duration": 0.0,
+      "expected_vol": 0.04,
+      "instrument_type": "Futures",
+      "multiplier": 500.0,
+      "quote_source": {
+        "provider": "manual",
+        "symbol": "DHB"
+      },
+      "risk_bucket": "FI",
+      "symbol_key": "DHB",
+      "venue": "US"
+    },
+    {
+      "category": "FI",
+      "display_name": "CR",
+      "display_ticker": "HYG",
+      "duration": 8.379,
+      "expected_vol": 0.07,
+      "instrument_type": "ETF",
+      "multiplier": 1.0,
+      "quote_source": {
+        "provider": "google_finance",
+        "symbol": "HYG"
+      },
+      "risk_bucket": "FI",
+      "symbol_key": "HYG",
+      "venue": "US"
+    },
+    {
+      "category": "FI",
+      "display_name": "CR",
+      "display_ticker": "LQD",
+      "duration": 8.379,
+      "expected_vol": 0.07,
+      "instrument_type": "ETF",
+      "multiplier": 1.0,
+      "quote_source": {
+        "provider": "google_finance",
+        "symbol": "LQD"
+      },
+      "risk_bucket": "FI",
+      "symbol_key": "LQD",
+      "venue": "US"
+    },
+    {
+      "category": "FI",
+      "display_name": "FI",
+      "display_ticker": "TLT",
+      "duration": 15.95,
+      "expected_vol": 0.0,
+      "instrument_type": "ETF",
+      "multiplier": 1.0,
+      "quote_source": {
+        "provider": "google_finance",
+        "symbol": "TLT"
+      },
+      "risk_bucket": "FI",
+      "symbol_key": "TLT",
+      "venue": "US"
+    },
+    {
+      "category": "FI",
+      "display_name": "10Y TF",
+      "display_ticker": "ZNW00:CBOT",
+      "duration": 7.627,
+      "expected_vol": 0.07,
+      "instrument_type": "Futures",
+      "multiplier": 1000.0,
+      "quote_source": {
+        "provider": "google_finance",
+        "symbol": "ZNW00:CBOT"
+      },
+      "risk_bucket": "FI",
+      "symbol_key": "ZN",
+      "venue": "CBOT"
+    },
+    {
+      "category": "FI",
+      "display_name": "5Y TF",
+      "display_ticker": "ZFW00:CBOT",
+      "duration": 4.333,
+      "expected_vol": 0.04,
+      "instrument_type": "Futures",
+      "multiplier": 1000.0,
+      "quote_source": {
+        "provider": "google_finance",
+        "symbol": "ZFW00:CBOT"
+      },
+      "risk_bucket": "FI",
+      "symbol_key": "ZF",
+      "venue": "CBOT"
+    },
+    {
+      "category": "FI",
+      "display_name": "2Y TF",
+      "display_ticker": "ZTW00:CBOT",
+      "duration": 1.879,
+      "expected_vol": 0.02,
+      "instrument_type": "Futures",
+      "multiplier": 2000.0,
+      "quote_source": {
+        "provider": "google_finance",
+        "symbol": "ZTW00:CBOT"
+      },
+      "risk_bucket": "FI",
+      "symbol_key": "ZT",
+      "venue": "CBOT"
+    },
+    {
+      "category": "FI",
+      "display_name": "10Y Italy",
+      "display_ticker": "BTP",
+      "duration": 8.061,
+      "expected_vol": 0.07,
+      "instrument_type": "Futures",
+      "multiplier": 1000.0,
+      "quote_source": {
+        "provider": "manual",
+        "symbol": "BTP"
+      },
+      "risk_bucket": "FI",
+      "symbol_key": "BTP",
+      "venue": "US"
+    },
+    {
+      "category": "FI",
+      "display_name": "2Y Italy",
+      "display_ticker": "BTS",
+      "duration": 2.0,
+      "expected_vol": 0.02,
+      "instrument_type": "Futures",
+      "multiplier": 1000.0,
+      "quote_source": {
+        "provider": "manual",
+        "symbol": "BTS"
+      },
+      "risk_bucket": "FI",
+      "symbol_key": "BTS",
+      "venue": "US"
+    },
+    {
+      "category": "FI",
+      "display_name": "10Y France",
+      "display_ticker": "OAT",
+      "duration": 7.929,
+      "expected_vol": 0.07,
+      "instrument_type": "Futures",
+      "multiplier": 1000.0,
+      "quote_source": {
+        "provider": "manual",
+        "symbol": "OAT"
+      },
+      "risk_bucket": "FI",
+      "symbol_key": "OAT",
+      "venue": "US"
+    },
+    {
+      "category": "FI",
+      "display_name": "10Y UK",
+      "display_ticker": "G",
+      "duration": 8.068,
+      "expected_vol": 0.07,
+      "instrument_type": "Futures",
+      "multiplier": 1000.0,
+      "quote_source": {
+        "provider": "manual",
+        "symbol": "G"
+      },
+      "risk_bucket": "FI",
+      "symbol_key": "G",
+      "venue": "US"
+    },
+    {
+      "category": "FI",
+      "display_name": "10Y AU",
+      "display_ticker": "XM",
+      "duration": 1.0,
+      "expected_vol": 0.01,
+      "instrument_type": "Futures",
+      "multiplier": 10000.0,
+      "quote_source": {
+        "provider": "manual",
+        "symbol": "XM"
+      },
+      "risk_bucket": "FI",
+      "symbol_key": "XM",
+      "venue": "US"
+    },
+    {
+      "category": "GOLD",
+      "display_name": "Gold",
+      "display_ticker": "GLD",
+      "duration": 1.0,
+      "expected_vol": 0.2,
+      "instrument_type": "ETF",
+      "multiplier": 1.0,
+      "quote_source": {
+        "provider": "google_finance",
+        "symbol": "GLD"
+      },
+      "risk_bucket": "GOLD",
+      "symbol_key": "GLD",
+      "venue": "US"
+    },
+    {
+      "category": "GOLD",
+      "display_name": "Silver",
+      "display_ticker": "SLV",
+      "duration": 1.0,
+      "expected_vol": 0.2,
+      "instrument_type": "ETF",
+      "multiplier": 1.0,
+      "quote_source": {
+        "provider": "google_finance",
+        "symbol": "SLV"
+      },
+      "risk_bucket": "GOLD",
+      "symbol_key": "SLV",
+      "venue": "US"
+    },
+    {
+      "category": "GOLD",
+      "display_name": "Gold Miner",
+      "display_ticker": "GDX",
+      "duration": 1.0,
+      "expected_vol": 0.35,
+      "instrument_type": "ETF",
+      "multiplier": 1.0,
+      "quote_source": {
+        "provider": "google_finance",
+        "symbol": "GDX"
+      },
+      "risk_bucket": "GOLD",
+      "symbol_key": "GDX",
+      "venue": "US"
+    },
+    {
+      "category": "CM",
+      "display_name": "Copper Miner",
+      "display_ticker": "COPX",
+      "duration": 1.0,
+      "expected_vol": 0.35,
+      "instrument_type": "ETF",
+      "multiplier": 1.0,
+      "quote_source": {
+        "provider": "google_finance",
+        "symbol": "COPX"
+      },
+      "risk_bucket": "CM",
+      "symbol_key": "COPX",
+      "venue": "US"
+    },
+    {
+      "category": "CM",
+      "display_name": "CL",
+      "display_ticker": "CLZ5",
+      "duration": 1.0,
+      "expected_vol": 0.3,
+      "instrument_type": "Futures",
+      "multiplier": 100.0,
+      "quote_source": {
+        "provider": "google_finance",
+        "symbol": "CLZ5"
+      },
+      "risk_bucket": "CM",
+      "symbol_key": "CL",
+      "venue": "US"
+    },
+    {
+      "category": "CM",
+      "display_name": "NG",
+      "display_ticker": "NGK26_NGQ26",
+      "duration": 1.0,
+      "expected_vol": 0.3,
+      "instrument_type": "Futures",
+      "multiplier": 10000.0,
+      "quote_source": {
+        "provider": "google_finance",
+        "symbol": "NGK26_NGQ26"
+      },
+      "risk_bucket": "CM",
+      "symbol_key": "NGK26_NGQ26",
+      "venue": "US"
+    },
+    {
+      "category": "CM",
+      "display_name": "NG",
+      "display_ticker": "NGF26_NGJ26",
+      "duration": 1.0,
+      "expected_vol": 0.3,
+      "instrument_type": "Futures",
+      "multiplier": 10000.0,
+      "quote_source": {
+        "provider": "google_finance",
+        "symbol": "NGF26_NGJ26"
+      },
+      "risk_bucket": "CM",
+      "symbol_key": "NGF26_NGJ26",
+      "venue": "US"
+    },
+    {
+      "category": "Macro",
+      "display_name": "Trend",
+      "display_ticker": "LON:DBMF",
+      "duration": 1.0,
+      "expected_vol": 0.2,
+      "instrument_type": "ETF",
+      "multiplier": 1.0,
+      "quote_source": {
+        "provider": "google_finance",
+        "symbol": "LON:DBMF"
+      },
+      "risk_bucket": "MACRO",
+      "symbol_key": "DBMF",
+      "venue": "INTL"
+    },
+    {
+      "category": "Macro",
+      "display_name": "Trend",
+      "display_ticker": "DBMF",
+      "duration": 1.0,
+      "expected_vol": 0.2,
+      "instrument_type": "ETF",
+      "multiplier": 1.0,
+      "quote_source": {
+        "provider": "google_finance",
+        "symbol": "DBMF"
+      },
+      "risk_bucket": "MACRO",
+      "symbol_key": "DBMF",
+      "venue": "US"
+    }
+  ],
+  "risk_proxies": [
+    {
+      "provider": "google_finance",
+      "proxy_name": "VIX",
+      "risk_bucket": "EQ",
+      "symbol": "INDEXCBOE:VIX",
+      "tail_level": 40.0,
+      "unit": "%"
+    },
+    {
+      "provider": "google_finance",
+      "proxy_name": "MOVE",
+      "risk_bucket": "FI",
+      "symbol": "INDEXNYSEGIS:MOVE",
+      "tail_level": 130.0,
+      "unit": "bps"
+    },
+    {
+      "provider": "google_finance",
+      "proxy_name": "GVZ",
+      "risk_bucket": "GOLD",
+      "symbol": "INDEXCBOE:GVZ",
+      "tail_level": null,
+      "unit": ""
+    },
+    {
+      "provider": "google_finance",
+      "proxy_name": "OVX",
+      "risk_bucket": "CM",
+      "symbol": "INDEXCBOE:OVX",
+      "tail_level": null,
+      "unit": ""
+    }
+  ],
+  "source_workbook": "outputs/reports/target_report.xlsx",
+  "ten_year_equiv_duration": 7.627
+}

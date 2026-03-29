@@ -5,9 +5,13 @@ ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 ENV_NAME="${ENV_NAME:-py313}"
 CONDA_BIN="${CONDA_BIN:-$(command -v conda || true)}"
 ACCOUNT_ENV="${ACCOUNT_ENV:-prod}"
-LOCAL_ACCOUNT_CONFIG="${ROOT_DIR}/configs/report_accounts.local.env"
+LOCAL_ACCOUNT_CONFIG="${ROOT_DIR}/configs/portfolio_monitor/report_accounts.local.env"
 DEFAULT_PROD_ACCOUNT_ID="${DEFAULT_PROD_ACCOUNT_ID:-}"
 DEFAULT_DEV_ACCOUNT_ID="${DEFAULT_DEV_ACCOUNT_ID:-}"
+
+if [[ ! -f "${LOCAL_ACCOUNT_CONFIG}" && -f "${ROOT_DIR}/configs/report_accounts.local.env" ]]; then
+    LOCAL_ACCOUNT_CONFIG="${ROOT_DIR}/configs/report_accounts.local.env"
+fi
 
 if [[ -f "${LOCAL_ACCOUNT_CONFIG}" ]]; then
     # shellcheck disable=SC1090
@@ -34,7 +38,7 @@ Environment:
   ENV_NAME    Conda environment name to use. Defaults to: py313
   CONDA_BIN   Optional explicit path to the conda executable.
   ACCOUNT_ENV Live-account profile. Use prod or dev. Defaults to: prod
-  LOCAL_ACCOUNT_CONFIG Optional local account config file. Defaults to: configs/report_accounts.local.env
+  LOCAL_ACCOUNT_CONFIG Optional local account config file. Defaults to: configs/portfolio_monitor/report_accounts.local.env
 EOF
 }
 
@@ -77,23 +81,23 @@ shift
 case "${MODE}" in
     snapshot)
         CLI_COMMAND="position-report"
-        DEFAULT_OUTPUT="${ROOT_DIR}/outputs/reports/position_report.csv"
+        DEFAULT_OUTPUT="${ROOT_DIR}/data/artifacts/portfolio_monitor/position_report.csv"
         ;;
     ibkr-json)
         CLI_COMMAND="ibkr-position-report"
-        DEFAULT_OUTPUT="${ROOT_DIR}/outputs/reports/ibkr_position_report.csv"
+        DEFAULT_OUTPUT="${ROOT_DIR}/data/artifacts/portfolio_monitor/ibkr_position_report.csv"
         ;;
     ibkr-live)
         CLI_COMMAND="ibkr-live-position-report"
-        DEFAULT_OUTPUT="${ROOT_DIR}/outputs/reports/live_ibkr_position_report.csv"
+        DEFAULT_OUTPUT="${ROOT_DIR}/data/artifacts/portfolio_monitor/live_ibkr_position_report.csv"
         ;;
     risk-html)
         CLI_COMMAND="risk-html-report"
-        DEFAULT_OUTPUT="${ROOT_DIR}/outputs/reports/portfolio_risk_report.html"
+        DEFAULT_OUTPUT="${ROOT_DIR}/data/artifacts/portfolio_monitor/portfolio_risk_report.html"
         ;;
     mapping-table)
         CLI_COMMAND="extract-report-mapping"
-        DEFAULT_OUTPUT="${ROOT_DIR}/outputs/reports/target_report_security_reference.csv"
+        DEFAULT_OUTPUT="${ROOT_DIR}/data/artifacts/portfolio_monitor/target_report_security_reference.csv"
         ;;
     *)
         fail "Unknown mode: ${MODE}"

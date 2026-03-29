@@ -4,9 +4,6 @@ import argparse
 from pathlib import Path
 from typing import Sequence
 
-from market_helper.regimes.service import load_regime_snapshots
-from market_helper.suggest.regime_policy import load_regime_policy, resolve_policy
-from market_helper.workflows.generate_regime import generate_regime_snapshots
 from market_helper.workflows.generate_report import (
     generate_ibkr_position_report,
     generate_live_ibkr_position_report,
@@ -14,6 +11,12 @@ from market_helper.workflows.generate_report import (
     generate_report_mapping_table,
     generate_risk_html_report,
 )
+from market_helper.workflows.generate_regime import generate_regime_snapshots
+from market_helper.domain.regime_detection.policies.regime_policy import (
+    load_regime_policy,
+    resolve_policy,
+)
+from market_helper.domain.regime_detection.services.detection_service import load_regime_snapshots
 
 
 def build_parser() -> argparse.ArgumentParser:

@@ -27,22 +27,21 @@ conda run -n py313 jupyter lab
 conda run -n py313 jupyter notebook
 ```
 
-For TWS / IB Gateway work, `market_helper` is `ib_async`-first. Standard live lookup and report flows should use the `market_helper.providers.tws_ib_async` adapter rather than `ibapi` directly.
+For TWS / IB Gateway work, `market_helper` is `ib_async`-first. Standard live lookup and report flows should use the `market_helper.data_sources.ibkr.tws` adapter rather than `ibapi` directly.
 
-The live single-security lookup notebook lives at `notebooks/gather_data/derive_sec_table.ipynb`. It uses `market_helper` plus a local TWS / IB Gateway session to fetch raw IBKR contract details.
+The primary development notebook lives at `notebooks/dev_lab/current.ipynb`. A reusable IBKR contract lookup notebook now lives at `notebooks/portfolio_monitor/derive_sec_table.ipynb`.
 
 ## Project structure
 
 This repository follows a domain-first layout:
 
-- `configs/` for environment and runtime config
-- `data/` for raw/interim/processed/external datasets
-- `outputs/` for generated artifacts
-- `notebooks/` for exploratory and research work
-- `market_helper/` for package code by domain (`data_library`, `regimes`, `suggest`, `backtest`, `reporting`, `ui`, `workflows`, `cli`)
+- `configs/{app,portfolio_monitor,regime_detection,integration}/` for runtime config
+- `data/{raw,interim,processed,cache,artifacts}/` for datasets and generated outputs
+- `notebooks/{dev_lab,portfolio_monitor,regime_detection,integration}/` for exploration
+- `market_helper/{app,common,data_sources,domain,presentation,cli}/` for package code
 - `scripts/` for executable workflow entrypoints
-- `tests/` for unit and e2e tests
-- `docs/` for architecture and strategy notes
+- `tests/` for unit, integration, and e2e coverage
+- `docs/` for architecture notes and devplans
 
 ## Quick test
 
@@ -52,7 +51,7 @@ conda run -n py313 python -m pytest -q tests/unit
 
 ## IBKR Web API Setup
 
-Use [`configs/settings.example.json`](configs/settings.example.json) as the local config template for the read-only Web API path.
+Use [`configs/app/settings.example.json`](configs/app/settings.example.json) as the local config template for the read-only Web API path.
 
 - Put your IBKR username in `provider.username`.
 - Keep the password in an env var such as `IBKR_CP_PASSWORD`, referenced by `provider.password_env_var`.
@@ -68,7 +67,7 @@ Generate a CSV position report from local normalized snapshot files:
 conda run -n py313 python -m market_helper.cli.main position-report \
   --positions positions.json \
   --prices prices.json \
-  --output outputs/position_report.csv
+  --output data/artifacts/portfolio_monitor/position_report.csv
 ```
 
 Or use the workflow wrapper script:
@@ -85,7 +84,7 @@ Generate a CSV position report directly from raw IBKR payload files:
 conda run -n py313 python -m market_helper.cli.main ibkr-position-report \
   --ibkr-positions ibkr_positions.json \
   --ibkr-prices ibkr_prices.json \
-  --output outputs/ibkr_position_report.csv
+  --output data/artifacts/portfolio_monitor/ibkr_position_report.csv
 ```
 
 Or use the workflow wrapper script:
@@ -100,7 +99,7 @@ Generate a CSV position report directly from a live TWS / IB Gateway session via
 
 ```bash
 conda run -n py313 python -m market_helper.cli.main ibkr-live-position-report \
-  --output outputs/live_ibkr_position_report.csv \
+  --output data/artifacts/portfolio_monitor/live_ibkr_position_report.csv \
   --host 127.0.0.1 \
   --port 7497 \
   --client-id 7 \
@@ -109,7 +108,7 @@ conda run -n py313 python -m market_helper.cli.main ibkr-live-position-report \
 
 Before running the live command, launch TWS or IB Gateway, enable API access, and confirm the host/port/client-id match your local API settings. The defaults are `127.0.0.1:7497` with `client_id=1`.
 
-The same `ib_async`-first TWS layer is also used by `notebooks/gather_data/derive_sec_table.ipynb` for live contract lookup and notebook-led provider development.
+The same `ib_async`-first TWS layer is also used by `notebooks/portfolio_monitor/derive_sec_table.ipynb` for live contract lookup and notebook-led provider development.
 
 The script wrapper also supports the live path:
 
@@ -125,7 +124,7 @@ If `--account` is omitted, `./scripts/run_report.sh ibkr-live` now defaults to:
 - `ACCOUNT_ENV=prod` -> `DEFAULT_PROD_ACCOUNT_ID`
 - `ACCOUNT_ENV=dev` -> `DEFAULT_DEV_ACCOUNT_ID`
 
-Keep those defaults in the local-only file `configs/report_accounts.local.env`, which is gitignored. A tracked template lives at `configs/report_accounts.example.env`.
+Keep those defaults in the local-only file `configs/portfolio_monitor/report_accounts.local.env`, which is gitignored. A tracked template lives at `configs/portfolio_monitor/report_accounts.example.env`.
 
 Example:
 
@@ -138,10 +137,10 @@ Generate an HTML risk report (historical vol + estimate vol + correlation-based 
 
 ```bash
 conda run -n py313 python -m market_helper.cli.main risk-html-report \
-  --positions-csv outputs/reports/live_ibkr_position_report.csv \
+  --positions-csv data/artifacts/portfolio_monitor/live_ibkr_position_report.csv \
   --returns data/processed/returns.json \
   --proxy data/processed/risk_proxy.json \
-  --output outputs/reports/portfolio_risk_report.html
+  --output data/artifacts/portfolio_monitor/portfolio_risk_report.html
 ```
 
 - `--returns` expects JSON: `{"INTERNAL_ID": [daily_return_1, ...]}`
@@ -152,16 +151,16 @@ Script wrapper:
 
 ```bash
 ./scripts/run_report.sh risk-html \
-  --positions-csv outputs/reports/live_ibkr_position_report.csv \
+  --positions-csv data/artifacts/portfolio_monitor/live_ibkr_position_report.csv \
   --returns data/processed/returns.json \
   --proxy data/processed/risk_proxy.json
 ```
 
 If `--output` is omitted, the script writes to:
-- `outputs/reports/position_report.csv`
-- `outputs/reports/ibkr_position_report.csv`
-- `outputs/reports/live_ibkr_position_report.csv`
-- `outputs/reports/portfolio_risk_report.html`
+- `data/artifacts/portfolio_monitor/position_report.csv`
+- `data/artifacts/portfolio_monitor/ibkr_position_report.csv`
+- `data/artifacts/portfolio_monitor/live_ibkr_position_report.csv`
+- `data/artifacts/portfolio_monitor/portfolio_risk_report.html`
 
 ## Deterministic regime detection (v1)
 
@@ -182,8 +181,8 @@ Run full detection:
 conda run -n py313 python -m market_helper.cli.main regime-detect \
   --returns data/processed/regime_returns.json \
   --proxy data/processed/regime_proxies.json \
-  --output data/processed/regime_snapshots.json \
-  --indicators-output data/processed/indicator_snapshots.json
+  --output data/artifacts/regime_detection/regime_snapshots.json \
+  --indicators-output data/artifacts/regime_detection/indicator_snapshots.json
 ```
 
 Latest-only snapshot:
@@ -192,7 +191,7 @@ Latest-only snapshot:
 conda run -n py313 python -m market_helper.cli.main regime-detect \
   --returns data/processed/regime_returns.json \
   --proxy data/processed/regime_proxies.json \
-  --output data/processed/regime_snapshots.json \
+  --output data/artifacts/regime_detection/regime_snapshots.json \
   --latest-only
 ```
 
@@ -200,8 +199,8 @@ Human-readable summary + policy suggestion:
 
 ```bash
 conda run -n py313 python -m market_helper.cli.main regime-report \
-  --regime data/processed/regime_snapshots.json \
-  --policy configs/regime_policy.example.yml
+  --regime data/artifacts/regime_detection/regime_snapshots.json \
+  --policy configs/regime_detection/regime_policy.example.yml
 ```
 
 Input expectations:
