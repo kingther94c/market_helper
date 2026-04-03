@@ -2,6 +2,7 @@ from .models import PortfolioPositionView, PortfolioSnapshot
 from .pipelines import (
     build_portfolio_snapshot,
     build_security_reference,
+    build_live_ibkr_position_security_table,
     generate_ibkr_position_report,
     generate_live_ibkr_position_report,
     generate_position_report,
@@ -15,6 +16,7 @@ __all__ = [
     "PortfolioSnapshot",
     "SecurityReference",
     "SecurityReferenceTable",
+    "build_live_ibkr_position_security_table",
     "build_portfolio_snapshot",
     "build_security_reference",
     "generate_ibkr_position_report",

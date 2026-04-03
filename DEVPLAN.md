@@ -73,7 +73,7 @@ Build a broker-agnostic, read-only IBKR integration layer for market monitoring 
 - Added explicit notebook-analysis staples used in local project notebooks to `env.yml`, specifically `numpy` and `pandas`, so exploratory work is reproducible from the shared environment spec.
 - Expanded `env.yml` further with common stats / quant-analysis packages (`scipy`, `scikit-learn`, `statsmodels`) so the shared environment covers typical research notebooks without ad hoc local installs.
 - Formalized the TWS / IB Gateway path as `ib_async`-first for local live work and removed the unnecessary `ibapi` dependency from IBKR contract lookup.
-- Extended `market_helper.providers.tws_ib_async.TwsIbAsyncClient` with primary-exchange-aware contract lookup and a fail-fast `require_security_info()` helper for single-instrument live exploration.
+- Extended `market_helper.providers.tws_ib_async.TwsIbAsyncClient` with primary-exchange-aware contract lookup, plus `search_securities()` for multi-match exploration and fail-fast `lookup_security()` for single-instrument lookups.
 - Replaced the old offline/demo `derive_sec_table` notebook flow with a live, `market_helper`-only IBKR contract lookup notebook that pulls real raw contract details from local TWS / IB Gateway.
 - Expanded TWS provider tests to cover `ib_async` contract construction, `primaryExchange` propagation, and explicit no-match / ambiguous-match lookup failures.
 - Updated README and provider docs so the documented TWS strategy now matches the code: `ib_async` is the default TWS stack and the live notebook is part of the supported local workflow.
@@ -85,7 +85,7 @@ Build a broker-agnostic, read-only IBKR integration layer for market monitoring 
 - Expanding the curated `security_reference` maintenance workflow so live price/FX/proxy sourcing can be driven by provider hints stored on each row.
 
 ## Next Steps
-1. Add a next notebook-to-library step that converts live `require_security_info()` results into `SecurityReference` candidate rows for manual curation.
+1. Add a next notebook-to-library step that converts live `lookup_security()` results into `SecurityReference` candidate rows for manual curation.
 2. Add explicit provider fetchers for live price / FX / risk-proxy data keyed off `security_reference.csv` source hints (`IBKR`, `Yahoo`, `Google`, `manual`).
 3. Add tracked alias/rule rows for more cross-vendor futures symbology, especially roots that differ between IBKR, Bloomberg, and Yahoo.
 4. Add a local manual-override layer for provisional or account-specific security-reference entries that should not be committed.

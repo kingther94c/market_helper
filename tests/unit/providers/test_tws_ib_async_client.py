@@ -175,12 +175,12 @@ class FakeIbContractDetails(FakeIb):
         return self.details
 
 
-def test_tws_ib_async_client_fetch_security_info_with_fake_contract() -> None:
+def test_tws_ib_async_client_search_securities_with_fake_contract() -> None:
     fake_ib = FakeIbContractDetails()
     client = TwsIbAsyncClient(ib_factory=lambda: fake_ib)
 
     client.connect()
-    info = client.fetch_security_info(contract=FakeContract())
+    info = client.search_securities(contract=FakeContract())
 
     assert info[0]["symbol"] == "XLK"
     assert info[0]["conId"] == 31662
@@ -189,14 +189,14 @@ def test_tws_ib_async_client_fetch_security_info_with_fake_contract() -> None:
     assert info[0]["primaryExchange"] == "ARCA"
 
 
-def test_tws_ib_async_client_fetch_security_info_builds_ib_async_contract() -> None:
+def test_tws_ib_async_client_search_securities_builds_ib_async_contract() -> None:
     from ib_async import Contract
 
     fake_ib = FakeIbContractDetails(details=[FakeContractDetails(FakeContract())])
     client = TwsIbAsyncClient(ib_factory=lambda: fake_ib)
 
     client.connect()
-    info = client.fetch_security_info(
+    info = client.search_securities(
         symbol="XLK",
         sec_type="STK",
         exchange="SMART",
@@ -217,12 +217,12 @@ def test_tws_ib_async_client_fetch_security_info_builds_ib_async_contract() -> N
     assert info[0]["primaryExchange"] == "ARCA"
 
 
-def test_tws_ib_async_client_require_security_info_returns_single_match() -> None:
+def test_tws_ib_async_client_lookup_security_returns_single_match() -> None:
     fake_ib = FakeIbContractDetails()
     client = TwsIbAsyncClient(ib_factory=lambda: fake_ib)
 
     client.connect()
-    info = client.require_security_info(
+    info = client.lookup_security(
         symbol="XLK",
         sec_type="STK",
         exchange="SMART",
@@ -234,14 +234,14 @@ def test_tws_ib_async_client_require_security_info_returns_single_match() -> Non
     assert info["primaryExchange"] == "ARCA"
 
 
-def test_tws_ib_async_client_require_security_info_raises_for_no_matches() -> None:
+def test_tws_ib_async_client_lookup_security_raises_for_no_matches() -> None:
     fake_ib = FakeIbContractDetails(details=[])
     client = TwsIbAsyncClient(ib_factory=lambda: fake_ib)
 
     client.connect()
 
     with pytest.raises(TwsIbAsyncError, match="No IBKR contract details found"):
-        client.require_security_info(
+        client.lookup_security(
             symbol="XLK",
             sec_type="STK",
             exchange="SMART",
@@ -250,7 +250,7 @@ def test_tws_ib_async_client_require_security_info_raises_for_no_matches() -> No
         )
 
 
-def test_tws_ib_async_client_require_security_info_raises_for_ambiguous_matches() -> None:
+def test_tws_ib_async_client_lookup_security_raises_for_ambiguous_matches() -> None:
     details = [
         FakeContractDetails(FakeContract(con_id=31662, local_symbol="XLK")),
         FakeContractDetails(FakeContract(con_id=12345, local_symbol="XLK A")),
@@ -261,7 +261,7 @@ def test_tws_ib_async_client_require_security_info_raises_for_ambiguous_matches(
     client.connect()
 
     with pytest.raises(TwsIbAsyncError, match="Ambiguous IBKR contract lookup"):
-        client.require_security_info(
+        client.lookup_security(
             symbol="XLK",
             sec_type="STK",
             exchange="SMART",
