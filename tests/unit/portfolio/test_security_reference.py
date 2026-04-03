@@ -58,23 +58,26 @@ def test_reference_table_loads_curated_csv_and_resolves_indexes(tmp_path) -> Non
                 price_source_symbol="ZNW00:CBOT",
             ),
             SecurityReference(
-                internal_id="CASH:USD:IDEALPRO",
+                internal_id="CASH:SGD_CASH_VALUE:MANUAL",
                 universe_type="CASH",
-                canonical_symbol="USD",
-                display_ticker="USD Cash",
-                display_name="USD Cash",
-                currency="USD",
-                primary_exchange="IDEALPRO",
+                canonical_symbol="SGD_CASH_VALUE",
+                display_ticker="CASH (SGD value)",
+                display_name="Cash",
+                currency="SGD",
+                primary_exchange="MANUAL",
                 multiplier=1.0,
                 ibkr_sec_type="CASH",
-                ibkr_symbol="USD",
+                ibkr_symbol="SGD",
                 ibkr_exchange="IDEALPRO",
+                google_symbol="CASH SGD",
                 report_category="CASH",
                 risk_bucket="CASH",
-                mod_duration=0.0,
+                mod_duration=1.0,
                 default_expected_vol=0.0,
                 price_source_provider="manual",
-                price_source_symbol="USD Cash",
+                price_source_symbol="CASH (SGD value)",
+                fx_source_provider="google_finance",
+                fx_source_symbol="CURRENCY:SGDUSD",
             ),
         ],
         export_path,
@@ -90,7 +93,7 @@ def test_reference_table_loads_curated_csv_and_resolves_indexes(tmp_path) -> Non
     assert reference.resolve_by_ibkr_alias(symbol="SPY", sec_type="STK", exchange="ARCA")
     assert reference.resolve_by_ibkr_alias(symbol="ZNM6", sec_type="FUT", exchange="CBOT").internal_id == "FUT:ZN:CBOT"
     assert reference.resolve_by_ibkr_alias(symbol="ZN", sec_type="FUT", exchange="CBOT").internal_id == "FUT:ZN:CBOT"
-    assert reference.resolve_cash_reference(symbol="USD", currency="USD").internal_id == "CASH:USD:IDEALPRO"
+    assert reference.resolve_cash_reference(symbol="SGD", currency="SGD").internal_id == "CASH:SGD_CASH_VALUE:MANUAL"
 
 
 def test_reference_table_resolves_cross_source_ids() -> None:

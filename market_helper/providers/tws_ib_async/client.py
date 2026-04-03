@@ -271,6 +271,43 @@ class TwsIbAsyncClient:
 
         return list(rows)
 
+    def list_account_values(self, account_id: str | None = None) -> list[object]:
+        ib = self._require_connected()
+        account_values = getattr(ib, "accountValues", None)
+        account_summary = getattr(ib, "accountSummary", None)
+        selected_account = account_id or ""
+
+        if callable(account_values):
+            try:
+                rows = list(account_values(selected_account))
+            except Exception as error:
+                raise TwsIbAsyncError(
+                    "Failed to fetch TWS / IB Gateway account values for account={account_id}: {reason}".format(
+                        account_id=selected_account,
+                        reason=error,
+                    )
+                ) from error
+            if rows:
+                return rows
+
+        if callable(account_summary):
+            try:
+                return list(account_summary(selected_account))
+            except Exception as error:
+                raise TwsIbAsyncError(
+                    "Failed to fetch TWS / IB Gateway account summary for account={account_id}: {reason}".format(
+                        account_id=selected_account,
+                        reason=error,
+                    )
+                ) from error
+
+        if callable(account_values):
+            return []
+
+        raise TwsIbAsyncError(
+            "Connected ib_async client does not expose accountValues() or accountSummary()."
+        )
+
     def search_securities(
         self,
         symbol: str | None = None,

@@ -41,6 +41,17 @@ class FakeIb:
     def portfolio(self, account: str = "") -> list[object]:
         return [{"account": account or "ALL"}]
 
+    def accountValues(self, account: str = "") -> list[object]:
+        return [
+            {
+                "account": account or "ALL",
+                "tag": "TotalCashBalance",
+                "value": "1234.56",
+                "currency": "USD",
+                "modelCode": "",
+            }
+        ]
+
 
 def test_tws_ib_async_client_connects_and_reads_accounts_and_portfolio() -> None:
     fake_ib = FakeIb()
@@ -65,6 +76,15 @@ def test_tws_ib_async_client_connects_and_reads_accounts_and_portfolio() -> None
     }
     assert client.list_accounts() == ["U12345", "U99999"]
     assert client.list_portfolio("U12345") == [{"account": "U12345"}]
+    assert client.list_account_values("U12345") == [
+        {
+            "account": "U12345",
+            "tag": "TotalCashBalance",
+            "value": "1234.56",
+            "currency": "USD",
+            "modelCode": "",
+        }
+    ]
 
     client.disconnect()
     assert fake_ib.disconnected is True

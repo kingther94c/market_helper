@@ -43,6 +43,10 @@ class FakeLiveClient:
         assert account_id == "U12345"
         return [FakePortfolioItem()]
 
+    def list_account_values(self, account_id: str) -> list[object]:
+        assert account_id == "U12345"
+        return []
+
 
 def test_generate_live_ibkr_position_report_writes_csv_from_gateway_client(tmp_path) -> None:
     output_path = tmp_path / "outputs" / "live_position_report.csv"
@@ -69,6 +73,88 @@ def test_generate_live_ibkr_position_report_writes_csv_from_gateway_client(tmp_p
     assert rows[0]["currency"] == "USD"
     assert rows[0]["latest_price"] == "214.8"
     assert rows[0]["unrealized_pnl"] == "90.0"
+
+
+class FakeCashAccountValue:
+    def __init__(self, *, tag: str, currency: str, value: str) -> None:
+        self.account = "U12345"
+        self.tag = tag
+        self.value = value
+        self.currency = currency
+        self.modelCode = ""
+
+
+class FakeLiveClientWithCash(FakeLiveClient):
+    def list_account_values(self, account_id: str) -> list[object]:
+        assert account_id == "U12345"
+        return [
+            FakeCashAccountValue(tag="TotalCashBalance", currency="USD", value="1250.5"),
+            FakeCashAccountValue(tag="ExchangeRate", currency="USD", value="1.3"),
+            FakeCashAccountValue(tag="ExchangeRate", currency="SGD", value="1.0"),
+        ]
+
+
+def test_generate_live_ibkr_position_report_includes_cash_rows(tmp_path) -> None:
+    output_path = tmp_path / "outputs" / "live_position_report.csv"
+    client = FakeLiveClientWithCash()
+
+    generate_live_ibkr_position_report(
+        output_path=output_path,
+        account_id="U12345",
+        as_of="2026-03-26T00:00:00+00:00",
+        client=client,
+    )
+
+    with output_path.open("r", encoding="utf-8", newline="") as handle:
+        rows = list(csv.DictReader(handle))
+
+    cash_rows = [row for row in rows if row["internal_id"] == "CASH:SGD_CASH_VALUE:MANUAL"]
+    assert len(cash_rows) == 1
+    assert cash_rows[0]["symbol"] == "SGD_CASH_VALUE"
+    assert cash_rows[0]["latest_price"] == "1.0"
+    assert cash_rows[0]["market_value"] == "1625.65"
+
+
+class FakeAccountValue:
+    def __init__(self, *, tag: str, currency: str, value: str) -> None:
+        self.account = "U12345"
+        self.tag = tag
+        self.value = value
+        self.currency = currency
+        self.modelCode = ""
+
+
+class FakeLiveClientWithMultiCurrencyCash(FakeLiveClient):
+    def list_account_values(self, account_id: str) -> list[object]:
+        assert account_id == "U12345"
+        return [
+            FakeAccountValue(tag="TotalCashBalance", currency="USD", value="-100"),
+            FakeAccountValue(tag="TotalCashBalance", currency="EUR", value="-5"),
+            FakeAccountValue(tag="TotalCashBalance", currency="SGD", value="-10"),
+            FakeAccountValue(tag="ExchangeRate", currency="USD", value="1.3"),
+            FakeAccountValue(tag="ExchangeRate", currency="EUR", value="1.5"),
+            FakeAccountValue(tag="ExchangeRate", currency="SGD", value="1.0"),
+        ]
+
+
+def test_generate_live_ibkr_position_report_converts_multi_currency_cash_to_sgd(tmp_path) -> None:
+    output_path = tmp_path / "outputs" / "live_position_report.csv"
+    client = FakeLiveClientWithMultiCurrencyCash()
+
+    generate_live_ibkr_position_report(
+        output_path=output_path,
+        account_id="U12345",
+        as_of="2026-03-26T00:00:00+00:00",
+        client=client,
+    )
+
+    with output_path.open("r", encoding="utf-8", newline="") as handle:
+        rows = list(csv.DictReader(handle))
+
+    cash_rows = [row for row in rows if row["internal_id"] == "CASH:SGD_CASH_VALUE:MANUAL"]
+    assert len(cash_rows) == 1
+    assert cash_rows[0]["symbol"] == "SGD_CASH_VALUE"
+    assert cash_rows[0]["market_value"] == "-147.5"
 
 
 class FakeUnmappedContract:

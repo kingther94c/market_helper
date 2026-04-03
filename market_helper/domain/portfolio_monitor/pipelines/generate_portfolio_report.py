@@ -2,6 +2,7 @@ from __future__ import annotations
 
 """Pipeline entrypoints for portfolio-monitor reporting flows."""
 
+from dataclasses import dataclass
 import json
 from pathlib import Path
 
@@ -20,6 +21,7 @@ from market_helper.data_sources.ibkr.adapters import (
 )
 from market_helper.data_sources.ibkr.tws import (
     TwsIbAsyncClient,
+    account_values_to_ibkr_cash_position_rows,
     choose_tws_account,
     portfolio_items_to_ibkr_position_rows,
     portfolio_items_to_ibkr_price_rows,
@@ -35,6 +37,12 @@ from market_helper.presentation.tables.portfolio_report import (
     build_position_report_rows,
 )
 from market_helper.portfolio.ibkr import enrich_security_from_contract_details
+
+
+@dataclass(frozen=True)
+class LiveIbkrRowSource:
+    raw_position: dict[str, object]
+    portfolio_item: object | None = None
 
 
 def generate_position_report(
@@ -96,12 +104,18 @@ def generate_live_ibkr_position_report(
     disconnect = getattr(live_client, "disconnect", None)
     connect()
     try:
-        portfolio_items = _load_live_portfolio_items(live_client, account_id)
-        _, rows, reference_table = _build_live_ibkr_report_rows(portfolio_items, as_of=as_of)
+        selected_account_id = _load_live_account_id(live_client, account_id)
+        portfolio_items = _load_live_portfolio_items(live_client, selected_account_id)
+        cash_values = _load_live_account_values(live_client, selected_account_id)
+        sources, rows, reference_table = _build_live_ibkr_report_rows(
+            portfolio_items,
+            cash_values,
+            as_of=as_of,
+        )
         _enrich_unmapped_live_securities(
             reference_table=reference_table,
             live_client=live_client,
-            portfolio_items=portfolio_items,
+            sources=sources,
         )
         written_path = export_position_report_csv(rows, output_path)
         _write_proposed_security_reference_csv(reference_table, output_path=written_path)
@@ -133,22 +147,28 @@ def build_live_ibkr_position_security_table(
     disconnect = getattr(live_client, "disconnect", None)
     connect()
     try:
-        portfolio_items = _load_live_portfolio_items(live_client, account_id)
-        raw_positions, report_rows, reference_table = _build_live_ibkr_report_rows(
+        selected_account_id = _load_live_account_id(live_client, account_id)
+        portfolio_items = _load_live_portfolio_items(live_client, selected_account_id)
+        cash_values = _load_live_account_values(live_client, selected_account_id)
+        sources, report_rows, reference_table = _build_live_ibkr_report_rows(
             portfolio_items,
+            cash_values,
             as_of=as_of,
         )
         security_lookup = reference_table.to_security_lookup()
         return [
             _build_live_ibkr_position_security_row(
-                raw_position=raw_position,
+                raw_position=source.raw_position,
                 report_row=report_row,
                 security=security_lookup.get(report_row.internal_id),
-                contract_details=_fetch_live_contract_details(live_client, portfolio_item),
+                contract_details=(
+                    _fetch_live_contract_details(live_client, source.portfolio_item)
+                    if source.portfolio_item is not None
+                    else {}
+                ),
             )
-            for portfolio_item, raw_position, report_row in zip(
-                portfolio_items,
-                raw_positions,
+            for source, report_row in zip(
+                sources,
                 report_rows,
                 strict=True,
             )
@@ -237,24 +257,50 @@ def _optional_float(value: object) -> float | None:
     return float(value)
 
 
+def _load_live_account_id(live_client: object, account_id: str | None) -> str:
+    accounts = live_client.list_accounts()
+    return choose_tws_account(accounts, account_id)
+
+
 def _load_live_portfolio_items(
     live_client: object,
-    account_id: str | None,
+    account_id: str,
 ) -> list[object]:
-    accounts = live_client.list_accounts()
-    selected_account_id = choose_tws_account(accounts, account_id)
-    return list(live_client.list_portfolio(selected_account_id))
+    return list(live_client.list_portfolio(account_id))
+
+
+def _load_live_account_values(
+    live_client: object,
+    account_id: str,
+) -> list[object]:
+    list_account_values = getattr(live_client, "list_account_values", None)
+    if not callable(list_account_values):
+        return []
+    return list(list_account_values(account_id))
 
 
 def _build_live_ibkr_report_rows(
     portfolio_items: list[object],
+    cash_values: list[object],
     *,
     as_of: str | None,
-) -> tuple[list[dict[str, object]], list[PositionReportRow], SecurityReferenceTable]:
+) -> tuple[list[LiveIbkrRowSource], list[PositionReportRow], SecurityReferenceTable]:
     # Keep live normalization identical to the CSV/report pipeline so notebook
     # exploration and exported reports stay aligned.
     reference_table = SecurityReferenceTable.from_default_csv()
-    raw_positions = portfolio_items_to_ibkr_position_rows(portfolio_items)
+    sources = [
+        LiveIbkrRowSource(raw_position=row, portfolio_item=item)
+        for item, row in zip(
+            portfolio_items,
+            portfolio_items_to_ibkr_position_rows(portfolio_items),
+            strict=True,
+        )
+    ]
+    sources.extend(
+        LiveIbkrRowSource(raw_position=row)
+        for row in account_values_to_ibkr_cash_position_rows(cash_values)
+    )
+    raw_positions = [source.raw_position for source in sources]
     positions = normalize_ibkr_positions(
         raw_positions,
         reference_table,
@@ -265,21 +311,46 @@ def _build_live_ibkr_report_rows(
         reference_table,
         as_of=as_of,
     )
+    prices.extend(_build_live_cash_price_rows(positions, reference_table))
     rows = build_position_report_rows(
         positions,
         build_price_lookup(prices),
         reference_table.to_security_lookup(),
     )
-    return raw_positions, rows, reference_table
+    return sources, rows, reference_table
+
+
+def _build_live_cash_price_rows(
+    positions: list[PortfolioPositionSnapshot],
+    reference_table: SecurityReferenceTable,
+) -> list[PortfolioPriceSnapshot]:
+    lookup = reference_table.to_security_lookup()
+    rows: list[PortfolioPriceSnapshot] = []
+    for position in positions:
+        security = lookup.get(position.internal_id)
+        if security is None or security.ibkr_sec_type != "CASH":
+            continue
+        rows.append(
+            PortfolioPriceSnapshot(
+                as_of=position.as_of,
+                internal_id=position.internal_id,
+                source=position.source,
+                last_price=1.0,
+            )
+        )
+    return rows
 
 
 def _enrich_unmapped_live_securities(
     *,
     reference_table: SecurityReferenceTable,
     live_client: object,
-    portfolio_items: list[object],
+    sources: list[LiveIbkrRowSource],
 ) -> None:
-    for portfolio_item in portfolio_items:
+    for source in sources:
+        portfolio_item = source.portfolio_item
+        if portfolio_item is None:
+            continue
         contract = getattr(portfolio_item, "contract", None)
         con_id = getattr(contract, "conId", None)
         if con_id in (None, ""):
@@ -389,6 +460,10 @@ def _build_live_ibkr_position_security_row(
         "ibkr_position": raw_position.get("position"),
         "ibkr_avg_cost": raw_position.get("avgCost"),
         "ibkr_market_value": raw_position.get("marketValue"),
+        "ibkr_cash_tag": raw_position.get("cashTag"),
+        "ibkr_cash_target_currency": raw_position.get("cashTargetCurrency"),
+        "ibkr_cash_source_currencies": raw_position.get("cashSourceCurrencies"),
+        "ibkr_cash_conversion_mode": raw_position.get("cashConversionMode"),
         "contract_conid": contract_details.get("conId"),
         "contract_symbol": contract_details.get("symbol"),
         "contract_sec_type": contract_details.get("secType"),
