@@ -271,7 +271,7 @@ class TwsIbAsyncClient:
 
         return list(rows)
 
-    def fetch_security_info(
+    def search_securities(
         self,
         symbol: str | None = None,
         sec_type: str = "STK",
@@ -284,7 +284,7 @@ class TwsIbAsyncClient:
     ) -> list[dict[str, object]]:
         """Fetch contract details from IBKR using ib_async style API.
 
-        Example: fetch_security_info(
+        Example: search_securities(
             symbol="XLK",
             sec_type="STK",
             exchange="SMART",
@@ -342,7 +342,30 @@ class TwsIbAsyncClient:
                 )
             ) from error
 
-    def require_security_info(
+    def fetch_security_info(
+        self,
+        symbol: str | None = None,
+        sec_type: str = "STK",
+        exchange: str = "",
+        primary_exchange: str = "",
+        currency: str = "",
+        conid: int | None = None,
+        local_symbol: str | None = None,
+        contract: object | None = None,
+    ) -> list[dict[str, object]]:
+        """Backward-compatible alias for search_securities()."""
+        return self.search_securities(
+            symbol=symbol,
+            sec_type=sec_type,
+            exchange=exchange,
+            primary_exchange=primary_exchange,
+            currency=currency,
+            conid=conid,
+            local_symbol=local_symbol,
+            contract=contract,
+        )
+
+    def lookup_security(
         self,
         symbol: str | None = None,
         sec_type: str = "STK",
@@ -354,7 +377,7 @@ class TwsIbAsyncClient:
         contract: object | None = None,
     ) -> dict[str, object]:
         """Return exactly one contract match or fail with a diagnostic error."""
-        details = self.fetch_security_info(
+        details = self.search_securities(
             symbol=symbol,
             sec_type=sec_type,
             exchange=exchange,
@@ -395,6 +418,29 @@ class TwsIbAsyncClient:
                 )
             )
         return details[0]
+
+    def require_security_info(
+        self,
+        symbol: str | None = None,
+        sec_type: str = "STK",
+        exchange: str = "",
+        primary_exchange: str = "",
+        currency: str = "",
+        conid: int | None = None,
+        local_symbol: str | None = None,
+        contract: object | None = None,
+    ) -> dict[str, object]:
+        """Backward-compatible alias for lookup_security()."""
+        return self.lookup_security(
+            symbol=symbol,
+            sec_type=sec_type,
+            exchange=exchange,
+            primary_exchange=primary_exchange,
+            currency=currency,
+            conid=conid,
+            local_symbol=local_symbol,
+            contract=contract,
+        )
 
     def _require_connected(self) -> object:
         if self._ib is None or not _is_connected(self._ib):
