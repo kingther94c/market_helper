@@ -128,6 +128,10 @@ def register_ibkr_contract(
     contract: IbkrContract,
 ) -> str:
     security = resolve_ibkr_contract(reference_table, contract)
+    if not contract.con_id:
+        if security.mapping_status != "mapped":
+            reference_table.upsert_security(security)
+        return security.internal_id
     if security.mapping_status == "mapped":
         return reference_table.register_runtime_contract(
             security=security,
@@ -203,9 +207,15 @@ def normalize_ibkr_positions(
 
     for item in raw_positions:
         row = _as_ibkr_dict(item)
+        sec_type = str(_first_non_null(row, "sec_type", "secType", default="")).upper()
+        con_id = _first_non_null(row, "con_id", "conid", "conId", default=None)
+        if con_id in (None, "") and sec_type != "CASH":
+            raise KeyError(
+                "Missing required IBKR field. Expected one of: con_id, conid, conId"
+            )
         contract = IbkrContract(
-            con_id=str(_require_any(row, "con_id", "conid", "conId")),
-            sec_type=str(_first_non_null(row, "sec_type", "secType", default="")).upper(),
+            con_id=str(con_id or ""),
+            sec_type=sec_type,
             symbol=str(_first_non_null(row, "symbol", default="")).upper(),
             currency=str(_first_non_null(row, "currency", default="")).upper(),
             exchange=str(_first_non_null(row, "primary_exchange", "primaryExchange", "exchange", default="")).upper(),
@@ -215,7 +225,11 @@ def normalize_ibkr_positions(
             multiplier=str(_first_non_null(row, "multiplier", default="1")),
         )
 
-        internal_id = reference_table.resolve_internal_id(IBKR_SOURCE, contract.con_id)
+        internal_id = (
+            reference_table.resolve_internal_id(IBKR_SOURCE, contract.con_id)
+            if contract.con_id
+            else None
+        )
         if internal_id is None:
             internal_id = register_ibkr_contract(reference_table, contract)
 

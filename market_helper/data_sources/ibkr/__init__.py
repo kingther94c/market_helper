@@ -19,6 +19,7 @@ from .client_portal import (
 from .tws import (
     TwsIbAsyncClient,
     TwsIbAsyncError,
+    account_values_to_ibkr_cash_position_rows,
     choose_tws_account,
     portfolio_items_to_ibkr_position_rows,
     portfolio_items_to_ibkr_price_rows,
@@ -31,6 +32,7 @@ __all__ = [
     "IbkrContract",
     "TwsIbAsyncClient",
     "TwsIbAsyncError",
+    "account_values_to_ibkr_cash_position_rows",
     "WebApiClient",
     "choose_account",
     "choose_tws_account",
