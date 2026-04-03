@@ -87,6 +87,7 @@ class SecurityReference:
     price_source_symbol: str = ""
     fx_source_provider: str = ""
     fx_source_symbol: str = ""
+    mapping_status_hint: str = ""
 
     def __post_init__(self) -> None:
         # Normalize optional fields aggressively so downstream matching code can
@@ -137,9 +138,12 @@ class SecurityReference:
         object.__setattr__(self, "fx_source_provider", _clean_optional_str(self.fx_source_provider))
         object.__setattr__(self, "fx_source_symbol", _clean_optional_str(self.fx_source_symbol))
         object.__setattr__(self, "currency", _clean_optional_str(self.currency).upper())
+        object.__setattr__(self, "mapping_status_hint", _clean_optional_str(self.mapping_status_hint).lower())
 
     @property
     def mapping_status(self) -> str:
+        if self.mapping_status_hint:
+            return self.mapping_status_hint
         if self.internal_id.startswith(RUNTIME_OUTSIDE_SCOPE_PREFIX):
             return "outside_scope"
         if self.internal_id.startswith(RUNTIME_UNMAPPED_PREFIX):
@@ -198,8 +202,9 @@ class SecurityReference:
                 )
             )
 
-    def to_curated_row(self) -> Dict[str, str]:
-        self.validate_curated()
+    def to_csv_row(self, *, validate_curated: bool = True) -> Dict[str, str]:
+        if validate_curated:
+            self.validate_curated()
         return {
             "internal_id": self.internal_id,
             "is_active": "true" if self.is_active else "false",
@@ -226,6 +231,9 @@ class SecurityReference:
             "fx_source_provider": self.fx_source_provider,
             "fx_source_symbol": self.fx_source_symbol,
         }
+
+    def to_curated_row(self) -> Dict[str, str]:
+        return self.to_csv_row(validate_curated=True)
 
     @classmethod
     def from_curated_row(cls, row: Mapping[str, object]) -> SecurityReference:
@@ -541,6 +549,40 @@ class SecurityReferenceTable:
             rows.append(security.to_curated_row())
         return rows
 
+    def to_proposed_rows(self) -> List[SecurityReference]:
+        rows: List[SecurityReference] = []
+        for internal_id in sorted(self._security_by_id):
+            security = self._security_by_id[internal_id]
+            if security.mapping_status != "unmapped":
+                continue
+            rows.append(security)
+        return rows
+
+    def search_by_ibkr_symbol_sec_type(
+        self,
+        *,
+        symbol: str,
+        sec_type: str,
+    ) -> List[SecurityReference]:
+        normalized_symbol = _normalize_lookup_value(symbol)
+        normalized_sec_type = _normalize_lookup_value(sec_type)
+        if normalized_sec_type == "FUT":
+            normalized_symbol = normalize_contract_root(normalized_symbol)
+
+        matches: List[SecurityReference] = []
+        for security in self._security_by_id.values():
+            if security.mapping_status != "mapped":
+                continue
+            candidate_symbol = _normalize_lookup_value(
+                security.ibkr_symbol or security.symbol or security.canonical_symbol
+            )
+            candidate_sec_type = _normalize_lookup_value(security.ibkr_sec_type)
+            if candidate_sec_type == "FUT":
+                candidate_symbol = normalize_contract_root(candidate_symbol)
+            if candidate_symbol == normalized_symbol and candidate_sec_type == normalized_sec_type:
+                matches.append(security)
+        return sorted(matches, key=lambda item: item.internal_id)
+
     def _normalize_ibkr_alias(self, *, symbol: str, sec_type: str, exchange: str) -> IbkrAliasKey:
         normalized_symbol = _normalize_lookup_value(symbol)
         normalized_sec_type = _normalize_lookup_value(sec_type)
@@ -553,6 +595,8 @@ class SecurityReferenceTable:
 def export_security_reference_csv(
     rows: Iterable[SecurityReference],
     output_path: str | Path,
+    *,
+    validate_curated: bool = True,
 ) -> Path:
     destination = Path(output_path)
     destination.parent.mkdir(parents=True, exist_ok=True)
@@ -561,7 +605,7 @@ def export_security_reference_csv(
         writer = csv.DictWriter(handle, fieldnames=CURATED_SECURITY_REFERENCE_HEADERS)
         writer.writeheader()
         for row in materialized:
-            writer.writerow(row.to_curated_row())
+            writer.writerow(row.to_csv_row(validate_curated=validate_curated))
     return destination
 
 
@@ -591,6 +635,18 @@ def join_positions_with_latest_price(
             }
         )
     return rows
+
+
+def build_internal_security_id(
+    *,
+    ibkr_sec_type: str,
+    canonical_symbol: str,
+    primary_exchange: str,
+) -> str:
+    safe_sec_type = _internal_id_component(ibkr_sec_type or "UNKNOWN")
+    safe_symbol = _internal_id_component(canonical_symbol)
+    safe_exchange = _internal_id_component(primary_exchange or "GENERIC")
+    return f"{safe_sec_type}:{safe_symbol}:{safe_exchange}"
 
 
 def normalize_contract_root(symbol: str) -> str:
@@ -623,6 +679,11 @@ def _normalize_source(value: str) -> str:
 
 def _normalize_lookup_value(value: object) -> str:
     return _clean_optional_str(value).upper()
+
+
+def _internal_id_component(value: object) -> str:
+    upper = _clean_optional_str(value).upper()
+    return re.sub(r"[^A-Z0-9]+", "_", upper).strip("_")
 
 
 def _clean_optional_str(value: object) -> str:

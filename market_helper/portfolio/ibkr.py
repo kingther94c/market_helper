@@ -1,16 +1,16 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from typing import Iterable, List, Mapping, Optional
 
 from .security_reference import (
     PriceSnapshot,
     PositionSnapshot,
     RUNTIME_OUTSIDE_SCOPE_PREFIX,
-    RUNTIME_UNMAPPED_PREFIX,
     SecurityMapping,
     SecurityReference,
     SecurityReferenceTable,
+    build_internal_security_id,
     now_utc_iso,
 )
 
@@ -29,7 +29,11 @@ class IbkrContract:
 
 
 def contract_to_internal_id(contract: IbkrContract) -> str:
-    return "IBKR:{con_id}".format(con_id=contract.con_id)
+    return build_internal_security_id(
+        ibkr_sec_type=contract.sec_type,
+        canonical_symbol=contract.symbol,
+        primary_exchange=contract.exchange,
+    )
 
 
 def contract_to_security_reference(
@@ -42,13 +46,11 @@ def contract_to_security_reference(
     except (TypeError, ValueError):
         multiplier = 1.0
 
-    prefix = (
-        RUNTIME_OUTSIDE_SCOPE_PREFIX
-        if status == "outside_scope"
-        else RUNTIME_UNMAPPED_PREFIX
-    )
+    internal_id = contract_to_internal_id(contract)
+    if status == "outside_scope":
+        internal_id = f"{RUNTIME_OUTSIDE_SCOPE_PREFIX}{internal_id}"
     return SecurityReference(
-        internal_id=f"{prefix}IBKR:{contract.con_id}",
+        internal_id=internal_id,
         symbol=contract.symbol.upper(),
         currency=contract.currency.upper(),
         exchange=contract.exchange.upper(),
@@ -68,6 +70,56 @@ def contract_to_security_reference(
         ibkr_exchange=contract.exchange.upper(),
         ibkr_conid=contract.con_id,
         report_category="OUTSIDE_SCOPE" if status == "outside_scope" else "",
+        mapping_status_hint=status,
+    )
+
+
+def enrich_security_from_contract_details(
+    security: SecurityReference,
+    details: Mapping[str, object],
+) -> SecurityReference:
+    if security.mapping_status != "unmapped":
+        return security
+
+    primary_exchange = str(
+        _first_non_null(details, "primaryExchange", "exchange", default=security.primary_exchange)
+    ).upper()
+    symbol = str(_first_non_null(details, "symbol", default=security.symbol)).upper()
+    currency = str(_first_non_null(details, "currency", default=security.currency)).upper()
+    local_symbol = str(_first_non_null(details, "localSymbol", default=security.description))
+    long_name = str(
+        _first_non_null(
+            details,
+            "longName",
+            "marketName",
+            "localSymbol",
+            "symbol",
+            default=security.display_name,
+        )
+    )
+    multiplier = _optional_float(_first_non_null(details, "multiplier", default=security.multiplier))
+    metadata = dict(security.metadata)
+    market_name = str(_first_non_null(details, "marketName", default=""))
+    if market_name:
+        metadata["market_name"] = market_name
+    if long_name:
+        metadata["long_name"] = long_name
+
+    return replace(
+        security,
+        symbol=symbol or security.symbol,
+        currency=currency or security.currency,
+        exchange=primary_exchange or security.exchange,
+        description=local_symbol or security.description,
+        multiplier=multiplier if multiplier is not None else security.multiplier,
+        metadata=metadata,
+        canonical_symbol=symbol or security.canonical_symbol,
+        display_ticker=symbol or security.display_ticker,
+        display_name=long_name or security.display_name,
+        primary_exchange=primary_exchange or security.primary_exchange,
+        ibkr_symbol=symbol or security.ibkr_symbol,
+        ibkr_exchange=primary_exchange or security.ibkr_exchange,
+        ibkr_conid=str(_first_non_null(details, "conId", default=security.ibkr_conid)),
     )
 
 
@@ -119,6 +171,13 @@ def resolve_ibkr_contract(
     if alias_match is not None:
         return alias_match
 
+    symbol_matches = reference_table.search_by_ibkr_symbol_sec_type(
+        symbol=contract.symbol,
+        sec_type=contract.sec_type,
+    )
+    if len(symbol_matches) == 1:
+        return symbol_matches[0]
+
     if contract.sec_type.upper() == "CASH":
         cash_match = reference_table.resolve_cash_reference(
             symbol=contract.symbol,
@@ -149,7 +208,7 @@ def normalize_ibkr_positions(
             sec_type=str(_first_non_null(row, "sec_type", "secType", default="")).upper(),
             symbol=str(_first_non_null(row, "symbol", default="")).upper(),
             currency=str(_first_non_null(row, "currency", default="")).upper(),
-            exchange=str(_first_non_null(row, "exchange", default="")).upper(),
+            exchange=str(_first_non_null(row, "primary_exchange", "primaryExchange", "exchange", default="")).upper(),
             local_symbol=str(
                 _first_non_null(row, "local_symbol", "localSymbol", default="")
             ),

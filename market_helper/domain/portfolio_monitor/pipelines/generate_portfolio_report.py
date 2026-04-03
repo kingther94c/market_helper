@@ -9,8 +9,10 @@ from market_helper.common.models import (
     PortfolioPositionSnapshot,
     PortfolioPriceSnapshot,
     SecurityReference,
+    SecurityMapping,
     SecurityReferenceTable,
     build_price_lookup,
+    export_security_reference_csv,
 )
 from market_helper.data_sources.ibkr.adapters import (
     normalize_ibkr_latest_prices,
@@ -32,6 +34,7 @@ from market_helper.presentation.tables.portfolio_report import (
     PositionReportRow,
     build_position_report_rows,
 )
+from market_helper.portfolio.ibkr import enrich_security_from_contract_details
 
 
 def generate_position_report(
@@ -65,7 +68,9 @@ def generate_ibkr_position_report(
         build_price_lookup(prices),
         reference_table.to_security_lookup(),
     )
-    return export_position_report_csv(rows, output_path)
+    written_path = export_position_report_csv(rows, output_path)
+    _write_proposed_security_reference_csv(reference_table, output_path=written_path)
+    return written_path
 
 
 def generate_live_ibkr_position_report(
@@ -92,8 +97,15 @@ def generate_live_ibkr_position_report(
     connect()
     try:
         portfolio_items = _load_live_portfolio_items(live_client, account_id)
-        _, rows, _ = _build_live_ibkr_report_rows(portfolio_items, as_of=as_of)
-        return export_position_report_csv(rows, output_path)
+        _, rows, reference_table = _build_live_ibkr_report_rows(portfolio_items, as_of=as_of)
+        _enrich_unmapped_live_securities(
+            reference_table=reference_table,
+            live_client=live_client,
+            portfolio_items=portfolio_items,
+        )
+        written_path = export_position_report_csv(rows, output_path)
+        _write_proposed_security_reference_csv(reference_table, output_path=written_path)
+        return written_path
     finally:
         if callable(disconnect):
             disconnect()
@@ -259,6 +271,60 @@ def _build_live_ibkr_report_rows(
         reference_table.to_security_lookup(),
     )
     return raw_positions, rows, reference_table
+
+
+def _enrich_unmapped_live_securities(
+    *,
+    reference_table: SecurityReferenceTable,
+    live_client: object,
+    portfolio_items: list[object],
+) -> None:
+    for portfolio_item in portfolio_items:
+        contract = getattr(portfolio_item, "contract", None)
+        con_id = getattr(contract, "conId", None)
+        if con_id in (None, ""):
+            continue
+        internal_id = reference_table.resolve_internal_id("ibkr", str(con_id))
+        if internal_id is None:
+            continue
+        security = reference_table.get_security(internal_id)
+        if security is None or security.mapping_status != "unmapped":
+            continue
+        details = _fetch_live_contract_details(live_client, portfolio_item)
+        enriched = enrich_security_from_contract_details(security, details)
+        reference_table.upsert_security(enriched)
+        reference_table.upsert_mapping(
+            SecurityMapping(
+                source="ibkr",
+                external_id=str(con_id),
+                internal_id=enriched.internal_id,
+            )
+        )
+
+
+def _write_proposed_security_reference_csv(
+    reference_table: SecurityReferenceTable,
+    *,
+    output_path: str | Path,
+) -> Path | None:
+    proposed_rows = reference_table.to_proposed_rows()
+    if not proposed_rows:
+        return None
+
+    proposed_path = Path(output_path).with_name("security_reference_PROPOSED.csv")
+    export_security_reference_csv(
+        proposed_rows,
+        proposed_path,
+        validate_curated=False,
+    )
+    print(
+        "Unmapped IBKR securities were normalized with runtime contract info. "
+        "Review {path} ({count} rows) and merge any approved rows into the tracked security reference.".format(
+            path=proposed_path,
+            count=len(proposed_rows),
+        )
+    )
+    return proposed_path
 
 
 def _fetch_live_contract_details(

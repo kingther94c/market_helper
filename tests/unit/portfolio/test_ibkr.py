@@ -33,8 +33,8 @@ def test_normalize_ibkr_positions_matches_curated_equity_row() -> None:
         as_of="2026-03-25T00:00:00+00:00",
     )
 
-    assert positions[0].internal_id == "ETF:SPY:ARCA"
-    assert table.require_internal_id("ibkr", "756733") == "ETF:SPY:ARCA"
+    assert positions[0].internal_id == "STK:SPY:ARCA"
+    assert table.require_internal_id("ibkr", "756733") == "STK:SPY:ARCA"
 
 
 def test_normalize_ibkr_positions_matches_futures_family_alias() -> None:
@@ -59,8 +59,8 @@ def test_normalize_ibkr_positions_matches_futures_family_alias() -> None:
         as_of="2026-03-25T00:00:00+00:00",
     )
 
-    assert positions[0].internal_id == "FI_FUT:ZN:CBOT"
-    assert table.require_internal_id("ibkr", "999001") == "FI_FUT:ZN:CBOT"
+    assert positions[0].internal_id == "FUT:ZN:CBOT"
+    assert table.require_internal_id("ibkr", "999001") == "FUT:ZN:CBOT"
 
 
 def test_normalize_ibkr_latest_prices_uses_fallback_price_fields() -> None:
@@ -88,7 +88,7 @@ def test_normalize_ibkr_latest_prices_uses_fallback_price_fields() -> None:
     )
 
     assert prices[0].last_price == 215.1
-    assert prices[0].internal_id == "ETF:SPY:ARCA"
+    assert prices[0].internal_id == "STK:SPY:ARCA"
 
 
 def test_normalize_ibkr_positions_accepts_camel_case_and_object_payload() -> None:
@@ -113,10 +113,10 @@ def test_normalize_ibkr_positions_accepts_camel_case_and_object_payload() -> Non
         as_of="2026-03-25T00:00:00+00:00",
     )
 
-    assert positions[0].internal_id == "FI_FUT:ZF:CBOT"
+    assert positions[0].internal_id == "FUT:ZF:CBOT"
     assert positions[0].avg_cost == 106.25
     assert positions[0].market_value == 318750
-    assert table.require_internal_id("ibkr", "999002") == "FI_FUT:ZF:CBOT"
+    assert table.require_internal_id("ibkr", "999002") == "FUT:ZF:CBOT"
 
 
 def test_normalize_ibkr_positions_marks_options_outside_scope() -> None:
@@ -139,8 +139,8 @@ def test_normalize_ibkr_positions_marks_options_outside_scope() -> None:
         as_of="2026-03-26T00:00:00+00:00",
     )
 
-    assert positions[0].internal_id == "OUTSIDE_SCOPE:IBKR:701332964"
-    assert table.get_security("OUTSIDE_SCOPE:IBKR:701332964").mapping_status == "outside_scope"
+    assert positions[0].internal_id == "OUTSIDE_SCOPE:OPT:SPY:AMEX"
+    assert table.get_security("OUTSIDE_SCOPE:OPT:SPY:AMEX").mapping_status == "outside_scope"
 
 
 def test_normalize_ibkr_positions_marks_unmapped_instruments() -> None:
@@ -165,7 +165,30 @@ def test_normalize_ibkr_positions_marks_unmapped_instruments() -> None:
 
     assert positions[0].account == "U12345"
     assert positions[0].avg_cost == 210.5
-    assert positions[0].internal_id == "UNMAPPED:IBKR:888888"
+    assert positions[0].internal_id == "STK:AAPL:SMART"
+    assert table.get_security("STK:AAPL:SMART").mapping_status == "unmapped"
+
+
+def test_normalize_ibkr_positions_prefers_primary_exchange_and_unique_symbol_match() -> None:
+    table = SecurityReferenceTable.from_default_csv()
+    positions = normalize_ibkr_positions(
+        [
+            {
+                "accountId": "U12345",
+                "conid": "756733",
+                "secType": "STK",
+                "symbol": "SPY",
+                "currency": "USD",
+                "exchange": "SMART",
+                "primaryExchange": "ARCA",
+                "position": "20",
+            }
+        ],
+        table,
+        as_of="2026-03-26T00:00:00+00:00",
+    )
+
+    assert positions[0].internal_id == "STK:SPY:ARCA"
 
 
 def test_normalize_ibkr_latest_prices_accepts_market_price_alias() -> None:

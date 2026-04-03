@@ -14,7 +14,7 @@ def test_reference_table_loads_curated_csv_and_resolves_indexes(tmp_path) -> Non
     export_security_reference_csv(
         [
             SecurityReference(
-                internal_id="ETF:SPY:ARCA",
+                internal_id="STK:SPY:ARCA",
                 universe_type="ETF",
                 canonical_symbol="SPY",
                 display_ticker="SPY",
@@ -37,7 +37,7 @@ def test_reference_table_loads_curated_csv_and_resolves_indexes(tmp_path) -> Non
                 price_source_symbol="SPY",
             ),
             SecurityReference(
-                internal_id="FI_FUT:ZN:CBOT",
+                internal_id="FUT:ZN:CBOT",
                 universe_type="FI_FUT",
                 canonical_symbol="ZN",
                 display_ticker="ZNW00:CBOT",
@@ -82,14 +82,14 @@ def test_reference_table_loads_curated_csv_and_resolves_indexes(tmp_path) -> Non
 
     reference = SecurityReferenceTable.from_csv(export_path)
 
-    assert reference.by_internal_id["ETF:SPY:ARCA"].display_ticker == "SPY"
-    assert reference.by_ibkr_conid["756733"].internal_id == "ETF:SPY:ARCA"
-    assert reference.by_google_symbol["SPY"].internal_id == "ETF:SPY:ARCA"
-    assert reference.by_yahoo_symbol["SPY"].internal_id == "ETF:SPY:ARCA"
-    assert reference.by_bbg_symbol["SPY US EQUITY"].internal_id == "ETF:SPY:ARCA"
+    assert reference.by_internal_id["STK:SPY:ARCA"].display_ticker == "SPY"
+    assert reference.by_ibkr_conid["756733"].internal_id == "STK:SPY:ARCA"
+    assert reference.by_google_symbol["SPY"].internal_id == "STK:SPY:ARCA"
+    assert reference.by_yahoo_symbol["SPY"].internal_id == "STK:SPY:ARCA"
+    assert reference.by_bbg_symbol["SPY US EQUITY"].internal_id == "STK:SPY:ARCA"
     assert reference.resolve_by_ibkr_alias(symbol="SPY", sec_type="STK", exchange="ARCA")
-    assert reference.resolve_by_ibkr_alias(symbol="ZNM6", sec_type="FUT", exchange="CBOT").internal_id == "FI_FUT:ZN:CBOT"
-    assert reference.resolve_by_ibkr_alias(symbol="ZN", sec_type="FUT", exchange="CBOT").internal_id == "FI_FUT:ZN:CBOT"
+    assert reference.resolve_by_ibkr_alias(symbol="ZNM6", sec_type="FUT", exchange="CBOT").internal_id == "FUT:ZN:CBOT"
+    assert reference.resolve_by_ibkr_alias(symbol="ZN", sec_type="FUT", exchange="CBOT").internal_id == "FUT:ZN:CBOT"
     assert reference.resolve_cash_reference(symbol="USD", currency="USD").internal_id == "CASH:USD:IDEALPRO"
 
 
