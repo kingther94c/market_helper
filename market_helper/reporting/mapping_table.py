@@ -10,6 +10,7 @@ from zipfile import ZipFile
 from market_helper.portfolio.security_reference import (
     SecurityReference,
     SecurityReferenceTable,
+    build_internal_security_id,
     export_security_reference_csv,
     normalize_contract_root,
 )
@@ -134,6 +135,7 @@ def _extract_security_reference_row(
         instrument_type=str(instrument_type),
         risk_bucket=risk_bucket,
     )
+    ibkr_sec_type = _ibkr_sec_type_for_universe(universe_type)
     primary_exchange = _ibkr_exchange_for_venue(venue)
     quote_formula = _cell_formula(row, "M")
     price_provider = _provider_from_formula(quote_formula)
@@ -145,7 +147,7 @@ def _extract_security_reference_row(
     )
     return SecurityReference(
         internal_id=_build_internal_id(
-            universe_type=universe_type,
+            ibkr_sec_type=ibkr_sec_type,
             canonical_symbol=symbol_key,
             primary_exchange=primary_exchange,
         ),
@@ -157,7 +159,7 @@ def _extract_security_reference_row(
         currency="USD",
         primary_exchange=primary_exchange,
         multiplier=_optional_float(_cell_value(row, "L")) or 1.0,
-        ibkr_sec_type=_ibkr_sec_type_for_universe(universe_type),
+        ibkr_sec_type=ibkr_sec_type,
         ibkr_symbol=symbol_key,
         ibkr_exchange=primary_exchange,
         google_symbol=price_symbol if price_provider == "google_finance" else "",
@@ -266,13 +268,15 @@ def _extract_fx_sources(rows: list[dict[str, WorkbookCell]]) -> dict[str, tuple[
 
 def _build_internal_id(
     *,
-    universe_type: str,
+    ibkr_sec_type: str,
     canonical_symbol: str,
     primary_exchange: str,
 ) -> str:
-    safe_symbol = _canonical_symbol(canonical_symbol)
-    safe_exchange = _canonical_symbol(primary_exchange or "GENERIC")
-    return f"{universe_type}:{safe_symbol}:{safe_exchange}"
+    return build_internal_security_id(
+        ibkr_sec_type=ibkr_sec_type,
+        canonical_symbol=canonical_symbol,
+        primary_exchange=primary_exchange,
+    )
 
 
 def _canonical_symbol(value: str) -> str:

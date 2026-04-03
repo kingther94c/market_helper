@@ -32,16 +32,16 @@ def test_build_risk_html_report_renders_summary_and_tables(tmp_path: Path) -> No
         "\n".join(
             [
                 "as_of,account,internal_id,con_id,symbol,local_symbol,exchange,currency,source,quantity,avg_cost,latest_price,market_value,cost_basis,unrealized_pnl,weight",
-                "2026-03-26T00:00:00+00:00,U1,ETF:SPY:ARCA,756733,SPY,SPY,ARCA,USD,ibkr,10,500,510,5100,5000,100,0.6",
-                "2026-03-26T00:00:00+00:00,U1,FI_FUT:ZN:CBOT,815824229,ZN,ZNM6,CBOT,USD,ibkr,1,110,111,111000,110000,1000,0.4",
+                "2026-03-26T00:00:00+00:00,U1,STK:SPY:ARCA,756733,SPY,SPY,ARCA,USD,ibkr,10,500,510,5100,5000,100,0.6",
+                "2026-03-26T00:00:00+00:00,U1,FUT:ZN:CBOT,815824229,ZN,ZNM6,CBOT,USD,ibkr,1,110,111,111000,110000,1000,0.4",
             ]
         ),
         encoding="utf-8",
     )
 
     returns_payload = {
-        "ETF:SPY:ARCA": [0.001 * ((idx % 7) - 3) for idx in range(90)],
-        "FI_FUT:ZN:CBOT": [0.0007 * ((idx % 5) - 2) for idx in range(90)],
+        "STK:SPY:ARCA": [0.001 * ((idx % 7) - 3) for idx in range(90)],
+        "FUT:ZN:CBOT": [0.0007 * ((idx % 5) - 2) for idx in range(90)],
     }
     returns_json = tmp_path / "returns.json"
     returns_json.write_text(json.dumps(returns_payload), encoding="utf-8")
@@ -98,8 +98,8 @@ def test_build_risk_html_report_uses_security_reference_for_enrichment(tmp_path:
         "\n".join(
             [
                 "as_of,account,internal_id,con_id,symbol,local_symbol,exchange,currency,source,quantity,avg_cost,latest_price,market_value,cost_basis,unrealized_pnl,weight",
-                "2026-03-26T00:00:00+00:00,U1,ETF:SPYL:LSEETF,663368035,SPYL,SPYL,LSEETF,USD,ibkr,4000,17,16.25,65000,68000,-3000,0.5",
-                "2026-03-26T00:00:00+00:00,U1,FI_FUT:ZN:CBOT,999001,ZN,ZNM6,CBOT,USD,ibkr,1,110,111,111000,110000,1000,0.5",
+                "2026-03-26T00:00:00+00:00,U1,STK:SPYL:LSEETF,663368035,SPYL,SPYL,LSEETF,USD,ibkr,4000,17,16.25,65000,68000,-3000,0.5",
+                "2026-03-26T00:00:00+00:00,U1,FUT:ZN:CBOT,999001,ZN,ZNM6,CBOT,USD,ibkr,1,110,111,111000,110000,1000,0.5",
             ]
         ),
         encoding="utf-8",
@@ -109,8 +109,8 @@ def test_build_risk_html_report_uses_security_reference_for_enrichment(tmp_path:
     returns_json.write_text(
         json.dumps(
             {
-                "ETF:SPYL:LSEETF": [0.001 * ((idx % 7) - 3) for idx in range(90)],
-                "FI_FUT:ZN:CBOT": [0.0007 * ((idx % 5) - 2) for idx in range(90)],
+                "STK:SPYL:LSEETF": [0.001 * ((idx % 7) - 3) for idx in range(90)],
+                "FUT:ZN:CBOT": [0.0007 * ((idx % 5) - 2) for idx in range(90)],
             }
         ),
         encoding="utf-8",
@@ -120,7 +120,7 @@ def test_build_risk_html_report_uses_security_reference_for_enrichment(tmp_path:
     export_security_reference_csv(
         [
             SecurityReference(
-                internal_id="ETF:SPYL:LSEETF",
+                internal_id="STK:SPYL:LSEETF",
                 universe_type="ETF",
                 canonical_symbol="SPYL",
                 display_ticker="LON:SPYL",
@@ -139,7 +139,7 @@ def test_build_risk_html_report_uses_security_reference_for_enrichment(tmp_path:
                 price_source_symbol="LON:SPYL",
             ),
             SecurityReference(
-                internal_id="FI_FUT:ZN:CBOT",
+                internal_id="FUT:ZN:CBOT",
                 universe_type="FI_FUT",
                 canonical_symbol="ZN",
                 display_ticker="ZNW00:CBOT",

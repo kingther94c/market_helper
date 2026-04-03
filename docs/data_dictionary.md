@@ -10,7 +10,7 @@ and defines the supported investment universe for reporting/risk v1.
 
 | column | type | description |
 | --- | --- | --- |
-| internal_id | string | Canonical instrument ID used across the platform. |
+| internal_id | string | Canonical instrument ID used across the platform, formatted as `{ibkr_sec_type}:{canonical_symbol}:{primary_exchange}` for curated rows. |
 | is_active | bool | Whether the row is currently active in the curated universe. |
 | universe_type | string | Curated universe bucket: `ETF`, `EQ`, `FX_FUT`, `FI_FUT`, `OTHER_FUT`, `CASH`. |
 | canonical_symbol | string | Canonical product or listing symbol used inside the universe. |
@@ -35,10 +35,11 @@ and defines the supported investment universe for reporting/risk v1.
 | fx_source_provider | string/null | Preferred FX source hint if conversion is needed. |
 | fx_source_symbol | string/null | Preferred FX lookup symbol. |
 
-Runtime-only fallback references such as `UNMAPPED:IBKR:...` and `OUTSIDE_SCOPE:IBKR:...`
-are not persisted in the curated CSV. They are transient rows created during ingestion so
-unsupported or still-unmapped instruments can be surfaced without polluting the curated
-universe.
+Runtime-only unmatched references reuse the canonical-looking `internal_id` shape, for example
+`STK:AAPL:SMART`, while outside-scope instruments still use explicit markers such as
+`OUTSIDE_SCOPE:OPT:SPY:AMEX`. When IBKR ingestion encounters unmatched rows, the report workflow
+writes a sibling `security_reference_PROPOSED.csv` so the user can review and merge any approved
+rows into the tracked curated CSV.
 
 ### `position_snapshot`
 Normalized portfolio positions.

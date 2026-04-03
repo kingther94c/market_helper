@@ -132,7 +132,7 @@ def test_build_live_ibkr_position_security_table_merges_position_reference_and_c
     assert len(rows) == 1
     row = rows[0]
 
-    assert row["internal_id"] == "ETF:SPY:ARCA"
+    assert row["internal_id"] == "STK:SPY:ARCA"
     assert row["con_id"] == "756733"
     assert row["local_symbol"] == "SPY"
     assert row["quantity"] == 20.0
