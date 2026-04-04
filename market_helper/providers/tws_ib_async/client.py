@@ -192,6 +192,7 @@ class TwsIbAsyncClient:
     port: int = 7497
     client_id: int = 1
     timeout: float = 4.0
+    request_timeout: float | None = 10.0
     readonly: bool = True
     account: str = ""
     ib_factory: IBFactory | None = None
@@ -205,6 +206,8 @@ class TwsIbAsyncClient:
         # reuse the same client without caring where they are executed from.
         _ensure_ib_async_notebook_compat()
         ib = self.ib_factory() if self.ib_factory is not None else _default_ib_factory()
+        if self.request_timeout is not None:
+            setattr(ib, "RequestTimeout", float(self.request_timeout))
 
         try:
             ib.connect(
@@ -354,14 +357,32 @@ class TwsIbAsyncClient:
             # Support both synchronous and coroutine-returning ib_async shims so
             # tests can fake the method without perfectly matching the runtime.
             if hasattr(details, "__await__"):
-                import asyncio
-
-                details = asyncio.get_event_loop().run_until_complete(details)
+                future = details
+                if self.request_timeout:
+                    future = asyncio.wait_for(details, timeout=self.request_timeout)
+                details = asyncio.get_event_loop().run_until_complete(future)
 
             if details is None:
                 return []
 
             return [_contract_details_to_dict(item) for item in details]
+        except asyncio.TimeoutError as error:
+            raise TwsIbAsyncError(
+                "IBKR contract details request timed out after {timeout} seconds for {lookup}. "
+                "Narrow symbol/sec_type/exchange/primary_exchange/currency/local_symbol or use conid.".format(
+                    timeout="{value:g}".format(value=self.request_timeout or 0.0),
+                    lookup=_lookup_description(
+                        symbol=symbol,
+                        sec_type=sec_type,
+                        exchange=exchange,
+                        primary_exchange=primary_exchange,
+                        currency=currency,
+                        conid=conid,
+                        local_symbol=local_symbol,
+                        contract=contract,
+                    ),
+                )
+            ) from error
         except Exception as error:
             raise TwsIbAsyncError(
                 "Failed to fetch contract details for {lookup}: {reason}".format(

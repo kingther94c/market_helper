@@ -74,6 +74,7 @@ def test_tws_ib_async_client_connects_and_reads_accounts_and_portfolio() -> None
         "readonly": True,
         "account": "U12345",
     }
+    assert fake_ib.RequestTimeout == 10.0
     assert client.list_accounts() == ["U12345", "U99999"]
     assert client.list_portfolio("U12345") == [{"account": "U12345"}]
     assert client.list_account_values("U12345") == [
@@ -184,14 +185,17 @@ class FakeContractDetails:
 
 
 class FakeIbContractDetails(FakeIb):
-    def __init__(self, *, details: list[object] | None = None) -> None:
+    def __init__(self, *, details: list[object] | None = None, error: Exception | None = None) -> None:
         super().__init__()
         self.last_contract = None
         self.details = [FakeContractDetails()] if details is None else details
+        self.error = error
 
     def reqContractDetails(self, contract) -> list[object]:
         self.last_contract = contract
         assert getattr(contract, "symbol", None) == "XLK"
+        if self.error is not None:
+            raise self.error
         return self.details
 
 
@@ -281,6 +285,38 @@ def test_tws_ib_async_client_lookup_security_raises_for_ambiguous_matches() -> N
     client.connect()
 
     with pytest.raises(TwsIbAsyncError, match="Ambiguous IBKR contract lookup"):
+        client.lookup_security(
+            symbol="XLK",
+            sec_type="STK",
+            exchange="SMART",
+            primary_exchange="ARCA",
+            currency="USD",
+        )
+
+
+def test_tws_ib_async_client_search_securities_raises_for_timeout() -> None:
+    fake_ib = FakeIbContractDetails(error=TimeoutError())
+    client = TwsIbAsyncClient(request_timeout=6.5, ib_factory=lambda: fake_ib)
+
+    client.connect()
+
+    with pytest.raises(TwsIbAsyncError, match=r"timed out after 6.5 seconds"):
+        client.search_securities(
+            symbol="XLK",
+            sec_type="STK",
+            exchange="SMART",
+            primary_exchange="ARCA",
+            currency="USD",
+        )
+
+
+def test_tws_ib_async_client_lookup_security_propagates_timeout() -> None:
+    fake_ib = FakeIbContractDetails(error=TimeoutError())
+    client = TwsIbAsyncClient(request_timeout=3.0, ib_factory=lambda: fake_ib)
+
+    client.connect()
+
+    with pytest.raises(TwsIbAsyncError, match=r"timed out after 3 seconds"):
         client.lookup_security(
             symbol="XLK",
             sec_type="STK",
