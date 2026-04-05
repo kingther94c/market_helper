@@ -3,7 +3,13 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+import pandas as pd
+import pytest
+
+from market_helper.data_sources.yahoo_finance import YahooFinanceClient
+import market_helper.domain.portfolio_monitor.services.yahoo_returns as yahoo_returns_module
 from market_helper.portfolio import SecurityReference, export_security_reference_csv
+import market_helper.reporting.risk_html as risk_html_module
 from market_helper.reporting.risk_html import (
     _funded_aum_from_dicts,
     annualized_vol,
@@ -196,3 +202,196 @@ def test_build_risk_html_report_uses_security_reference_for_enrichment(tmp_path:
 def test_annualized_vol_zero_for_short_series() -> None:
     assert annualized_vol([]) == 0.0
     assert annualized_vol([0.01]) == 0.0
+
+
+def test_build_risk_html_report_uses_yahoo_cache_when_no_returns_override(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    positions_csv = tmp_path / "positions.csv"
+    positions_csv.write_text(
+        "\n".join(
+            [
+                "as_of,account,internal_id,con_id,symbol,local_symbol,exchange,currency,source,quantity,avg_cost,latest_price,market_value,cost_basis,unrealized_pnl,weight",
+                "2026-03-26T00:00:00+00:00,U1,STK:SPY:SMART,756733,SPY,SPY,ARCA,USD,ibkr,10,500,510,5100,5000,100,0.8",
+                "2026-03-26T00:00:00+00:00,U1,CASH:SGD_CASH_VALUE:MANUAL,,SGD,SGD,IDEALPRO,SGD,ibkr,1,1,1,900,900,0,0.2",
+            ]
+        ),
+        encoding="utf-8",
+    )
+
+    security_reference_path = tmp_path / "security_reference.csv"
+    export_security_reference_csv(
+        [
+            SecurityReference(
+                internal_id="STK:SPY:SMART",
+                asset_class="EQ",
+                canonical_symbol="SPY",
+                display_ticker="SPY",
+                display_name="US",
+                currency="USD",
+                primary_exchange="ARCA",
+                multiplier=1.0,
+                ibkr_sec_type="STK",
+                ibkr_symbol="SPY",
+                ibkr_exchange="SMART",
+                yahoo_symbol="SPY",
+                eq_country="US",
+                dir_exposure="L",
+                lookup_status="verified",
+            ),
+            SecurityReference(
+                internal_id="CASH:SGD_CASH_VALUE:MANUAL",
+                asset_class="CASH",
+                canonical_symbol="SGD_CASH_VALUE",
+                display_ticker="SGD CASH",
+                display_name="Cash",
+                currency="SGD",
+                primary_exchange="MANUAL",
+                multiplier=1.0,
+                ibkr_sec_type="CASH",
+                ibkr_symbol="SGD",
+                ibkr_exchange="MANUAL",
+                dir_exposure="L",
+                lookup_status="cached",
+            ),
+        ],
+        security_reference_path,
+    )
+
+    calls = {"count": 0}
+
+    def fake_download(_url: str) -> dict[str, object]:
+        calls["count"] += 1
+        timestamps = [int(ts.timestamp()) for ts in pd.date_range("2024-01-01", periods=90, freq="D")]
+        prices = [100.0 + idx for idx in range(90)]
+        return {
+            "chart": {
+                "result": [
+                    {
+                        "meta": {"currency": "USD"},
+                        "timestamp": timestamps,
+                        "indicators": {
+                            "quote": [{"close": prices}],
+                            "adjclose": [{"adjclose": prices}],
+                        },
+                    }
+                ]
+            }
+        }
+
+    monkeypatch.setattr(risk_html_module, "DEFAULT_YAHOO_RETURNS_CACHE_DIR", tmp_path / "yahoo_cache")
+    monkeypatch.setattr(
+        yahoo_returns_module,
+        "_latest_expected_daily_observation",
+        lambda now=None: pd.Timestamp("2024-03-29"),
+    )
+    output_path = tmp_path / "risk_report.html"
+    client = YahooFinanceClient(downloader=fake_download)
+
+    build_risk_html_report(
+        positions_csv_path=positions_csv,
+        output_path=output_path,
+        security_reference_path=security_reference_path,
+        yahoo_client=client,
+    )
+    build_risk_html_report(
+        positions_csv_path=positions_csv,
+        output_path=output_path,
+        security_reference_path=security_reference_path,
+        yahoo_client=client,
+    )
+
+    rendered = output_path.read_text(encoding="utf-8")
+    assert calls["count"] == 1
+    assert "Portfolio Risk Report" in rendered
+    assert "SPY" in rendered
+    assert (tmp_path / "yahoo_cache" / "SPY.json").exists()
+
+
+def test_build_risk_html_report_accepts_dated_returns_override(tmp_path: Path) -> None:
+    positions_csv = tmp_path / "positions.csv"
+    positions_csv.write_text(
+        "\n".join(
+            [
+                "as_of,account,internal_id,con_id,symbol,local_symbol,exchange,currency,source,quantity,avg_cost,latest_price,market_value,cost_basis,unrealized_pnl,weight",
+                "2026-03-26T00:00:00+00:00,U1,STK:SPY:SMART,756733,SPY,SPY,ARCA,USD,ibkr,10,500,510,5100,5000,100,0.5",
+                "2026-03-26T00:00:00+00:00,U1,FUT:ZN:CBOT,815824229,ZN,ZNM6,CBOT,USD,ibkr,1,110,111,111000,110000,1000,0.5",
+            ]
+        ),
+        encoding="utf-8",
+    )
+
+    returns_json = tmp_path / "returns.json"
+    returns_json.write_text(
+        json.dumps(
+            {
+                "STK:SPY:SMART": {
+                    "2024-01-02": 0.01,
+                    "2024-01-03": -0.02,
+                    "2024-01-04": 0.015,
+                },
+                "FUT:ZN:CBOT": {
+                    "2024-01-03": 0.001,
+                    "2024-01-04": -0.002,
+                    "2024-01-05": 0.0015,
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    output_path = tmp_path / "risk_report.html"
+    build_risk_html_report(
+        positions_csv_path=positions_csv,
+        returns_path=returns_json,
+        output_path=output_path,
+    )
+
+    rendered = output_path.read_text(encoding="utf-8")
+    assert "Portfolio Risk Report" in rendered
+    assert "SPY" in rendered
+    assert "ZN" in rendered
+
+
+def test_build_risk_html_report_raises_for_mapped_row_missing_yahoo_symbol(tmp_path: Path) -> None:
+    positions_csv = tmp_path / "positions.csv"
+    positions_csv.write_text(
+        "\n".join(
+            [
+                "as_of,account,internal_id,con_id,symbol,local_symbol,exchange,currency,source,quantity,avg_cost,latest_price,market_value,cost_basis,unrealized_pnl,weight",
+                "2026-03-26T00:00:00+00:00,U1,STK:SPY:SMART,756733,SPY,SPY,ARCA,USD,ibkr,10,500,510,5100,5000,100,1.0",
+            ]
+        ),
+        encoding="utf-8",
+    )
+
+    security_reference_path = tmp_path / "security_reference.csv"
+    export_security_reference_csv(
+        [
+            SecurityReference(
+                internal_id="STK:SPY:SMART",
+                asset_class="EQ",
+                canonical_symbol="SPY",
+                display_ticker="SPY",
+                display_name="US",
+                currency="USD",
+                primary_exchange="ARCA",
+                multiplier=1.0,
+                ibkr_sec_type="STK",
+                ibkr_symbol="SPY",
+                ibkr_exchange="SMART",
+                dir_exposure="L",
+                lookup_status="verified",
+            )
+        ],
+        security_reference_path,
+    )
+
+    with pytest.raises(ValueError, match="Missing yahoo_symbol"):
+        build_risk_html_report(
+            positions_csv_path=positions_csv,
+            output_path=tmp_path / "risk_report.html",
+            security_reference_path=security_reference_path,
+            yahoo_client=YahooFinanceClient(downloader=lambda _url: {}),
+        )

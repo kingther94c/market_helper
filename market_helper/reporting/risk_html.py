@@ -9,10 +9,26 @@ import math
 import re
 from dataclasses import dataclass
 from pathlib import Path
-from statistics import stdev
 from typing import Any, Iterable, Mapping
 
+import pandas as pd
+
 from market_helper.data_sources.yahoo_finance import YahooFinanceClient
+from market_helper.domain.portfolio_monitor.services.volatility import (
+    DEFAULT_EWMA_LAMBDA,
+    align_series,
+    ewma_vol as series_ewma_vol,
+    geometric_blend_vol,
+    historical_vol,
+    last_valid_scalar,
+    long_term_vol,
+    rolling_vol,
+)
+from market_helper.domain.portfolio_monitor.services.yahoo_returns import (
+    DEFAULT_YAHOO_RETURNS_CACHE_DIR,
+    build_internal_id_return_series_from_yahoo,
+    load_internal_id_return_series_override,
+)
 from market_helper.portfolio.security_reference import (
     DEFAULT_SECURITY_REFERENCE_PATH,
     SecurityReference,
@@ -486,28 +502,43 @@ def infer_display_name(symbol: str, local_symbol: str, instrument_type: str) -> 
 
 
 def historical_geomean_vol(returns: list[float]) -> float:
-    if len(returns) < 2:
+    series = _coerce_return_series(returns)
+    if len(series.dropna()) < 2:
         return 0.0
-    v1 = annualized_vol(returns[-HIST_1M_DAYS:])
-    v3 = annualized_vol(returns[-HIST_3M_DAYS:])
-    if v1 <= 0 or v3 <= 0:
-        return max(v1, v3)
-    return math.sqrt(v1 * v3)
+    short_vol = rolling_vol(
+        returns=series,
+        window=HIST_1M_DAYS,
+        annualization_factor=TRADING_DAYS,
+        ddof=1,
+        min_periods=HIST_1M_DAYS,
+    )
+    long_vol = rolling_vol(
+        returns=series,
+        window=HIST_3M_DAYS,
+        annualization_factor=TRADING_DAYS,
+        ddof=1,
+        min_periods=HIST_3M_DAYS,
+    )
+    blended = geometric_blend_vol([short_vol, long_vol])
+    latest = last_valid_scalar(blended)
+    if latest is not None:
+        return latest
+    return max(last_valid_scalar(short_vol) or 0.0, last_valid_scalar(long_vol) or 0.0)
 
 
 def annualized_vol(returns: list[float]) -> float:
-    if len(returns) < 2:
-        return 0.0
-    return stdev(returns) * math.sqrt(TRADING_DAYS)
+    return historical_vol(returns=_coerce_return_series(returns), annualization_factor=TRADING_DAYS, ddof=1)
 
 
 def ewma_vol(returns: list[float], *, decay: float = 0.94) -> float:
-    if len(returns) < 2:
-        return 0.0
-    variance = returns[0] ** 2
-    for value in returns[1:]:
-        variance = decay * variance + (1.0 - decay) * (value ** 2)
-    return math.sqrt(max(variance, 0.0)) * math.sqrt(TRADING_DAYS)
+    series = series_ewma_vol(
+        returns=_coerce_return_series(returns),
+        annualization_factor=TRADING_DAYS,
+        lambda_=decay,
+        min_periods=20,
+        demean=False,
+    )
+    return last_valid_scalar(series) or 0.0
 
 
 def estimated_asset_class_vol(asset_class: str, proxy: Mapping[str, float]) -> float:
@@ -529,7 +560,7 @@ def estimated_asset_class_vol(asset_class: str, proxy: Mapping[str, float]) -> f
 
 def build_historical_correlation(
     rows: list[RiskInputRow],
-    returns: Mapping[str, list[float]],
+    returns: Mapping[str, pd.Series | list[float]],
 ) -> dict[tuple[str, str], float]:
     corr: dict[tuple[str, str], float] = {}
     for left in rows:
@@ -559,20 +590,15 @@ def build_estimated_correlation(rows: list[RiskInputRow]) -> dict[tuple[str, str
 
 
 def pairwise_corr(left: list[float], right: list[float]) -> float:
-    n = min(len(left), len(right))
-    if n < 2:
+    left_series = _coerce_return_series(left)
+    right_series = _coerce_return_series(right)
+    aligned = align_series(left_series, right_series, join="inner")
+    if len(aligned) != 2 or len(aligned[0].dropna()) < 2:
         return 0.0
-    x = left[-n:]
-    y = right[-n:]
-    mean_x = sum(x) / n
-    mean_y = sum(y) / n
-    cov = sum((a - mean_x) * (b - mean_y) for a, b in zip(x, y)) / (n - 1)
-    sx = stdev(x)
-    sy = stdev(y)
-    if sx == 0 or sy == 0:
+    corr = aligned[0].corr(aligned[1])
+    if corr is None or pd.isna(corr):
         return 0.0
-    value = cov / (sx * sy)
-    return max(-1.0, min(1.0, value))
+    return float(max(-1.0, min(1.0, corr)))
 
 
 def portfolio_volatility(
@@ -801,65 +827,68 @@ def _load_or_build_returns(
     returns_path: str | Path | None,
     rows: list[RiskInputRow],
     yahoo_client: YahooFinanceClient,
-) -> dict[str, list[float]]:
+) -> dict[str, pd.Series]:
     if returns_path is not None:
         return _load_returns(returns_path)
-    return _build_returns_from_yahoo(rows=rows, yahoo_client=yahoo_client)
+    return build_internal_id_return_series_from_yahoo(
+        rows,
+        yahoo_client=yahoo_client,
+        cache_dir=DEFAULT_YAHOO_RETURNS_CACHE_DIR,
+    )
 
 
 def _build_returns_from_yahoo(
     *,
     rows: list[RiskInputRow],
     yahoo_client: YahooFinanceClient,
-) -> dict[str, list[float]]:
-    built: dict[str, list[float]] = {}
-    for row in rows:
-        if row.internal_id in built:
-            continue
-        if row.mapping_status != "mapped" or row.asset_class == "CASH":
-            continue
-        if not row.yahoo_symbol:
-            raise ValueError(f"Missing yahoo_symbol for mapped security {row.internal_id}")
-        history = yahoo_client.fetch_price_history(row.yahoo_symbol, period="5y")
-        built[row.internal_id] = _returns_from_price_history(history)
-        if not built[row.internal_id]:
-            raise ValueError(f"Yahoo history returned no usable returns for {row.internal_id}")
-    return built
-
-
-def _returns_from_price_history(history: Mapping[str, Any]) -> list[float]:
-    prices = history.get("prices") if isinstance(history, Mapping) else None
-    if not isinstance(prices, list):
-        return []
-    series: list[float] = []
-    prior: float | None = None
-    for row in prices:
-        if not isinstance(row, Mapping):
-            continue
-        value = row.get("adjclose", row.get("close"))
-        if value in (None, "", 0):
-            continue
-        price = float(value)
-        if prior not in (None, 0):
-            series.append((price / prior) - 1.0)
-        prior = price
-    return series
+) -> dict[str, pd.Series]:
+    return build_internal_id_return_series_from_yahoo(
+        rows,
+        yahoo_client=yahoo_client,
+        cache_dir=DEFAULT_YAHOO_RETURNS_CACHE_DIR,
+    )
 
 
 def _security_vol(
     *,
-    returns: list[float],
+    returns: pd.Series | list[float],
     asset_class: str,
     proxy: Mapping[str, float],
     method: str,
 ) -> float:
-    if returns:
+    series = _coerce_return_series(returns)
+    if not series.dropna().empty:
         normalized = method.strip().lower()
         if normalized == "5y_realized":
-            return annualized_vol(returns)
+            return long_term_vol(returns=series, lookback=TRADING_DAYS * 5, annualization_factor=TRADING_DAYS, ddof=1)
         if normalized == "ewma":
-            return ewma_vol(returns)
-        return historical_geomean_vol(returns)
+            ewma_series = series_ewma_vol(
+                returns=series,
+                annualization_factor=TRADING_DAYS,
+                lambda_=DEFAULT_EWMA_LAMBDA,
+                min_periods=20,
+                demean=False,
+            )
+            return last_valid_scalar(ewma_series) or 0.0
+        short_vol = rolling_vol(
+            returns=series,
+            window=HIST_1M_DAYS,
+            annualization_factor=TRADING_DAYS,
+            ddof=1,
+            min_periods=HIST_1M_DAYS,
+        )
+        long_vol = rolling_vol(
+            returns=series,
+            window=HIST_3M_DAYS,
+            annualization_factor=TRADING_DAYS,
+            ddof=1,
+            min_periods=HIST_3M_DAYS,
+        )
+        geomean_series = geometric_blend_vol([short_vol, long_vol])
+        latest = last_valid_scalar(geomean_series)
+        if latest is not None:
+            return latest
+        return max(last_valid_scalar(short_vol) or 0.0, last_valid_scalar(long_vol) or 0.0)
     return estimated_asset_class_vol(asset_class, proxy)
 
 
@@ -894,39 +923,34 @@ def _build_group_loadings(
 
 def _build_group_returns(
     rows: list[RiskInputRow],
-    returns: Mapping[str, list[float]],
-) -> dict[str, list[float]]:
+    returns: Mapping[str, pd.Series],
+) -> dict[str, pd.Series]:
     grouped: dict[str, list[RiskInputRow]] = {}
     for row in rows:
         grouped.setdefault(row.asset_class, []).append(row)
 
-    series: dict[str, list[float]] = {}
+    series: dict[str, pd.Series] = {}
     for asset_class, group_rows in grouped.items():
-        candidates = [row for row in group_rows if returns.get(row.internal_id)]
+        candidates = [row for row in group_rows if _has_usable_returns(returns.get(row.internal_id))]
         if not candidates:
-            series[asset_class] = []
+            series[asset_class] = pd.Series(dtype=float)
             continue
-        n = min(len(returns[row.internal_id]) for row in candidates)
-        if n < 2:
-            series[asset_class] = []
+        aligned_series = align_series(*(returns[row.internal_id] for row in candidates), join="inner")
+        if not aligned_series or len(aligned_series[0].dropna()) < 2:
+            series[asset_class] = pd.Series(dtype=float)
             continue
         denominator = sum(abs(row.signed_exposure_usd) for row in candidates) or 1.0
-        materialized: list[float] = []
-        for idx in range(-n, 0):
-            materialized.append(
-                sum(
-                    (row.signed_exposure_usd / denominator) * returns[row.internal_id][idx]
-                    for row in candidates
-                )
-            )
-        series[asset_class] = materialized
+        aggregate = pd.Series(0.0, index=aligned_series[0].index, dtype=float)
+        for row, asset_returns in zip(candidates, aligned_series):
+            aggregate = aggregate + (row.signed_exposure_usd / denominator) * asset_returns.astype(float)
+        series[asset_class] = aggregate
     return series
 
 
 def _build_group_correlation(
     *,
     asset_classes: Iterable[str],
-    group_returns: Mapping[str, list[float]],
+    group_returns: Mapping[str, pd.Series],
     mode: str,
 ) -> dict[tuple[str, str], float]:
     normalized_mode = mode.strip().lower()
@@ -1199,11 +1223,22 @@ def _optional_float(value: object) -> float | None:
     return float(value)
 
 
-def _load_returns(path: str | Path) -> dict[str, list[float]]:
-    loaded = json.loads(Path(path).read_text(encoding="utf-8"))
-    if not isinstance(loaded, dict):
-        raise ValueError("Expected returns JSON object: {internal_id: [daily_returns...]}")
-    return {str(k): [float(v) for v in values] for k, values in loaded.items() if isinstance(values, list)}
+def _coerce_return_series(returns: pd.Series | list[float]) -> pd.Series:
+    if isinstance(returns, pd.Series):
+        return pd.to_numeric(returns, errors="coerce")
+    parsed = [float(value) for value in returns]
+    start = -len(parsed)
+    return pd.Series(parsed, index=pd.RangeIndex(start=start, stop=0), dtype=float)
+
+
+def _has_usable_returns(returns: pd.Series | list[float] | None) -> bool:
+    if returns is None:
+        return False
+    return not _coerce_return_series(returns).dropna().empty
+
+
+def _load_returns(path: str | Path) -> dict[str, pd.Series]:
+    return load_internal_id_return_series_override(path)
 
 
 def _load_proxy(path: str | Path | None) -> dict[str, float]:
