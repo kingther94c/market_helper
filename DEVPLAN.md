@@ -67,6 +67,14 @@ Build a broker-agnostic, read-only IBKR integration layer for market monitoring 
 - Updated IBKR normalization to resolve positions against the curated universe first (exact `conId`, then alias/family lookup, then cash), with futures canonicalized at family level rather than expiry-contract level.
 - Moved the HTML risk report off workbook-derived runtime JSON so category/display/duration/expected-vol enrichment now comes from curated security reference rows.
 - Downgraded workbook extraction into a bootstrap importer that exports a security-reference CSV seed instead of a runtime JSON mapping table.
+- Promoted `configs/security_universe.csv` to the single manually maintained instrument source of truth and turned `configs/portfolio_monitor/security_reference.csv` into a generated materialized lookup table rebuilt from universe rows plus cached/live IBKR metadata.
+- Replaced the old report/risk semantics (`report_category`, `risk_bucket`, `default_expected_vol`, provider-hint columns) with universe-native fields centered on `asset_class`, `eq_country`, `eq_sector`, `dir_exposure`, `fi_mod_duration`, and `fi_tenor`.
+- Added universe-first generation/sync services, a dedicated `security-reference-sync` CLI path, and a `security_universe_PROPOSED.csv` review flow for unmapped runtime instruments.
+- Updated raw IBKR JSON and live TWS report workflows so they rebuild the generated security reference first, preserve universe-stable `internal_id`s, and refresh runtime lookup fields without letting primary-exchange resolution destabilize IDs.
+- Added explicit SMART-vs-primary-exchange alias handling so mapped equities such as `SPY` remain keyed as `STK:SPY:SMART` while still absorbing live `ARCA` contract details.
+- Rebuilt the HTML risk workflow around universe-first semantics, with Yahoo-backed returns generation by default, asset-class summaries, EQ country look-through, US sector look-through, FI tenor breakdowns, and selectable vol/correlation modes.
+- Added static look-through configs under `configs/portfolio_monitor/` for coarse equity country expansion and broad-US sector decomposition.
+- Refreshed portfolio-monitor and provider tests around the new stable IDs and generated-reference flow, and fixed remaining Python 3.9 compatibility issues (`zip(..., strict=True)` and typing syntax) so the full repo test suite is green again in the active environment.
 - Expanded the shared Python environment definitions to include Jupyter notebook support (`ipykernel`, `notebook`, `jupyterlab`) for exploratory work under `notebooks/`.
 - Consolidated duplicate Conda environment files into a single repo-level `env.yml`, aligned to the active `py313` notebook stack and explicit `matplotlib` dependency.
 - Synced additional top-level `py313` packages back into `env.yml` where they appear intentional and repo-relevant, specifically `pytest` for the test workflow and `yfinance` for notebook/data exploration.
@@ -80,24 +88,23 @@ Build a broker-agnostic, read-only IBKR integration layer for market monitoring 
 - Unit tests added and expanded across config, domain, providers, portfolio normalization, reporting, workflows, and read-only guard behavior.
 
 ## In Progress
-- Tightening the live TWS / `ib_async` report path with better account metadata, richer report fields, stronger multi-account/session ergonomics, and eventual broader provider coverage.
-- Hardening the new risk HTML workflow with richer asset-class bucketing, better derivatives treatment, and live market proxy ingestion.
-- Expanding the curated `security_reference` maintenance workflow so live price/FX/proxy sourcing can be driven by provider hints stored on each row.
+- Tightening the live TWS / `ib_async` report path with better account/session ergonomics, broader contract coverage, and richer real-world fixture coverage.
+- Hardening the universe-first risk workflow with automatic proxy/return ingestion, more robust derivatives treatment, and deeper attribution math.
+- Planning the next reporting layer so the current generated CSV + HTML outputs can converge toward the target workbook structure without reintroducing workbook runtime dependencies.
 
 ## Next Steps
-1. Add a next notebook-to-library step that converts live `lookup_security()` results into `SecurityReference` candidate rows for manual curation.
-2. Add explicit provider fetchers for live price / FX / risk-proxy data keyed off `security_reference.csv` source hints (`IBKR`, `Yahoo`, `Google`, `manual`).
-3. Add tracked alias/rule rows for more cross-vendor futures symbology, especially roots that differ between IBKR, Bloomberg, and Yahoo.
-4. Add a local manual-override layer for provisional or account-specific security-reference entries that should not be committed.
-5. Improve derivatives treatment in risk reporting, especially how `OUTSIDE_SCOPE` options are surfaced or excluded from aggregate risk.
-6. Add data-library loaders for benchmark proxies (VIX/MOVE/GVZ/OVX) and historical return time series so risk metrics are sourced automatically.
-7. Extend risk decomposition from simple weight*vol contributions to covariance-consistent marginal/component risk attribution.
-8. Add richer account-selection ergonomics and account/session metadata surfacing for live TWS / IB Gateway runs.
-9. Keep evolving the HTML report toward the target portfolio view without coupling runtime rendering to `data/artifacts/portfolio_monitor/target_report.xlsx`.
-10. Add fixture sets from real IBKR payloads to harden compatibility.
-11. Optionally add a broader Client Portal Web API wrapper layer if we need more endpoints beyond position reporting.
+1. Add cached loaders for benchmark proxies and Yahoo return histories so risk runs do not need to fetch everything on demand every time.
+2. Extend risk attribution from the current vol-contribution view to covariance-consistent marginal/component risk attribution at both security and bucket levels.
+3. Improve derivatives handling, especially options / `OUTSIDE_SCOPE` rows, inverse products, and futures-specific exposure normalization.
+4. Add a local manual-override layer for provisional or account-specific universe entries that should not be committed until reviewed.
+5. Broaden look-through coverage for country/sector decomposition and add explicit tracked rules for more cross-vendor futures symbology differences.
+6. Add richer account-selection ergonomics and account/session metadata surfacing for live TWS / IB Gateway runs.
+7. Add more real IBKR payload fixtures and live-contract edge cases to harden normalization compatibility.
+8. Keep evolving the HTML/workbook layer toward the target portfolio view without coupling runtime rendering to `data/artifacts/portfolio_monitor/target_report.xlsx`.
+9. Optionally add a broader Client Portal Web API wrapper layer if we need more endpoints beyond position reporting.
 
 ## Instrument Mapping Plan
+- Treat `configs/security_universe.csv` as the manual semantic source of truth and `configs/portfolio_monitor/security_reference.csv` as a generated/cacheable materialized view rather than as the business-authoritative mapping file.
 - Keep `internal_id` as a system-owned canonical key; do not let Yahoo, Bloomberg, Google, or IBKR identifiers become the system primary key.
 - Treat ETF and stock mappings as mostly direct instrument aliases, but treat futures, options, and other derivatives as two-layer mappings: product family first, concrete contract second.
 - Use strong provider-native IDs when available, especially IBKR `conId`, and store weaker vendor tickers as aliases rather than as the canonical identity.
@@ -106,13 +113,12 @@ Build a broker-agnostic, read-only IBKR integration layer for market monitoring 
 - Keep local, provisional, or account-specific mapping exceptions in gitignored override files until they are verified and worth promoting into tracked shared rules.
 
 ## Target Report Gap
-- Current output is a single flat CSV with 16 columns, while `data/artifacts/portfolio_monitor/target_report.xlsx` is a structured workbook with at least two sheets: `Position` and `Risk`.
+- Current runtime output is still split between a normalized position CSV and a separate HTML risk report, while `data/artifacts/portfolio_monitor/target_report.xlsx` remains a structured workbook with at least two sheets: `Position` and `Risk`.
 - We should treat the workbook as a source for seed mappings and reporting assumptions, not as a runtime dependency for the HTML report.
-- The `Position` sheet includes presentation-oriented portfolio sections and summaries that we do not compute yet, including AUM blocks, bucket totals such as `EQ`, `FI`, `GOLD`, `CM`, `CASH`, and allocation views such as `Dollar Allocation`.
-- The `Position` sheet expects richer analytics columns than the current CSV, including display `Ticker`, display `Name`, `Multiplier`, `Exposure(USD)`, normalized instrument `Type`, duration-based fixed-income exposure fields, `FX`, `Expected Vol`, and `Vol Contribution`.
-- The current report has raw `market_value`, `cost_basis`, and `weight`, but it does not yet compute target-style risk decomposition, cross-asset bucket rollups, or derivative-equivalent exposure transformations for futures and options.
-- The current report does not yet distinguish between provider symbol fields and final presentation tickers such as `US`, `LON:SPYL`, or other venue-prefixed display codes expected by the target workbook.
-- The `Risk` sheet in the target workbook introduces an additional analytics layer that we do not produce yet: market regime/risk indicators like `VIX`, `MOVE`, `GVZ`, `OVX`, trailing-window averages, estimated/tail levels, and portfolio risk-attribution summaries under different correlation assumptions.
+- The new universe-first stack now computes asset-class summaries plus EQ country, US sector, and FI tenor breakdowns, but it still does not render the workbook-style `Position` and `Risk` sheets as a single formatted artifact.
+- The `Position` sheet still includes presentation-oriented sections and summaries that we do not compute yet in workbook form, including AUM blocks, target-style bucket subtotal layouts, and final display conventions for every instrument family.
+- The current risk output now has signed exposure handling, tenor/country/sector semantics, and selectable vol/correlation modes, but it still lacks full target-style covariance attribution, workbook formatting, and some derivatives-specific exposure treatments.
+- The `Risk` sheet in the target workbook still introduces an additional analytics layer we only partially cover today: richer regime panels, benchmark proxy history presentation, and portfolio risk-attribution summaries under multiple explicit scenario assumptions.
 - The target workbook is not just a data export; it is a formatted report artifact with multiple sections, derived metrics, and workbook-level layout concerns. We therefore need an explicit workbook-rendering layer instead of treating the current CSV as the final output format.
 - A practical delivery sequence is: stabilize instrument mapping and exposure normalization first, add bucket/risk calculations second, then implement workbook generation and formatting last.
 
@@ -131,8 +137,8 @@ Build a broker-agnostic, read-only IBKR integration layer for market monitoring 
 - Initial report output favors correctness and inspectability over presentation polish.
 
 ## Testing Status
-- Unit-test command passes under `py313`: `conda run -n py313 python -m pytest -q tests/unit`
-- Targeted TWS provider/workflow tests pass under `py313`: `conda run -n py313 pytest -q tests/unit/providers/test_tws_ib_async_client.py tests/unit/providers/test_tws_ib_async_mappers.py tests/unit/workflows/test_generate_live_ibkr_report.py`
+- Full repo test suite passes in the active local environment: `PYTHONPATH=. PYTHONPYCACHEPREFIX=/tmp/pycache pytest -q`
+- The universe-first portfolio-monitor refactor is covered by targeted report/risk/provider tests, including raw IBKR normalization, live TWS report generation, generated security-reference sync, mapping-table import, Yahoo returns loading, and risk HTML rendering.
 - Live smoke validation succeeded against local TWS / IB Gateway for `XLK` contract lookup through `market_helper.providers.tws_ib_async`, and the `derive_sec_table` notebook cells executed successfully end to end from `notebooks/portfolio_monitor`.
 
 ## Notes
