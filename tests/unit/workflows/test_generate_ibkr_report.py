@@ -48,7 +48,7 @@ def test_generate_ibkr_position_report_normalizes_raw_payloads_and_writes_csv(tm
         {
             "as_of": "2026-03-26T00:00:00+00:00",
             "account": "U12345",
-            "internal_id": "STK:SPY:ARCA",
+            "internal_id": "STK:SPY:SMART",
             "con_id": "756733",
             "symbol": "SPY",
             "local_symbol": "US",
@@ -105,7 +105,7 @@ def test_generate_ibkr_position_report_accepts_wrapped_json_arrays(tmp_path) -> 
         reader = csv.DictReader(handle)
         rows = list(reader)
 
-    assert rows[0]["internal_id"] == "STK:SPY:ARCA"
+    assert rows[0]["internal_id"] == "STK:SPY:SMART"
     assert rows[0]["symbol"] == "SPY"
     assert rows[0]["latest_price"] == "214.8"
 
@@ -147,36 +147,28 @@ def test_generate_ibkr_position_report_writes_proposed_security_reference_for_un
         as_of="2026-03-26T00:00:00+00:00",
     )
 
-    proposal_path = output_path.with_name("security_reference_PROPOSED.csv")
+    proposal_path = output_path.with_name("security_universe_PROPOSED.csv")
     with proposal_path.open("r", encoding="utf-8", newline="") as handle:
         proposal_rows = list(csv.DictReader(handle))
 
     assert proposal_rows == [
         {
-            "internal_id": "STK:AAPL:SMART",
-            "is_active": "true",
-            "universe_type": "",
-            "canonical_symbol": "AAPL",
-            "display_ticker": "AAPL",
-            "display_name": "AAPL",
-            "currency": "USD",
-            "primary_exchange": "SMART",
-            "multiplier": "1",
-            "ibkr_sec_type": "STK",
+            "asset_class": "EQ",
             "ibkr_symbol": "AAPL",
+            "display_name": "AAPL",
             "ibkr_exchange": "SMART",
-            "ibkr_conid": "888888",
-            "google_symbol": "",
             "yahoo_symbol": "",
-            "bbg_symbol": "",
-            "report_category": "",
-            "risk_bucket": "",
-            "mod_duration": "",
-            "default_expected_vol": "",
-            "price_source_provider": "",
-            "price_source_symbol": "",
-            "fx_source_provider": "",
-            "fx_source_symbol": "",
+            "eq_country": "",
+            "eq_sector": "",
+            "dir_exposure": "L",
+            "fi_mod_duration": "",
+            "fi_tenor": "",
+            "lookup_primary_exchange": "SMART",
+            "lookup_currency": "USD",
+            "lookup_multiplier": "1",
+            "lookup_sec_type": "STK",
+            "lookup_conid": "888888",
+            "proposal_reason": "unmapped_security",
         }
     ]
-    assert "security_reference_PROPOSED.csv" in capsys.readouterr().out
+    assert "security_universe_PROPOSED.csv" in capsys.readouterr().out

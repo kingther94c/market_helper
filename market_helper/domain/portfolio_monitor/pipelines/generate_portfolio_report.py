@@ -7,13 +7,17 @@ import json
 from pathlib import Path
 
 from market_helper.common.models import (
+    DEFAULT_SECURITY_REFERENCE_PATH,
     PortfolioPositionSnapshot,
     PortfolioPriceSnapshot,
     SecurityReference,
     SecurityMapping,
     SecurityReferenceTable,
+    build_security_reference_table,
     build_price_lookup,
     export_security_reference_csv,
+    export_security_universe_proposal_csv,
+    sync_security_reference_csv,
 )
 from market_helper.data_sources.ibkr.adapters import (
     normalize_ibkr_latest_prices,
@@ -66,7 +70,7 @@ def generate_ibkr_position_report(
     as_of: str | None = None,
 ) -> Path:
     """Normalize raw IBKR payload dumps, then render the standard report shape."""
-    reference_table = SecurityReferenceTable.from_default_csv()
+    reference_table = build_security_reference_table(reference_path=DEFAULT_SECURITY_REFERENCE_PATH)
     raw_positions = _load_json_rows(ibkr_positions_path)
     raw_prices = _load_json_rows(ibkr_prices_path)
     positions = normalize_ibkr_positions(raw_positions, reference_table, as_of=as_of)
@@ -77,7 +81,8 @@ def generate_ibkr_position_report(
         reference_table.to_security_lookup(),
     )
     written_path = export_position_report_csv(rows, output_path)
-    _write_proposed_security_reference_csv(reference_table, output_path=written_path)
+    _write_generated_security_reference_csv(reference_table)
+    _write_proposed_security_universe_csv(reference_table, output_path=written_path)
     return written_path
 
 
@@ -112,13 +117,14 @@ def generate_live_ibkr_position_report(
             cash_values,
             as_of=as_of,
         )
-        _enrich_unmapped_live_securities(
+        _refresh_live_security_lookups(
             reference_table=reference_table,
             live_client=live_client,
             sources=sources,
         )
         written_path = export_position_report_csv(rows, output_path)
-        _write_proposed_security_reference_csv(reference_table, output_path=written_path)
+        _write_generated_security_reference_csv(reference_table)
+        _write_proposed_security_universe_csv(reference_table, output_path=written_path)
         return written_path
     finally:
         if callable(disconnect):
@@ -155,24 +161,27 @@ def build_live_ibkr_position_security_table(
             cash_values,
             as_of=as_of,
         )
-        security_lookup = reference_table.to_security_lookup()
-        return [
-            _build_live_ibkr_position_security_row(
+        rows: list[dict[str, object]] = []
+        for source, report_row in zip(sources, report_rows):
+            contract_details: dict[str, object] = {}
+            security = reference_table.get_security(report_row.internal_id)
+            if source.portfolio_item is not None:
+                contract_details = _fetch_live_contract_details(live_client, source.portfolio_item)
+                security = _refresh_live_security_lookup(
+                    reference_table=reference_table,
+                    security=security,
+                    portfolio_item=source.portfolio_item,
+                    details=contract_details,
+                )
+            rows.append(
+                _build_live_ibkr_position_security_row(
                 raw_position=source.raw_position,
                 report_row=report_row,
-                security=security_lookup.get(report_row.internal_id),
-                contract_details=(
-                    _fetch_live_contract_details(live_client, source.portfolio_item)
-                    if source.portfolio_item is not None
-                    else {}
-                ),
+                security=security,
+                contract_details=contract_details,
             )
-            for source, report_row in zip(
-                sources,
-                report_rows,
-                strict=True,
             )
-        ]
+        return rows
     finally:
         if callable(disconnect):
             disconnect()
@@ -181,21 +190,30 @@ def build_live_ibkr_position_security_table(
 def generate_risk_html_report(
     *,
     positions_csv_path: str | Path,
-    returns_path: str | Path,
     output_path: str | Path,
+    returns_path: str | Path | None = None,
     proxy_path: str | Path | None = None,
     regime_path: str | Path | None = None,
     security_reference_path: str | Path | None = None,
 ) -> Path:
     """Render the HTML risk report from a previously generated position CSV."""
+    reference_path = Path(security_reference_path) if security_reference_path is not None else DEFAULT_SECURITY_REFERENCE_PATH
+    sync_security_reference_csv(reference_path=reference_path)
     return build_risk_html_report(
         positions_csv_path=positions_csv_path,
-        returns_path=returns_path,
         output_path=output_path,
+        returns_path=returns_path,
         proxy_path=proxy_path,
         regime_path=regime_path,
-        security_reference_path=security_reference_path,
+        security_reference_path=reference_path,
     )
+
+
+def generate_security_reference_sync(
+    *,
+    output_path: str | Path | None = None,
+) -> Path:
+    return sync_security_reference_csv(reference_path=output_path or DEFAULT_SECURITY_REFERENCE_PATH)
 
 
 def generate_report_mapping_table(
@@ -287,13 +305,12 @@ def _build_live_ibkr_report_rows(
 ) -> tuple[list[LiveIbkrRowSource], list[PositionReportRow], SecurityReferenceTable]:
     # Keep live normalization identical to the CSV/report pipeline so notebook
     # exploration and exported reports stay aligned.
-    reference_table = SecurityReferenceTable.from_default_csv()
+    reference_table = build_security_reference_table(reference_path=DEFAULT_SECURITY_REFERENCE_PATH)
     sources = [
         LiveIbkrRowSource(raw_position=row, portfolio_item=item)
         for item, row in zip(
             portfolio_items,
             portfolio_items_to_ibkr_position_rows(portfolio_items),
-            strict=True,
         )
     ]
     sources.extend(
@@ -341,12 +358,14 @@ def _build_live_cash_price_rows(
     return rows
 
 
-def _enrich_unmapped_live_securities(
+def _refresh_live_security_lookups(
     *,
     reference_table: SecurityReferenceTable,
     live_client: object,
     sources: list[LiveIbkrRowSource],
 ) -> None:
+    if not _supports_live_contract_lookup(live_client):
+        return
     for source in sources:
         portfolio_item = source.portfolio_item
         if portfolio_item is None:
@@ -359,38 +378,131 @@ def _enrich_unmapped_live_securities(
         if internal_id is None:
             continue
         security = reference_table.get_security(internal_id)
-        if security is None or security.mapping_status != "unmapped":
+        if security is None or security.mapping_status == "outside_scope":
             continue
         details = _fetch_live_contract_details(live_client, portfolio_item)
+        _refresh_live_security_lookup(
+            reference_table=reference_table,
+            security=security,
+            portfolio_item=portfolio_item,
+            details=details,
+        )
+
+
+def _supports_live_contract_lookup(live_client: object) -> bool:
+    return callable(getattr(live_client, "lookup_security", None)) or callable(
+        getattr(live_client, "require_security_info", None)
+    )
+
+
+def _refresh_live_security_lookup(
+    *,
+    reference_table: SecurityReferenceTable,
+    security: SecurityReference | None,
+    portfolio_item: object,
+    details: dict[str, object],
+) -> SecurityReference | None:
+    if security is None or security.mapping_status == "outside_scope":
+        return security
+
+    contract = getattr(portfolio_item, "contract", None)
+    con_id = str(
+        details.get("conId")
+        or getattr(contract, "conId", "")
+        or security.ibkr_conid
+    )
+    if not con_id:
+        return security
+
+    if security.mapping_status == "unmapped":
         enriched = enrich_security_from_contract_details(security, details)
         reference_table.upsert_security(enriched)
         reference_table.upsert_mapping(
             SecurityMapping(
                 source="ibkr",
-                external_id=str(con_id),
+                external_id=con_id,
                 internal_id=enriched.internal_id,
             )
         )
+        return enriched
+
+    symbol = str(
+        details.get("symbol")
+        or getattr(contract, "symbol", "")
+        or security.ibkr_symbol
+        or security.symbol
+    ).upper()
+    exchange = str(
+        details.get("exchange")
+        or getattr(contract, "exchange", "")
+        or security.exchange
+        or security.primary_exchange
+        or security.ibkr_exchange
+    ).upper()
+    primary_exchange = str(
+        details.get("primaryExchange")
+        or details.get("exchange")
+        or getattr(contract, "primaryExchange", "")
+        or exchange
+        or security.primary_exchange
+    ).upper()
+    local_symbol = str(
+        details.get("localSymbol")
+        or getattr(contract, "localSymbol", "")
+        or security.runtime_local_symbol
+        or security.symbol
+    )
+    sec_type = str(
+        details.get("secType")
+        or getattr(contract, "secType", "")
+        or security.ibkr_sec_type
+    ).upper()
+    currency = str(
+        details.get("currency")
+        or getattr(contract, "currency", "")
+        or security.currency
+    ).upper()
+    multiplier = _optional_float(
+        details.get("multiplier")
+        or getattr(contract, "multiplier", None)
+    )
+    reference_table.register_runtime_contract(
+        security=security,
+        con_id=con_id,
+        symbol=symbol,
+        exchange=exchange,
+        primary_exchange=primary_exchange,
+        local_symbol=local_symbol,
+        sec_type=sec_type,
+        currency=currency,
+        multiplier=multiplier,
+    )
+    return reference_table.get_security(security.internal_id)
 
 
-def _write_proposed_security_reference_csv(
+def _write_generated_security_reference_csv(
+    reference_table: SecurityReferenceTable,
+) -> Path:
+    return export_security_reference_csv(
+        reference_table.to_rows(),
+        DEFAULT_SECURITY_REFERENCE_PATH,
+    )
+
+
+def _write_proposed_security_universe_csv(
     reference_table: SecurityReferenceTable,
     *,
     output_path: str | Path,
 ) -> Path | None:
-    proposed_rows = reference_table.to_proposed_rows()
+    proposed_rows = reference_table.to_universe_proposal_rows()
     if not proposed_rows:
         return None
 
-    proposed_path = Path(output_path).with_name("security_reference_PROPOSED.csv")
-    export_security_reference_csv(
-        proposed_rows,
-        proposed_path,
-        validate_curated=False,
-    )
+    proposed_path = Path(output_path).with_name("security_universe_PROPOSED.csv")
+    export_security_universe_proposal_csv(proposed_rows, proposed_path)
     print(
-        "Unmapped IBKR securities were normalized with runtime contract info. "
-        "Review {path} ({count} rows) and merge any approved rows into the tracked security reference.".format(
+        "Universe gaps were normalized with runtime contract info. "
+        "Review {path} ({count} rows) and merge any approved rows into configs/security_universe.csv.".format(
             path=proposed_path,
             count=len(proposed_rows),
         )
@@ -495,7 +607,7 @@ def _security_enrichment_fields(
         return {
             "security_mapping_status": "",
             "security_is_active": None,
-            "security_universe_type": "",
+            "security_asset_class": "",
             "security_canonical_symbol": "",
             "security_display_ticker": "",
             "security_display_name": "",
@@ -509,24 +621,21 @@ def _security_enrichment_fields(
             "security_ibkr_symbol": "",
             "security_ibkr_exchange": "",
             "security_ibkr_conid": "",
-            "security_google_symbol": "",
             "security_yahoo_symbol": "",
-            "security_bbg_symbol": "",
-            "security_report_category": "",
-            "security_risk_bucket": "",
+            "security_eq_country": "",
+            "security_eq_sector": "",
+            "security_dir_exposure": "",
             "security_mod_duration": None,
-            "security_default_expected_vol": None,
-            "security_price_source_provider": "",
-            "security_price_source_symbol": "",
-            "security_fx_source_provider": "",
-            "security_fx_source_symbol": "",
+            "security_fi_tenor": "",
+            "security_lookup_status": "",
+            "security_last_verified_at": "",
             "security_runtime_local_symbol": "",
         }
 
     return {
         "security_mapping_status": security.mapping_status,
         "security_is_active": security.is_active,
-        "security_universe_type": security.universe_type,
+        "security_asset_class": security.asset_class,
         "security_canonical_symbol": security.canonical_symbol,
         "security_display_ticker": security.display_ticker,
         "security_display_name": security.display_name,
@@ -540,17 +649,14 @@ def _security_enrichment_fields(
         "security_ibkr_symbol": security.ibkr_symbol,
         "security_ibkr_exchange": security.ibkr_exchange,
         "security_ibkr_conid": security.ibkr_conid,
-        "security_google_symbol": security.google_symbol,
         "security_yahoo_symbol": security.yahoo_symbol,
-        "security_bbg_symbol": security.bbg_symbol,
-        "security_report_category": security.report_category,
-        "security_risk_bucket": security.risk_bucket,
+        "security_eq_country": security.eq_country,
+        "security_eq_sector": security.eq_sector,
+        "security_dir_exposure": security.dir_exposure,
         "security_mod_duration": security.mod_duration,
-        "security_default_expected_vol": security.default_expected_vol,
-        "security_price_source_provider": security.price_source_provider,
-        "security_price_source_symbol": security.price_source_symbol,
-        "security_fx_source_provider": security.fx_source_provider,
-        "security_fx_source_symbol": security.fx_source_symbol,
+        "security_fi_tenor": security.fi_tenor,
+        "security_lookup_status": security.lookup_status,
+        "security_last_verified_at": security.last_verified_at,
         "security_runtime_local_symbol": security.runtime_local_symbol,
     }
 
@@ -562,4 +668,5 @@ __all__ = [
     "generate_position_report",
     "generate_report_mapping_table",
     "generate_risk_html_report",
+    "generate_security_reference_sync",
 ]

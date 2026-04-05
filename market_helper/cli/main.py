@@ -12,6 +12,7 @@ from market_helper.workflows.generate_report import (
     generate_position_report,
     generate_report_mapping_table,
     generate_risk_html_report,
+    generate_security_reference_sync,
 )
 from market_helper.workflows.generate_regime import generate_regime_snapshots
 from market_helper.domain.regime_detection.policies.regime_policy import (
@@ -64,7 +65,7 @@ def build_parser() -> argparse.ArgumentParser:
         help="Generate an HTML risk report from a position CSV and daily-return inputs.",
     )
     risk_html_report.add_argument("--positions-csv", required=True, help="Path to position CSV.")
-    risk_html_report.add_argument("--returns", required=True, help="Path to returns JSON.")
+    risk_html_report.add_argument("--returns", required=False, help="Optional returns JSON override.")
     risk_html_report.add_argument("--output", required=True, help="Path to output HTML.")
     risk_html_report.add_argument("--proxy", required=False, help="Optional estimate vol proxy JSON.")
     risk_html_report.add_argument("--regime", required=False, help="Optional regime snapshot JSON path.")
@@ -74,6 +75,16 @@ def build_parser() -> argparse.ArgumentParser:
         dest="security_reference",
         required=False,
         help="Optional curated security-reference CSV path. Defaults to configs/security_reference.csv.",
+    )
+
+    security_reference_sync = subparsers.add_parser(
+        "security-reference-sync",
+        help="Rebuild the generated security-reference CSV from the tracked security universe.",
+    )
+    security_reference_sync.add_argument(
+        "--output",
+        required=False,
+        help="Optional output path. Defaults to configs/portfolio_monitor/security_reference.csv.",
     )
 
     regime_detect = subparsers.add_parser(
@@ -143,11 +154,16 @@ def main(argv: Sequence[str] | None = None) -> int:
     if args.command == "risk-html-report":
         generate_risk_html_report(
             positions_csv_path=Path(args.positions_csv),
-            returns_path=Path(args.returns),
+            returns_path=Path(args.returns) if args.returns else None,
             output_path=Path(args.output),
             proxy_path=Path(args.proxy) if args.proxy else None,
             regime_path=Path(args.regime) if args.regime else None,
             security_reference_path=Path(args.security_reference) if args.security_reference else None,
+        )
+        return 0
+    if args.command == "security-reference-sync":
+        generate_security_reference_sync(
+            output_path=Path(args.output) if args.output else None,
         )
         return 0
     if args.command == "extract-report-mapping":

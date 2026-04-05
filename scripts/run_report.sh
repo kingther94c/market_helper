@@ -24,7 +24,8 @@ Usage:
   ./scripts/run_report.sh snapshot --positions PATH --prices PATH [--output PATH]
   ./scripts/run_report.sh ibkr-json --ibkr-positions PATH --ibkr-prices PATH [--output PATH] [--as-of ISO8601]
   ./scripts/run_report.sh ibkr-live [--output PATH] [--account ACCOUNT_ID] [--host HOST] [--port PORT] [--client-id ID] [--timeout SECONDS] [--as-of ISO8601]
-  ./scripts/run_report.sh risk-html --positions-csv PATH --returns PATH [--proxy PATH] [--regime PATH] [--security-reference PATH] [--output PATH]
+  ./scripts/run_report.sh risk-html --positions-csv PATH [--returns PATH] [--proxy PATH] [--regime PATH] [--security-reference PATH] [--output PATH]
+  ./scripts/run_report.sh security-reference-sync [--output PATH]
   ./scripts/run_report.sh mapping-table --workbook PATH [--output PATH]
 
 Modes:
@@ -32,6 +33,7 @@ Modes:
   ibkr-json   Generate a report from raw IBKR positions/prices payloads.
   ibkr-live   Generate a report from a live local TWS / IB Gateway session via ib_async.
   risk-html   Generate an HTML risk report from a position CSV plus return/proxy inputs.
+  security-reference-sync Rebuild the generated security reference from configs/security_universe.csv.
   mapping-table Extract a security-reference CSV seed from a target workbook.
 
 Environment:
@@ -94,6 +96,10 @@ case "${MODE}" in
     risk-html)
         CLI_COMMAND="risk-html-report"
         DEFAULT_OUTPUT="${ROOT_DIR}/data/artifacts/portfolio_monitor/portfolio_risk_report.html"
+        ;;
+    security-reference-sync)
+        CLI_COMMAND="security-reference-sync"
+        DEFAULT_OUTPUT="${ROOT_DIR}/configs/portfolio_monitor/security_reference.csv"
         ;;
     mapping-table)
         CLI_COMMAND="extract-report-mapping"
@@ -265,13 +271,15 @@ case "${MODE}" in
         ;;
     risk-html)
         [[ -n "${POSITIONS_CSV_PATH}" ]] || fail "risk-html mode requires --positions-csv"
-        [[ -n "${RETURNS_PATH}" ]] || fail "risk-html mode requires --returns"
         require_file "positions csv" "${POSITIONS_CSV_PATH}"
-        require_file "returns" "${RETURNS_PATH}"
-        COMMAND+=(--positions-csv "${POSITIONS_CSV_PATH}" --returns "${RETURNS_PATH}")
+        COMMAND+=(--positions-csv "${POSITIONS_CSV_PATH}")
+        [[ -n "${RETURNS_PATH}" ]] && { require_file "returns" "${RETURNS_PATH}"; COMMAND+=(--returns "${RETURNS_PATH}"); }
         [[ -n "${PROXY_PATH}" ]] && { require_file "proxy" "${PROXY_PATH}"; COMMAND+=(--proxy "${PROXY_PATH}"); }
         [[ -n "${REGIME_PATH}" ]] && { require_file "regime" "${REGIME_PATH}"; COMMAND+=(--regime "${REGIME_PATH}"); }
         [[ -n "${SECURITY_REFERENCE_PATH}" ]] && { require_file "security reference" "${SECURITY_REFERENCE_PATH}"; COMMAND+=(--security-reference "${SECURITY_REFERENCE_PATH}"); }
+        ;;
+    security-reference-sync)
+        :
         ;;
     mapping-table)
         [[ -n "${WORKBOOK_PATH}" ]] || fail "mapping-table mode requires --workbook"

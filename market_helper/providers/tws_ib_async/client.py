@@ -14,6 +14,16 @@ class TwsIbAsyncError(RuntimeError):
     """Raised when the local TWS / IB Gateway session is unavailable or invalid."""
 
 
+class _FallbackContract:
+    """Tiny contract shim for tests when ib_async is not installed.
+
+    The real live connection path still requires ib_async in _default_ib_factory,
+    but fake/test clients can work with any object exposing these attributes.
+    """
+
+    pass
+
+
 def choose_tws_account(accounts: list[str], requested_account_id: str | None) -> str:
     """Resolve the account id to use for live portfolio/report workflows."""
     if requested_account_id:
@@ -101,10 +111,8 @@ def _build_ib_contract(
     """Create the lightest contract object needed for contract-detail lookup."""
     try:
         from ib_async import Contract
-    except ModuleNotFoundError as error:
-        raise TwsIbAsyncError(
-            "ib_async is required for IBKR contract lookup. Install dependencies in the py313 environment first."
-        ) from error
+    except ModuleNotFoundError:
+        Contract = _FallbackContract
 
     contract = Contract()
     if conid is not None:

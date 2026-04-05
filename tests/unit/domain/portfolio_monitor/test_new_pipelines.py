@@ -136,7 +136,7 @@ def test_build_live_ibkr_position_security_table_merges_position_reference_and_c
     assert len(rows) == 1
     row = rows[0]
 
-    assert row["internal_id"] == "STK:SPY:ARCA"
+    assert row["internal_id"] == "STK:SPY:SMART"
     assert row["con_id"] == "756733"
     assert row["local_symbol"] == "SPY"
     assert row["quantity"] == 20.0
@@ -147,13 +147,11 @@ def test_build_live_ibkr_position_security_table_merges_position_reference_and_c
     assert row["contract_long_name"] == "SPDR S&P 500 ETF TRUST"
     assert row["contract_primary_exchange"] == "ARCA"
     assert row["security_mapping_status"] == "mapped"
-    assert row["security_universe_type"] == "ETF"
+    assert row["security_asset_class"] == "EQ"
     assert row["security_display_ticker"] == "SPY"
     assert row["security_display_name"] == "US"
-    assert row["security_report_category"] == "DMEQ"
-    assert row["security_risk_bucket"] == "EQ"
-    assert row["security_price_source_provider"] == "google_finance"
-    assert row["security_price_source_symbol"] == "SPY"
+    assert row["security_eq_country"] == "US"
+    assert row["security_lookup_status"] == "verified"
     assert row["security_runtime_local_symbol"] == "SPY"
 
 
@@ -199,7 +197,7 @@ def test_build_live_ibkr_position_security_table_includes_cash_rows() -> None:
     assert row["ibkr_cash_conversion_mode"] == "single_currency_to_sgd"
     assert row["ibkr_cash_source_currencies"] == "USD"
     assert row["security_mapping_status"] == "mapped"
-    assert row["security_universe_type"] == "CASH"
+    assert row["security_asset_class"] == "CASH"
 
 
 class FakeAccountValue:

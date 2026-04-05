@@ -7,6 +7,7 @@ from .generate_portfolio_report import (
     generate_position_report,
     generate_report_mapping_table,
     generate_risk_html_report,
+    generate_security_reference_sync,
 )
 
 __all__ = [
@@ -18,4 +19,5 @@ __all__ = [
     "generate_position_report",
     "generate_report_mapping_table",
     "generate_risk_html_report",
+    "generate_security_reference_sync",
 ]

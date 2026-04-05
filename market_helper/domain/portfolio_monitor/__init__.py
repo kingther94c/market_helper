@@ -8,6 +8,7 @@ from .pipelines import (
     generate_position_report,
     generate_report_mapping_table,
     generate_risk_html_report,
+    generate_security_reference_sync,
 )
 from .services.security_reference_table import SecurityReference, SecurityReferenceTable
 
@@ -24,4 +25,5 @@ __all__ = [
     "generate_position_report",
     "generate_report_mapping_table",
     "generate_risk_html_report",
+    "generate_security_reference_sync",
 ]

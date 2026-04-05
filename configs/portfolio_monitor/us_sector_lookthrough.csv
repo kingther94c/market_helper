@@ -1,0 +1,30 @@
+canonical_symbol,sector,weight
+SPY,Technology,0.31
+SPY,Financials,0.14
+SPY,Health Care,0.12
+SPY,Consumer Discretionary,0.10
+SPY,Communication Services,0.09
+SPY,Industrials,0.08
+SPY,Consumer Staples,0.06
+SPY,Energy,0.04
+SPY,Utilities,0.03
+SPY,Real Estate,0.02
+SPY,Materials,0.01
+VOO,Technology,0.31
+VOO,Financials,0.14
+VOO,Health Care,0.12
+VOO,Consumer Discretionary,0.10
+VOO,Communication Services,0.09
+VOO,Industrials,0.08
+VOO,Consumer Staples,0.06
+VOO,Energy,0.04
+VOO,Utilities,0.03
+VOO,Real Estate,0.02
+VOO,Materials,0.01
+QQQ,Technology,0.60
+QQQ,Communication Services,0.15
+QQQ,Consumer Discretionary,0.18
+QQQ,Health Care,0.04
+QQQ,Industrials,0.02
+QQQ,Consumer Staples,0.01
+SOXX,Semiconductor,1.0

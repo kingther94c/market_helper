@@ -66,7 +66,7 @@ def test_generate_live_ibkr_position_report_writes_csv_from_gateway_client(tmp_p
         reader = csv.DictReader(handle)
         rows = list(reader)
 
-    assert rows[0]["internal_id"] == "STK:SPY:ARCA"
+    assert rows[0]["internal_id"] == "STK:SPY:SMART"
     assert rows[0]["con_id"] == "756733"
     assert rows[0]["symbol"] == "SPY"
     assert rows[0]["exchange"] == "ARCA"
@@ -213,11 +213,11 @@ def test_generate_live_ibkr_position_report_writes_proposed_reference_for_unmapp
         client=client,
     )
 
-    proposal_path = output_path.with_name("security_reference_PROPOSED.csv")
+    proposal_path = output_path.with_name("security_universe_PROPOSED.csv")
     with proposal_path.open("r", encoding="utf-8", newline="") as handle:
         rows = list(csv.DictReader(handle))
 
-    assert rows[0]["internal_id"] == "STK:AAPL:SMART"
+    assert rows[0]["ibkr_symbol"] == "AAPL"
     assert rows[0]["display_name"] == "Apple Inc"
-    assert rows[0]["ibkr_conid"] == "888888"
-    assert "security_reference_PROPOSED.csv" in capsys.readouterr().out
+    assert rows[0]["lookup_conid"] == "888888"
+    assert "security_universe_PROPOSED.csv" in capsys.readouterr().out
