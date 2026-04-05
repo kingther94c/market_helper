@@ -33,8 +33,8 @@ def test_normalize_ibkr_positions_matches_curated_equity_row() -> None:
         as_of="2026-03-25T00:00:00+00:00",
     )
 
-    assert positions[0].internal_id == "STK:SPY:ARCA"
-    assert table.require_internal_id("ibkr", "756733") == "STK:SPY:ARCA"
+    assert positions[0].internal_id == "STK:SPY:SMART"
+    assert table.require_internal_id("ibkr", "756733") == "STK:SPY:SMART"
 
 
 def test_normalize_ibkr_positions_matches_futures_family_alias() -> None:
@@ -88,7 +88,7 @@ def test_normalize_ibkr_latest_prices_uses_fallback_price_fields() -> None:
     )
 
     assert prices[0].last_price == 215.1
-    assert prices[0].internal_id == "STK:SPY:ARCA"
+    assert prices[0].internal_id == "STK:SPY:SMART"
 
 
 def test_normalize_ibkr_positions_accepts_camel_case_and_object_payload() -> None:
@@ -188,7 +188,7 @@ def test_normalize_ibkr_positions_prefers_primary_exchange_and_unique_symbol_mat
         as_of="2026-03-26T00:00:00+00:00",
     )
 
-    assert positions[0].internal_id == "STK:SPY:ARCA"
+    assert positions[0].internal_id == "STK:SPY:SMART"
 
 
 def test_normalize_ibkr_latest_prices_accepts_market_price_alias() -> None:

@@ -14,8 +14,8 @@ def test_reference_table_loads_curated_csv_and_resolves_indexes(tmp_path) -> Non
     export_security_reference_csv(
         [
             SecurityReference(
-                internal_id="STK:SPY:ARCA",
-                universe_type="ETF",
+                internal_id="STK:SPY:SMART",
+                asset_class="EQ",
                 canonical_symbol="SPY",
                 display_ticker="SPY",
                 display_name="US",
@@ -24,21 +24,17 @@ def test_reference_table_loads_curated_csv_and_resolves_indexes(tmp_path) -> Non
                 multiplier=1.0,
                 ibkr_sec_type="STK",
                 ibkr_symbol="SPY",
-                ibkr_exchange="ARCA",
+                ibkr_exchange="SMART",
                 ibkr_conid="756733",
-                google_symbol="SPY",
                 yahoo_symbol="SPY",
-                bbg_symbol="SPY US Equity",
-                report_category="DMEQ",
-                risk_bucket="EQ",
+                eq_country="US",
+                dir_exposure="L",
                 mod_duration=1.0,
-                default_expected_vol=0.15,
-                price_source_provider="google_finance",
-                price_source_symbol="SPY",
+                lookup_status="verified",
             ),
             SecurityReference(
                 internal_id="FUT:ZN:CBOT",
-                universe_type="FI_FUT",
+                asset_class="FI",
                 canonical_symbol="ZN",
                 display_ticker="ZNW00:CBOT",
                 display_name="10Y TF",
@@ -48,18 +44,15 @@ def test_reference_table_loads_curated_csv_and_resolves_indexes(tmp_path) -> Non
                 ibkr_sec_type="FUT",
                 ibkr_symbol="ZN",
                 ibkr_exchange="CBOT",
-                google_symbol="ZNW00:CBOT",
                 yahoo_symbol="ZN=F",
-                report_category="FI",
-                risk_bucket="FI",
+                dir_exposure="L",
                 mod_duration=7.627,
-                default_expected_vol=0.07,
-                price_source_provider="google_finance",
-                price_source_symbol="ZNW00:CBOT",
+                fi_tenor="7-10Y",
+                lookup_status="cached",
             ),
             SecurityReference(
                 internal_id="CASH:SGD_CASH_VALUE:MANUAL",
-                universe_type="CASH",
+                asset_class="CASH",
                 canonical_symbol="SGD_CASH_VALUE",
                 display_ticker="CASH (SGD value)",
                 display_name="Cash",
@@ -69,15 +62,9 @@ def test_reference_table_loads_curated_csv_and_resolves_indexes(tmp_path) -> Non
                 ibkr_sec_type="CASH",
                 ibkr_symbol="SGD",
                 ibkr_exchange="IDEALPRO",
-                google_symbol="CASH SGD",
-                report_category="CASH",
-                risk_bucket="CASH",
+                dir_exposure="L",
                 mod_duration=1.0,
-                default_expected_vol=0.0,
-                price_source_provider="manual",
-                price_source_symbol="CASH (SGD value)",
-                fx_source_provider="google_finance",
-                fx_source_symbol="CURRENCY:SGDUSD",
+                lookup_status="cached",
             ),
         ],
         export_path,
@@ -85,11 +72,9 @@ def test_reference_table_loads_curated_csv_and_resolves_indexes(tmp_path) -> Non
 
     reference = SecurityReferenceTable.from_csv(export_path)
 
-    assert reference.by_internal_id["STK:SPY:ARCA"].display_ticker == "SPY"
-    assert reference.by_ibkr_conid["756733"].internal_id == "STK:SPY:ARCA"
-    assert reference.by_google_symbol["SPY"].internal_id == "STK:SPY:ARCA"
-    assert reference.by_yahoo_symbol["SPY"].internal_id == "STK:SPY:ARCA"
-    assert reference.by_bbg_symbol["SPY US EQUITY"].internal_id == "STK:SPY:ARCA"
+    assert reference.by_internal_id["STK:SPY:SMART"].asset_class == "EQ"
+    assert reference.by_ibkr_conid["756733"].internal_id == "STK:SPY:SMART"
+    assert reference.by_yahoo_symbol["SPY"].internal_id == "STK:SPY:SMART"
     assert reference.resolve_by_ibkr_alias(symbol="SPY", sec_type="STK", exchange="ARCA")
     assert reference.resolve_by_ibkr_alias(symbol="ZNM6", sec_type="FUT", exchange="CBOT").internal_id == "FUT:ZN:CBOT"
     assert reference.resolve_by_ibkr_alias(symbol="ZN", sec_type="FUT", exchange="CBOT").internal_id == "FUT:ZN:CBOT"
@@ -100,7 +85,7 @@ def test_reference_table_resolves_cross_source_ids() -> None:
     reference = SecurityReferenceTable()
     security = SecurityReference(
         internal_id="SEC:ESM6",
-        asset_class="future",
+        asset_class="FI",
         symbol="ES",
         currency="USD",
         exchange="CME",

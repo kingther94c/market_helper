@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from market_helper.providers.tws_ib_async import (
     portfolio_items_to_ibkr_position_rows,
     portfolio_items_to_ibkr_price_rows,

@@ -98,7 +98,7 @@ def risk_bucket_for_category(category: str) -> str:
     if normalized == "FI":
         return "FI"
     if normalized == "GOLD":
-        return "GOLD"
+        return "CM"
     if normalized in {"CM", "OIL"}:
         return "CM"
     if normalized == "CASH":
@@ -129,22 +129,14 @@ def _extract_security_reference_row(
     normalized_category = str(category).strip().upper()
     symbol_key = normalize_mapping_symbol(str(display_ticker))
     venue = _mapping_venue_for_ticker(str(display_ticker))
-    risk_bucket = risk_bucket_for_category(normalized_category)
-    universe_type = _infer_universe_type(
+    asset_class = risk_bucket_for_category(normalized_category)
+    ibkr_sec_type = _ibkr_sec_type_for_asset_class(
         symbol_key=symbol_key,
         instrument_type=str(instrument_type),
-        risk_bucket=risk_bucket,
+        asset_class=asset_class,
     )
-    ibkr_sec_type = _ibkr_sec_type_for_universe(universe_type)
     primary_exchange = _ibkr_exchange_for_venue(venue)
-    quote_formula = _cell_formula(row, "M")
-    price_provider = _provider_from_formula(quote_formula)
     price_symbol = str(display_ticker).strip()
-    fx_provider, fx_symbol = _fx_hint_for_row(
-        display_ticker=str(display_ticker).strip(),
-        venue=venue,
-        fx_sources=fx_sources,
-    )
     return SecurityReference(
         internal_id=_build_internal_id(
             ibkr_sec_type=ibkr_sec_type,
@@ -152,7 +144,7 @@ def _extract_security_reference_row(
             primary_exchange=primary_exchange,
         ),
         is_active=True,
-        universe_type=universe_type,
+        asset_class=asset_class,
         canonical_symbol=_canonical_symbol(symbol_key),
         display_ticker=str(display_ticker).strip(),
         display_name=str(display_name or display_ticker).strip(),
@@ -162,17 +154,13 @@ def _extract_security_reference_row(
         ibkr_sec_type=ibkr_sec_type,
         ibkr_symbol=symbol_key,
         ibkr_exchange=primary_exchange,
-        google_symbol=price_symbol if price_provider == "google_finance" else "",
-        yahoo_symbol=price_symbol if price_provider == "yahoo_finance" else "",
-        bbg_symbol="",
-        report_category=normalized_category,
-        risk_bucket=risk_bucket,
+        yahoo_symbol=price_symbol if _provider_from_formula(_cell_formula(row, "M")) == "yahoo_finance" else "",
+        eq_country="US" if venue == "US" else "",
+        eq_sector="",
+        dir_exposure="L",
         mod_duration=_optional_float(_cell_value(row, "P")),
-        default_expected_vol=_optional_float(_cell_value(row, "T")),
-        price_source_provider=price_provider,
-        price_source_symbol=price_symbol,
-        fx_source_provider=fx_provider,
-        fx_source_symbol=fx_symbol,
+        fi_tenor=_fi_tenor_for_duration(_optional_float(_cell_value(row, "P"))),
+        lookup_status="seeded",
     )
 
 
@@ -284,32 +272,32 @@ def _canonical_symbol(value: str) -> str:
     return re.sub(r"[^A-Z0-9]+", "_", upper).strip("_")
 
 
-def _infer_universe_type(
+def _ibkr_sec_type_for_asset_class(
     *,
     symbol_key: str,
     instrument_type: str,
-    risk_bucket: str,
+    asset_class: str,
 ) -> str:
     normalized_type = instrument_type.strip().upper()
     if normalized_type == "CASH":
         return "CASH"
     if normalized_type == "FUTURES":
-        if risk_bucket == "FI":
-            return "FI_FUT"
-        if symbol_key in FX_FUTURE_SYMBOLS or risk_bucket == "MACRO":
-            return "FX_FUT"
-        return "OTHER_FUT"
-    if symbol_key in {"TSLA"}:
-        return "EQ"
-    return "ETF"
-
-
-def _ibkr_sec_type_for_universe(universe_type: str) -> str:
-    if universe_type in {"FI_FUT", "FX_FUT", "OTHER_FUT"}:
         return "FUT"
-    if universe_type == "CASH":
+    if asset_class == "CASH":
         return "CASH"
     return "STK"
+
+
+def _fi_tenor_for_duration(value: float | None) -> str:
+    if value is None:
+        return ""
+    if value < 3:
+        return "0-3Y"
+    if value < 7:
+        return "3-7Y"
+    if value < 10:
+        return "7-10Y"
+    return "10Y+"
 
 
 def _ibkr_exchange_for_venue(venue: str) -> str:

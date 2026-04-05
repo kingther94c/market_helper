@@ -17,20 +17,20 @@ def test_extract_security_reference_seed_reads_target_workbook(tmp_path: Path) -
 
     assert any(
         row.display_ticker == "LON:SPYL"
-        and row.report_category == "DMEQ"
-        and row.universe_type == "ETF"
+        and row.asset_class == "EQ"
+        and row.ibkr_sec_type == "STK"
         for row in table.rows
     )
     assert any(
         row.display_ticker == "ZNW00:CBOT"
         and row.canonical_symbol == "ZN"
-        and row.universe_type == "FI_FUT"
+        and row.asset_class == "FI"
         for row in table.rows
     )
     assert any(
         row.display_ticker == "CASH (SGD value)"
-        and row.universe_type == "CASH"
-        and row.fx_source_symbol == "CURRENCY:SGDUSD"
+        and row.asset_class == "CASH"
+        and row.lookup_status == "seeded"
         for row in table.rows
     )
 

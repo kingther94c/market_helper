@@ -14,6 +14,22 @@ def test_fred_facade_exports_batch_loader() -> None:
 
 
 def test_yahoo_finance_facade_is_explicit_scaffold() -> None:
-    client = YahooFinanceClient()
-    with pytest.raises(NotImplementedError):
-        client.fetch_price_history("SPY")
+    client = YahooFinanceClient(
+        downloader=lambda _url: {
+            "chart": {
+                "result": [
+                    {
+                        "meta": {"currency": "USD"},
+                        "timestamp": [1, 2, 3],
+                        "indicators": {
+                            "quote": [{"close": [100.0, 101.0, 103.0]}],
+                            "adjclose": [{"adjclose": [100.0, 101.0, 103.0]}],
+                        },
+                    }
+                ]
+            }
+        }
+    )
+    payload = client.fetch_price_history("SPY")
+    assert payload["symbol"] == "SPY"
+    assert len(payload["prices"]) == 3

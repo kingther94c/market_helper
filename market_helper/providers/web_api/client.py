@@ -6,8 +6,8 @@ The client keeps transport, retry, and payload coercion in one place so that
 domain code can work with normalized snapshots instead of raw endpoint shapes.
 """
 
-from collections.abc import Callable, Mapping
 from dataclasses import dataclass
+from typing import Callable, Mapping, Optional
 
 from market_helper.domain import AccountSnapshot, PositionSnapshot, QuoteSnapshot
 from market_helper.providers.web_api.mappers import (
@@ -19,7 +19,7 @@ from market_helper.providers.web_api.retry import with_retry
 from market_helper.safety import assert_operation_allowed, assert_read_only_mode
 
 WebApiTransport = Callable[
-    [str, str, Mapping[str, object] | None, Mapping[str, object] | None],
+    [str, str, Optional[Mapping[str, object]], Optional[Mapping[str, object]]],
     object,
 ]
 
@@ -27,8 +27,8 @@ WebApiTransport = Callable[
 def _default_transport(
     method: str,
     url: str,
-    params: Mapping[str, object] | None,
-    body: Mapping[str, object] | None,
+    params: Optional[Mapping[str, object]],
+    body: Optional[Mapping[str, object]],
 ) -> object:
     _ = (method, url, params, body)
     return {}

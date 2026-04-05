@@ -32,7 +32,7 @@ def test_build_risk_html_report_renders_summary_and_tables(tmp_path: Path) -> No
         "\n".join(
             [
                 "as_of,account,internal_id,con_id,symbol,local_symbol,exchange,currency,source,quantity,avg_cost,latest_price,market_value,cost_basis,unrealized_pnl,weight",
-                "2026-03-26T00:00:00+00:00,U1,STK:SPY:ARCA,756733,SPY,SPY,ARCA,USD,ibkr,10,500,510,5100,5000,100,0.6",
+                "2026-03-26T00:00:00+00:00,U1,STK:SPY:SMART,756733,SPY,SPY,ARCA,USD,ibkr,10,500,510,5100,5000,100,0.6",
                 "2026-03-26T00:00:00+00:00,U1,FUT:ZN:CBOT,815824229,ZN,ZNM6,CBOT,USD,ibkr,1,110,111,111000,110000,1000,0.4",
             ]
         ),
@@ -40,7 +40,7 @@ def test_build_risk_html_report_renders_summary_and_tables(tmp_path: Path) -> No
     )
 
     returns_payload = {
-        "STK:SPY:ARCA": [0.001 * ((idx % 7) - 3) for idx in range(90)],
+        "STK:SPY:SMART": [0.001 * ((idx % 7) - 3) for idx in range(90)],
         "FUT:ZN:CBOT": [0.0007 * ((idx % 5) - 2) for idx in range(90)],
     }
     returns_json = tmp_path / "returns.json"
@@ -85,11 +85,12 @@ def test_build_risk_html_report_renders_summary_and_tables(tmp_path: Path) -> No
     rendered = output_path.read_text(encoding="utf-8")
     assert "Portfolio Risk Report" in rendered
     assert "Historical portfolio vol" in rendered
-    assert "Allocation Summary" in rendered
+    assert "Asset Class Summary" in rendered
+    assert "EQ Country Breakdown" in rendered
     assert "Regime Snapshot" in rendered
     assert "Goldilocks Expansion" in rendered
     assert "SPY" in rendered
-    assert "ZNW00:CBOT" in rendered
+    assert "10Y TF" in rendered
 
 
 def test_build_risk_html_report_uses_security_reference_for_enrichment(tmp_path: Path) -> None:
@@ -121,7 +122,7 @@ def test_build_risk_html_report_uses_security_reference_for_enrichment(tmp_path:
         [
             SecurityReference(
                 internal_id="STK:SPYL:LSEETF",
-                universe_type="ETF",
+                asset_class="EQ",
                 canonical_symbol="SPYL",
                 display_ticker="LON:SPYL",
                 display_name="US",
@@ -131,16 +132,15 @@ def test_build_risk_html_report_uses_security_reference_for_enrichment(tmp_path:
                 ibkr_sec_type="STK",
                 ibkr_symbol="SPYL",
                 ibkr_exchange="LSEETF",
-                report_category="DMEQ",
-                risk_bucket="EQ",
+                yahoo_symbol="SPYL.L",
+                eq_country="US",
+                dir_exposure="L",
                 mod_duration=1.0,
-                default_expected_vol=0.18,
-                price_source_provider="google_finance",
-                price_source_symbol="LON:SPYL",
+                lookup_status="verified",
             ),
             SecurityReference(
                 internal_id="FUT:ZN:CBOT",
-                universe_type="FI_FUT",
+                asset_class="FI",
                 canonical_symbol="ZN",
                 display_ticker="ZNW00:CBOT",
                 display_name="10Y TF",
@@ -150,12 +150,11 @@ def test_build_risk_html_report_uses_security_reference_for_enrichment(tmp_path:
                 ibkr_sec_type="FUT",
                 ibkr_symbol="ZN",
                 ibkr_exchange="CBOT",
-                report_category="FI",
-                risk_bucket="FI",
+                yahoo_symbol="ZN=F",
+                dir_exposure="L",
                 mod_duration=7.627,
-                default_expected_vol=0.07,
-                price_source_provider="google_finance",
-                price_source_symbol="ZNW00:CBOT",
+                fi_tenor="7-10Y",
+                lookup_status="cached",
             ),
         ],
         security_reference_path,
@@ -172,8 +171,7 @@ def test_build_risk_html_report_uses_security_reference_for_enrichment(tmp_path:
     rendered = output_path.read_text(encoding="utf-8")
     assert "LON:SPYL" in rendered
     assert "10Y TF" in rendered
-    assert "DMEQ" in rendered
-    assert "FI 10Y Eqv" in rendered
+    assert "FI Tenor Breakdown" in rendered
     assert "mapped" in rendered
 
 

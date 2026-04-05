@@ -6,7 +6,6 @@ from typing import Iterable, List, Mapping, Optional
 from .security_reference import (
     PriceSnapshot,
     PositionSnapshot,
-    RUNTIME_OUTSIDE_SCOPE_PREFIX,
     SecurityMapping,
     SecurityReference,
     SecurityReferenceTable,
@@ -48,9 +47,10 @@ def contract_to_security_reference(
 
     internal_id = contract_to_internal_id(contract)
     if status == "outside_scope":
-        internal_id = f"{RUNTIME_OUTSIDE_SCOPE_PREFIX}{internal_id}"
+        internal_id = f"OUTSIDE_SCOPE:{internal_id}"
     return SecurityReference(
         internal_id=internal_id,
+        asset_class=_infer_asset_class(contract),
         symbol=contract.symbol.upper(),
         currency=contract.currency.upper(),
         exchange=contract.exchange.upper(),
@@ -69,7 +69,9 @@ def contract_to_security_reference(
         ibkr_symbol=contract.symbol.upper(),
         ibkr_exchange=contract.exchange.upper(),
         ibkr_conid=contract.con_id,
-        report_category="OUTSIDE_SCOPE" if status == "outside_scope" else "",
+        dir_exposure="L",
+        lookup_status="runtime",
+        last_verified_at=now_utc_iso(),
         mapping_status_hint=status,
     )
 
@@ -117,9 +119,9 @@ def enrich_security_from_contract_details(
         display_ticker=symbol or security.display_ticker,
         display_name=long_name or security.display_name,
         primary_exchange=primary_exchange or security.primary_exchange,
-        ibkr_symbol=symbol or security.ibkr_symbol,
-        ibkr_exchange=primary_exchange or security.ibkr_exchange,
         ibkr_conid=str(_first_non_null(details, "conId", default=security.ibkr_conid)),
+        lookup_status="verified",
+        last_verified_at=now_utc_iso(),
     )
 
 
@@ -138,8 +140,11 @@ def register_ibkr_contract(
             con_id=contract.con_id,
             symbol=contract.symbol,
             exchange=contract.exchange,
+            primary_exchange=contract.exchange,
             local_symbol=contract.local_symbol,
             sec_type=contract.sec_type,
+            currency=contract.currency,
+            multiplier=float(contract.multiplier) if str(contract.multiplier or "").strip() else None,
         )
 
     reference_table.upsert_security(security)
@@ -297,6 +302,31 @@ def _optional_float(value: object) -> Optional[float]:
     if value in (None, ""):
         return None
     return float(value)
+
+
+def _infer_asset_class(contract: IbkrContract) -> str:
+    sec_type = contract.sec_type.upper()
+    symbol = contract.symbol.upper()
+    exchange = contract.exchange.upper()
+    if sec_type == "CASH":
+        return "CASH"
+    if sec_type == "FUT":
+        if symbol in {"AUD", "CAD", "CHF", "EUR", "GBP", "JPY", "MXN", "NZD"}:
+            return "FX"
+        if symbol in {"ZN", "ZF", "ZT", "TY", "US"}:
+            return "FI"
+        if exchange == "CFE":
+            return "MACRO"
+        return "CM"
+    if symbol in {"BOXX", "BIL", "SGOV", "SHV"}:
+        return "CASH"
+    if symbol in {"DBMF", "VIX", "VXM"}:
+        return "MACRO"
+    if symbol in {"GLD", "GDX", "SLV", "COPX"}:
+        return "CM"
+    if symbol == "LQD":
+        return "FI"
+    return "EQ"
 
 
 def _as_ibkr_dict(value: Mapping[str, object] | object) -> Mapping[str, object]:

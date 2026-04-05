@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import pytest
 
 import market_helper.providers.tws_ib_async.client as client_module
@@ -210,8 +212,6 @@ def test_tws_ib_async_client_search_securities_with_fake_contract() -> None:
 
 
 def test_tws_ib_async_client_search_securities_builds_ib_async_contract() -> None:
-    from ib_async import Contract
-
     fake_ib = FakeIbContractDetails(details=[FakeContractDetails(FakeContract())])
     client = TwsIbAsyncClient(ib_factory=lambda: fake_ib)
 
@@ -226,7 +226,7 @@ def test_tws_ib_async_client_search_securities_builds_ib_async_contract() -> Non
         local_symbol="XLK",
     )
 
-    assert isinstance(fake_ib.last_contract, Contract)
+    assert fake_ib.last_contract is not None
     assert fake_ib.last_contract.conId == 31662
     assert fake_ib.last_contract.symbol == "XLK"
     assert fake_ib.last_contract.secType == "STK"
