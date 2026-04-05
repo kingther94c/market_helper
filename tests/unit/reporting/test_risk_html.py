@@ -5,6 +5,7 @@ from pathlib import Path
 
 from market_helper.portfolio import SecurityReference, export_security_reference_csv
 from market_helper.reporting.risk_html import (
+    _funded_aum_from_dicts,
     annualized_vol,
     build_risk_html_report,
     historical_geomean_vol,
@@ -24,6 +25,21 @@ def test_pairwise_corr_bounds_output() -> None:
     right = [0.005, -0.01, 0.006, -0.004, 0.003]
     corr = pairwise_corr(left, right)
     assert -1.0 <= corr <= 1.0
+
+
+def test_funded_aum_counts_only_stk_like_and_cash_rows() -> None:
+    funded_aum = _funded_aum_from_dicts(
+        [
+            {"instrument_type": "ETF", "gross_exposure_usd": 5100.0},
+            {"instrument_type": "EQ", "gross_exposure_usd": 2200.0},
+            {"instrument_type": "Cash", "gross_exposure_usd": 900.0},
+            {"instrument_type": "Futures", "gross_exposure_usd": 111000.0},
+            {"instrument_type": "Option", "gross_exposure_usd": 3500.0},
+            {"instrument_type": "Outside Scope", "gross_exposure_usd": 1200.0},
+        ]
+    )
+
+    assert funded_aum == 8200.0
 
 
 def test_build_risk_html_report_renders_summary_and_tables(tmp_path: Path) -> None:
@@ -172,6 +188,8 @@ def test_build_risk_html_report_uses_security_reference_for_enrichment(tmp_path:
     assert "LON:SPYL" in rendered
     assert "10Y TF" in rendered
     assert "FI Tenor Breakdown" in rendered
+    assert "<th>Label</th>" in rendered
+    assert "Long belly" in rendered
     assert "mapped" in rendered
 
 
