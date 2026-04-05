@@ -73,6 +73,9 @@ Build a broker-agnostic, read-only IBKR integration layer for market monitoring 
 - Updated raw IBKR JSON and live TWS report workflows so they rebuild the generated security reference first, preserve universe-stable `internal_id`s, and refresh runtime lookup fields without letting primary-exchange resolution destabilize IDs.
 - Added explicit SMART-vs-primary-exchange alias handling so mapped equities such as `SPY` remain keyed as `STK:SPY:SMART` while still absorbing live `ARCA` contract details.
 - Rebuilt the HTML risk workflow around universe-first semantics, with Yahoo-backed returns generation by default, asset-class summaries, EQ country look-through, US sector look-through, FI tenor breakdowns, and selectable vol/correlation modes.
+- Added a reusable portfolio-monitor risk utility layer under `market_helper/domain/portfolio_monitor/services/`, covering generic realized-vol, EWMA, blend, proxy-vol, fixed-income-vol, and Yahoo return-cache helpers.
+- Added dated Yahoo return caching under `data/artifacts/portfolio_monitor/yahoo_returns/`, storing per-symbol log-return series derived from adjusted close so repeated risk runs can reuse history instead of fetching everything on demand.
+- Refactored `market_helper/reporting/risk_html.py` to consume the new risk utility services, support both legacy list-style and dated return overrides, and compute aligned correlations from date-indexed return series.
 - Split FI tenor semantics from duration bucketing so `fi_tenor` is now an explicit instrument classification rather than a derived `fi_mod_duration` range; workbook import, generated reference, and report rendering now preserve cases such as `ZT -> 1-3Y`, `ZF -> 3-5Y`, `ZN -> 7-10Y`, `LQD -> 7-10Y`, and `TLT -> 20Y+`.
 - Updated FI tenor presentation so the risk report keeps the canonical bucket names while also showing readable labels (`Cash / ultra-short`, `Front end`, `Short belly`, `Belly`, `Long belly`, `Long end`, `Ultra-long`) in the breakdown table.
 - Corrected funded-AUM semantics in the portfolio-monitor risk path so the denominator now includes only stock-like and cash exposures (`EQ` / `ETF` / `CASH`) and excludes futures, options, and outside-scope rows.
@@ -92,11 +95,11 @@ Build a broker-agnostic, read-only IBKR integration layer for market monitoring 
 
 ## In Progress
 - Tightening the live TWS / `ib_async` report path with better account/session ergonomics, broader contract coverage, and richer real-world fixture coverage.
-- Hardening the universe-first risk workflow with automatic proxy/return ingestion, more robust derivatives treatment, deeper attribution math, and tighter alignment between target-report semantics and the HTML/notebook summaries.
+- Hardening the universe-first risk workflow with cached proxy ingestion, more robust derivatives treatment, deeper attribution math, and tighter alignment between target-report semantics and the HTML/notebook summaries.
 - Planning the next reporting layer so the current generated CSV + HTML outputs can converge toward the target workbook structure without reintroducing workbook runtime dependencies.
 
 ## Next Steps
-1. Add cached loaders for benchmark proxies and Yahoo return histories so risk runs do not need to fetch everything on demand every time.
+1. Add cached loaders for benchmark proxies and wire them into the same reproducible artifact flow now used for Yahoo return histories.
 2. Extend risk attribution from the current vol-contribution view to covariance-consistent marginal/component risk attribution at both security and bucket levels.
 3. Improve derivatives handling, especially options / `OUTSIDE_SCOPE` rows, inverse products, and futures-specific exposure normalization.
 4. Add a local manual-override layer for provisional or account-specific universe entries that should not be committed until reviewed.
@@ -141,7 +144,7 @@ Build a broker-agnostic, read-only IBKR integration layer for market monitoring 
 
 ## Testing Status
 - Full repo test suite passes in the active local environment: `PYTHONPATH=. PYTHONPYCACHEPREFIX=/tmp/pycache pytest -q`
-- The universe-first portfolio-monitor refactor is covered by targeted report/risk/provider tests, including raw IBKR normalization, live TWS report generation, generated security-reference sync, mapping-table import, Yahoo returns loading, and risk HTML rendering.
+- The universe-first portfolio-monitor refactor is covered by targeted report/risk/provider tests, including raw IBKR normalization, live TWS report generation, generated security-reference sync, mapping-table import, generic volatility/proxy/fixed-income helpers, Yahoo return-cache loading, and risk HTML rendering.
 - Live smoke validation succeeded against local TWS / IB Gateway for `XLK` contract lookup through `market_helper.providers.tws_ib_async`, and the `derive_sec_table` notebook cells executed successfully end to end from `notebooks/portfolio_monitor`.
 
 ## Notes
