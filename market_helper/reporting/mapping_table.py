@@ -64,7 +64,7 @@ class WorkbookCell:
 
 
 def extract_security_reference_seed(workbook_path: str | Path) -> SecurityReferenceSeedTable:
-    workbook = Path(workbook_path)
+    workbook = _resolve_workbook_path(Path(workbook_path))
     sheets = _load_sheet_rows(workbook)
     position_rows = sheets.get("Position", [])
     fx_sources = _extract_fx_sources(position_rows)
@@ -81,6 +81,18 @@ def extract_security_reference_seed(workbook_path: str | Path) -> SecurityRefere
         generated_at=datetime.now(timezone.utc).isoformat(timespec="seconds"),
         rows=extracted,
     )
+
+
+def _resolve_workbook_path(workbook_path: Path) -> Path:
+    if workbook_path.exists():
+        return workbook_path
+
+    repo_root = Path(__file__).resolve().parents[2]
+    outputs_target = repo_root / "outputs" / "reports" / "target_report.xlsx"
+    artifact_target = repo_root / "data" / "artifacts" / "portfolio_monitor" / "target_report.xlsx"
+    if workbook_path == outputs_target and artifact_target.exists():
+        return artifact_target
+    return workbook_path
 
 
 def export_security_reference_seed_csv(

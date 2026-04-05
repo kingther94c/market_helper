@@ -4,12 +4,12 @@ import json
 import ssl
 from dataclasses import dataclass, field
 from http.cookiejar import CookieJar
-from typing import Callable, Optional
+from typing import Callable, Dict, Optional
 from urllib.error import HTTPError, URLError
 from urllib.request import HTTPCookieProcessor, HTTPSHandler, OpenerDirector, Request, build_opener
 
 
-JsonObject = dict[str, object]
+JsonObject = Dict[str, object]
 OpenUrl = Callable[[Request], object]
 
 

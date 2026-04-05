@@ -2,12 +2,12 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 import json
-from typing import Any, Callable
+from typing import Any, Callable, Dict
 from urllib.parse import quote
 from urllib.request import urlopen
 
 
-YahooDownloader = Callable[[str], dict[str, Any]]
+YahooDownloader = Callable[[str], Dict[str, Any]]
 
 
 @dataclass(frozen=True)
