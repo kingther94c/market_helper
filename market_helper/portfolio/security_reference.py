@@ -21,7 +21,7 @@ IbkrAliasKey = Tuple[str, str, str]
 FUTURES_VENUES = {"CBOT", "CFE", "CME", "COMEX", "ICE", "NYMEX"}
 ALLOWED_ASSET_CLASSES = {"CASH", "CM", "EQ", "FI", "FX", "MACRO"}
 ALLOWED_DIR_EXPOSURES = {"L", "S"}
-ALLOWED_FI_TENORS = {"0-3Y", "3-7Y", "7-10Y", "10Y+"}
+ALLOWED_FI_TENORS = {"0-1Y", "1-3Y", "3-5Y", "5-7Y", "7-10Y", "10-20Y", "20Y+"}
 SECURITY_UNIVERSE_HEADERS = [
     "asset_class",
     "ibkr_symbol",

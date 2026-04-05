@@ -32,6 +32,17 @@ DEFAULT_EQ_COUNTRY_LOOKTHROUGH_PATH = (
 DEFAULT_US_SECTOR_LOOKTHROUGH_PATH = (
     Path(__file__).resolve().parents[2] / "configs" / "portfolio_monitor" / "us_sector_lookthrough.csv"
 )
+FI_TENOR_BUCKET_ORDER = ("0-1Y", "1-3Y", "3-5Y", "5-7Y", "7-10Y", "10-20Y", "20Y+", "UNASSIGNED")
+FI_TENOR_BUCKET_LABELS = {
+    "0-1Y": "Cash / ultra-short",
+    "1-3Y": "Front end",
+    "3-5Y": "Short belly",
+    "5-7Y": "Belly",
+    "7-10Y": "Long belly",
+    "10-20Y": "Long end",
+    "20Y+": "Ultra-long",
+    "UNASSIGNED": "",
+}
 
 
 @dataclass(frozen=True)
@@ -109,6 +120,7 @@ class CategorySummaryRow:
 @dataclass(frozen=True)
 class BreakdownRow:
     bucket: str
+    bucket_label: str
     parent: str
     exposure_usd: float
     gross_exposure_usd: float
@@ -640,6 +652,7 @@ def render_html(
         [
             BreakdownRow(
                 bucket=row.category,
+                bucket_label="",
                 parent=row.asset_class,
                 exposure_usd=row.exposure_usd,
                 gross_exposure_usd=row.gross_exposure_usd,
@@ -651,7 +664,7 @@ def render_html(
     )
     country_rows = _render_breakdown_rows(country_breakdown)
     sector_rows = _render_breakdown_rows(sector_breakdown)
-    tenor_rows = _render_breakdown_rows(fi_tenor_breakdown)
+    tenor_rows = _render_breakdown_rows(fi_tenor_breakdown, include_bucket_label=True)
 
     regime_block = ""
     if regime_summary is not None:
@@ -733,7 +746,7 @@ def render_html(
   <div class='card'>
     <h2>FI Tenor Breakdown</h2>
     <table>
-      <thead><tr><th>Tenor</th><th>Scope</th><th class='num'>Net Exposure</th><th class='num'>Gross Exposure</th><th class='num'>Dollar%</th><th class='num'>Vol Contribution</th></tr></thead>
+      <thead><tr><th>Tenor</th><th>Label</th><th>Scope</th><th class='num'>Net Exposure</th><th class='num'>Gross Exposure</th><th class='num'>Dollar%</th><th class='num'>Vol Contribution</th></tr></thead>
       <tbody>{tenor_rows}</tbody>
     </table>
   </div>
@@ -757,21 +770,30 @@ def render_html(
 """
 
 
-def _render_breakdown_rows(rows: Iterable[BreakdownRow]) -> str:
+def _render_breakdown_rows(
+    rows: Iterable[BreakdownRow],
+    *,
+    include_bucket_label: bool = False,
+) -> str:
     materialized = list(rows)
     if not materialized:
-        return "<tr><td colspan='6'>No data</td></tr>"
-    return "\n".join(
-        "<tr>"
-        f"<td>{html.escape(row.bucket)}</td>"
-        f"<td>{html.escape(row.parent)}</td>"
-        f"<td class='num'>{row.exposure_usd:,.2f}</td>"
-        f"<td class='num'>{row.gross_exposure_usd:,.2f}</td>"
-        f"<td class='num'>{row.dollar_weight:.2%}</td>"
-        f"<td class='num'>{row.risk_contribution_estimated:.2%}</td>"
-        "</tr>"
-        for row in materialized
-    )
+        colspan = 7 if include_bucket_label else 6
+        return f"<tr><td colspan='{colspan}'>No data</td></tr>"
+    rendered_rows: list[str] = []
+    for row in materialized:
+        label_cell = f"<td>{html.escape(row.bucket_label)}</td>" if include_bucket_label else ""
+        rendered_rows.append(
+            "<tr>"
+            f"<td>{html.escape(row.bucket)}</td>"
+            f"{label_cell}"
+            f"<td>{html.escape(row.parent)}</td>"
+            f"<td class='num'>{row.exposure_usd:,.2f}</td>"
+            f"<td class='num'>{row.gross_exposure_usd:,.2f}</td>"
+            f"<td class='num'>{row.dollar_weight:.2%}</td>"
+            f"<td class='num'>{row.risk_contribution_estimated:.2%}</td>"
+            "</tr>"
+        )
+    return "\n".join(rendered_rows)
 
 
 def _load_or_build_returns(
@@ -970,11 +992,21 @@ def _build_fi_tenor_breakdown(
     rows: list[RiskInputRow],
     estimated_loadings: Mapping[str, float],
 ) -> list[BreakdownRow]:
-    return _build_breakdown(
+    breakdown = _build_breakdown(
         rows=rows,
         estimated_loadings=estimated_loadings,
         expander=lambda row: [(row.fi_tenor or "UNASSIGNED", 1.0)] if row.asset_class == "FI" else [],
         parent="FI",
+        bucket_labeler=_fi_tenor_bucket_label,
+    )
+    bucket_order = {bucket: index for index, bucket in enumerate(FI_TENOR_BUCKET_ORDER)}
+    return sorted(
+        breakdown,
+        key=lambda item: (
+            bucket_order.get(item.bucket, len(bucket_order)),
+            -item.gross_exposure_usd,
+            item.bucket,
+        ),
     )
 
 
@@ -984,6 +1016,7 @@ def _build_breakdown(
     estimated_loadings: Mapping[str, float],
     expander: Any,
     parent: str,
+    bucket_labeler: Any | None = None,
 ) -> list[BreakdownRow]:
     aggregated: dict[str, BreakdownRow] = {}
     funded_aum = _funded_aum(rows)
@@ -996,6 +1029,7 @@ def _build_breakdown(
             if existing is None:
                 aggregated[bucket] = BreakdownRow(
                     bucket=bucket,
+                    bucket_label=bucket_labeler(bucket) if bucket_labeler is not None else "",
                     parent=parent,
                     exposure_usd=net_exposure,
                     gross_exposure_usd=gross_exposure,
@@ -1005,6 +1039,7 @@ def _build_breakdown(
                 continue
             aggregated[bucket] = BreakdownRow(
                 bucket=existing.bucket,
+                bucket_label=existing.bucket_label,
                 parent=existing.parent,
                 exposure_usd=existing.exposure_usd + net_exposure,
                 gross_exposure_usd=existing.gross_exposure_usd + gross_exposure,
@@ -1012,6 +1047,10 @@ def _build_breakdown(
                 risk_contribution_estimated=existing.risk_contribution_estimated + contribution,
             )
     return sorted(aggregated.values(), key=lambda item: item.gross_exposure_usd, reverse=True)
+
+
+def _fi_tenor_bucket_label(bucket: str) -> str:
+    return FI_TENOR_BUCKET_LABELS.get(bucket, "")
 
 
 def _expand_country_allocations(
@@ -1131,18 +1170,23 @@ def _funded_aum(rows: list[RiskInputRow]) -> float:
 
 
 def _funded_aum_from_dicts(rows: list[dict[str, object]]) -> float:
-    non_futures = [
+    funded_instruments = [
         float(row.get("gross_exposure_usd") or 0.0)
         for row in rows
-        if str(row.get("instrument_type") or "").upper() != "FUTURES"
+        if _counts_toward_funded_aum(str(row.get("instrument_type") or ""))
     ]
-    funded = sum(non_futures)
+    funded = sum(funded_instruments)
     if funded > 0:
         return funded
     fallback = sum(float(row.get("weight") or 0.0) for row in rows)
     if fallback > 0:
         return fallback
-    return sum(abs(value) for value in non_futures)
+    return sum(abs(value) for value in funded_instruments)
+
+
+def _counts_toward_funded_aum(instrument_type: str) -> bool:
+    normalized = instrument_type.strip().upper()
+    return normalized in {"EQ", "ETF", "CASH"}
 
 
 def _looks_like_option(local_symbol: str) -> bool:

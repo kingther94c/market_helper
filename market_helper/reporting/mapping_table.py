@@ -23,6 +23,31 @@ WORKBOOK_NS = {
 }
 FUTURES_VENUES = {"CBOT", "CME", "COMEX", "ICE", "NYMEX"}
 FX_FUTURE_SYMBOLS = {"AUD", "CAD", "CHF", "EUR", "GBP", "JPY", "MXN", "NZD"}
+FI_TENOR_BY_SYMBOL = {
+    "BTP": "7-10Y",
+    "BTS": "1-3Y",
+    "DHB": "0-1Y",
+    "EDV": "20Y+",
+    "G": "7-10Y",
+    "HYG": "7-10Y",
+    "IEF": "7-10Y",
+    "IEI": "1-3Y",
+    "LQD": "7-10Y",
+    "OAT": "7-10Y",
+    "SCHR": "1-3Y",
+    "SHV": "0-1Y",
+    "SGOV": "0-1Y",
+    "TLT": "20Y+",
+    "TY": "7-10Y",
+    "UB": "20Y+",
+    "US": "20Y+",
+    "VGLT": "20Y+",
+    "XM": "7-10Y",
+    "ZB": "20Y+",
+    "ZF": "3-5Y",
+    "ZN": "7-10Y",
+    "ZT": "1-3Y",
+}
 
 
 @dataclass(frozen=True)
@@ -159,7 +184,12 @@ def _extract_security_reference_row(
         eq_sector="",
         dir_exposure="L",
         mod_duration=_optional_float(_cell_value(row, "P")),
-        fi_tenor=_fi_tenor_for_duration(_optional_float(_cell_value(row, "P"))),
+        fi_tenor=_fi_tenor_for_instrument(
+            asset_class=asset_class,
+            symbol_key=symbol_key,
+            display_ticker=str(display_ticker).strip(),
+            display_name=str(display_name or display_ticker).strip(),
+        ),
         lookup_status="seeded",
     )
 
@@ -288,16 +318,37 @@ def _ibkr_sec_type_for_asset_class(
     return "STK"
 
 
-def _fi_tenor_for_duration(value: float | None) -> str:
-    if value is None:
+def _fi_tenor_for_instrument(
+    *,
+    asset_class: str,
+    symbol_key: str,
+    display_ticker: str,
+    display_name: str,
+) -> str:
+    if asset_class != "FI":
         return ""
-    if value < 3:
-        return "0-3Y"
-    if value < 7:
-        return "3-7Y"
-    if value < 10:
+    normalized_symbol = symbol_key.strip().upper()
+    if normalized_symbol in FI_TENOR_BY_SYMBOL:
+        return FI_TENOR_BY_SYMBOL[normalized_symbol]
+
+    descriptor = f"{display_ticker} {display_name}".upper()
+    if any(token in descriptor for token in {"ULTRA-SHORT", "ULTRA SHORT", "T-BILL", "TREASURY BILL"}):
+        return "0-1Y"
+    if re.search(r"\b1Y\b", descriptor):
+        return "0-1Y"
+    if re.search(r"\b2Y\b", descriptor) or re.search(r"\b3Y\b", descriptor):
+        return "1-3Y"
+    if re.search(r"\b5Y\b", descriptor):
+        return "3-5Y"
+    if re.search(r"\b7Y\b", descriptor):
+        return "5-7Y"
+    if re.search(r"\b10Y\b", descriptor):
         return "7-10Y"
-    return "10Y+"
+    if re.search(r"\b20Y\b", descriptor):
+        return "10-20Y"
+    if re.search(r"\b30Y\b", descriptor) or "LONG BOND" in descriptor or "ULTRA" in descriptor:
+        return "20Y+"
+    return ""
 
 
 def _ibkr_exchange_for_venue(venue: str) -> str:

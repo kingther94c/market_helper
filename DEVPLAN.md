@@ -73,6 +73,9 @@ Build a broker-agnostic, read-only IBKR integration layer for market monitoring 
 - Updated raw IBKR JSON and live TWS report workflows so they rebuild the generated security reference first, preserve universe-stable `internal_id`s, and refresh runtime lookup fields without letting primary-exchange resolution destabilize IDs.
 - Added explicit SMART-vs-primary-exchange alias handling so mapped equities such as `SPY` remain keyed as `STK:SPY:SMART` while still absorbing live `ARCA` contract details.
 - Rebuilt the HTML risk workflow around universe-first semantics, with Yahoo-backed returns generation by default, asset-class summaries, EQ country look-through, US sector look-through, FI tenor breakdowns, and selectable vol/correlation modes.
+- Split FI tenor semantics from duration bucketing so `fi_tenor` is now an explicit instrument classification rather than a derived `fi_mod_duration` range; workbook import, generated reference, and report rendering now preserve cases such as `ZT -> 1-3Y`, `ZF -> 3-5Y`, `ZN -> 7-10Y`, `LQD -> 7-10Y`, and `TLT -> 20Y+`.
+- Updated FI tenor presentation so the risk report keeps the canonical bucket names while also showing readable labels (`Cash / ultra-short`, `Front end`, `Short belly`, `Belly`, `Long belly`, `Long end`, `Ultra-long`) in the breakdown table.
+- Corrected funded-AUM semantics in the portfolio-monitor risk path so the denominator now includes only stock-like and cash exposures (`EQ` / `ETF` / `CASH`) and excludes futures, options, and outside-scope rows.
 - Added static look-through configs under `configs/portfolio_monitor/` for coarse equity country expansion and broad-US sector decomposition.
 - Refreshed portfolio-monitor and provider tests around the new stable IDs and generated-reference flow, and fixed remaining Python 3.9 compatibility issues (`zip(..., strict=True)` and typing syntax) so the full repo test suite is green again in the active environment.
 - Expanded the shared Python environment definitions to include Jupyter notebook support (`ipykernel`, `notebook`, `jupyterlab`) for exploratory work under `notebooks/`.
@@ -89,7 +92,7 @@ Build a broker-agnostic, read-only IBKR integration layer for market monitoring 
 
 ## In Progress
 - Tightening the live TWS / `ib_async` report path with better account/session ergonomics, broader contract coverage, and richer real-world fixture coverage.
-- Hardening the universe-first risk workflow with automatic proxy/return ingestion, more robust derivatives treatment, and deeper attribution math.
+- Hardening the universe-first risk workflow with automatic proxy/return ingestion, more robust derivatives treatment, deeper attribution math, and tighter alignment between target-report semantics and the HTML/notebook summaries.
 - Planning the next reporting layer so the current generated CSV + HTML outputs can converge toward the target workbook structure without reintroducing workbook runtime dependencies.
 
 ## Next Steps
@@ -97,7 +100,7 @@ Build a broker-agnostic, read-only IBKR integration layer for market monitoring 
 2. Extend risk attribution from the current vol-contribution view to covariance-consistent marginal/component risk attribution at both security and bucket levels.
 3. Improve derivatives handling, especially options / `OUTSIDE_SCOPE` rows, inverse products, and futures-specific exposure normalization.
 4. Add a local manual-override layer for provisional or account-specific universe entries that should not be committed until reviewed.
-5. Broaden look-through coverage for country/sector decomposition and add explicit tracked rules for more cross-vendor futures symbology differences.
+5. Broaden look-through coverage for country/sector decomposition and continue expanding explicit FI tenor mappings where product semantics do not align with simple duration ranges.
 6. Add richer account-selection ergonomics and account/session metadata surfacing for live TWS / IB Gateway runs.
 7. Add more real IBKR payload fixtures and live-contract edge cases to harden normalization compatibility.
 8. Keep evolving the HTML/workbook layer toward the target portfolio view without coupling runtime rendering to `data/artifacts/portfolio_monitor/target_report.xlsx`.
@@ -116,8 +119,8 @@ Build a broker-agnostic, read-only IBKR integration layer for market monitoring 
 - Current runtime output is still split between a normalized position CSV and a separate HTML risk report, while `data/artifacts/portfolio_monitor/target_report.xlsx` remains a structured workbook with at least two sheets: `Position` and `Risk`.
 - We should treat the workbook as a source for seed mappings and reporting assumptions, not as a runtime dependency for the HTML report.
 - The new universe-first stack now computes asset-class summaries plus EQ country, US sector, and FI tenor breakdowns, but it still does not render the workbook-style `Position` and `Risk` sheets as a single formatted artifact.
-- The `Position` sheet still includes presentation-oriented sections and summaries that we do not compute yet in workbook form, including AUM blocks, target-style bucket subtotal layouts, and final display conventions for every instrument family.
-- The current risk output now has signed exposure handling, tenor/country/sector semantics, and selectable vol/correlation modes, but it still lacks full target-style covariance attribution, workbook formatting, and some derivatives-specific exposure treatments.
+- The `Position` sheet still includes presentation-oriented sections and summaries that we do not compute yet in workbook form, including target-style bucket subtotal layouts and final display conventions for every instrument family, even though funded-AUM semantics are now aligned more closely with the intended "funded capital" denominator.
+- The current risk output now has signed exposure handling, explicit tenor/country/sector semantics, readable FI tenor labels, and selectable vol/correlation modes, but it still lacks full target-style covariance attribution, workbook formatting, and some derivatives-specific exposure treatments.
 - The `Risk` sheet in the target workbook still introduces an additional analytics layer we only partially cover today: richer regime panels, benchmark proxy history presentation, and portfolio risk-attribution summaries under multiple explicit scenario assumptions.
 - The target workbook is not just a data export; it is a formatted report artifact with multiple sections, derived metrics, and workbook-level layout concerns. We therefore need an explicit workbook-rendering layer instead of treating the current CSV as the final output format.
 - A practical delivery sequence is: stabilize instrument mapping and exposure normalization first, add bucket/risk calculations second, then implement workbook generation and formatting last.
