@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import math
 from pathlib import Path
+from types import SimpleNamespace
+from urllib.error import HTTPError
 
 import pandas as pd
 import pytest
@@ -147,3 +149,80 @@ def test_load_symbol_return_cache_round_trips_written_payload(tmp_path: Path) ->
     assert loaded is not None
     assert loaded.symbol == "SPYL.L"
     assert loaded.series.equals(cache.series)
+
+
+def test_ensure_symbol_return_cache_reuses_stale_cache_on_transient_fetch_error(tmp_path: Path) -> None:
+    stale_cache = YahooReturnCache(
+        symbol="SPY",
+        currency="USD",
+        source="yahoo_finance",
+        price_field="adjclose",
+        return_method="log",
+        interval="1d",
+        period="5y",
+        generated_at="2024-01-03T00:00:00",
+        series=pd.Series(
+            [0.01, -0.02],
+            index=pd.DatetimeIndex([pd.Timestamp("2024-01-02"), pd.Timestamp("2024-01-03")]),
+            dtype=float,
+        ),
+    )
+    write_symbol_return_cache(stale_cache, cache_dir=tmp_path)
+
+    def fake_download(_url: str) -> dict[str, object]:
+        raise HTTPError(
+            url="https://query1.finance.yahoo.com",
+            code=429,
+            msg="Too Many Requests",
+            hdrs={"Retry-After": "0"},
+            fp=None,
+        )
+
+    cached = ensure_symbol_return_cache(
+        "SPY",
+        yahoo_client=YahooFinanceClient(
+            downloader=fake_download,
+            max_attempts=1,
+            sleep=lambda _seconds: None,
+        ),
+        cache_dir=tmp_path,
+        now=pd.Timestamp("2024-01-08"),
+    )
+
+    assert cached.series.equals(stale_cache.series)
+
+
+def test_build_internal_id_return_series_from_yahoo_skips_transient_fetch_failures(tmp_path: Path) -> None:
+    from market_helper.domain.portfolio_monitor.services.yahoo_returns import (
+        build_internal_id_return_series_from_yahoo,
+    )
+
+    def fake_download(_url: str) -> dict[str, object]:
+        raise HTTPError(
+            url="https://query1.finance.yahoo.com",
+            code=429,
+            msg="Too Many Requests",
+            hdrs={"Retry-After": "0"},
+            fp=None,
+        )
+
+    rows = [
+        SimpleNamespace(
+            mapping_status="mapped",
+            asset_class="EQ",
+            internal_id="STK:SPY:SMART",
+            yahoo_symbol="SPY",
+        )
+    ]
+
+    built = build_internal_id_return_series_from_yahoo(
+        rows,
+        yahoo_client=YahooFinanceClient(
+            downloader=fake_download,
+            max_attempts=1,
+            sleep=lambda _seconds: None,
+        ),
+        cache_dir=tmp_path,
+    )
+
+    assert built == {}

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
+from urllib.error import HTTPError
 
 import pandas as pd
 import pytest
@@ -113,6 +114,7 @@ def test_build_risk_html_report_renders_summary_and_tables(tmp_path: Path) -> No
     assert "Goldilocks Expansion" in rendered
     assert "SPY" in rendered
     assert "10Y TF" in rendered
+    assert "<tr><td>FI</td><td>FI</td>" not in rendered
 
 
 def test_build_risk_html_report_uses_security_reference_for_enrichment(tmp_path: Path) -> None:
@@ -352,6 +354,91 @@ def test_build_risk_html_report_accepts_dated_returns_override(tmp_path: Path) -
     assert "Portfolio Risk Report" in rendered
     assert "SPY" in rendered
     assert "ZN" in rendered
+
+
+def test_security_vol_uses_duration_scaled_fi_proxy_when_returns_missing() -> None:
+    value = risk_html_module._security_vol(
+        returns=pd.Series(dtype=float),
+        asset_class="FI",
+        duration=7.627,
+        proxy={"MOVE": 110.0},
+        method="ewma",
+    )
+
+    assert value == pytest.approx(0.083897, rel=1e-6)
+
+
+def test_build_risk_html_report_falls_back_to_proxy_when_yahoo_rate_limited(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    positions_csv = tmp_path / "positions.csv"
+    positions_csv.write_text(
+        "\n".join(
+            [
+                "as_of,account,internal_id,con_id,symbol,local_symbol,exchange,currency,source,quantity,avg_cost,latest_price,market_value,cost_basis,unrealized_pnl,weight",
+                "2026-03-26T00:00:00+00:00,U1,FUT:ZN:CBOT,815824229,ZN,ZNM6,CBOT,USD,ibkr,1,110,111,111000,110000,1000,1.0",
+            ]
+        ),
+        encoding="utf-8",
+    )
+
+    security_reference_path = tmp_path / "security_reference.csv"
+    export_security_reference_csv(
+        [
+            SecurityReference(
+                internal_id="FUT:ZN:CBOT",
+                asset_class="FI",
+                canonical_symbol="ZN",
+                display_ticker="ZNW00:CBOT",
+                display_name="10Y TF",
+                currency="USD",
+                primary_exchange="CBOT",
+                multiplier=1000.0,
+                ibkr_sec_type="FUT",
+                ibkr_symbol="ZN",
+                ibkr_exchange="CBOT",
+                yahoo_symbol="ZN=F",
+                dir_exposure="L",
+                mod_duration=7.627,
+                fi_tenor="7-10Y",
+                lookup_status="cached",
+            )
+        ],
+        security_reference_path,
+    )
+
+    proxy_json = tmp_path / "proxy.json"
+    proxy_json.write_text(json.dumps({"MOVE": 110.0}), encoding="utf-8")
+    monkeypatch.setattr(risk_html_module, "DEFAULT_YAHOO_RETURNS_CACHE_DIR", tmp_path / "yahoo_cache")
+
+    def fake_download(_url: str) -> dict[str, object]:
+        raise HTTPError(
+            url="https://query1.finance.yahoo.com",
+            code=429,
+            msg="Too Many Requests",
+            hdrs={"Retry-After": "0"},
+            fp=None,
+        )
+
+    output_path = tmp_path / "risk_report.html"
+    build_risk_html_report(
+        positions_csv_path=positions_csv,
+        output_path=output_path,
+        proxy_path=proxy_json,
+        security_reference_path=security_reference_path,
+        yahoo_client=YahooFinanceClient(
+            downloader=fake_download,
+            max_attempts=1,
+            sleep=lambda _seconds: None,
+        ),
+    )
+
+    rendered = output_path.read_text(encoding="utf-8")
+    assert "Portfolio Risk Report" in rendered
+    assert "10Y TF" in rendered
+    assert "8.39%" in rendered
+    assert "110.00%" not in rendered
 
 
 def test_build_risk_html_report_raises_for_mapped_row_missing_yahoo_symbol(tmp_path: Path) -> None:
