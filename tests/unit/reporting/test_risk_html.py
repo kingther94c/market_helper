@@ -20,6 +20,23 @@ from market_helper.reporting.risk_html import (
 )
 
 
+def _single_price_chart(level: float) -> dict[str, object]:
+    return {
+        "chart": {
+            "result": [
+                {
+                    "meta": {"currency": "USD"},
+                    "timestamp": [1],
+                    "indicators": {
+                        "quote": [{"close": [level]}],
+                        "adjclose": [{"adjclose": [level]}],
+                    },
+                }
+            ]
+        }
+    }
+
+
 def test_historical_geomean_vol_uses_1m_3m_windows() -> None:
     returns = [0.001 * ((idx % 5) - 2) for idx in range(80)]
     value = historical_geomean_vol(returns)
@@ -47,6 +64,62 @@ def test_funded_aum_counts_only_stk_like_and_cash_rows() -> None:
     )
 
     assert funded_aum == 8200.0
+
+
+def test_load_proxy_defaults_from_yahoo_and_sets_default_semantics() -> None:
+    risk_html_module._YAHOO_PROXY_LEVEL_CACHE.clear()
+
+    def fake_download(url: str) -> dict[str, object]:
+        if "%5EVIX" in url:
+            return _single_price_chart(19.2)
+        if "%5EMOVE" in url:
+            return _single_price_chart(104.5)
+        if "%5EOVX" in url:
+            return _single_price_chart(27.1)
+        if "%5EGVZ" in url:
+            return _single_price_chart(21.4)
+        raise AssertionError(f"Unexpected Yahoo URL: {url}")
+
+    proxy = risk_html_module._load_proxy(
+        None,
+        yahoo_client=YahooFinanceClient(downloader=fake_download),
+    )
+
+    assert proxy["VIX"] == pytest.approx(19.2)
+    assert proxy["MOVE"] == pytest.approx(104.5)
+    assert proxy["OVX"] == pytest.approx(27.1)
+    assert proxy["GVZ"] == pytest.approx(21.4)
+    assert proxy["FXVOL"] == 0.0
+    assert proxy["DEFAULT"] == pytest.approx(proxy["VIX"])
+    assert risk_html_module.estimated_asset_class_vol("FX", proxy) == 0.0
+    assert risk_html_module.estimated_asset_class_vol("MACRO", proxy) == pytest.approx(0.192)
+
+
+def test_load_proxy_config_resolves_default_alias_to_yahoo_vix(tmp_path: Path) -> None:
+    risk_html_module._YAHOO_PROXY_LEVEL_CACHE.clear()
+    proxy_json = tmp_path / "proxy.json"
+    proxy_json.write_text(
+        json.dumps({"DEFAULT": "VIX", "FXVOL": 0, "FI_10Y_EQ_MOD_DURATION": 8.0}),
+        encoding="utf-8",
+    )
+
+    proxy = risk_html_module._load_proxy(
+        proxy_json,
+        yahoo_client=YahooFinanceClient(
+            downloader=lambda url: (
+                _single_price_chart(17.8)
+                if "%5EVIX" in url
+                else _single_price_chart(109.0)
+                if "%5EMOVE" in url
+                else _single_price_chart(24.0)
+            )
+        ),
+    )
+
+    assert proxy["DEFAULT"] == pytest.approx(17.8)
+    assert proxy["FXVOL"] == 0.0
+    assert proxy["VIX"] == pytest.approx(17.8)
+    assert proxy["MOVE"] == pytest.approx(109.0)
 
 
 def test_build_risk_html_report_renders_summary_and_tables(tmp_path: Path) -> None:
@@ -210,6 +283,7 @@ def test_build_risk_html_report_uses_yahoo_cache_when_no_returns_override(
     tmp_path: Path,
     monkeypatch,
 ) -> None:
+    risk_html_module._YAHOO_PROXY_LEVEL_CACHE.clear()
     positions_csv = tmp_path / "positions.csv"
     positions_csv.write_text(
         "\n".join(
@@ -305,7 +379,7 @@ def test_build_risk_html_report_uses_yahoo_cache_when_no_returns_override(
     )
 
     rendered = output_path.read_text(encoding="utf-8")
-    assert calls["count"] == 1
+    assert calls["count"] == 5
     assert "Portfolio Risk Report" in rendered
     assert "SPY" in rendered
     assert (tmp_path / "yahoo_cache" / "SPY.json").exists()

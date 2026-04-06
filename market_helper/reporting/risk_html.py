@@ -48,6 +48,22 @@ HIST_3M_DAYS = 63
 OPTION_LOCAL_SYMBOL_RE = re.compile(r"\s\d{6}[CP]\d+")
 DEFAULT_MOVE_TO_YIELD_VOL_FACTOR = 0.0001
 DEFAULT_FI_10Y_EQ_MOD_DURATION = 8.0
+DEFAULT_PROXY_LEVELS = {
+    "VIX": 18.0,
+    "MOVE": 110.0,
+    "OVX": 25.0,
+    "GVZ": 25.0,
+}
+DEFAULT_PROXY_YAHOO_SYMBOLS = {
+    "VIX": "^VIX",
+    "MOVE": "^MOVE",
+    "OVX": "^OVX",
+    "GVZ": "^GVZ",
+}
+DEFAULT_PROXY_YAHOO_PERIOD = "1mo"
+DEFAULT_PROXY_YAHOO_INTERVAL = "1d"
+DEFAULT_PROXY_FXVOL = 0.0
+_YAHOO_PROXY_LEVEL_CACHE: dict[str, float] = {}
 DEFAULT_EQ_COUNTRY_LOOKTHROUGH_PATH = (
     Path(__file__).resolve().parents[2] / "configs" / "portfolio_monitor" / "eq_country_lookthrough.csv"
 )
@@ -183,8 +199,9 @@ def build_risk_html_report(
     vol_method: str = "geomean_1m_3m",
     inter_asset_corr: str = "historical",
 ) -> Path:
+    resolved_yahoo_client = yahoo_client or YahooFinanceClient()
     reference_table = _load_security_reference_table(security_reference_path)
-    proxy = _load_proxy(proxy_path)
+    proxy = _load_proxy(proxy_path, yahoo_client=resolved_yahoo_client)
     fi_10y_eq_mod_duration = _resolve_fi_10y_eq_mod_duration(proxy)
     rows = load_position_rows(
         positions_csv_path,
@@ -194,7 +211,7 @@ def build_risk_html_report(
     returns = _load_or_build_returns(
         returns_path=returns_path,
         rows=rows,
-        yahoo_client=yahoo_client or YahooFinanceClient(),
+        yahoo_client=resolved_yahoo_client,
     )
     regime_summary = _load_regime_summary(regime_path)
 
@@ -576,18 +593,18 @@ def ewma_vol(returns: list[float], *, decay: float = 0.94) -> float:
 def estimated_asset_class_vol(asset_class: str, proxy: Mapping[str, float]) -> float:
     name = asset_class.upper()
     if name == "EQ":
-        return proxy.get("VIX", 18.0) / 100.0
+        return proxy.get("VIX", DEFAULT_PROXY_LEVELS["VIX"]) / 100.0
     if name == "FI":
-        return proxy.get("MOVE", 110.0) / 100.0
+        return proxy.get("MOVE", DEFAULT_PROXY_LEVELS["MOVE"]) / 100.0
     if name == "CM":
-        return proxy.get("OVX", proxy.get("GVZ", 25.0)) / 100.0
+        return proxy.get("OVX", proxy.get("GVZ", DEFAULT_PROXY_LEVELS["GVZ"])) / 100.0
     if name == "CASH":
         return 0.01
     if name == "FX":
-        return proxy.get("FXVOL", proxy.get("DEFAULT", 12.0)) / 100.0
+        return proxy.get("FXVOL", DEFAULT_PROXY_FXVOL) / 100.0
     if name == "MACRO":
-        return proxy.get("DEFAULT", 20.0) / 100.0
-    return proxy.get("DEFAULT", 20.0) / 100.0
+        return proxy.get("DEFAULT", proxy.get("VIX", DEFAULT_PROXY_LEVELS["VIX"])) / 100.0
+    return proxy.get("DEFAULT", proxy.get("VIX", DEFAULT_PROXY_LEVELS["VIX"])) / 100.0
 
 
 def build_historical_correlation(
@@ -1338,13 +1355,117 @@ def _load_returns(path: str | Path) -> dict[str, pd.Series]:
     return load_internal_id_return_series_override(path)
 
 
-def _load_proxy(path: str | Path | None) -> dict[str, float]:
+def _load_proxy(
+    path: str | Path | None,
+    *,
+    yahoo_client: YahooFinanceClient,
+) -> dict[str, float]:
+    loaded = _load_proxy_payload(path)
+    proxy, aliases = _parse_proxy_payload(loaded)
+    proxy = _populate_proxy_defaults_from_yahoo(proxy, yahoo_client=yahoo_client)
+    _resolve_proxy_aliases(proxy, aliases)
+    proxy.setdefault("FXVOL", DEFAULT_PROXY_FXVOL)
+    proxy.setdefault("DEFAULT", proxy.get("VIX", DEFAULT_PROXY_LEVELS["VIX"]))
+    return proxy
+
+
+def _load_proxy_payload(path: str | Path | None) -> Mapping[str, Any]:
     if path is None:
         return {}
     loaded = json.loads(Path(path).read_text(encoding="utf-8"))
     if not isinstance(loaded, dict):
         raise ValueError("Expected proxy JSON object, e.g. {'VIX': 19.2}")
-    return {str(k).upper(): float(v) for k, v in loaded.items() if isinstance(v, (int, float, str))}
+    return loaded
+
+
+def _parse_proxy_payload(loaded: Mapping[str, Any]) -> tuple[dict[str, float], dict[str, str]]:
+    proxy: dict[str, float] = {}
+    aliases: dict[str, str] = {}
+    for raw_key, raw_value in loaded.items():
+        key = str(raw_key).strip().upper()
+        if not key:
+            continue
+        if isinstance(raw_value, (int, float)):
+            proxy[key] = float(raw_value)
+            continue
+        if not isinstance(raw_value, str):
+            continue
+        stripped = raw_value.strip()
+        if not stripped:
+            continue
+        try:
+            proxy[key] = float(stripped)
+        except ValueError:
+            aliases[key] = stripped.upper()
+    return proxy, aliases
+
+
+def _populate_proxy_defaults_from_yahoo(
+    proxy: Mapping[str, float],
+    *,
+    yahoo_client: YahooFinanceClient,
+) -> dict[str, float]:
+    resolved = dict(proxy)
+    for key, fallback in DEFAULT_PROXY_LEVELS.items():
+        if key in resolved:
+            continue
+        try:
+            resolved[key] = _fetch_proxy_level_from_yahoo(key, yahoo_client=yahoo_client)
+        except (RuntimeError, ValueError):
+            resolved[key] = fallback
+    resolved.setdefault("FXVOL", DEFAULT_PROXY_FXVOL)
+    resolved.setdefault("DEFAULT", resolved.get("VIX", DEFAULT_PROXY_LEVELS["VIX"]))
+    return resolved
+
+
+def _resolve_proxy_aliases(proxy: dict[str, float], aliases: Mapping[str, str]) -> None:
+    pending = dict(aliases)
+    while pending:
+        progressed = False
+        for key, alias in list(pending.items()):
+            if alias not in proxy:
+                continue
+            proxy[key] = float(proxy[alias])
+            del pending[key]
+            progressed = True
+        if progressed:
+            continue
+        unresolved = ", ".join(f"{key}->{alias}" for key, alias in sorted(pending.items()))
+        raise ValueError(f"Unresolved proxy aliases: {unresolved}")
+
+
+def _fetch_proxy_level_from_yahoo(
+    key: str,
+    *,
+    yahoo_client: YahooFinanceClient,
+) -> float:
+    yahoo_symbol = DEFAULT_PROXY_YAHOO_SYMBOLS[key]
+    cached = _YAHOO_PROXY_LEVEL_CACHE.get(yahoo_symbol)
+    if cached is not None:
+        return cached
+    history = yahoo_client.fetch_price_history(
+        yahoo_symbol,
+        period=DEFAULT_PROXY_YAHOO_PERIOD,
+        interval=DEFAULT_PROXY_YAHOO_INTERVAL,
+    )
+    level = _latest_yahoo_history_level(history)
+    _YAHOO_PROXY_LEVEL_CACHE[yahoo_symbol] = level
+    return level
+
+
+def _latest_yahoo_history_level(history: Mapping[str, Any]) -> float:
+    prices = history.get("prices") if isinstance(history, Mapping) else None
+    if not isinstance(prices, list) or not prices:
+        raise ValueError("Yahoo proxy history returned no prices")
+    last_row = prices[-1]
+    if not isinstance(last_row, Mapping):
+        raise ValueError("Yahoo proxy history returned an invalid price row")
+    value = last_row.get("adjclose")
+    if value in (None, ""):
+        value = last_row.get("close")
+    if value in (None, ""):
+        raise ValueError("Yahoo proxy history returned no usable latest price")
+    return float(value)
 
 
 def _load_regime_summary(path: str | Path | None) -> RegimeReportSummary | None:

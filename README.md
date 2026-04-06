@@ -146,6 +146,21 @@ Example:
 ACCOUNT_ENV=dev ./scripts/run_report.sh ibkr-live --client-id 7
 ```
 
+End-to-end live position -> HTML risk report:
+
+```bash
+./scripts/run_report.sh ibkr-live-html \
+  --host 127.0.0.1 \
+  --port 7497 \
+  --client-id 7 \
+  --account U12345
+```
+
+- This first writes the live position CSV, then immediately builds the HTML risk report from that CSV.
+- `--output` controls the final HTML path.
+- `--positions-output` optionally overrides where the intermediate live position CSV is written.
+- If `--proxy` is omitted, the script defaults to `configs/portfolio_monitor/proxy.json`.
+
 
 Generate an HTML risk report (historical vol + estimate vol + correlation-based portfolio risk):
 
@@ -153,12 +168,14 @@ Generate an HTML risk report (historical vol + estimate vol + correlation-based 
 conda run -n py313 python -m market_helper.cli.main risk-html-report \
   --positions-csv data/artifacts/portfolio_monitor/live_ibkr_position_report.csv \
   --returns data/processed/returns.json \
-  --proxy data/processed/risk_proxy.json \
   --output data/artifacts/portfolio_monitor/portfolio_risk_report.html
 ```
 
 - `--returns` expects JSON: `{"INTERNAL_ID": [daily_return_1, ...]}`
-- `--proxy` is optional JSON for estimate-vol inputs (e.g. `VIX`, `MOVE`, `GVZ`, `OVX`).
+- `--proxy` is optional JSON for estimate-vol inputs.
+  If omitted, `risk-html-report` pulls `VIX`, `MOVE`, `OVX`, and `GVZ` from Yahoo Finance daily history, sets `FXVOL=0`, and makes `DEFAULT` follow `VIX`.
+  If provided, the JSON can also use aliases such as `{"DEFAULT": "VIX", "FXVOL": 0}`.
+  The repo default lives at `configs/portfolio_monitor/proxy.json`.
 - `--regime` is optional regime snapshot JSON (from `regime-detect`) to add a top-of-report regime banner and factor scores.
 
 Script wrapper:
@@ -166,8 +183,7 @@ Script wrapper:
 ```bash
 ./scripts/run_report.sh risk-html \
   --positions-csv data/artifacts/portfolio_monitor/live_ibkr_position_report.csv \
-  --returns data/processed/returns.json \
-  --proxy data/processed/risk_proxy.json
+  --returns data/processed/returns.json
 ```
 
 If `--output` is omitted, the script writes to:
