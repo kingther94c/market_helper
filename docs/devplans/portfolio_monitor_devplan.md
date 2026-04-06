@@ -21,4 +21,5 @@
 - Hardened Yahoo risk-history retrieval so HTTP `429` / transient failures now retry with backoff, respect `Retry-After`, reuse stale symbol caches when refresh fails, and skip transiently unavailable symbols so the report can still fall back to proxy-risk estimates.
 - Corrected fixed-income proxy fallback semantics so `MOVE` is no longer treated as direct FI price volatility; the report now maps proxy yield-vol through `fi_mod_duration`, producing realistic fallback vols for treasury and bond exposures.
 - Cleaned up the HTML risk `Asset Class Summary` table with a dedicated renderer and exposure-first ordering so the section no longer inherits the generic breakdown-column mismatch.
+- Added report-only FI 10Y-equivalent exposure normalization for HTML dollar views, using `fi_mod_duration / FI_10Y_EQ_MOD_DURATION` with default base duration `8.0` from proxy config, while keeping volatility and contribution math on the original raw-risk basis.
 - Expanded unit coverage for volatility helpers, proxy/fixed-income helpers, Yahoo cache behavior, and risk-report regressions.

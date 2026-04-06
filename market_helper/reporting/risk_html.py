@@ -47,6 +47,7 @@ HIST_1M_DAYS = 21
 HIST_3M_DAYS = 63
 OPTION_LOCAL_SYMBOL_RE = re.compile(r"\s\d{6}[CP]\d+")
 DEFAULT_MOVE_TO_YIELD_VOL_FACTOR = 0.0001
+DEFAULT_FI_10Y_EQ_MOD_DURATION = 8.0
 DEFAULT_EQ_COUNTRY_LOOKTHROUGH_PATH = (
     Path(__file__).resolve().parents[2] / "configs" / "portfolio_monitor" / "eq_country_lookthrough.csv"
 )
@@ -86,6 +87,9 @@ class RiskInputRow:
     gross_exposure_usd: float
     signed_exposure_usd: float
     dollar_weight: float
+    display_exposure_usd: float
+    display_gross_exposure_usd: float
+    display_dollar_weight: float
     duration: float | None
     expected_vol: float | None
     local_symbol: str
@@ -180,8 +184,13 @@ def build_risk_html_report(
     inter_asset_corr: str = "historical",
 ) -> Path:
     reference_table = _load_security_reference_table(security_reference_path)
-    rows = load_position_rows(positions_csv_path, security_reference_table=reference_table)
     proxy = _load_proxy(proxy_path)
+    fi_10y_eq_mod_duration = _resolve_fi_10y_eq_mod_duration(proxy)
+    rows = load_position_rows(
+        positions_csv_path,
+        security_reference_table=reference_table,
+        fi_10y_eq_mod_duration=fi_10y_eq_mod_duration,
+    )
     returns = _load_or_build_returns(
         returns_path=returns_path,
         rows=rows,
@@ -242,10 +251,10 @@ def build_risk_html_report(
             quantity=row.quantity,
             multiplier=row.multiplier,
             market_value=row.market_value,
-            exposure_usd=row.signed_exposure_usd,
-            gross_exposure_usd=row.gross_exposure_usd,
+            exposure_usd=row.display_exposure_usd,
+            gross_exposure_usd=row.display_gross_exposure_usd,
             weight=row.weight,
-            dollar_weight=row.dollar_weight,
+            dollar_weight=row.display_dollar_weight,
             duration=row.duration,
             historical_vol=historical_vols[row.internal_id],
             estimated_vol=estimated_vols[row.internal_id],
@@ -267,8 +276,8 @@ def build_risk_html_report(
         historical_vol=portfolio_hist_vol,
         estimated_vol=portfolio_est_vol,
         funded_aum=_funded_aum(rows),
-        gross_exposure=sum(row.gross_exposure_usd for row in rows),
-        net_exposure=sum(row.signed_exposure_usd for row in rows),
+        gross_exposure=sum(row.display_gross_exposure_usd for row in rows),
+        net_exposure=sum(row.display_exposure_usd for row in rows),
         mapped_positions=sum(1 for row in rows if row.mapping_status == "mapped"),
         total_positions=len(rows),
     )
@@ -294,6 +303,7 @@ def load_position_rows(
     path: str | Path,
     *,
     security_reference_table: SecurityReferenceTable | None = None,
+    fi_10y_eq_mod_duration: float = DEFAULT_FI_10Y_EQ_MOD_DURATION,
 ) -> list[RiskInputRow]:
     with Path(path).open("r", encoding="utf-8", newline="") as handle:
         reader = csv.DictReader(handle)
@@ -402,41 +412,56 @@ def load_position_rows(
         )
 
     funded_aum = _funded_aum_from_dicts(parsed_rows)
-    return [
-        RiskInputRow(
-            internal_id=str(row["internal_id"]),
-            symbol=str(row["symbol"]),
-            canonical_symbol=str(row["canonical_symbol"]),
-            account=str(row["account"]),
-            market_value=float(row["market_value"]),
-            weight=float(row["weight"]),
+    materialized_rows: list[RiskInputRow] = []
+    for row in parsed_rows:
+        duration = _optional_float(row.get("duration"))
+        display_gross_exposure_usd, display_exposure_usd = _display_exposure_values(
             asset_class=str(row["asset_class"]),
-            category=str(row["category"]),
-            display_ticker=str(row["display_ticker"]),
-            display_name=str(row["display_name"]),
-            instrument_type=str(row["instrument_type"]),
-            quantity=float(row["quantity"]),
-            latest_price=float(row["latest_price"]),
-            multiplier=float(row["multiplier"]),
-            exposure_usd=float(row["signed_exposure_usd"]),
             gross_exposure_usd=float(row["gross_exposure_usd"]),
             signed_exposure_usd=float(row["signed_exposure_usd"]),
-            dollar_weight=(
-                float(row["gross_exposure_usd"]) / funded_aum if funded_aum > 0 else float(row["weight"])
-            ),
-            duration=_optional_float(row.get("duration")),
-            expected_vol=None,
-            local_symbol=str(row["local_symbol"]),
-            exchange=str(row["exchange"]),
-            mapping_status=str(row["mapping_status"]),
-            dir_exposure=str(row["dir_exposure"]),
-            eq_country=str(row["eq_country"]),
-            eq_sector=str(row["eq_sector"]),
-            fi_tenor=str(row["fi_tenor"]),
-            yahoo_symbol=str(row["yahoo_symbol"]),
+            duration=duration,
+            fi_10y_eq_mod_duration=fi_10y_eq_mod_duration,
         )
-        for row in parsed_rows
-    ]
+        materialized_rows.append(
+            RiskInputRow(
+                internal_id=str(row["internal_id"]),
+                symbol=str(row["symbol"]),
+                canonical_symbol=str(row["canonical_symbol"]),
+                account=str(row["account"]),
+                market_value=float(row["market_value"]),
+                weight=float(row["weight"]),
+                asset_class=str(row["asset_class"]),
+                category=str(row["category"]),
+                display_ticker=str(row["display_ticker"]),
+                display_name=str(row["display_name"]),
+                instrument_type=str(row["instrument_type"]),
+                quantity=float(row["quantity"]),
+                latest_price=float(row["latest_price"]),
+                multiplier=float(row["multiplier"]),
+                exposure_usd=float(row["signed_exposure_usd"]),
+                gross_exposure_usd=float(row["gross_exposure_usd"]),
+                signed_exposure_usd=float(row["signed_exposure_usd"]),
+                dollar_weight=(
+                    float(row["gross_exposure_usd"]) / funded_aum if funded_aum > 0 else float(row["weight"])
+                ),
+                display_exposure_usd=display_exposure_usd,
+                display_gross_exposure_usd=display_gross_exposure_usd,
+                display_dollar_weight=(
+                    display_gross_exposure_usd / funded_aum if funded_aum > 0 else float(row["weight"])
+                ),
+                duration=duration,
+                expected_vol=None,
+                local_symbol=str(row["local_symbol"]),
+                exchange=str(row["exchange"]),
+                mapping_status=str(row["mapping_status"]),
+                dir_exposure=str(row["dir_exposure"]),
+                eq_country=str(row["eq_country"]),
+                eq_sector=str(row["eq_sector"]),
+                fi_tenor=str(row["fi_tenor"]),
+                yahoo_symbol=str(row["yahoo_symbol"]),
+            )
+        )
+    return materialized_rows
 
 
 def infer_asset_class(symbol: str, exchange: str) -> str:
@@ -1081,8 +1106,8 @@ def _build_breakdown(
     for row in rows:
         for bucket, weight in expander(row):
             existing = aggregated.get(bucket)
-            net_exposure = row.signed_exposure_usd * weight
-            gross_exposure = row.gross_exposure_usd * weight
+            net_exposure = row.display_exposure_usd * weight
+            gross_exposure = row.display_gross_exposure_usd * weight
             contribution = abs(estimated_loadings.get(row.internal_id, 0.0) * weight)
             if existing is None:
                 aggregated[bucket] = BreakdownRow(
@@ -1211,6 +1236,44 @@ def _multiplier(
         latest_price=latest_price,
         market_value=market_value,
         local_symbol=local_symbol,
+    )
+
+
+def _resolve_fi_10y_eq_mod_duration(proxy: Mapping[str, float]) -> float:
+    value = float(proxy.get("FI_10Y_EQ_MOD_DURATION", DEFAULT_FI_10Y_EQ_MOD_DURATION))
+    if value <= 0:
+        raise ValueError("FI_10Y_EQ_MOD_DURATION must be positive")
+    return value
+
+
+def _fi_10y_equivalent_exposure_values(
+    *,
+    gross_exposure_usd: float,
+    signed_exposure_usd: float,
+    duration: float,
+    fi_10y_eq_mod_duration: float,
+) -> tuple[float, float]:
+    if fi_10y_eq_mod_duration <= 0:
+        raise ValueError("fi_10y_eq_mod_duration must be positive")
+    scale = float(duration) / fi_10y_eq_mod_duration
+    return gross_exposure_usd * scale, signed_exposure_usd * scale
+
+
+def _display_exposure_values(
+    *,
+    asset_class: str,
+    gross_exposure_usd: float,
+    signed_exposure_usd: float,
+    duration: float | None,
+    fi_10y_eq_mod_duration: float,
+) -> tuple[float, float]:
+    if asset_class.upper() != "FI" or duration is None or duration <= 0:
+        return gross_exposure_usd, signed_exposure_usd
+    return _fi_10y_equivalent_exposure_values(
+        gross_exposure_usd=gross_exposure_usd,
+        signed_exposure_usd=signed_exposure_usd,
+        duration=duration,
+        fi_10y_eq_mod_duration=fi_10y_eq_mod_duration,
     )
 
 
