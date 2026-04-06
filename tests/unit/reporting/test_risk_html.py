@@ -356,6 +356,327 @@ def test_build_risk_html_report_accepts_dated_returns_override(tmp_path: Path) -
     assert "ZN" in rendered
 
 
+def test_fi_10y_equivalent_exposure_values_scale_and_preserve_sign() -> None:
+    gross, signed = risk_html_module._fi_10y_equivalent_exposure_values(
+        gross_exposure_usd=100.0,
+        signed_exposure_usd=-100.0,
+        duration=4.0,
+        fi_10y_eq_mod_duration=8.0,
+    )
+
+    assert gross == pytest.approx(50.0)
+    assert signed == pytest.approx(-50.0)
+
+
+def test_resolve_fi_10y_eq_mod_duration_rejects_non_positive_values() -> None:
+    with pytest.raises(ValueError, match="FI_10Y_EQ_MOD_DURATION must be positive"):
+        risk_html_module._resolve_fi_10y_eq_mod_duration({"FI_10Y_EQ_MOD_DURATION": 0.0})
+
+
+def test_build_risk_html_report_displays_fi_10y_equivalent_exposures_only(
+    tmp_path: Path,
+) -> None:
+    positions_csv = tmp_path / "positions.csv"
+    positions_csv.write_text(
+        "\n".join(
+            [
+                "as_of,account,internal_id,con_id,symbol,local_symbol,exchange,currency,source,quantity,avg_cost,latest_price,market_value,cost_basis,unrealized_pnl,weight",
+                "2026-03-26T00:00:00+00:00,U1,STK:SPY:SMART,756733,SPY,SPY,ARCA,USD,ibkr,10,500,510,10000,5000,100,0.5",
+                "2026-03-26T00:00:00+00:00,U1,STK:LQD:SMART,15547816,LQD,LQD,ARCA,USD,ibkr,10,100,100,8000,8000,0,0.1",
+                "2026-03-26T00:00:00+00:00,U1,FUT:ZT:CBOT,818615229,ZT,ZTM6,CBOT,USD,ibkr,1,100,100,8000,8000,0,0.1",
+                "2026-03-26T00:00:00+00:00,U1,FUT:ZF:CBOT,818615223,ZF,ZFM6,CBOT,USD,ibkr,1,100,100,8000,8000,0,0.1",
+                "2026-03-26T00:00:00+00:00,U1,FUT:ZN:CBOT,815824229,ZN,ZNM6,CBOT,USD,ibkr,1,100,100,8000,8000,0,0.1",
+            ]
+        ),
+        encoding="utf-8",
+    )
+
+    returns_json = tmp_path / "returns.json"
+    returns_json.write_text("{}", encoding="utf-8")
+
+    proxy_json = tmp_path / "proxy.json"
+    proxy_json.write_text(json.dumps({"VIX": 20.0, "MOVE": 110.0}), encoding="utf-8")
+
+    security_reference_path = tmp_path / "security_reference.csv"
+    export_security_reference_csv(
+        [
+            SecurityReference(
+                internal_id="STK:SPY:SMART",
+                asset_class="EQ",
+                canonical_symbol="SPY",
+                display_ticker="SPY",
+                display_name="US",
+                currency="USD",
+                primary_exchange="ARCA",
+                multiplier=1.0,
+                ibkr_sec_type="STK",
+                ibkr_symbol="SPY",
+                ibkr_exchange="SMART",
+                yahoo_symbol="SPY",
+                eq_country="US",
+                dir_exposure="L",
+                lookup_status="verified",
+            ),
+            SecurityReference(
+                internal_id="STK:LQD:SMART",
+                asset_class="FI",
+                canonical_symbol="LQD",
+                display_ticker="LQD",
+                display_name="CR",
+                currency="USD",
+                primary_exchange="ARCA",
+                multiplier=1.0,
+                ibkr_sec_type="STK",
+                ibkr_symbol="LQD",
+                ibkr_exchange="SMART",
+                yahoo_symbol="LQD",
+                dir_exposure="L",
+                mod_duration=8.379,
+                fi_tenor="7-10Y",
+                lookup_status="verified",
+            ),
+            SecurityReference(
+                internal_id="FUT:ZT:CBOT",
+                asset_class="FI",
+                canonical_symbol="ZT",
+                display_ticker="ZT",
+                display_name="2Y TF",
+                currency="USD",
+                primary_exchange="CBOT",
+                multiplier=1000.0,
+                ibkr_sec_type="FUT",
+                ibkr_symbol="ZT",
+                ibkr_exchange="CBOT",
+                yahoo_symbol="ZT=F",
+                dir_exposure="L",
+                mod_duration=1.879,
+                fi_tenor="1-3Y",
+                lookup_status="verified",
+            ),
+            SecurityReference(
+                internal_id="FUT:ZF:CBOT",
+                asset_class="FI",
+                canonical_symbol="ZF",
+                display_ticker="ZF",
+                display_name="5Y TF",
+                currency="USD",
+                primary_exchange="CBOT",
+                multiplier=1000.0,
+                ibkr_sec_type="FUT",
+                ibkr_symbol="ZF",
+                ibkr_exchange="CBOT",
+                yahoo_symbol="ZF=F",
+                dir_exposure="L",
+                mod_duration=4.333,
+                fi_tenor="3-5Y",
+                lookup_status="verified",
+            ),
+            SecurityReference(
+                internal_id="FUT:ZN:CBOT",
+                asset_class="FI",
+                canonical_symbol="ZN",
+                display_ticker="ZN",
+                display_name="10Y TF",
+                currency="USD",
+                primary_exchange="CBOT",
+                multiplier=1000.0,
+                ibkr_sec_type="FUT",
+                ibkr_symbol="ZN",
+                ibkr_exchange="CBOT",
+                yahoo_symbol="ZN=F",
+                dir_exposure="L",
+                mod_duration=7.627,
+                fi_tenor="7-10Y",
+                lookup_status="verified",
+            ),
+        ],
+        security_reference_path,
+    )
+
+    output_path = tmp_path / "risk_report.html"
+    build_risk_html_report(
+        positions_csv_path=positions_csv,
+        returns_path=returns_json,
+        output_path=output_path,
+        proxy_path=proxy_json,
+        security_reference_path=security_reference_path,
+    )
+
+    rendered = output_path.read_text(encoding="utf-8")
+    expected_display = {
+        "ZT": 8000.0 * 1.879 / 8.0,
+        "ZF": 8000.0 * 4.333 / 8.0,
+        "ZN": 8000.0 * 7.627 / 8.0,
+        "LQD": 8000.0 * 8.379 / 8.0,
+    }
+    for ticker, expected_gross in expected_display.items():
+        assert f"<td>{ticker}</td>" in rendered
+        assert f"{expected_gross:,.2f}" in rendered
+
+    expected_hybrid_gross = 10000.0 + sum(expected_display.values())
+    assert f"Gross exposure</span><strong>{expected_hybrid_gross:,.0f}</strong>" in rendered
+    assert "7,627.00" in rendered
+    assert "3.73%" in rendered
+
+
+def test_build_risk_html_report_respects_fi_10y_eq_mod_duration_override(
+    tmp_path: Path,
+) -> None:
+    positions_csv = tmp_path / "positions.csv"
+    positions_csv.write_text(
+        "\n".join(
+            [
+                "as_of,account,internal_id,con_id,symbol,local_symbol,exchange,currency,source,quantity,avg_cost,latest_price,market_value,cost_basis,unrealized_pnl,weight",
+                "2026-03-26T00:00:00+00:00,U1,STK:SPY:SMART,756733,SPY,SPY,ARCA,USD,ibkr,10,500,510,10000,5000,100,0.5",
+                "2026-03-26T00:00:00+00:00,U1,FUT:ZN:CBOT,815824229,ZN,ZNM6,CBOT,USD,ibkr,1,100,100,8000,8000,0,0.5",
+            ]
+        ),
+        encoding="utf-8",
+    )
+
+    returns_json = tmp_path / "returns.json"
+    returns_json.write_text("{}", encoding="utf-8")
+
+    proxy_json = tmp_path / "proxy.json"
+    proxy_json.write_text(
+        json.dumps({"MOVE": 110.0, "FI_10Y_EQ_MOD_DURATION": 10.0}),
+        encoding="utf-8",
+    )
+
+    security_reference_path = tmp_path / "security_reference.csv"
+    export_security_reference_csv(
+        [
+            SecurityReference(
+                internal_id="STK:SPY:SMART",
+                asset_class="EQ",
+                canonical_symbol="SPY",
+                display_ticker="SPY",
+                display_name="US",
+                currency="USD",
+                primary_exchange="ARCA",
+                multiplier=1.0,
+                ibkr_sec_type="STK",
+                ibkr_symbol="SPY",
+                ibkr_exchange="SMART",
+                yahoo_symbol="SPY",
+                eq_country="US",
+                dir_exposure="L",
+                lookup_status="verified",
+            ),
+            SecurityReference(
+                internal_id="FUT:ZN:CBOT",
+                asset_class="FI",
+                canonical_symbol="ZN",
+                display_ticker="ZN",
+                display_name="10Y TF",
+                currency="USD",
+                primary_exchange="CBOT",
+                multiplier=1000.0,
+                ibkr_sec_type="FUT",
+                ibkr_symbol="ZN",
+                ibkr_exchange="CBOT",
+                yahoo_symbol="ZN=F",
+                dir_exposure="L",
+                mod_duration=7.627,
+                fi_tenor="7-10Y",
+                lookup_status="verified",
+            ),
+        ],
+        security_reference_path,
+    )
+
+    output_path = tmp_path / "risk_report.html"
+    build_risk_html_report(
+        positions_csv_path=positions_csv,
+        returns_path=returns_json,
+        output_path=output_path,
+        proxy_path=proxy_json,
+        security_reference_path=security_reference_path,
+    )
+
+    rendered = output_path.read_text(encoding="utf-8")
+    assert "6,101.60" in rendered
+
+
+def test_build_risk_html_report_fi_display_exposure_falls_back_to_raw_without_duration(
+    tmp_path: Path,
+) -> None:
+    positions_csv = tmp_path / "positions.csv"
+    positions_csv.write_text(
+        "\n".join(
+            [
+                "as_of,account,internal_id,con_id,symbol,local_symbol,exchange,currency,source,quantity,avg_cost,latest_price,market_value,cost_basis,unrealized_pnl,weight",
+                "2026-03-26T00:00:00+00:00,U1,STK:SPY:SMART,756733,SPY,SPY,ARCA,USD,ibkr,10,500,510,10000,5000,100,0.5",
+                "2026-03-26T00:00:00+00:00,U1,FUT:ZN:CBOT,815824229,ZN,ZNM6,CBOT,USD,ibkr,1,100,100,8000,8000,0,0.5",
+            ]
+        ),
+        encoding="utf-8",
+    )
+
+    returns_json = tmp_path / "returns.json"
+    returns_json.write_text(
+        json.dumps(
+            {
+                "STK:SPY:SMART": [0.001 * ((idx % 7) - 3) for idx in range(90)],
+                "FUT:ZN:CBOT": [0.0007 * ((idx % 5) - 2) for idx in range(90)],
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    security_reference_path = tmp_path / "security_reference.csv"
+    export_security_reference_csv(
+        [
+            SecurityReference(
+                internal_id="STK:SPY:SMART",
+                asset_class="EQ",
+                canonical_symbol="SPY",
+                display_ticker="SPY",
+                display_name="US",
+                currency="USD",
+                primary_exchange="ARCA",
+                multiplier=1.0,
+                ibkr_sec_type="STK",
+                ibkr_symbol="SPY",
+                ibkr_exchange="SMART",
+                yahoo_symbol="SPY",
+                eq_country="US",
+                dir_exposure="L",
+                lookup_status="verified",
+            ),
+            SecurityReference(
+                internal_id="FUT:ZN:CBOT",
+                asset_class="FI",
+                canonical_symbol="ZN",
+                display_ticker="ZN",
+                display_name="10Y TF",
+                currency="USD",
+                primary_exchange="CBOT",
+                multiplier=1000.0,
+                ibkr_sec_type="FUT",
+                ibkr_symbol="ZN",
+                ibkr_exchange="CBOT",
+                yahoo_symbol="ZN=F",
+                dir_exposure="L",
+                fi_tenor="7-10Y",
+                lookup_status="verified",
+            ),
+        ],
+        security_reference_path,
+    )
+
+    output_path = tmp_path / "risk_report.html"
+    build_risk_html_report(
+        positions_csv_path=positions_csv,
+        returns_path=returns_json,
+        output_path=output_path,
+        security_reference_path=security_reference_path,
+    )
+
+    rendered = output_path.read_text(encoding="utf-8")
+    assert "8,000.00" in rendered
+
+
 def test_security_vol_uses_duration_scaled_fi_proxy_when_returns_missing() -> None:
     value = risk_html_module._security_vol(
         returns=pd.Series(dtype=float),
