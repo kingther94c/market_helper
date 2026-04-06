@@ -81,6 +81,7 @@ FI_TENOR_BUCKET_LABELS = {
     "20Y+": "Ultra-long",
     "UNASSIGNED": "",
 }
+FI_10Y_EQ_DISPLAY_NOTE = "FI dollar exposures are shown as 10Y-equivalent USD notional."
 
 
 @dataclass(frozen=True)
@@ -778,16 +779,17 @@ def render_html(
       <div class='metric'><span>Historical portfolio vol (1M/3M geomean, historical corr)</span><strong>{summary.historical_vol:.2%}</strong></div>
       <div class='metric'><span>Selected portfolio vol ({html.escape(vol_method)}, {html.escape(inter_asset_corr)})</span><strong>{summary.estimated_vol:.2%}</strong></div>
       <div class='metric'><span>Funded AUM</span><strong>{summary.funded_aum:,.0f}</strong></div>
-      <div class='metric'><span>Gross exposure</span><strong>{summary.gross_exposure:,.0f}</strong></div>
-      <div class='metric'><span>Net exposure</span><strong>{summary.net_exposure:,.0f}</strong></div>
+      <div class='metric'><span>Gross exposure (FI 10Y eq)</span><strong>{summary.gross_exposure:,.0f}</strong></div>
+      <div class='metric'><span>Net exposure (FI 10Y eq)</span><strong>{summary.net_exposure:,.0f}</strong></div>
       <div class='metric'><span>Mapping coverage</span><strong>{summary.mapped_positions}/{summary.total_positions}</strong></div>
     </div>
+    <p>{html.escape(FI_10Y_EQ_DISPLAY_NOTE)}</p>
   </div>
 
   <div class='card'>
     <h2>Asset Class Summary</h2>
     <table>
-      <thead><tr><th>Asset Class</th><th class='num'>Net Exposure</th><th class='num'>Gross Exposure</th><th class='num'>Dollar%</th><th class='num'>Vol Contribution</th></tr></thead>
+      <thead><tr><th>Asset Class</th><th class='num'>Net Exposure (FI 10Y Eq)</th><th class='num'>Gross Exposure (FI 10Y Eq)</th><th class='num'>Dollar%</th><th class='num'>Vol Contribution</th></tr></thead>
       <tbody>{allocation_rows}</tbody>
     </table>
   </div>
@@ -811,7 +813,7 @@ def render_html(
   <div class='card'>
     <h2>FI Tenor Breakdown</h2>
     <table>
-      <thead><tr><th>Tenor</th><th>Label</th><th>Scope</th><th class='num'>Net Exposure</th><th class='num'>Gross Exposure</th><th class='num'>Dollar%</th><th class='num'>Vol Contribution</th></tr></thead>
+      <thead><tr><th>Tenor</th><th>Label</th><th>Scope</th><th class='num'>Net 10Y Eq Exposure</th><th class='num'>Gross 10Y Eq Exposure</th><th class='num'>Dollar%</th><th class='num'>Vol Contribution</th></tr></thead>
       <tbody>{tenor_rows}</tbody>
     </table>
   </div>
@@ -822,7 +824,7 @@ def render_html(
       <thead>
         <tr>
           <th>Account</th><th>Ticker</th><th>Name</th><th>Asset Class</th><th>Type</th>
-          <th class='num'>Qty</th><th class='num'>Gross Exposure</th><th class='num'>Net Exposure</th>
+          <th class='num'>Qty</th><th class='num'>Gross Exposure (FI 10Y Eq)</th><th class='num'>Net Exposure (FI 10Y Eq)</th>
           <th class='num'>Dollar%</th><th class='num'>Est Vol</th><th class='num'>Vol Contribution</th>
           <th class='num'>Hist Vol</th><th>Mapping</th>
         </tr>
