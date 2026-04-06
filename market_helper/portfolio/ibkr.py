@@ -180,12 +180,14 @@ def resolve_ibkr_contract(
     if alias_match is not None:
         return alias_match
 
-    symbol_matches = reference_table.search_by_ibkr_symbol_sec_type(
+    runtime_match = reference_table.resolve_runtime_contract_match(
         symbol=contract.symbol,
         sec_type=contract.sec_type,
+        exchange=contract.exchange,
+        primary_exchange=contract.exchange,
     )
-    if len(symbol_matches) == 1:
-        return symbol_matches[0]
+    if runtime_match is not None:
+        return runtime_match
 
     if contract.sec_type.upper() == "CASH":
         cash_match = reference_table.resolve_cash_reference(
