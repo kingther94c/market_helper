@@ -68,6 +68,19 @@ require_file() {
     [[ -f "${path}" ]] || fail "Missing ${label} file: ${path}"
 }
 
+open_report_path() {
+    local path="$1"
+    if command -v open >/dev/null 2>&1; then
+        open "${path}" >/dev/null 2>&1 &
+        return 0
+    fi
+    if command -v xdg-open >/dev/null 2>&1; then
+        xdg-open "${path}" >/dev/null 2>&1 &
+        return 0
+    fi
+    return 1
+}
+
 resolve_live_account() {
     if [[ -n "${ACCOUNT_ID}" ]]; then
         return
@@ -301,6 +314,11 @@ if [[ "${MODE}" == "ibkr-live-html" ]]; then
     echo "Live positions written to ${POSITIONS_OUTPUT_PATH}"
     "${RISK_COMMAND[@]}"
     echo "Report written to ${OUTPUT_PATH}"
+    if open_report_path "${OUTPUT_PATH}"; then
+        echo "Opened report in your default browser."
+    else
+        echo "No supported desktop opener found. Open manually: ${OUTPUT_PATH}"
+    fi
     exit 0
 fi
 
