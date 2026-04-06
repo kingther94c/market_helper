@@ -157,6 +157,7 @@ End-to-end live position -> HTML risk report:
 ```
 
 - This first writes the live position CSV, then immediately builds the HTML risk report from that CSV.
+- After the HTML is written, the script also tries to open it in your default browser.
 - `--output` controls the final HTML path.
 - `--positions-output` optionally overrides where the intermediate live position CSV is written.
 - If `--proxy` is omitted, the script defaults to `configs/portfolio_monitor/proxy.json`.
