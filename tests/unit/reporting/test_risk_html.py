@@ -588,7 +588,12 @@ def test_build_risk_html_report_displays_fi_10y_equivalent_exposures_only(
         assert f"{expected_gross:,.2f}" in rendered
 
     expected_hybrid_gross = 10000.0 + sum(expected_display.values())
-    assert f"Gross exposure</span><strong>{expected_hybrid_gross:,.0f}</strong>" in rendered
+    assert f"Gross exposure (FI 10Y eq)</span><strong>{expected_hybrid_gross:,.0f}</strong>" in rendered
+    assert "FI dollar exposures are shown as 10Y-equivalent USD notional." in rendered
+    assert "Net Exposure (FI 10Y Eq)" in rendered
+    assert "Gross Exposure (FI 10Y Eq)" in rendered
+    assert "Net 10Y Eq Exposure" in rendered
+    assert "Gross 10Y Eq Exposure" in rendered
     assert "7,627.00" in rendered
     assert "3.73%" in rendered
 
