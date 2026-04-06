@@ -14,6 +14,10 @@ from typing import Any, Iterable, Mapping
 import pandas as pd
 
 from market_helper.data_sources.yahoo_finance import YahooFinanceClient
+from market_helper.domain.portfolio_monitor.services.fixed_income_vol import (
+    proxy_index_to_yield_vol,
+    yield_vol_to_price_vol,
+)
 from market_helper.domain.portfolio_monitor.services.volatility import (
     DEFAULT_EWMA_LAMBDA,
     align_series,
@@ -42,6 +46,7 @@ TRADING_DAYS = 252
 HIST_1M_DAYS = 21
 HIST_3M_DAYS = 63
 OPTION_LOCAL_SYMBOL_RE = re.compile(r"\s\d{6}[CP]\d+")
+DEFAULT_MOVE_TO_YIELD_VOL_FACTOR = 0.0001
 DEFAULT_EQ_COUNTRY_LOOKTHROUGH_PATH = (
     Path(__file__).resolve().parents[2] / "configs" / "portfolio_monitor" / "eq_country_lookthrough.csv"
 )
@@ -188,6 +193,7 @@ def build_risk_html_report(
         row.internal_id: _security_vol(
             returns=returns.get(row.internal_id, []),
             asset_class=row.asset_class,
+            duration=row.duration,
             proxy=proxy,
             method="geomean_1m_3m",
         )
@@ -197,6 +203,7 @@ def build_risk_html_report(
         row.internal_id: _security_vol(
             returns=returns.get(row.internal_id, []),
             asset_class=row.asset_class,
+            duration=row.duration,
             proxy=proxy,
             method=vol_method,
         )
@@ -641,7 +648,10 @@ def build_allocation_summary(rows: list[RiskMetricsRow]) -> list[CategorySummary
             dollar_weight=existing.dollar_weight + row.dollar_weight,
             risk_contribution_estimated=existing.risk_contribution_estimated + row.risk_contribution_estimated,
         )
-    return sorted(by_bucket.values(), key=lambda item: item.asset_class)
+    return sorted(
+        by_bucket.values(),
+        key=lambda item: (-item.gross_exposure_usd, item.asset_class),
+    )
 
 
 def render_html(
@@ -674,20 +684,7 @@ def render_html(
         "</tr>"
         for row in risk_rows
     )
-    allocation_rows = _render_breakdown_rows(
-        [
-            BreakdownRow(
-                bucket=row.category,
-                bucket_label="",
-                parent=row.asset_class,
-                exposure_usd=row.exposure_usd,
-                gross_exposure_usd=row.gross_exposure_usd,
-                dollar_weight=row.dollar_weight,
-                risk_contribution_estimated=row.risk_contribution_estimated,
-            )
-            for row in allocation_summary
-        ]
-    )
+    allocation_rows = _render_allocation_summary_rows(allocation_summary)
     country_rows = _render_breakdown_rows(country_breakdown)
     sector_rows = _render_breakdown_rows(sector_breakdown)
     tenor_rows = _render_breakdown_rows(fi_tenor_breakdown, include_bucket_label=True)
@@ -822,6 +819,22 @@ def _render_breakdown_rows(
     return "\n".join(rendered_rows)
 
 
+def _render_allocation_summary_rows(rows: Iterable[CategorySummaryRow]) -> str:
+    materialized = list(rows)
+    if not materialized:
+        return "<tr><td colspan='5'>No data</td></tr>"
+    return "\n".join(
+        "<tr>"
+        f"<td>{html.escape(row.asset_class)}</td>"
+        f"<td class='num'>{row.exposure_usd:,.2f}</td>"
+        f"<td class='num'>{row.gross_exposure_usd:,.2f}</td>"
+        f"<td class='num'>{row.dollar_weight:.2%}</td>"
+        f"<td class='num'>{row.risk_contribution_estimated:.2%}</td>"
+        "</tr>"
+        for row in materialized
+    )
+
+
 def _load_or_build_returns(
     *,
     returns_path: str | Path | None,
@@ -853,6 +866,7 @@ def _security_vol(
     *,
     returns: pd.Series | list[float],
     asset_class: str,
+    duration: float | None,
     proxy: Mapping[str, float],
     method: str,
 ) -> float:
@@ -889,6 +903,26 @@ def _security_vol(
         if latest is not None:
             return latest
         return max(last_valid_scalar(short_vol) or 0.0, last_valid_scalar(long_vol) or 0.0)
+    return _proxy_fallback_security_vol(asset_class=asset_class, duration=duration, proxy=proxy)
+
+
+def _proxy_fallback_security_vol(
+    *,
+    asset_class: str,
+    duration: float | None,
+    proxy: Mapping[str, float],
+) -> float:
+    if asset_class.upper() == "FI" and duration is not None and duration > 0:
+        yield_vol = proxy_index_to_yield_vol(
+            proxy.get("MOVE", 110.0),
+            mapping_factor=DEFAULT_MOVE_TO_YIELD_VOL_FACTOR,
+        )
+        return float(
+            yield_vol_to_price_vol(
+                yield_vol=yield_vol,
+                modified_duration=duration,
+            )
+        )
     return estimated_asset_class_vol(asset_class, proxy)
 
 

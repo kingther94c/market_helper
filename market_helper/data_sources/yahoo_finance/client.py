@@ -2,12 +2,23 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 import json
+import time
 from typing import Any, Callable, Dict
+from urllib.error import HTTPError, URLError
 from urllib.parse import quote
 from urllib.request import urlopen
 
 
 YahooDownloader = Callable[[str], Dict[str, Any]]
+SleepFn = Callable[[float], None]
+
+
+class YahooFinanceError(RuntimeError):
+    """Base exception for Yahoo Finance data access failures."""
+
+
+class YahooFinanceTransientError(YahooFinanceError):
+    """Transient Yahoo Finance failure such as rate limiting or network errors."""
 
 
 @dataclass(frozen=True)
@@ -16,6 +27,10 @@ class YahooFinanceClient:
 
     session: Any | None = None
     downloader: YahooDownloader | None = None
+    max_attempts: int = 3
+    backoff_base_seconds: float = 1.0
+    backoff_max_seconds: float = 8.0
+    sleep: SleepFn = time.sleep
 
     def fetch_price_history(
         self,
@@ -32,7 +47,14 @@ class YahooFinanceClient:
             "https://query1.finance.yahoo.com/v8/finance/chart/"
             f"{quote(normalized_symbol)}?range={period}&interval={interval}&includeAdjustedClose=true"
         )
-        payload = self.downloader(url) if self.downloader is not None else _download_json(url)
+        payload = _download_with_retry(
+            url,
+            downloader=self.downloader,
+            max_attempts=self.max_attempts,
+            backoff_base_seconds=self.backoff_base_seconds,
+            backoff_max_seconds=self.backoff_max_seconds,
+            sleep=self.sleep,
+        )
         chart = payload.get("chart") if isinstance(payload, dict) else None
         result = chart.get("result") if isinstance(chart, dict) else None
         if not isinstance(result, list) or not result:
@@ -80,9 +102,79 @@ class YahooFinanceClient:
 
 
 def _download_json(url: str) -> dict[str, Any]:
-    with urlopen(url) as response:
+    with urlopen(url, timeout=30) as response:
         payload = response.read().decode("utf-8")
     loaded = json.loads(payload)
     if not isinstance(loaded, dict):
         raise ValueError("Yahoo Finance response was not a JSON object")
     return loaded
+
+
+def _download_with_retry(
+    url: str,
+    *,
+    downloader: YahooDownloader | None,
+    max_attempts: int,
+    backoff_base_seconds: float,
+    backoff_max_seconds: float,
+    sleep: SleepFn,
+) -> dict[str, Any]:
+    if max_attempts <= 0:
+        raise ValueError("max_attempts must be positive")
+    if backoff_base_seconds < 0 or backoff_max_seconds < 0:
+        raise ValueError("backoff values must be non-negative")
+
+    fetch = downloader if downloader is not None else _download_json
+    for attempt in range(1, max_attempts + 1):
+        try:
+            payload = fetch(url)
+            if not isinstance(payload, dict):
+                raise ValueError("Yahoo Finance response was not a JSON object")
+            return payload
+        except Exception as exc:
+            retryable = _is_retryable_yahoo_error(exc)
+            if not retryable:
+                raise
+            if attempt >= max_attempts:
+                raise YahooFinanceTransientError(
+                    f"Yahoo Finance request failed after {attempt} attempts"
+                ) from exc
+            delay = _retry_delay_seconds(
+                exc,
+                attempt=attempt,
+                backoff_base_seconds=backoff_base_seconds,
+                backoff_max_seconds=backoff_max_seconds,
+            )
+            if delay > 0:
+                sleep(delay)
+
+    raise YahooFinanceTransientError("Yahoo Finance request failed without an explicit error")
+
+
+def _is_retryable_yahoo_error(exc: Exception) -> bool:
+    if isinstance(exc, HTTPError):
+        return exc.code == 429 or exc.code == 408 or 500 <= exc.code < 600
+    if isinstance(exc, URLError):
+        return True
+    return isinstance(exc, TimeoutError)
+
+
+def _retry_delay_seconds(
+    exc: Exception,
+    *,
+    attempt: int,
+    backoff_base_seconds: float,
+    backoff_max_seconds: float,
+) -> float:
+    if isinstance(exc, HTTPError):
+        retry_after = exc.headers.get("Retry-After") if exc.headers is not None else None
+        if retry_after not in (None, ""):
+            try:
+                retry_after_seconds = float(retry_after)
+            except (TypeError, ValueError):
+                retry_after_seconds = None
+            else:
+                if retry_after_seconds is not None and retry_after_seconds >= 0:
+                    return min(backoff_max_seconds, retry_after_seconds)
+    backoff = backoff_base_seconds * (2 ** (attempt - 1))
+    return min(backoff_max_seconds, backoff)

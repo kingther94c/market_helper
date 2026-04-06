@@ -1,3 +1,3 @@
-from .client import YahooFinanceClient
+from .client import YahooFinanceClient, YahooFinanceTransientError
 
-__all__ = ["YahooFinanceClient"]
+__all__ = ["YahooFinanceClient", "YahooFinanceTransientError"]

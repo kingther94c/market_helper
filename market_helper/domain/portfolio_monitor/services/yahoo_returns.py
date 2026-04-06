@@ -8,7 +8,7 @@ from urllib.parse import quote
 
 import pandas as pd
 
-from market_helper.data_sources.yahoo_finance import YahooFinanceClient
+from market_helper.data_sources.yahoo_finance import YahooFinanceClient, YahooFinanceTransientError
 
 from .volatility import compute_returns
 
@@ -168,7 +168,12 @@ def ensure_symbol_return_cache(
     ):
         return cached
 
-    history = yahoo_client.fetch_price_history(symbol, period=period, interval=interval)
+    try:
+        history = yahoo_client.fetch_price_history(symbol, period=period, interval=interval)
+    except YahooFinanceTransientError:
+        if cached is not None and not cached.series.empty:
+            return cached
+        raise
     series = price_history_to_return_series(history, return_method=return_method, price_field=price_field)
     cache = YahooReturnCache(
         symbol=str(history.get("symbol") or symbol),
@@ -194,6 +199,7 @@ def build_internal_id_return_series_from_yahoo(
     interval: str = DEFAULT_YAHOO_INTERVAL,
     return_method: str = DEFAULT_YAHOO_RETURN_METHOD,
     price_field: str = DEFAULT_YAHOO_PRICE_FIELD,
+    ignore_transient_failures: bool = True,
 ) -> dict[str, pd.Series]:
     ensured_by_symbol: dict[str, YahooReturnCache] = {}
     built: dict[str, pd.Series] = {}
@@ -207,15 +213,20 @@ def build_internal_id_return_series_from_yahoo(
         if not yahoo_symbol:
             raise ValueError(f"Missing yahoo_symbol for mapped security {internal_id}")
         if yahoo_symbol not in ensured_by_symbol:
-            ensured_by_symbol[yahoo_symbol] = ensure_symbol_return_cache(
-                yahoo_symbol,
-                yahoo_client=yahoo_client,
-                cache_dir=cache_dir,
-                period=period,
-                interval=interval,
-                return_method=return_method,
-                price_field=price_field,
-            )
+            try:
+                ensured_by_symbol[yahoo_symbol] = ensure_symbol_return_cache(
+                    yahoo_symbol,
+                    yahoo_client=yahoo_client,
+                    cache_dir=cache_dir,
+                    period=period,
+                    interval=interval,
+                    return_method=return_method,
+                    price_field=price_field,
+                )
+            except YahooFinanceTransientError:
+                if ignore_transient_failures:
+                    continue
+                raise
         built[internal_id] = ensured_by_symbol[yahoo_symbol].series.copy()
     return built
 
