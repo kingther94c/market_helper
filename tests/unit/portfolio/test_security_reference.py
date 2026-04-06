@@ -104,6 +104,56 @@ def test_reference_table_resolves_cross_source_ids() -> None:
     assert reference.require_internal_id("yahoo", "ES=F") == "SEC:ESM6"
 
 
+def test_reference_table_prefers_unique_smart_listing_for_runtime_primary_exchange() -> None:
+    reference = SecurityReferenceTable()
+    reference.upsert_security(
+        SecurityReference(
+            internal_id="STK:DBMF:SMART",
+            asset_class="MACRO",
+            canonical_symbol="DBMF",
+            display_ticker="DBMF",
+            display_name="Trend",
+            currency="USD",
+            primary_exchange="",
+            multiplier=1.0,
+            ibkr_sec_type="STK",
+            ibkr_symbol="DBMF",
+            ibkr_exchange="SMART",
+            yahoo_symbol="DBMF",
+            dir_exposure="L",
+            lookup_status="seeded",
+        )
+    )
+    reference.upsert_security(
+        SecurityReference(
+            internal_id="STK:DBMF:SBF",
+            asset_class="MACRO",
+            canonical_symbol="DBMF",
+            display_ticker="DBMF",
+            display_name="Trend",
+            currency="USD",
+            primary_exchange="SBF",
+            multiplier=1.0,
+            ibkr_sec_type="STK",
+            ibkr_symbol="DBMF",
+            ibkr_exchange="SBF",
+            yahoo_symbol="DBMF.L",
+            dir_exposure="L",
+            lookup_status="verified",
+        )
+    )
+
+    matched = reference.resolve_runtime_contract_match(
+        symbol="DBMF",
+        sec_type="STK",
+        exchange="ARCA",
+        primary_exchange="ARCA",
+    )
+
+    assert matched is not None
+    assert matched.internal_id == "STK:DBMF:SMART"
+
+
 def test_join_positions_with_latest_price() -> None:
     positions = [
         PositionSnapshot(

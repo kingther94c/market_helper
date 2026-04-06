@@ -1,6 +1,8 @@
 import csv
 
+from market_helper.portfolio import SecurityReference, export_security_reference_csv
 from market_helper.workflows.generate_report import generate_live_ibkr_position_report
+import market_helper.domain.portfolio_monitor.pipelines.generate_portfolio_report as report_pipeline
 
 
 class FakeContract:
@@ -221,3 +223,107 @@ def test_generate_live_ibkr_position_report_writes_proposed_reference_for_unmapp
     assert rows[0]["display_name"] == "Apple Inc"
     assert rows[0]["lookup_conid"] == "888888"
     assert "security_universe_PROPOSED.csv" in capsys.readouterr().out
+
+
+class FakeDbmfContract:
+    def __init__(self) -> None:
+        self.conId = 515416076
+        self.secType = "STK"
+        self.symbol = "DBMF"
+        self.currency = "USD"
+        self.exchange = "ARCA"
+        self.primaryExchange = "ARCA"
+        self.localSymbol = "DBMF"
+        self.multiplier = "1"
+
+
+class FakeDbmfPortfolioItem:
+    def __init__(self) -> None:
+        self.account = "U12345"
+        self.contract = FakeDbmfContract()
+        self.position = 10
+        self.averageCost = 25.0
+        self.marketPrice = 26.0
+        self.marketValue = 260.0
+
+
+class FakeDbmfLiveClient(FakeLiveClient):
+    def list_portfolio(self, account_id: str) -> list[object]:
+        assert account_id == "U12345"
+        return [FakeDbmfPortfolioItem()]
+
+    def lookup_security(self, contract=None, **kwargs) -> dict[str, object]:
+        return {
+            "conId": 515416076,
+            "symbol": "DBMF",
+            "secType": "STK",
+            "currency": "USD",
+            "exchange": "ARCA",
+            "primaryExchange": "ARCA",
+            "localSymbol": "DBMF",
+            "marketName": "ARCA",
+            "longName": "IMGP DBI MANAGED FUTURES STR",
+            "multiplier": "1",
+        }
+
+
+def test_generate_live_ibkr_position_report_uses_lookup_to_match_smart_listing_without_proposal(
+    tmp_path,
+    monkeypatch,
+) -> None:
+    security_reference_path = tmp_path / "security_reference.csv"
+    export_security_reference_csv(
+        [
+            SecurityReference(
+                internal_id="STK:DBMF:SMART",
+                asset_class="MACRO",
+                canonical_symbol="DBMF",
+                display_ticker="DBMF",
+                display_name="Trend",
+                currency="USD",
+                primary_exchange="",
+                multiplier=1.0,
+                ibkr_sec_type="STK",
+                ibkr_symbol="DBMF",
+                ibkr_exchange="SMART",
+                yahoo_symbol="DBMF",
+                dir_exposure="L",
+                lookup_status="seeded",
+            ),
+            SecurityReference(
+                internal_id="STK:DBMF:SBF",
+                asset_class="MACRO",
+                canonical_symbol="DBMF",
+                display_ticker="DBMF",
+                display_name="Trend",
+                currency="USD",
+                primary_exchange="SBF",
+                multiplier=1.0,
+                ibkr_sec_type="STK",
+                ibkr_symbol="DBMF",
+                ibkr_exchange="SBF",
+                yahoo_symbol="DBMF.L",
+                dir_exposure="L",
+                lookup_status="verified",
+            ),
+        ],
+        security_reference_path,
+    )
+    monkeypatch.setattr(report_pipeline, "DEFAULT_SECURITY_REFERENCE_PATH", security_reference_path)
+
+    output_path = tmp_path / "outputs" / "live_position_report.csv"
+    client = FakeDbmfLiveClient()
+
+    generate_live_ibkr_position_report(
+        output_path=output_path,
+        account_id="U12345",
+        as_of="2026-03-26T00:00:00+00:00",
+        client=client,
+    )
+
+    with output_path.open("r", encoding="utf-8", newline="") as handle:
+        rows = list(csv.DictReader(handle))
+
+    assert rows[0]["internal_id"] == "STK:DBMF:SMART"
+    proposal_path = output_path.with_name("security_universe_PROPOSED.csv")
+    assert proposal_path.exists() is False

@@ -658,6 +658,26 @@ class SecurityReferenceTable:
     def get_security(self, internal_id: str) -> Optional[SecurityReference]:
         return self._security_by_id.get(internal_id)
 
+    def remove_security(self, internal_id: str) -> None:
+        if internal_id not in self._security_by_id:
+            return
+        del self._security_by_id[internal_id]
+        self._mapping_to_internal = {
+            key: value for key, value in self._mapping_to_internal.items() if value != internal_id
+        }
+        self._by_ibkr_conid = {
+            key: value for key, value in self._by_ibkr_conid.items() if value != internal_id
+        }
+        self._by_ibkr_alias = {
+            key: value for key, value in self._by_ibkr_alias.items() if value != internal_id
+        }
+        self._by_yahoo_symbol = {
+            key: value for key, value in self._by_yahoo_symbol.items() if value != internal_id
+        }
+        self._by_cash_alias = {
+            key: value for key, value in self._by_cash_alias.items() if value != internal_id
+        }
+
     def resolve_by_ibkr_conid(self, con_id: str) -> Optional[SecurityReference]:
         internal_id = self._by_ibkr_conid.get(str(con_id))
         if internal_id is None:
@@ -677,6 +697,69 @@ class SecurityReferenceTable:
         if internal_id is None:
             return None
         return self._security_by_id.get(internal_id)
+
+    def resolve_runtime_contract_match(
+        self,
+        *,
+        symbol: str,
+        sec_type: str,
+        exchange: str = "",
+        primary_exchange: str = "",
+        exclude_internal_ids: Iterable[str] = (),
+    ) -> Optional[SecurityReference]:
+        excluded = {internal_id for internal_id in exclude_internal_ids if internal_id}
+        for venue in (primary_exchange, exchange):
+            normalized_venue = _clean_optional_str(venue).upper()
+            if not normalized_venue:
+                continue
+            alias = self.resolve_by_ibkr_alias(
+                symbol=symbol,
+                sec_type=sec_type,
+                exchange=normalized_venue,
+            )
+            if alias is not None and alias.internal_id not in excluded:
+                return alias
+
+        matches = [
+            security
+            for security in self.search_by_ibkr_symbol_sec_type(symbol=symbol, sec_type=sec_type)
+            if security.internal_id not in excluded
+        ]
+        if len(matches) == 1:
+            return matches[0]
+        if not matches:
+            return None
+
+        requested_venues = {
+            _clean_optional_str(primary_exchange).upper(),
+            _clean_optional_str(exchange).upper(),
+        }
+        requested_venues.discard("")
+        exact_venue_matches = [
+            security
+            for security in matches
+            if requested_venues.intersection(_runtime_exchange_candidates(security))
+        ]
+        if len(exact_venue_matches) == 1:
+            return exact_venue_matches[0]
+        if len(exact_venue_matches) > 1:
+            smart_exact_matches = [
+                security
+                for security in exact_venue_matches
+                if _clean_optional_str(security.ibkr_exchange).upper() == "SMART"
+            ]
+            if len(smart_exact_matches) == 1:
+                return smart_exact_matches[0]
+            return None
+
+        smart_matches = [
+            security
+            for security in matches
+            if _clean_optional_str(security.ibkr_exchange).upper() == "SMART"
+        ]
+        if len(smart_matches) == 1:
+            return smart_matches[0]
+        return None
 
     def resolve_by_yahoo_symbol(self, symbol: str) -> Optional[SecurityReference]:
         internal_id = self._by_yahoo_symbol.get(_normalize_lookup_value(symbol))
@@ -945,6 +1028,16 @@ def _default_primary_exchange_for_universe_row(row: SecurityUniverseRow) -> str:
     if row.ibkr_exchange == "SMART":
         return ""
     return row.ibkr_exchange
+
+
+def _runtime_exchange_candidates(security: SecurityReference) -> set[str]:
+    return {
+        _clean_optional_str(security.ibkr_exchange).upper(),
+        _clean_optional_str(security.primary_exchange).upper(),
+        _clean_optional_str(security.exchange).upper(),
+        _clean_optional_str(security.metadata.get("runtime_exchange", "")).upper(),
+        _clean_optional_str(security.metadata.get("runtime_primary_exchange", "")).upper(),
+    } - {""}
 
 
 def _has_cached_lookup(security: SecurityReference) -> bool:

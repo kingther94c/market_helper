@@ -74,7 +74,7 @@ def build_parser() -> argparse.ArgumentParser:
         "--mapping-table",
         dest="security_reference",
         required=False,
-        help="Optional curated security-reference CSV path. Defaults to configs/security_reference.csv.",
+        help="Optional curated security-reference CSV path. Defaults to configs/portfolio_monitor/security_reference.csv.",
     )
 
     security_reference_sync = subparsers.add_parser(

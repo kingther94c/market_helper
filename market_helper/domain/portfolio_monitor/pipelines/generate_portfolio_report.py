@@ -415,6 +415,78 @@ def _refresh_live_security_lookup(
         return security
 
     if security.mapping_status == "unmapped":
+        remapped_security = reference_table.resolve_runtime_contract_match(
+            symbol=str(
+                details.get("symbol")
+                or getattr(contract, "symbol", "")
+                or security.ibkr_symbol
+                or security.symbol
+            ).upper(),
+            sec_type=str(
+                details.get("secType")
+                or getattr(contract, "secType", "")
+                or security.ibkr_sec_type
+            ).upper(),
+            exchange=str(
+                details.get("exchange")
+                or getattr(contract, "exchange", "")
+                or security.exchange
+            ).upper(),
+            primary_exchange=str(
+                details.get("primaryExchange")
+                or details.get("exchange")
+                or getattr(contract, "primaryExchange", "")
+                or security.primary_exchange
+            ).upper(),
+            exclude_internal_ids={security.internal_id},
+        )
+        if remapped_security is not None:
+            reference_table.remove_security(security.internal_id)
+            reference_table.register_runtime_contract(
+                security=remapped_security,
+                con_id=con_id,
+                symbol=str(
+                    details.get("symbol")
+                    or getattr(contract, "symbol", "")
+                    or remapped_security.ibkr_symbol
+                    or remapped_security.symbol
+                ).upper(),
+                exchange=str(
+                    details.get("exchange")
+                    or getattr(contract, "exchange", "")
+                    or remapped_security.exchange
+                    or remapped_security.primary_exchange
+                    or remapped_security.ibkr_exchange
+                ).upper(),
+                primary_exchange=str(
+                    details.get("primaryExchange")
+                    or details.get("exchange")
+                    or getattr(contract, "primaryExchange", "")
+                    or remapped_security.primary_exchange
+                    or remapped_security.ibkr_exchange
+                ).upper(),
+                local_symbol=str(
+                    details.get("localSymbol")
+                    or getattr(contract, "localSymbol", "")
+                    or remapped_security.runtime_local_symbol
+                    or remapped_security.symbol
+                ),
+                sec_type=str(
+                    details.get("secType")
+                    or getattr(contract, "secType", "")
+                    or remapped_security.ibkr_sec_type
+                ).upper(),
+                currency=str(
+                    details.get("currency")
+                    or getattr(contract, "currency", "")
+                    or remapped_security.currency
+                ).upper(),
+                multiplier=_optional_float(
+                    details.get("multiplier")
+                    or getattr(contract, "multiplier", None)
+                ),
+            )
+            return reference_table.get_security(remapped_security.internal_id)
         enriched = enrich_security_from_contract_details(security, details)
         reference_table.upsert_security(enriched)
         reference_table.upsert_mapping(
