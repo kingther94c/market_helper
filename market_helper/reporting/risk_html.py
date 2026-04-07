@@ -138,8 +138,9 @@ class RiskMetricsRow:
     weight: float
     dollar_weight: float
     duration: float | None
-    historical_vol: float
-    estimated_vol: float
+    vol_geomean_1m_3m: float
+    vol_5y_realized: float
+    vol_ewma: float
     risk_contribution_historical: float
     risk_contribution_estimated: float
     mapping_status: str
@@ -172,8 +173,9 @@ class BreakdownRow:
 
 @dataclass(frozen=True)
 class PortfolioRiskSummary:
-    historical_vol: float
-    estimated_vol: float
+    portfolio_vol_geomean_1m_3m: float
+    portfolio_vol_5y_realized: float
+    portfolio_vol_ewma: float
     funded_aum: float
     gross_exposure: float
     net_exposure: float
@@ -216,7 +218,7 @@ def build_risk_html_report(
     )
     regime_summary = _load_regime_summary(regime_path)
 
-    historical_vols = {
+    vols_geomean_1m_3m = {
         row.internal_id: _security_vol(
             returns=returns.get(row.internal_id, []),
             asset_class=row.asset_class,
@@ -226,35 +228,42 @@ def build_risk_html_report(
         )
         for row in rows
     }
-    estimated_vols = {
+    vols_5y_realized = {
         row.internal_id: _security_vol(
             returns=returns.get(row.internal_id, []),
             asset_class=row.asset_class,
             duration=row.duration,
             proxy=proxy,
-            method=vol_method,
+            method="5y_realized",
+        )
+        for row in rows
+    }
+    vols_ewma = {
+        row.internal_id: _security_vol(
+            returns=returns.get(row.internal_id, []),
+            asset_class=row.asset_class,
+            duration=row.duration,
+            proxy=proxy,
+            method="ewma",
         )
         for row in rows
     }
 
-    historical_group_loadings = _build_group_loadings(rows, historical_vols)
-    estimated_group_loadings = _build_group_loadings(rows, estimated_vols)
+    geomean_group_loadings = _build_group_loadings(rows, vols_geomean_1m_3m)
+    realized_5y_group_loadings = _build_group_loadings(rows, vols_5y_realized)
+    ewma_group_loadings = _build_group_loadings(rows, vols_ewma)
     group_returns = _build_group_returns(rows, returns)
-    historical_group_corr = _build_group_correlation(
-        asset_classes=historical_group_loadings.keys(),
-        group_returns=group_returns,
-        mode="historical",
-    )
-    estimated_group_corr = _build_group_correlation(
-        asset_classes=estimated_group_loadings.keys(),
+    selected_group_corr = _build_group_correlation(
+        asset_classes=set(geomean_group_loadings) | set(realized_5y_group_loadings) | set(ewma_group_loadings),
         group_returns=group_returns,
         mode=inter_asset_corr,
     )
-    portfolio_hist_vol = _portfolio_vol_from_group_loadings(historical_group_loadings, historical_group_corr)
-    portfolio_est_vol = _portfolio_vol_from_group_loadings(estimated_group_loadings, estimated_group_corr)
+    portfolio_vol_geomean_1m_3m = _portfolio_vol_from_group_loadings(geomean_group_loadings, selected_group_corr)
+    portfolio_vol_5y_realized = _portfolio_vol_from_group_loadings(realized_5y_group_loadings, selected_group_corr)
+    portfolio_vol_ewma = _portfolio_vol_from_group_loadings(ewma_group_loadings, selected_group_corr)
 
-    security_hist_loadings = _build_security_loadings(rows, historical_vols)
-    security_est_loadings = _build_security_loadings(rows, estimated_vols)
+    security_geomean_loadings = _build_security_loadings(rows, vols_geomean_1m_3m)
+    security_ewma_loadings = _build_security_loadings(rows, vols_ewma)
     risk_rows = [
         RiskMetricsRow(
             internal_id=row.internal_id,
@@ -274,10 +283,11 @@ def build_risk_html_report(
             weight=row.weight,
             dollar_weight=row.display_dollar_weight,
             duration=row.duration,
-            historical_vol=historical_vols[row.internal_id],
-            estimated_vol=estimated_vols[row.internal_id],
-            risk_contribution_historical=abs(security_hist_loadings[row.internal_id]),
-            risk_contribution_estimated=abs(security_est_loadings[row.internal_id]),
+            vol_geomean_1m_3m=vols_geomean_1m_3m[row.internal_id],
+            vol_5y_realized=vols_5y_realized[row.internal_id],
+            vol_ewma=vols_ewma[row.internal_id],
+            risk_contribution_historical=abs(security_geomean_loadings[row.internal_id]),
+            risk_contribution_estimated=abs(security_ewma_loadings[row.internal_id]),
             mapping_status=row.mapping_status,
             dir_exposure=row.dir_exposure,
             eq_country=row.eq_country,
@@ -287,12 +297,13 @@ def build_risk_html_report(
         for row in rows
     ]
     allocation_summary = build_allocation_summary(risk_rows)
-    country_breakdown = _build_eq_country_breakdown(rows, security_est_loadings)
-    sector_breakdown = _build_us_sector_breakdown(rows, security_est_loadings)
-    fi_tenor_breakdown = _build_fi_tenor_breakdown(rows, security_est_loadings)
+    country_breakdown = _build_eq_country_breakdown(rows, security_ewma_loadings)
+    sector_breakdown = _build_us_sector_breakdown(rows, security_ewma_loadings)
+    fi_tenor_breakdown = _build_fi_tenor_breakdown(rows, security_ewma_loadings)
     summary = PortfolioRiskSummary(
-        historical_vol=portfolio_hist_vol,
-        estimated_vol=portfolio_est_vol,
+        portfolio_vol_geomean_1m_3m=portfolio_vol_geomean_1m_3m,
+        portfolio_vol_5y_realized=portfolio_vol_5y_realized,
+        portfolio_vol_ewma=portfolio_vol_ewma,
         funded_aum=_funded_aum(rows),
         gross_exposure=sum(row.display_gross_exposure_usd for row in rows),
         net_exposure=sum(row.display_exposure_usd for row in rows),
@@ -720,9 +731,10 @@ def render_html(
         f"<td class='num'>{row.gross_exposure_usd:,.2f}</td>"
         f"<td class='num'>{row.exposure_usd:,.2f}</td>"
         f"<td class='num'>{row.dollar_weight:.2%}</td>"
-        f"<td class='num'>{row.estimated_vol:.2%}</td>"
+        f"<td class='num'>{row.vol_geomean_1m_3m:.2%}</td>"
+        f"<td class='num'>{row.vol_5y_realized:.2%}</td>"
+        f"<td class='num'>{row.vol_ewma:.2%}</td>"
         f"<td class='num'>{row.risk_contribution_estimated:.2%}</td>"
-        f"<td class='num'>{row.historical_vol:.2%}</td>"
         f"<td>{html.escape(row.mapping_status)}</td>"
         "</tr>"
         for row in risk_rows
@@ -776,8 +788,9 @@ def render_html(
   <div class='card'>
     <h2>Portfolio Summary</h2>
     <div class='metrics'>
-      <div class='metric'><span>Historical portfolio vol (1M/3M geomean, historical corr)</span><strong>{summary.historical_vol:.2%}</strong></div>
-      <div class='metric'><span>Selected portfolio vol ({html.escape(vol_method)}, {html.escape(inter_asset_corr)})</span><strong>{summary.estimated_vol:.2%}</strong></div>
+      <div class='metric'><span>Portfolio vol (1M/3M geomean, {html.escape(inter_asset_corr)})</span><strong>{summary.portfolio_vol_geomean_1m_3m:.2%}</strong></div>
+      <div class='metric'><span>Portfolio vol (5Y realized, {html.escape(inter_asset_corr)})</span><strong>{summary.portfolio_vol_5y_realized:.2%}</strong></div>
+      <div class='metric'><span>Portfolio vol (EWMA, {html.escape(inter_asset_corr)})</span><strong>{summary.portfolio_vol_ewma:.2%}</strong></div>
       <div class='metric'><span>Funded AUM</span><strong>{summary.funded_aum:,.0f}</strong></div>
       <div class='metric'><span>Gross exposure (FI 10Y eq)</span><strong>{summary.gross_exposure:,.0f}</strong></div>
       <div class='metric'><span>Net exposure (FI 10Y eq)</span><strong>{summary.net_exposure:,.0f}</strong></div>
@@ -825,8 +838,8 @@ def render_html(
         <tr>
           <th>Account</th><th>Ticker</th><th>Name</th><th>Asset Class</th><th>Type</th>
           <th class='num'>Qty</th><th class='num'>Gross Exposure (FI 10Y Eq)</th><th class='num'>Net Exposure (FI 10Y Eq)</th>
-          <th class='num'>Dollar%</th><th class='num'>Est Vol</th><th class='num'>Vol Contribution</th>
-          <th class='num'>Hist Vol</th><th>Mapping</th>
+          <th class='num'>Dollar%</th><th class='num'>Vol (1M/3M)</th><th class='num'>Vol (5Y)</th><th class='num'>Vol (EWMA)</th><th class='num'>Vol Contribution</th>
+          <th>Mapping</th>
         </tr>
       </thead>
       <tbody>{position_rows}</tbody>
