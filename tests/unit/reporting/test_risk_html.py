@@ -189,6 +189,8 @@ def test_build_risk_html_report_renders_summary_and_tables(tmp_path: Path) -> No
     assert "Goldilocks Expansion" in rendered
     assert "SPY" in rendered
     assert "10Y TF" in rendered
+    assert "3M Trend" in rendered
+    assert "class='sparkline'" in rendered
     assert "<tr><td>FI</td><td>FI</td>" not in rendered
 
 

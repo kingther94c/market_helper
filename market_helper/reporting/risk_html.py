@@ -141,6 +141,7 @@ class RiskMetricsRow:
     vol_geomean_1m_3m: float
     vol_5y_realized: float
     vol_ewma: float
+    sparkline_3m_svg: str
     risk_contribution_historical: float
     risk_contribution_estimated: float
     mapping_status: str
@@ -286,6 +287,7 @@ def build_risk_html_report(
             vol_geomean_1m_3m=vols_geomean_1m_3m[row.internal_id],
             vol_5y_realized=vols_5y_realized[row.internal_id],
             vol_ewma=vols_ewma[row.internal_id],
+            sparkline_3m_svg=_sparkline_svg_for_returns(returns.get(row.internal_id, [])),
             risk_contribution_historical=abs(security_geomean_loadings[row.internal_id]),
             risk_contribution_estimated=abs(security_ewma_loadings[row.internal_id]),
             mapping_status=row.mapping_status,
@@ -734,6 +736,7 @@ def render_html(
         f"<td class='num'>{row.vol_geomean_1m_3m:.2%}</td>"
         f"<td class='num'>{row.vol_5y_realized:.2%}</td>"
         f"<td class='num'>{row.vol_ewma:.2%}</td>"
+        f"<td>{row.sparkline_3m_svg}</td>"
         f"<td class='num'>{row.risk_contribution_estimated:.2%}</td>"
         f"<td>{html.escape(row.mapping_status)}</td>"
         "</tr>"
@@ -779,6 +782,7 @@ def render_html(
     .metric span {{ display: block; color: #475569; font-size: 12px; }}
     .metric strong {{ font-size: 20px; }}
     .scores {{ display: flex; gap: 12px; flex-wrap: wrap; color: #334155; }}
+    .sparkline {{ width: 120px; height: 28px; }}
   </style>
 </head>
 <body>
@@ -838,7 +842,7 @@ def render_html(
         <tr>
           <th>Account</th><th>Ticker</th><th>Name</th><th>Asset Class</th><th>Type</th>
           <th class='num'>Qty</th><th class='num'>Gross Exposure (FI 10Y Eq)</th><th class='num'>Net Exposure (FI 10Y Eq)</th>
-          <th class='num'>Dollar%</th><th class='num'>Vol (1M/3M)</th><th class='num'>Vol (5Y)</th><th class='num'>Vol (EWMA)</th><th class='num'>Vol Contribution</th>
+          <th class='num'>Dollar%</th><th class='num'>Vol (1M/3M)</th><th class='num'>Vol (5Y)</th><th class='num'>Vol (EWMA)</th><th>3M Trend</th><th class='num'>Vol Contribution</th>
           <th>Mapping</th>
         </tr>
       </thead>
@@ -889,6 +893,37 @@ def _render_allocation_summary_rows(rows: Iterable[CategorySummaryRow]) -> str:
         f"<td class='num'>{row.risk_contribution_estimated:.2%}</td>"
         "</tr>"
         for row in materialized
+    )
+
+
+def _sparkline_svg_for_returns(returns: pd.Series | list[float]) -> str:
+    series = _coerce_return_series(returns).dropna()
+    if series.empty:
+        return "<span>-</span>"
+    recent = series.tail(HIST_3M_DAYS)
+    if recent.empty:
+        return "<span>-</span>"
+    curve = (1.0 + recent.astype(float)).cumprod() - 1.0
+    values = curve.tolist()
+    if len(values) < 2:
+        return "<span>-</span>"
+    width = 120.0
+    height = 28.0
+    min_value = min(values)
+    max_value = max(values)
+    span = max(max_value - min_value, 1e-9)
+    points: list[str] = []
+    for idx, value in enumerate(values):
+        x = (idx / (len(values) - 1)) * width
+        y = height - ((value - min_value) / span) * height
+        points.append(f"{x:.2f},{y:.2f}")
+    stroke = "#16a34a" if values[-1] >= values[0] else "#dc2626"
+    points_attr = " ".join(points)
+    return (
+        "<svg class='sparkline' viewBox='0 0 120 28' preserveAspectRatio='none' role='img' "
+        "aria-label='3M cumulative return trend'>"
+        f"<polyline fill='none' stroke='{stroke}' stroke-width='1.5' points='{points_attr}' />"
+        "</svg>"
     )
 
 
