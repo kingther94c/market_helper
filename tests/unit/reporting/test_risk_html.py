@@ -180,7 +180,9 @@ def test_build_risk_html_report_renders_summary_and_tables(tmp_path: Path) -> No
     assert written == output_path
     rendered = output_path.read_text(encoding="utf-8")
     assert "Portfolio Risk Report" in rendered
-    assert "Historical portfolio vol" in rendered
+    assert "Portfolio vol (1M/3M geomean" in rendered
+    assert "Portfolio vol (5Y realized" in rendered
+    assert "Portfolio vol (EWMA" in rendered
     assert "Asset Class Summary" in rendered
     assert "EQ Country Breakdown" in rendered
     assert "Regime Snapshot" in rendered
