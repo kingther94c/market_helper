@@ -149,6 +149,7 @@ class RiskMetricsRow:
     risk_contribution_historical: float
     risk_contribution_estimated: float
     mapping_status: str
+    report_scope: str
     dir_exposure: str
     eq_country: str
     eq_sector: str
@@ -242,9 +243,10 @@ def build_risk_html_report(
         security_reference_table=reference_table,
         fi_10y_eq_mod_duration=fi_10y_eq_mod_duration,
     )
+    included_rows = [row for row in rows if _is_report_included(row)]
     returns = _load_or_build_returns(
         returns_path=returns_path,
-        rows=rows,
+        rows=included_rows,
         yahoo_client=resolved_yahoo_client,
     )
     regime_summary = _load_regime_summary(regime_path)
@@ -262,6 +264,8 @@ def build_risk_html_report(
             proxy=proxy,
             method="geomean_1m_3m",
         )
+        if _is_report_included(row)
+        else 0.0
         for row in rows
     }
     vols_5y_realized = {
@@ -272,6 +276,8 @@ def build_risk_html_report(
             proxy=proxy,
             method="5y_realized",
         )
+        if _is_report_included(row)
+        else 0.0
         for row in rows
     }
     vols_ewma = {
@@ -282,13 +288,15 @@ def build_risk_html_report(
             proxy=proxy,
             method="ewma",
         )
+        if _is_report_included(row)
+        else 0.0
         for row in rows
     }
 
-    geomean_group_loadings = _build_group_loadings(rows, vols_geomean_1m_3m)
-    realized_5y_group_loadings = _build_group_loadings(rows, vols_5y_realized)
-    ewma_group_loadings = _build_group_loadings(rows, vols_ewma)
-    group_returns = _build_group_returns(rows, returns)
+    geomean_group_loadings = _build_group_loadings(included_rows, vols_geomean_1m_3m)
+    realized_5y_group_loadings = _build_group_loadings(included_rows, vols_5y_realized)
+    ewma_group_loadings = _build_group_loadings(included_rows, vols_ewma)
+    group_returns = _build_group_returns(included_rows, returns)
     selected_group_corr = _build_group_correlation(
         asset_classes=set(geomean_group_loadings) | set(realized_5y_group_loadings) | set(ewma_group_loadings),
         group_returns=group_returns,
@@ -298,9 +306,9 @@ def build_risk_html_report(
     portfolio_vol_5y_realized = _portfolio_vol_from_group_loadings(realized_5y_group_loadings, selected_group_corr)
     portfolio_vol_ewma = _portfolio_vol_from_group_loadings(ewma_group_loadings, selected_group_corr)
 
-    security_geomean_loadings = _build_security_loadings(rows, vols_geomean_1m_3m)
-    security_realized_loadings = _build_security_loadings(rows, vols_5y_realized)
-    security_ewma_loadings = _build_security_loadings(rows, vols_ewma)
+    security_geomean_loadings = _build_security_loadings(included_rows, vols_geomean_1m_3m)
+    security_realized_loadings = _build_security_loadings(included_rows, vols_5y_realized)
+    security_ewma_loadings = _build_security_loadings(included_rows, vols_ewma)
     selected_security_loadings = _select_security_loadings(
         vol_method=vol_method,
         geomean=security_geomean_loadings,
@@ -330,9 +338,10 @@ def build_risk_html_report(
             vol_5y_realized=vols_5y_realized[row.internal_id],
             vol_ewma=vols_ewma[row.internal_id],
             sparkline_3m_svg=_sparkline_svg_for_returns(returns.get(row.internal_id, [])),
-            risk_contribution_historical=abs(security_geomean_loadings[row.internal_id]),
-            risk_contribution_estimated=abs(selected_security_loadings[row.internal_id]),
+            risk_contribution_historical=abs(security_geomean_loadings.get(row.internal_id, 0.0)),
+            risk_contribution_estimated=abs(selected_security_loadings.get(row.internal_id, 0.0)),
             mapping_status=row.mapping_status,
+            report_scope=_report_scope_label(row),
             dir_exposure=row.dir_exposure,
             eq_country=row.eq_country,
             eq_sector=row.eq_sector,
@@ -340,18 +349,19 @@ def build_risk_html_report(
         )
         for row in rows
     ]
-    allocation_summary = build_allocation_summary(risk_rows)
+    included_risk_rows = [row for row in risk_rows if row.report_scope == "included"]
+    allocation_summary = build_allocation_summary(included_risk_rows)
     country_breakdown = _build_eq_country_breakdown(
-        rows,
+        included_rows,
         selected_security_loadings,
         lookthrough_path=risk_report_config.eq_country_lookthrough_path,
     )
     sector_breakdown = _build_us_sector_breakdown(
-        rows,
+        included_rows,
         selected_security_loadings,
         lookthrough_path=risk_report_config.us_sector_lookthrough_path,
     )
-    fi_tenor_breakdown = _build_fi_tenor_breakdown(rows, selected_security_loadings)
+    fi_tenor_breakdown = _build_fi_tenor_breakdown(included_rows, selected_security_loadings)
     policy_drift_asset_class = _build_asset_class_policy_drift(
         allocation_summary=allocation_summary,
         asset_class_targets=allocation_policy.portfolio_asset_class_targets,
@@ -377,10 +387,10 @@ def build_risk_html_report(
         portfolio_vol_5y_realized=portfolio_vol_5y_realized,
         portfolio_vol_ewma=portfolio_vol_ewma,
         funded_aum=_funded_aum(rows),
-        gross_exposure=sum(row.display_gross_exposure_usd for row in rows),
-        net_exposure=sum(row.display_exposure_usd for row in rows),
-        mapped_positions=sum(1 for row in rows if row.mapping_status == "mapped"),
-        total_positions=len(rows),
+        gross_exposure=sum(row.display_gross_exposure_usd for row in included_rows),
+        net_exposure=sum(row.display_exposure_usd for row in included_rows),
+        mapped_positions=sum(1 for row in included_rows if row.mapping_status == "mapped"),
+        total_positions=len(included_rows),
     )
 
     rendered = render_html(
@@ -799,7 +809,7 @@ def render_html(
     inter_asset_corr: str,
 ) -> str:
     position_rows = "\n".join(
-        "<tr>"
+        f"<tr class='{'excluded-row' if row.report_scope == 'excluded' else ''}'>"
         f"<td>{html.escape(row.account)}</td>"
         f"<td>{html.escape(row.display_ticker)}</td>"
         f"<td>{html.escape(row.display_name)}</td>"
@@ -815,6 +825,7 @@ def render_html(
         f"<td>{row.sparkline_3m_svg}</td>"
         f"<td class='num'>{row.risk_contribution_estimated:.2%}</td>"
         f"<td>{html.escape(row.mapping_status)}</td>"
+        f"<td>{html.escape(row.report_scope)}</td>"
         "</tr>"
         for row in risk_rows
     )
@@ -872,6 +883,7 @@ def render_html(
     .chart-fill-pos {{ position: absolute; left: 50%; top: 0; bottom: 0; background: #16a34a; }}
     .chart-fill-neg {{ position: absolute; top: 0; bottom: 0; background: #dc2626; }}
     .chart-value {{ text-align: right; color: #334155; font-size: 12px; font-variant-numeric: tabular-nums; }}
+    .excluded-row {{ background: #fff7ed; }}
   </style>
 </head>
 <body>
@@ -887,7 +899,7 @@ def render_html(
       <div class='metric'><span>Funded AUM</span><strong>{summary.funded_aum:,.0f}</strong></div>
       <div class='metric'><span>Gross exposure (FI 10Y eq)</span><strong>{summary.gross_exposure:,.0f}</strong></div>
       <div class='metric'><span>Net exposure (FI 10Y eq)</span><strong>{summary.net_exposure:,.0f}</strong></div>
-      <div class='metric'><span>Mapping coverage</span><strong>{summary.mapped_positions}/{summary.total_positions}</strong></div>
+      <div class='metric'><span>Mapping coverage (included rows)</span><strong>{summary.mapped_positions}/{summary.total_positions}</strong></div>
     </div>
     <p>{html.escape(FI_10Y_EQ_DISPLAY_NOTE)}</p>
   </div>
@@ -954,13 +966,14 @@ def render_html(
 
   <div class='card'>
     <h2>Position Risk Decomposition</h2>
+    <p>Rows marked <strong>excluded</strong> are shown for audit only and do not feed the portfolio summary, allocation breakdowns, or portfolio risk aggregation.</p>
     <table>
       <thead>
         <tr>
           <th>Account</th><th>Ticker</th><th>Name</th><th>Asset Class</th><th>Type</th>
           <th class='num'>Qty</th><th class='num'>Gross Exposure (FI 10Y Eq)</th><th class='num'>Net Exposure (FI 10Y Eq)</th>
           <th class='num'>Dollar%</th><th class='num'>Vol (1M/3M)</th><th class='num'>Vol (5Y)</th><th class='num'>Vol (EWMA)</th><th>3M Trend</th><th class='num'>Vol Contribution</th>
-          <th>Mapping</th>
+          <th>Mapping</th><th>Report Scope</th>
         </tr>
       </thead>
       <tbody>{position_rows}</tbody>
@@ -1011,6 +1024,20 @@ def _render_allocation_summary_rows(rows: Iterable[CategorySummaryRow]) -> str:
         "</tr>"
         for row in materialized
     )
+
+
+def _is_report_included(row: RiskInputRow | RiskMetricsRow) -> bool:
+    if row.mapping_status == "outside_scope":
+        return False
+    if row.asset_class.upper() == "OUTSIDE_SCOPE":
+        return False
+    if row.instrument_type in {"Option", "Outside Scope"}:
+        return False
+    return True
+
+
+def _report_scope_label(row: RiskInputRow | RiskMetricsRow) -> str:
+    return "included" if _is_report_included(row) else "excluded"
 
 
 def _render_policy_drift_rows(rows: Iterable[PolicyDriftRow]) -> str:

@@ -482,6 +482,68 @@ def test_build_risk_html_report_accepts_dated_returns_override(tmp_path: Path) -
     assert "ZN" in rendered
 
 
+def test_build_risk_html_report_excludes_eq_options_outside_decomposition(
+    tmp_path: Path,
+) -> None:
+    positions_csv = tmp_path / "positions.csv"
+    positions_csv.write_text(
+        "\n".join(
+            [
+                "as_of,account,internal_id,con_id,symbol,local_symbol,exchange,currency,source,quantity,avg_cost,latest_price,market_value,cost_basis,unrealized_pnl,weight",
+                "2026-03-26T00:00:00+00:00,U1,STK:SPY:SMART,756733,SPY,SPY,ARCA,USD,ibkr,10,500,510,5100,5000,100,0.6",
+                "2026-03-26T00:00:00+00:00,U1,OPT:SPY_260417C00510000:SMART,999001,SPY,SPY   260417C00510000,SMART,USD,ibkr,1,35,35,3500,3500,0,0.4",
+            ]
+        ),
+        encoding="utf-8",
+    )
+
+    returns_json = tmp_path / "returns.json"
+    returns_json.write_text(
+        json.dumps({"STK:SPY:SMART": [0.001 * ((idx % 7) - 3) for idx in range(90)]}),
+        encoding="utf-8",
+    )
+
+    security_reference_path = tmp_path / "security_reference.csv"
+    export_security_reference_csv(
+        [
+            SecurityReference(
+                internal_id="STK:SPY:SMART",
+                asset_class="EQ",
+                canonical_symbol="SPY",
+                display_ticker="SPY",
+                display_name="US",
+                currency="USD",
+                primary_exchange="ARCA",
+                multiplier=1.0,
+                ibkr_sec_type="STK",
+                ibkr_symbol="SPY",
+                ibkr_exchange="SMART",
+                yahoo_symbol="SPY",
+                eq_country="US",
+                dir_exposure="L",
+                lookup_status="verified",
+            ),
+        ],
+        security_reference_path,
+    )
+
+    output_path = tmp_path / "risk_report.html"
+    build_risk_html_report(
+        positions_csv_path=positions_csv,
+        returns_path=returns_json,
+        output_path=output_path,
+        security_reference_path=security_reference_path,
+    )
+
+    rendered = output_path.read_text(encoding="utf-8")
+    assert "Mapping coverage (included rows)</span><strong>1/1</strong>" in rendered
+    assert "Gross exposure (FI 10Y eq)</span><strong>5,100</strong>" in rendered
+    assert "<td>EQ</td><td class='num'>5,100.00</td><td class='num'>5,100.00</td>" in rendered
+    assert "SPY 260417C00510000" in rendered
+    assert "Rows marked <strong>excluded</strong>" in rendered
+    assert ">excluded</td>" in rendered
+
+
 def test_fi_10y_equivalent_exposure_values_scale_and_preserve_sign() -> None:
     gross, signed = risk_html_module._fi_10y_equivalent_exposure_values(
         gross_exposure_usd=100.0,
