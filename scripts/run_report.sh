@@ -5,20 +5,24 @@ ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 ENV_NAME="${ENV_NAME:-py313}"
 CONDA_BIN="${CONDA_BIN:-$(command -v conda || true)}"
 ACCOUNT_ENV="${ACCOUNT_ENV:-prod}"
-CANONICAL_LOCAL_ACCOUNT_CONFIG="${ROOT_DIR}/configs/portfolio_monitor/report_accounts.local.env"
-LEGACY_LOCAL_ACCOUNT_CONFIG="${ROOT_DIR}/configs/report_accounts.local.env"
-LOCAL_ACCOUNT_CONFIG="${CANONICAL_LOCAL_ACCOUNT_CONFIG}"
+CANONICAL_LOCAL_CONFIG="${ROOT_DIR}/configs/portfolio_monitor/local.env"
+LEGACY_PORTFOLIO_LOCAL_CONFIG="${ROOT_DIR}/configs/portfolio_monitor/report_accounts.local.env"
+LEGACY_ROOT_LOCAL_CONFIG="${ROOT_DIR}/configs/report_accounts.local.env"
+LOCAL_CONFIG="${CANONICAL_LOCAL_CONFIG}"
 DEFAULT_PROD_ACCOUNT_ID="${DEFAULT_PROD_ACCOUNT_ID:-}"
 DEFAULT_DEV_ACCOUNT_ID="${DEFAULT_DEV_ACCOUNT_ID:-}"
 
-if [[ ! -f "${LOCAL_ACCOUNT_CONFIG}" && -f "${LEGACY_LOCAL_ACCOUNT_CONFIG}" ]]; then
-    LOCAL_ACCOUNT_CONFIG="${LEGACY_LOCAL_ACCOUNT_CONFIG}"
-    echo "Warning: ${LEGACY_LOCAL_ACCOUNT_CONFIG} is deprecated. Move local account defaults to ${CANONICAL_LOCAL_ACCOUNT_CONFIG}." >&2
+if [[ ! -f "${LOCAL_CONFIG}" && -f "${LEGACY_PORTFOLIO_LOCAL_CONFIG}" ]]; then
+    LOCAL_CONFIG="${LEGACY_PORTFOLIO_LOCAL_CONFIG}"
+    echo "Warning: ${LEGACY_PORTFOLIO_LOCAL_CONFIG} is deprecated. Move local-only config to ${CANONICAL_LOCAL_CONFIG}." >&2
+elif [[ ! -f "${LOCAL_CONFIG}" && -f "${LEGACY_ROOT_LOCAL_CONFIG}" ]]; then
+    LOCAL_CONFIG="${LEGACY_ROOT_LOCAL_CONFIG}"
+    echo "Warning: ${LEGACY_ROOT_LOCAL_CONFIG} is deprecated. Move local-only config to ${CANONICAL_LOCAL_CONFIG}." >&2
 fi
 
-if [[ -f "${LOCAL_ACCOUNT_CONFIG}" ]]; then
+if [[ -f "${LOCAL_CONFIG}" ]]; then
     # shellcheck disable=SC1090
-    source "${LOCAL_ACCOUNT_CONFIG}"
+    source "${LOCAL_CONFIG}"
 fi
 
 usage() {
@@ -30,6 +34,7 @@ Usage:
   ./scripts/run_report.sh ibkr-live-html [--output PATH] [--positions-output PATH] [--returns PATH] [--proxy PATH] [--regime PATH] [--security-reference PATH] [--risk-config PATH] [--allocation-policy PATH] [--account ACCOUNT_ID] [--host HOST] [--port PORT] [--client-id ID] [--timeout SECONDS] [--as-of ISO8601]
   ./scripts/run_report.sh risk-html --positions-csv PATH [--returns PATH] [--proxy PATH] [--regime PATH] [--security-reference PATH] [--risk-config PATH] [--allocation-policy PATH] [--output PATH]
   ./scripts/run_report.sh security-reference-sync [--output PATH]
+  ./scripts/run_report.sh etf-sector-sync --symbol TICKER [--symbol TICKER] [--output PATH] [--api-key KEY]
   ./scripts/run_report.sh mapping-table --workbook PATH [--output PATH]
 
 Modes:
@@ -39,14 +44,18 @@ Modes:
   ibkr-live-html Generate live IBKR positions first, then build the HTML risk report in one run.
   risk-html   Generate an HTML risk report from a position CSV plus return/proxy inputs.
   security-reference-sync Rebuild the generated security reference from configs/security_universe.csv.
+  etf-sector-sync Fetch ETF sector weights from FMP into configs/portfolio_monitor/us_sector_lookthrough.json.
   mapping-table Extract a security-reference CSV seed from a target workbook.
 
 Environment:
   ENV_NAME    Conda environment name to use. Defaults to: py313
   CONDA_BIN   Optional explicit path to the conda executable.
+  FMP_API_KEY Optional default API key for etf-sector-sync.
   ACCOUNT_ENV Live-account profile. Use prod or dev. Defaults to: prod
-  LOCAL_ACCOUNT_CONFIG Optional local account config file. Defaults to: configs/portfolio_monitor/report_accounts.local.env
-               Legacy fallback: configs/report_accounts.local.env (deprecated)
+  LOCAL_CONFIG Optional local config file. Defaults to: configs/portfolio_monitor/local.env
+               Legacy fallbacks:
+                 configs/portfolio_monitor/report_accounts.local.env (deprecated)
+                 configs/report_accounts.local.env (deprecated)
 EOF
 }
 
@@ -101,7 +110,7 @@ resolve_live_account() {
             ;;
     esac
 
-    [[ -n "${ACCOUNT_ID}" ]] || fail "No default account configured for ACCOUNT_ENV=${ACCOUNT_ENV}. Set it in ${CANONICAL_LOCAL_ACCOUNT_CONFIG} or pass --account explicitly."
+    [[ -n "${ACCOUNT_ID}" ]] || fail "No default account configured for ACCOUNT_ENV=${ACCOUNT_ENV}. Set it in ${CANONICAL_LOCAL_CONFIG} or pass --account explicitly."
     echo "Using default ${ACCOUNT_ENV} live account: ${ACCOUNT_ID}"
 }
 
@@ -146,6 +155,10 @@ case "${MODE}" in
         CLI_COMMAND="security-reference-sync"
         DEFAULT_OUTPUT="${ROOT_DIR}/data/artifacts/portfolio_monitor/security_reference.csv"
         ;;
+    etf-sector-sync)
+        CLI_COMMAND="etf-sector-sync"
+        DEFAULT_OUTPUT="${ROOT_DIR}/configs/portfolio_monitor/us_sector_lookthrough.json"
+        ;;
     mapping-table)
         CLI_COMMAND="extract-report-mapping"
         DEFAULT_OUTPUT="${ROOT_DIR}/data/artifacts/portfolio_monitor/target_report_security_reference.csv"
@@ -175,6 +188,8 @@ SECURITY_REFERENCE_PATH=""
 RISK_CONFIG_PATH=""
 ALLOCATION_POLICY_PATH=""
 WORKBOOK_PATH=""
+FMP_API_KEY="${FMP_API_KEY:-}"
+SYMBOLS=()
 
 while [[ $# -gt 0 ]]; do
     case "$1" in
@@ -271,6 +286,16 @@ while [[ $# -gt 0 ]]; do
         --workbook)
             require_value "$1" "${2:-}"
             WORKBOOK_PATH="$2"
+            shift 2
+            ;;
+        --api-key)
+            require_value "$1" "${2:-}"
+            FMP_API_KEY="$2"
+            shift 2
+            ;;
+        --symbol)
+            require_value "$1" "${2:-}"
+            SYMBOLS+=("$2")
             shift 2
             ;;
         --timeout)
@@ -373,6 +398,13 @@ case "${MODE}" in
         ;;
     security-reference-sync)
         :
+        ;;
+    etf-sector-sync)
+        [[ ${#SYMBOLS[@]} -gt 0 ]] || fail "etf-sector-sync mode requires at least one --symbol"
+        for symbol in "${SYMBOLS[@]}"; do
+            COMMAND+=(--symbol "${symbol}")
+        done
+        [[ -n "${FMP_API_KEY}" ]] && COMMAND+=(--api-key "${FMP_API_KEY}")
         ;;
     mapping-table)
         [[ -n "${WORKBOOK_PATH}" ]] || fail "mapping-table mode requires --workbook"

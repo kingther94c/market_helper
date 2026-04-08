@@ -13,6 +13,7 @@ import market_helper.domain.portfolio_monitor.services.yahoo_returns as yahoo_re
 from market_helper.portfolio import SecurityReference, export_security_reference_csv
 import market_helper.reporting.risk_html as risk_html_module
 from market_helper.reporting.risk_html import (
+    RiskInputRow,
     _funded_aum_from_dicts,
     annualized_vol,
     build_risk_html_report,
@@ -175,26 +176,180 @@ def test_default_eq_country_lookthrough_uses_explicit_dm_em_other_buckets() -> N
 
 
 def test_default_us_sector_lookthrough_covers_all_us_equity_universe_symbols() -> None:
-    universe_path = REPO_ROOT / "configs" / "security_universe.csv"
-    lookthrough_path = REPO_ROOT / "configs" / "portfolio_monitor" / "us_sector_lookthrough.csv"
+    lookthrough_path = REPO_ROOT / "configs" / "portfolio_monitor" / "us_sector_lookthrough.json"
 
-    with universe_path.open("r", encoding="utf-8", newline="") as handle:
-        universe_rows = list(csv.DictReader(handle))
-    with lookthrough_path.open("r", encoding="utf-8", newline="") as handle:
-        lookthrough_rows = list(csv.DictReader(handle))
+    configured_symbols = set(
+        risk_html_module._load_weight_table(
+            lookthrough_path,
+            "canonical_symbol",
+            "sector",
+        )
+    )
 
-    expected_symbols = {
-        str(row["ibkr_symbol"]).upper()
-        for row in universe_rows
-        if str(row["asset_class"]).upper() == "EQ" and str(row["eq_country"]).upper() == "US"
-    }
-    configured_symbols = {
-        str(row["canonical_symbol"]).upper()
-        for row in lookthrough_rows
-        if str(row["canonical_symbol"]).strip()
-    }
+    assert {
+        "SPY",
+        "VOO",
+        "SPYL",
+        "QQQ",
+        "TQQQ",
+        "SQQQ",
+        "SOXX",
+        "SOXL",
+        "XLK",
+    } <= configured_symbols
+    assert "TSLA" not in configured_symbols
 
-    assert not (expected_symbols - configured_symbols)
+
+def test_expand_us_sector_allocations_prefers_lookthrough_over_security_sector() -> None:
+    row = RiskInputRow(
+        internal_id="STK:SOXX:SMART",
+        symbol="SOXX",
+        canonical_symbol="SOXX",
+        account="U1",
+        market_value=1000.0,
+        weight=1.0,
+        asset_class="EQ",
+        category="EQ",
+        display_ticker="SOXX",
+        display_name="US Semiconductor",
+        instrument_type="ETF",
+        quantity=1.0,
+        latest_price=1000.0,
+        multiplier=1.0,
+        exposure_usd=1000.0,
+        gross_exposure_usd=1000.0,
+        signed_exposure_usd=1000.0,
+        dollar_weight=1.0,
+        display_exposure_usd=1000.0,
+        display_gross_exposure_usd=1000.0,
+        display_dollar_weight=1.0,
+        duration=None,
+        expected_vol=None,
+        local_symbol="SOXX",
+        exchange="SMART",
+        mapping_status="mapped",
+        dir_exposure="L",
+        eq_country="US",
+        eq_sector="Semiconductor",
+        fi_tenor="",
+        yahoo_symbol="SOXX",
+    )
+
+    allocations = risk_html_module._expand_us_sector_allocations(
+        row,
+        {"SOXX": [("Technology", 1.0)]},
+    )
+
+    assert allocations == [("Technology", 1.0)]
+
+
+def test_report_us_etf_lookthrough_symbols_skips_single_name_equities() -> None:
+    spy_row = RiskInputRow(
+        internal_id="STK:SPY:ARCA",
+        symbol="SPY",
+        canonical_symbol="SPY",
+        account="U1",
+        market_value=1000.0,
+        weight=0.5,
+        asset_class="EQ",
+        category="EQ",
+        display_ticker="SPY",
+        display_name="US",
+        instrument_type="EQ",
+        quantity=1.0,
+        latest_price=1000.0,
+        multiplier=1.0,
+        exposure_usd=1000.0,
+        gross_exposure_usd=1000.0,
+        signed_exposure_usd=1000.0,
+        dollar_weight=0.5,
+        display_exposure_usd=1000.0,
+        display_gross_exposure_usd=1000.0,
+        display_dollar_weight=0.5,
+        duration=None,
+        expected_vol=None,
+        local_symbol="SPY",
+        exchange="ARCA",
+        mapping_status="mapped",
+        dir_exposure="L",
+        eq_country="US",
+        eq_sector="",
+        fi_tenor="",
+        yahoo_symbol="SPY",
+    )
+    tsla_row = RiskInputRow(
+        internal_id="STK:TSLA:SMART",
+        symbol="TSLA",
+        canonical_symbol="TSLA",
+        account="U1",
+        market_value=1000.0,
+        weight=0.5,
+        asset_class="EQ",
+        category="EQ",
+        display_ticker="TSLA",
+        display_name="TSLA",
+        instrument_type="EQ",
+        quantity=1.0,
+        latest_price=1000.0,
+        multiplier=1.0,
+        exposure_usd=1000.0,
+        gross_exposure_usd=1000.0,
+        signed_exposure_usd=1000.0,
+        dollar_weight=0.5,
+        display_exposure_usd=1000.0,
+        display_gross_exposure_usd=1000.0,
+        display_dollar_weight=0.5,
+        duration=None,
+        expected_vol=None,
+        local_symbol="TSLA",
+        exchange="SMART",
+        mapping_status="mapped",
+        dir_exposure="L",
+        eq_country="US",
+        eq_sector="",
+        fi_tenor="",
+        yahoo_symbol="TSLA",
+    )
+    aapl_row = RiskInputRow(
+        internal_id="STK:AAPL:SMART",
+        symbol="AAPL",
+        canonical_symbol="AAPL",
+        account="U1",
+        market_value=1000.0,
+        weight=0.5,
+        asset_class="EQ",
+        category="EQ",
+        display_ticker="AAPL",
+        display_name="Apple Inc",
+        instrument_type="EQ",
+        quantity=1.0,
+        latest_price=1000.0,
+        multiplier=1.0,
+        exposure_usd=1000.0,
+        gross_exposure_usd=1000.0,
+        signed_exposure_usd=1000.0,
+        dollar_weight=0.5,
+        display_exposure_usd=1000.0,
+        display_gross_exposure_usd=1000.0,
+        display_dollar_weight=0.5,
+        duration=None,
+        expected_vol=None,
+        local_symbol="AAPL",
+        exchange="SMART",
+        mapping_status="mapped",
+        dir_exposure="L",
+        eq_country="US",
+        eq_sector="",
+        fi_tenor="",
+        yahoo_symbol="AAPL",
+    )
+
+    symbols = risk_html_module._report_us_etf_lookthrough_symbols(
+        [spy_row, tsla_row, aapl_row],
+        existing_symbols=set(),
+    )
+
+    assert symbols == ["SPY"]
 
 
 def test_build_risk_html_report_renders_summary_and_tables(tmp_path: Path) -> None:
@@ -313,7 +468,7 @@ def test_build_risk_html_report_accepts_configurable_allocation_policy(tmp_path:
     )
     rendered = output_path.read_text(encoding="utf-8")
     assert "PORTFOLIO" in rendered
-    assert "Semiconductor" in rendered
+    assert "Technology" in rendered
     assert "JP" in rendered
 
 

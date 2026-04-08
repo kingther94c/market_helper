@@ -7,6 +7,7 @@ from pathlib import Path
 from typing import Sequence
 
 from market_helper.workflows.generate_report import (
+    generate_etf_sector_sync,
     generate_ibkr_position_report,
     generate_live_ibkr_position_report,
     generate_position_report,
@@ -104,6 +105,27 @@ def build_parser() -> argparse.ArgumentParser:
         help="Optional output path. Defaults to data/artifacts/portfolio_monitor/security_reference.csv.",
     )
 
+    etf_sector_sync = subparsers.add_parser(
+        "etf-sector-sync",
+        help="Fetch ETF sector weights from FMP and merge them into us_sector_lookthrough.json.",
+    )
+    etf_sector_sync.add_argument(
+        "--symbol",
+        action="append",
+        required=True,
+        help="ETF ticker to fetch. Repeat for multiple symbols.",
+    )
+    etf_sector_sync.add_argument(
+        "--output",
+        required=False,
+        help="Optional output path. Defaults to configs/portfolio_monitor/us_sector_lookthrough.json.",
+    )
+    etf_sector_sync.add_argument(
+        "--api-key",
+        required=False,
+        help="Optional FMP API key. Falls back to FMP_API_KEY or configs/portfolio_monitor/local.env.",
+    )
+
     regime_detect = subparsers.add_parser(
         "regime-detect",
         help="Run deterministic rule-based regime detection and write JSON snapshots.",
@@ -192,6 +214,13 @@ def main(argv: Sequence[str] | None = None) -> int:
     if args.command == "security-reference-sync":
         generate_security_reference_sync(
             output_path=Path(args.output) if args.output else None,
+        )
+        return 0
+    if args.command == "etf-sector-sync":
+        generate_etf_sector_sync(
+            symbols=list(args.symbol),
+            output_path=Path(args.output) if args.output else None,
+            api_key=args.api_key,
         )
         return 0
     if args.command == "extract-report-mapping":

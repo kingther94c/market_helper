@@ -2,6 +2,7 @@ from urllib.error import HTTPError
 
 import pytest
 
+from market_helper.data_sources.fmp import FmpClient, FmpEtfSectorWeight
 from market_helper.data_sources.fred import download_fred_series_batch
 from market_helper.data_sources.ibkr.tws import choose_tws_account
 from market_helper.data_sources.yahoo_finance import YahooFinanceClient
@@ -75,3 +76,20 @@ def test_yahoo_finance_client_retries_rate_limit_errors() -> None:
 
     assert payload["symbol"] == "SPY"
     assert calls["count"] == 3
+
+
+def test_fmp_facade_fetches_sector_weights() -> None:
+    client = FmpClient(
+        api_key="demo",
+        downloader=lambda _url: [
+            {"sector": "Technology", "weightPercentage": 80},
+            {"sector": "Financial Services", "weightPercentage": 20},
+        ],
+    )
+
+    payload = client.fetch_etf_sector_weightings("SOXX")
+
+    assert payload == [
+        FmpEtfSectorWeight(symbol="SOXX", sector="Technology", weight=0.8),
+        FmpEtfSectorWeight(symbol="SOXX", sector="Financial Services", weight=0.2),
+    ]

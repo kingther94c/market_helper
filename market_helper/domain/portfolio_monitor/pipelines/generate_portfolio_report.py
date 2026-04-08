@@ -30,6 +30,9 @@ from market_helper.data_sources.ibkr.tws import (
     portfolio_items_to_ibkr_position_rows,
     portfolio_items_to_ibkr_price_rows,
 )
+from market_helper.domain.portfolio_monitor.services.etf_sector_lookthrough import (
+    sync_us_sector_lookthrough_from_fmp,
+)
 from market_helper.presentation.exporters.csv import export_position_report_csv
 from market_helper.presentation.exporters.security_reference_seed import (
     export_security_reference_seed_csv,
@@ -220,6 +223,21 @@ def generate_security_reference_sync(
     output_path: str | Path | None = None,
 ) -> Path:
     return sync_security_reference_csv(reference_path=output_path or DEFAULT_SECURITY_REFERENCE_PATH)
+
+
+def generate_etf_sector_sync(
+    *,
+    symbols: list[str],
+    output_path: str | Path | None = None,
+    api_key: str | None = None,
+    client: object | None = None,
+) -> Path:
+    return sync_us_sector_lookthrough_from_fmp(
+        symbols=symbols,
+        output_path=output_path,
+        api_key=api_key,
+        client=client,
+    )
 
 
 def generate_report_mapping_table(

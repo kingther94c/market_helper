@@ -49,7 +49,7 @@ def _run_script(project_root: Path, fake_conda: Path, *args: str) -> subprocess.
 
 def test_run_report_uses_canonical_local_account_config(tmp_path: Path) -> None:
     project_root, fake_conda = _prepare_script_project(tmp_path)
-    local_config = project_root / "configs" / "portfolio_monitor" / "report_accounts.local.env"
+    local_config = project_root / "configs" / "portfolio_monitor" / "local.env"
     local_config.parent.mkdir(parents=True)
     local_config.write_text(
         'DEFAULT_PROD_ACCOUNT_ID="U10001"\nDEFAULT_DEV_ACCOUNT_ID="DU10001"\n',
@@ -71,9 +71,9 @@ def test_run_report_uses_canonical_local_account_config(tmp_path: Path) -> None:
     assert "deprecated" not in result.stderr.lower()
 
 
-def test_run_report_uses_legacy_local_account_config_with_warning(tmp_path: Path) -> None:
+def test_run_report_uses_legacy_portfolio_local_account_config_with_warning(tmp_path: Path) -> None:
     project_root, fake_conda = _prepare_script_project(tmp_path)
-    legacy_config = project_root / "configs" / "report_accounts.local.env"
+    legacy_config = project_root / "configs" / "portfolio_monitor" / "report_accounts.local.env"
     legacy_config.parent.mkdir(parents=True)
     legacy_config.write_text(
         'DEFAULT_PROD_ACCOUNT_ID="U20002"\nDEFAULT_DEV_ACCOUNT_ID="DU20002"\n',
@@ -94,6 +94,33 @@ def test_run_report_uses_legacy_local_account_config_with_warning(tmp_path: Path
     assert "U20002" in result.stdout
     assert "deprecated" in result.stderr.lower()
     assert "configs/portfolio_monitor/report_accounts.local.env" in result.stderr
+    assert "configs/portfolio_monitor/local.env" in result.stderr
+
+
+def test_run_report_uses_legacy_root_local_account_config_with_warning(tmp_path: Path) -> None:
+    project_root, fake_conda = _prepare_script_project(tmp_path)
+    legacy_config = project_root / "configs" / "report_accounts.local.env"
+    legacy_config.parent.mkdir(parents=True)
+    legacy_config.write_text(
+        'DEFAULT_PROD_ACCOUNT_ID="U30003"\nDEFAULT_DEV_ACCOUNT_ID="DU30003"\n',
+        encoding="utf-8",
+    )
+
+    result = _run_script(
+        project_root,
+        fake_conda,
+        "ibkr-live",
+        "--output",
+        str(project_root / "outputs" / "live.csv"),
+    )
+
+    assert result.returncode == 0
+    assert "Using default prod live account: U30003" in result.stdout
+    assert "--account" in result.stdout
+    assert "U30003" in result.stdout
+    assert "deprecated" in result.stderr.lower()
+    assert "configs/report_accounts.local.env" in result.stderr
+    assert "configs/portfolio_monitor/local.env" in result.stderr
 
 
 def test_run_report_missing_account_config_points_to_canonical_path(tmp_path: Path) -> None:
@@ -108,7 +135,7 @@ def test_run_report_missing_account_config_points_to_canonical_path(tmp_path: Pa
     )
 
     assert result.returncode != 0
-    assert "configs/portfolio_monitor/report_accounts.local.env" in result.stderr
+    assert "configs/portfolio_monitor/local.env" in result.stderr
     assert "configs/report_accounts.local.env" not in result.stderr
 
 
@@ -157,3 +184,28 @@ def test_run_report_security_reference_sync_defaults_to_artifacts_cache_path(tmp
 
     assert result.returncode == 0
     assert "data/artifacts/portfolio_monitor/security_reference.csv" in result.stdout
+
+
+def test_run_report_etf_sector_sync_forwards_symbols_and_output(tmp_path: Path) -> None:
+    project_root, fake_conda = _prepare_script_project(tmp_path)
+
+    result = _run_script(
+        project_root,
+        fake_conda,
+        "etf-sector-sync",
+        "--symbol",
+        "SOXX",
+        "--symbol",
+        "QQQ",
+        "--output",
+        str(project_root / "configs" / "portfolio_monitor" / "us_sector_lookthrough.json"),
+        "--api-key",
+        "demo-key",
+    )
+
+    assert result.returncode == 0
+    assert "etf-sector-sync" in result.stdout
+    assert "--symbol" in result.stdout
+    assert "SOXX" in result.stdout
+    assert "QQQ" in result.stdout
+    assert "--api-key" in result.stdout

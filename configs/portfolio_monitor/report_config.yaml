@@ -1,7 +1,7 @@
 risk_report:
   lookthrough:
     eq_country: eq_country_lookthrough.csv
-    us_sector: us_sector_lookthrough.csv
+    us_sector: us_sector_lookthrough.json
   proxy:
     DEFAULT: VIX
     FXVOL: 0.0
