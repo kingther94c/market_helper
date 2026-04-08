@@ -5,13 +5,15 @@ ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 ENV_NAME="${ENV_NAME:-py313}"
 CONDA_BIN="${CONDA_BIN:-$(command -v conda || true)}"
 ACCOUNT_ENV="${ACCOUNT_ENV:-prod}"
-LOCAL_ACCOUNT_CONFIG="${ROOT_DIR}/configs/portfolio_monitor/report_accounts.local.env"
-DEFAULT_PROXY_CONFIG="${ROOT_DIR}/configs/portfolio_monitor/proxy.json"
+CANONICAL_LOCAL_ACCOUNT_CONFIG="${ROOT_DIR}/configs/portfolio_monitor/report_accounts.local.env"
+LEGACY_LOCAL_ACCOUNT_CONFIG="${ROOT_DIR}/configs/report_accounts.local.env"
+LOCAL_ACCOUNT_CONFIG="${CANONICAL_LOCAL_ACCOUNT_CONFIG}"
 DEFAULT_PROD_ACCOUNT_ID="${DEFAULT_PROD_ACCOUNT_ID:-}"
 DEFAULT_DEV_ACCOUNT_ID="${DEFAULT_DEV_ACCOUNT_ID:-}"
 
-if [[ ! -f "${LOCAL_ACCOUNT_CONFIG}" && -f "${ROOT_DIR}/configs/report_accounts.local.env" ]]; then
-    LOCAL_ACCOUNT_CONFIG="${ROOT_DIR}/configs/report_accounts.local.env"
+if [[ ! -f "${LOCAL_ACCOUNT_CONFIG}" && -f "${LEGACY_LOCAL_ACCOUNT_CONFIG}" ]]; then
+    LOCAL_ACCOUNT_CONFIG="${LEGACY_LOCAL_ACCOUNT_CONFIG}"
+    echo "Warning: ${LEGACY_LOCAL_ACCOUNT_CONFIG} is deprecated. Move local account defaults to ${CANONICAL_LOCAL_ACCOUNT_CONFIG}." >&2
 fi
 
 if [[ -f "${LOCAL_ACCOUNT_CONFIG}" ]]; then
@@ -25,8 +27,8 @@ Usage:
   ./scripts/run_report.sh snapshot --positions PATH --prices PATH [--output PATH]
   ./scripts/run_report.sh ibkr-json --ibkr-positions PATH --ibkr-prices PATH [--output PATH] [--as-of ISO8601]
   ./scripts/run_report.sh ibkr-live [--output PATH] [--account ACCOUNT_ID] [--host HOST] [--port PORT] [--client-id ID] [--timeout SECONDS] [--as-of ISO8601]
-  ./scripts/run_report.sh ibkr-live-html [--output PATH] [--positions-output PATH] [--returns PATH] [--proxy PATH] [--regime PATH] [--security-reference PATH] [--account ACCOUNT_ID] [--host HOST] [--port PORT] [--client-id ID] [--timeout SECONDS] [--as-of ISO8601]
-  ./scripts/run_report.sh risk-html --positions-csv PATH [--returns PATH] [--proxy PATH] [--regime PATH] [--security-reference PATH] [--output PATH]
+  ./scripts/run_report.sh ibkr-live-html [--output PATH] [--positions-output PATH] [--returns PATH] [--proxy PATH] [--regime PATH] [--security-reference PATH] [--risk-config PATH] [--allocation-policy PATH] [--account ACCOUNT_ID] [--host HOST] [--port PORT] [--client-id ID] [--timeout SECONDS] [--as-of ISO8601]
+  ./scripts/run_report.sh risk-html --positions-csv PATH [--returns PATH] [--proxy PATH] [--regime PATH] [--security-reference PATH] [--risk-config PATH] [--allocation-policy PATH] [--output PATH]
   ./scripts/run_report.sh security-reference-sync [--output PATH]
   ./scripts/run_report.sh mapping-table --workbook PATH [--output PATH]
 
@@ -44,6 +46,7 @@ Environment:
   CONDA_BIN   Optional explicit path to the conda executable.
   ACCOUNT_ENV Live-account profile. Use prod or dev. Defaults to: prod
   LOCAL_ACCOUNT_CONFIG Optional local account config file. Defaults to: configs/portfolio_monitor/report_accounts.local.env
+               Legacy fallback: configs/report_accounts.local.env (deprecated)
 EOF
 }
 
@@ -98,7 +101,7 @@ resolve_live_account() {
             ;;
     esac
 
-    [[ -n "${ACCOUNT_ID}" ]] || fail "No default account configured for ACCOUNT_ENV=${ACCOUNT_ENV}. Set it in ${LOCAL_ACCOUNT_CONFIG} or pass --account explicitly."
+    [[ -n "${ACCOUNT_ID}" ]] || fail "No default account configured for ACCOUNT_ENV=${ACCOUNT_ENV}. Set it in ${CANONICAL_LOCAL_ACCOUNT_CONFIG} or pass --account explicitly."
     echo "Using default ${ACCOUNT_ENV} live account: ${ACCOUNT_ID}"
 }
 
@@ -141,7 +144,7 @@ case "${MODE}" in
         ;;
     security-reference-sync)
         CLI_COMMAND="security-reference-sync"
-        DEFAULT_OUTPUT="${ROOT_DIR}/configs/portfolio_monitor/security_reference.csv"
+        DEFAULT_OUTPUT="${ROOT_DIR}/data/artifacts/portfolio_monitor/security_reference.csv"
         ;;
     mapping-table)
         CLI_COMMAND="extract-report-mapping"
@@ -169,6 +172,8 @@ RETURNS_PATH=""
 PROXY_PATH=""
 REGIME_PATH=""
 SECURITY_REFERENCE_PATH=""
+RISK_CONFIG_PATH=""
+ALLOCATION_POLICY_PATH=""
 WORKBOOK_PATH=""
 
 while [[ $# -gt 0 ]]; do
@@ -253,6 +258,16 @@ while [[ $# -gt 0 ]]; do
             SECURITY_REFERENCE_PATH="$2"
             shift 2
             ;;
+        --risk-config)
+            require_value "$1" "${2:-}"
+            RISK_CONFIG_PATH="$2"
+            shift 2
+            ;;
+        --allocation-policy)
+            require_value "$1" "${2:-}"
+            ALLOCATION_POLICY_PATH="$2"
+            shift 2
+            ;;
         --workbook)
             require_value "$1" "${2:-}"
             WORKBOOK_PATH="$2"
@@ -284,10 +299,6 @@ if [[ "${MODE}" == "ibkr-live-html" ]]; then
 
     resolve_live_account
 
-    if [[ -z "${PROXY_PATH}" && -f "${DEFAULT_PROXY_CONFIG}" ]]; then
-        PROXY_PATH="${DEFAULT_PROXY_CONFIG}"
-    fi
-
     LIVE_COMMAND=(
         "${CONDA_BIN}" run -n "${ENV_NAME}" python -m market_helper.cli.main ibkr-live-position-report
         --output "${POSITIONS_OUTPUT_PATH}"
@@ -308,6 +319,8 @@ if [[ "${MODE}" == "ibkr-live-html" ]]; then
     [[ -n "${PROXY_PATH}" ]] && { require_file "proxy" "${PROXY_PATH}"; RISK_COMMAND+=(--proxy "${PROXY_PATH}"); }
     [[ -n "${REGIME_PATH}" ]] && { require_file "regime" "${REGIME_PATH}"; RISK_COMMAND+=(--regime "${REGIME_PATH}"); }
     [[ -n "${SECURITY_REFERENCE_PATH}" ]] && { require_file "security reference" "${SECURITY_REFERENCE_PATH}"; RISK_COMMAND+=(--security-reference "${SECURITY_REFERENCE_PATH}"); }
+    [[ -n "${RISK_CONFIG_PATH}" ]] && { require_file "risk config" "${RISK_CONFIG_PATH}"; RISK_COMMAND+=(--risk-config "${RISK_CONFIG_PATH}"); }
+    [[ -n "${ALLOCATION_POLICY_PATH}" ]] && { require_file "allocation policy" "${ALLOCATION_POLICY_PATH}"; RISK_COMMAND+=(--allocation-policy "${ALLOCATION_POLICY_PATH}"); }
 
     echo "Running ibkr-live-html workflow..."
     "${LIVE_COMMAND[@]}"
@@ -350,14 +363,13 @@ case "${MODE}" in
     risk-html)
         [[ -n "${POSITIONS_CSV_PATH}" ]] || fail "risk-html mode requires --positions-csv"
         require_file "positions csv" "${POSITIONS_CSV_PATH}"
-        if [[ -z "${PROXY_PATH}" && -f "${DEFAULT_PROXY_CONFIG}" ]]; then
-            PROXY_PATH="${DEFAULT_PROXY_CONFIG}"
-        fi
         COMMAND+=(--positions-csv "${POSITIONS_CSV_PATH}")
         [[ -n "${RETURNS_PATH}" ]] && { require_file "returns" "${RETURNS_PATH}"; COMMAND+=(--returns "${RETURNS_PATH}"); }
         [[ -n "${PROXY_PATH}" ]] && { require_file "proxy" "${PROXY_PATH}"; COMMAND+=(--proxy "${PROXY_PATH}"); }
         [[ -n "${REGIME_PATH}" ]] && { require_file "regime" "${REGIME_PATH}"; COMMAND+=(--regime "${REGIME_PATH}"); }
         [[ -n "${SECURITY_REFERENCE_PATH}" ]] && { require_file "security reference" "${SECURITY_REFERENCE_PATH}"; COMMAND+=(--security-reference "${SECURITY_REFERENCE_PATH}"); }
+        [[ -n "${RISK_CONFIG_PATH}" ]] && { require_file "risk config" "${RISK_CONFIG_PATH}"; COMMAND+=(--risk-config "${RISK_CONFIG_PATH}"); }
+        [[ -n "${ALLOCATION_POLICY_PATH}" ]] && { require_file "allocation policy" "${ALLOCATION_POLICY_PATH}"; COMMAND+=(--allocation-policy "${ALLOCATION_POLICY_PATH}"); }
         ;;
     security-reference-sync)
         :

@@ -179,7 +179,7 @@ def test_cli_risk_html_report_dispatches_to_workflow(monkeypatch, tmp_path) -> N
             "--output",
             str(tmp_path / "portfolio_risk_report.html"),
             "--risk-config",
-            str(tmp_path / "risk_report.yaml"),
+            str(tmp_path / "report_config.yaml"),
             "--allocation-policy",
             str(tmp_path / "allocation_policy.yaml"),
             "--vol-method",
@@ -193,7 +193,7 @@ def test_cli_risk_html_report_dispatches_to_workflow(monkeypatch, tmp_path) -> N
     assert str(captured["proxy_path"]).endswith("proxy.json")
     assert str(captured["regime_path"]).endswith("regime.json")
     assert str(captured["security_reference_path"]).endswith("security_reference.csv")
-    assert str(captured["risk_config_path"]).endswith("risk_report.yaml")
+    assert str(captured["risk_config_path"]).endswith("report_config.yaml")
     assert str(captured["allocation_policy_path"]).endswith("allocation_policy.yaml")
     assert captured["vol_method"] == "ewma"
     assert str(captured["output_path"]).endswith("portfolio_risk_report.html")

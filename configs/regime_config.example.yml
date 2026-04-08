@@ -1,9 +1,0 @@
-# Deterministic regime detection v1 config
-stress_weight_vol: 0.55
-stress_weight_credit: 0.45
-rulebook:
-  crisis_enter_threshold: 0.75
-  crisis_exit_threshold: 0.60
-  inflationary_rates_threshold: 0.20
-  recovery_window_days: 20
-  min_non_crisis_days: 5
