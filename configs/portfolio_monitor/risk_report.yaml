@@ -1,0 +1,14 @@
+risk_report:
+  lookthrough:
+    eq_country: eq_country_lookthrough.csv
+    us_sector: us_sector_lookthrough.csv
+  policy:
+    portfolio_asset_class_targets:
+      EQ: 0.60
+      FI: 0.25
+      CASH: 0.10
+      CM: 0.05
+    equity_country_policy_mix:
+      ACWI: 1.0
+    us_equity_sector_policy_mix:
+      SPY: 1.0
