@@ -64,6 +64,28 @@ Legacy modules (for example `market_helper.ui.*`) remain as compatibility wrappe
 conda run -n py313 python -m pytest -q tests/unit
 ```
 
+## ETF sector lookthrough sync
+
+To refresh ETF sector weights in [`configs/portfolio_monitor/us_sector_lookthrough.json`](configs/portfolio_monitor/us_sector_lookthrough.json), put your local secrets in [`configs/portfolio_monitor/local.env`](configs/portfolio_monitor/local.env) and run:
+
+```bash
+conda run -n py313 python -m market_helper.cli.main etf-sector-sync \
+  --symbol SOXX \
+  --symbol QQQ
+```
+
+Or via the script wrapper:
+
+```bash
+./scripts/run_report.sh etf-sector-sync --symbol SOXX --symbol QQQ
+```
+
+- The command fetches ETF sector weights from Financial Modeling Prep and merges just those tickers into `us_sector_lookthrough.json`.
+- `--api-key` is optional; if omitted, the command reads `FMP_API_KEY` from the process environment, then falls back to `configs/portfolio_monitor/local.env`.
+- FMP sector labels are normalized into the portfolio monitor's existing buckets such as `Financials`, `Health Care`, and `Consumer Discretionary`.
+- The JSON store tracks each symbol's `updated_at`, cached sector weights, and the shared daily FMP call count.
+- During `risk-html-report`, the report flow now auto-registers newly seen US ETF candidates with `updated_at=2000-01-01`, then refreshes only symbols older than 30 days, subject to the `250` calls/day budget.
+
 ## IBKR Web API Setup
 
 Use [`configs/app/settings.example.json`](configs/app/settings.example.json) as the local config template for the read-only Web API path.
@@ -141,7 +163,11 @@ If `--account` is omitted, `./scripts/run_report.sh ibkr-live` now defaults to:
 - `ACCOUNT_ENV=prod` -> `DEFAULT_PROD_ACCOUNT_ID`
 - `ACCOUNT_ENV=dev` -> `DEFAULT_DEV_ACCOUNT_ID`
 
-Keep those defaults in the local-only file `configs/portfolio_monitor/report_accounts.local.env`, which is gitignored. A tracked template lives at `configs/portfolio_monitor/report_accounts.example.env`.
+Keep those defaults, plus local-only secrets like `FMP_API_KEY`, in the gitignored file `configs/portfolio_monitor/local.env`. A tracked template lives at `configs/portfolio_monitor/local.example.env`.
+
+Legacy fallbacks are still accepted during the transition:
+- `configs/portfolio_monitor/report_accounts.local.env`
+- `configs/report_accounts.local.env`
 
 The legacy root path `configs/report_accounts.local.env` is still accepted as a deprecated fallback so older local setups keep working during the transition.
 

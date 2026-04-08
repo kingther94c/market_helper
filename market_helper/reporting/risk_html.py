@@ -9,12 +9,17 @@ import math
 import re
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Iterable, Mapping
+from typing import Any, Iterable, Mapping, Sequence
 
 import pandas as pd
 import yaml
 
 from market_helper.data_sources.yahoo_finance import YahooFinanceClient
+from market_helper.domain.portfolio_monitor.services.etf_sector_lookthrough import (
+    load_tracked_us_sector_symbols,
+    load_us_sector_weight_table,
+    refresh_us_sector_lookthrough_for_report,
+)
 from market_helper.domain.portfolio_monitor.services.fixed_income_vol import (
     proxy_index_to_yield_vol,
     yield_vol_to_price_vol,
@@ -69,7 +74,7 @@ DEFAULT_EQ_COUNTRY_LOOKTHROUGH_PATH = (
     Path(__file__).resolve().parents[2] / "configs" / "portfolio_monitor" / "eq_country_lookthrough.csv"
 )
 DEFAULT_US_SECTOR_LOOKTHROUGH_PATH = (
-    Path(__file__).resolve().parents[2] / "configs" / "portfolio_monitor" / "us_sector_lookthrough.csv"
+    Path(__file__).resolve().parents[2] / "configs" / "portfolio_monitor" / "us_sector_lookthrough.json"
 )
 DEFAULT_RISK_REPORT_CONFIG_PATH = (
     Path(__file__).resolve().parents[2] / "configs" / "portfolio_monitor" / "report_config.yaml"
@@ -88,6 +93,39 @@ FI_TENOR_BUCKET_LABELS = {
 FI_10Y_EQ_DISPLAY_NOTE = "FI dollar exposures are shown as 10Y-equivalent USD notional."
 EQ_COUNTRY_POLICY_REGION_ORDER = ("DM", "EM")
 EQ_COUNTRY_OTHER_BUCKETS = {"OTHER", "OTHERS"}
+US_SECTOR_BUCKETS = {
+    "COMMUNICATION SERVICES",
+    "CONSUMER DISCRETIONARY",
+    "CONSUMER STAPLES",
+    "ENERGY",
+    "FINANCIALS",
+    "HEALTH CARE",
+    "INDUSTRIALS",
+    "MATERIALS",
+    "REAL ESTATE",
+    "TECHNOLOGY",
+    "UTILITIES",
+}
+COMPANY_NAME_HINTS = (
+    " INC",
+    " INC.",
+    " CORP",
+    " CORPORATION",
+    " CO",
+    " CO.",
+    " HOLDINGS",
+    " GROUP",
+    " LTD",
+    " LTD.",
+    " PLC",
+    " N.V",
+    " NV",
+    " AG",
+    " SE",
+    " SA",
+    " LLC",
+    " LP",
+)
 
 
 @dataclass(frozen=True)
@@ -253,6 +291,10 @@ def build_risk_html_report(
         positions_csv_path,
         security_reference_table=reference_table,
         fi_10y_eq_mod_duration=fi_10y_eq_mod_duration,
+    )
+    _refresh_us_sector_lookthrough_for_report(
+        rows=rows,
+        lookthrough_path=risk_report_config.us_sector_lookthrough_path,
     )
     included_rows = [row for row in rows if _is_report_included(row)]
     returns = _load_or_build_returns(
@@ -1812,10 +1854,11 @@ def _expand_us_sector_allocations(
 ) -> list[tuple[str, float]]:
     if row.asset_class != "EQ":
         return []
+    normalized_symbol = str(row.canonical_symbol or row.symbol).upper()
+    if normalized_symbol in lookthrough:
+        return lookthrough[normalized_symbol]
     if row.eq_sector and row.eq_country == "US":
         return [(row.eq_sector, 1.0)]
-    if row.canonical_symbol in lookthrough:
-        return lookthrough[row.canonical_symbol]
     return []
 
 
@@ -1824,6 +1867,8 @@ def _load_weight_table(
     key_column: str,
     bucket_column: str,
 ) -> dict[str, list[tuple[str, float]]]:
+    if path.suffix.lower() == ".json" and key_column == "canonical_symbol" and bucket_column == "sector":
+        return load_us_sector_weight_table(path)
     if not path.exists():
         return {}
     with path.open("r", encoding="utf-8", newline="") as handle:
@@ -1837,6 +1882,74 @@ def _load_weight_table(
                 continue
             materialized.setdefault(key, []).append((bucket, weight))
         return materialized
+
+
+def _refresh_us_sector_lookthrough_for_report(
+    *,
+    rows: Sequence[RiskInputRow],
+    lookthrough_path: Path,
+) -> None:
+    if lookthrough_path.suffix.lower() != ".json":
+        return
+    existing_symbols = load_tracked_us_sector_symbols(lookthrough_path)
+    symbols = _report_us_etf_lookthrough_symbols(rows, existing_symbols=existing_symbols)
+    if not symbols:
+        return
+    refresh_us_sector_lookthrough_for_report(
+        symbols=symbols,
+        output_path=lookthrough_path,
+    )
+
+
+def _report_us_etf_lookthrough_symbols(
+    rows: Sequence[RiskInputRow],
+    *,
+    existing_symbols: set[str],
+) -> list[str]:
+    symbols: list[str] = []
+    seen: set[str] = set()
+    for row in rows:
+        if not _looks_like_us_etf_candidate(row, existing_symbols=existing_symbols):
+            continue
+        symbol = str(row.canonical_symbol or row.symbol).strip().upper()
+        if not symbol or symbol in seen:
+            continue
+        seen.add(symbol)
+        symbols.append(symbol)
+    return symbols
+
+
+def _looks_like_us_etf_candidate(
+    row: RiskInputRow,
+    *,
+    existing_symbols: set[str],
+) -> bool:
+    if row.mapping_status != "mapped" or row.asset_class != "EQ" or row.eq_country != "US":
+        return False
+    symbol = str(row.canonical_symbol or row.symbol).strip().upper()
+    if not symbol:
+        return False
+    if symbol in existing_symbols:
+        return True
+    if row.exchange.upper() == "LSEETF":
+        return True
+
+    display_name = str(row.display_name or "").strip()
+    eq_sector = str(row.eq_sector or "").strip()
+    if not display_name or display_name.upper() == symbol:
+        return False
+    if not eq_sector:
+        return not _looks_like_company_name(display_name)
+    if eq_sector.upper() not in US_SECTOR_BUCKETS:
+        return True
+    if display_name.upper() == eq_sector.upper():
+        return True
+    return False
+
+
+def _looks_like_company_name(display_name: str) -> bool:
+    normalized = f" {str(display_name).upper().strip()} "
+    return any(hint in normalized for hint in COMPANY_NAME_HINTS)
 
 
 def _signed_exposure_usd(

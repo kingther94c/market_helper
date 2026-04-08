@@ -246,6 +246,40 @@ def test_cli_regime_detect_dispatches_to_workflow(monkeypatch, tmp_path) -> None
     assert str(captured["returns_path"]).endswith("returns.json")
 
 
+def test_cli_etf_sector_sync_dispatches_to_workflow(monkeypatch, tmp_path) -> None:
+    captured: dict[str, object] = {}
+
+    def fake_generate_etf_sector_sync(*, symbols, output_path, api_key):
+        captured["symbols"] = symbols
+        captured["output_path"] = output_path
+        captured["api_key"] = api_key
+        return output_path
+
+    monkeypatch.setattr(
+        "market_helper.cli.main.generate_etf_sector_sync",
+        fake_generate_etf_sector_sync,
+    )
+
+    exit_code = main(
+        [
+            "etf-sector-sync",
+            "--symbol",
+            "SOXX",
+            "--symbol",
+            "QQQ",
+            "--output",
+            str(tmp_path / "us_sector_lookthrough.json"),
+            "--api-key",
+            "demo-key",
+        ]
+    )
+
+    assert exit_code == 0
+    assert captured["symbols"] == ["SOXX", "QQQ"]
+    assert str(captured["output_path"]).endswith("us_sector_lookthrough.json")
+    assert captured["api_key"] == "demo-key"
+
+
 def test_cli_extract_report_mapping_dispatches_to_workflow(monkeypatch, tmp_path) -> None:
     captured: dict[str, object] = {}
 

@@ -11,6 +11,7 @@ from pathlib import Path
 
 from market_helper.data_sources.ibkr.tws import TwsIbAsyncClient
 from market_helper.domain.portfolio_monitor.pipelines.generate_portfolio_report import (
+    generate_etf_sector_sync as _generate_etf_sector_sync,
     generate_ibkr_position_report as _generate_ibkr_position_report,
     generate_live_ibkr_position_report as _generate_live_ibkr_position_report,
     generate_position_report as _generate_position_report,
@@ -112,6 +113,21 @@ def generate_security_reference_sync(
     return _generate_security_reference_sync(output_path=output_path)
 
 
+def generate_etf_sector_sync(
+    *,
+    symbols: list[str],
+    output_path: str | Path | None = None,
+    api_key: str | None = None,
+    client: object | None = None,
+) -> Path:
+    return _generate_etf_sector_sync(
+        symbols=symbols,
+        output_path=output_path,
+        api_key=api_key,
+        client=client,
+    )
+
+
 def generate_report_mapping_table(
     *,
     workbook_path: str | Path,
@@ -125,6 +141,7 @@ def generate_report_mapping_table(
 
 __all__ = [
     "TwsIbAsyncClient",
+    "generate_etf_sector_sync",
     "generate_ibkr_position_report",
     "generate_live_ibkr_position_report",
     "generate_position_report",
