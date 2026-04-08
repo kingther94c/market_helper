@@ -2,6 +2,7 @@
 
 ## Recommended Path for This Repo
 - For individual IBKR accounts, use the local Client Portal Gateway / IB Gateway path first.
+- `configs/app/settings.example.json` is the canonical template location for this future scaffold.
 - Put your IBKR username in `provider.username`.
 - Keep the password out of the config file. Store it in the environment variable named by `provider.password_env_var` such as `IBKR_CP_PASSWORD`.
 - Point `provider.web_api_base_url` to your local gateway, typically `https://localhost:5000/v1/api`.
@@ -19,4 +20,5 @@
 
 ## Current Repo Boundary
 - The repo now records where username and credential env-var names belong.
+- The template is not wired into the current CLI/report workflows yet; keep treating it as a future scaffold until a Web API entrypoint is added.
 - Automated credential submission is still intentionally out of scope until we add a real HTTP transport and decide whether to keep login manual through the local gateway session.

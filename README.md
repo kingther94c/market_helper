@@ -11,7 +11,7 @@ Create or verify the project environment:
 conda activate py313
 ```
 
-The shared Conda spec lives in `env.yml`.
+The shared Conda spec lives in `env.yml`. It defines the development environment only and is not part of the domain runtime-config layout below.
 
 Notebook support is included in the environment. To register this env as a Jupyter kernel:
 
@@ -35,8 +35,9 @@ The primary development notebook lives at `notebooks/dev_lab/current.ipynb`. A r
 
 This repository follows a domain-first layout:
 
-- `configs/{app,portfolio_monitor,regime_detection,integration}/` for runtime config
+- `configs/{app,portfolio_monitor,regime_detection,integration}/` for runtime config, templates, and tracked reference inputs
 - `data/{raw,interim,processed,cache,artifacts}/` for datasets and generated outputs
+- `outputs/` for previews, samples, and scratch artifacts rather than runtime config
 - `notebooks/{dev_lab,portfolio_monitor,regime_detection,integration}/` for exploration
 - `market_helper/{data_sources,domain,presentation,cli,common,app}/` for package code
 - `scripts/` for executable workflow entrypoints
@@ -66,6 +67,8 @@ conda run -n py313 python -m pytest -q tests/unit
 ## IBKR Web API Setup
 
 Use [`configs/app/settings.example.json`](configs/app/settings.example.json) as the local config template for the read-only Web API path.
+
+This file is a future scaffold for a planned Web API flow. Current CLI reporting workflows do not load it yet.
 
 - Put your IBKR username in `provider.username`.
 - Keep the password in an env var such as `IBKR_CP_PASSWORD`, referenced by `provider.password_env_var`.
@@ -140,6 +143,8 @@ If `--account` is omitted, `./scripts/run_report.sh ibkr-live` now defaults to:
 
 Keep those defaults in the local-only file `configs/portfolio_monitor/report_accounts.local.env`, which is gitignored. A tracked template lives at `configs/portfolio_monitor/report_accounts.example.env`.
 
+The legacy root path `configs/report_accounts.local.env` is still accepted as a deprecated fallback so older local setups keep working during the transition.
+
 Example:
 
 ```bash
@@ -178,6 +183,8 @@ conda run -n py313 python -m market_helper.cli.main risk-html-report \
   If provided, the JSON can also use aliases such as `{"DEFAULT": "VIX", "FXVOL": 0}`.
   The repo default lives at `configs/portfolio_monitor/proxy.json`.
 - `--regime` is optional regime snapshot JSON (from `regime-detect`) to add a top-of-report regime banner and factor scores.
+- `--risk-config` is the recommended unified YAML config entrypoint for lookthrough tables and policy mixes. If omitted, the report uses `configs/portfolio_monitor/risk_report.yaml`.
+- `--allocation-policy` remains available as a deprecated compatibility override for legacy policy-only YAML files.
 
 Script wrapper:
 
@@ -192,6 +199,8 @@ If `--output` is omitted, the script writes to:
 - `data/artifacts/portfolio_monitor/ibkr_position_report.csv`
 - `data/artifacts/portfolio_monitor/live_ibkr_position_report.csv`
 - `data/artifacts/portfolio_monitor/portfolio_risk_report.html`
+
+Those files under `data/artifacts/portfolio_monitor/` are generated outputs, not config inputs. The checked-in preview files under `outputs/` are also output artifacts rather than runtime config.
 
 ## Deterministic regime detection (v1)
 
@@ -215,6 +224,8 @@ conda run -n py313 python -m market_helper.cli.main regime-detect \
   --output data/artifacts/regime_detection/regime_snapshots.json \
   --indicators-output data/artifacts/regime_detection/indicator_snapshots.json
 ```
+
+Optional tuning overrides can be based on `configs/regime_detection/regime_config.example.yml`.
 
 Latest-only snapshot:
 
