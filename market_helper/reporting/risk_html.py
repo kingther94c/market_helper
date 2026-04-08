@@ -9,12 +9,17 @@ import math
 import re
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Iterable, Mapping
+from typing import Any, Iterable, Mapping, Sequence
 
 import pandas as pd
 import yaml
 
 from market_helper.data_sources.yahoo_finance import YahooFinanceClient
+from market_helper.domain.portfolio_monitor.services.etf_sector_lookthrough import (
+    load_tracked_us_sector_symbols,
+    load_us_sector_weight_table,
+    refresh_us_sector_lookthrough_for_report,
+)
 from market_helper.domain.portfolio_monitor.services.fixed_income_vol import (
     proxy_index_to_yield_vol,
     yield_vol_to_price_vol,
@@ -69,10 +74,10 @@ DEFAULT_EQ_COUNTRY_LOOKTHROUGH_PATH = (
     Path(__file__).resolve().parents[2] / "configs" / "portfolio_monitor" / "eq_country_lookthrough.csv"
 )
 DEFAULT_US_SECTOR_LOOKTHROUGH_PATH = (
-    Path(__file__).resolve().parents[2] / "configs" / "portfolio_monitor" / "us_sector_lookthrough.csv"
+    Path(__file__).resolve().parents[2] / "configs" / "portfolio_monitor" / "us_sector_lookthrough.json"
 )
 DEFAULT_RISK_REPORT_CONFIG_PATH = (
-    Path(__file__).resolve().parents[2] / "configs" / "portfolio_monitor" / "risk_report.yaml"
+    Path(__file__).resolve().parents[2] / "configs" / "portfolio_monitor" / "report_config.yaml"
 )
 FI_TENOR_BUCKET_ORDER = ("0-1Y", "1-3Y", "3-5Y", "5-7Y", "7-10Y", "10-20Y", "20Y+", "UNASSIGNED")
 FI_TENOR_BUCKET_LABELS = {
@@ -88,6 +93,39 @@ FI_TENOR_BUCKET_LABELS = {
 FI_10Y_EQ_DISPLAY_NOTE = "FI dollar exposures are shown as 10Y-equivalent USD notional."
 EQ_COUNTRY_POLICY_REGION_ORDER = ("DM", "EM")
 EQ_COUNTRY_OTHER_BUCKETS = {"OTHER", "OTHERS"}
+US_SECTOR_BUCKETS = {
+    "COMMUNICATION SERVICES",
+    "CONSUMER DISCRETIONARY",
+    "CONSUMER STAPLES",
+    "ENERGY",
+    "FINANCIALS",
+    "HEALTH CARE",
+    "INDUSTRIALS",
+    "MATERIALS",
+    "REAL ESTATE",
+    "TECHNOLOGY",
+    "UTILITIES",
+}
+COMPANY_NAME_HINTS = (
+    " INC",
+    " INC.",
+    " CORP",
+    " CORPORATION",
+    " CO",
+    " CO.",
+    " HOLDINGS",
+    " GROUP",
+    " LTD",
+    " LTD.",
+    " PLC",
+    " N.V",
+    " NV",
+    " AG",
+    " SE",
+    " SA",
+    " LLC",
+    " LP",
+)
 
 
 @dataclass(frozen=True)
@@ -220,6 +258,7 @@ class RiskReportConfig:
     eq_country_lookthrough_path: Path
     us_sector_lookthrough_path: Path
     policy: AllocationPolicyConfig
+    proxy: dict[str, Any]
 
 
 def build_risk_html_report(
@@ -238,12 +277,24 @@ def build_risk_html_report(
 ) -> Path:
     resolved_yahoo_client = yahoo_client or YahooFinanceClient()
     reference_table = _load_security_reference_table(security_reference_path)
-    proxy = _load_proxy(proxy_path, yahoo_client=resolved_yahoo_client)
+    risk_report_config = _load_risk_report_config(
+        risk_config_path=risk_config_path,
+        allocation_policy_path=allocation_policy_path,
+    )
+    proxy = _load_proxy(
+        proxy_path,
+        yahoo_client=resolved_yahoo_client,
+        fallback_payload=risk_report_config.proxy,
+    )
     fi_10y_eq_mod_duration = _resolve_fi_10y_eq_mod_duration(proxy)
     rows = load_position_rows(
         positions_csv_path,
         security_reference_table=reference_table,
         fi_10y_eq_mod_duration=fi_10y_eq_mod_duration,
+    )
+    _refresh_us_sector_lookthrough_for_report(
+        rows=rows,
+        lookthrough_path=risk_report_config.us_sector_lookthrough_path,
     )
     included_rows = [row for row in rows if _is_report_included(row)]
     returns = _load_or_build_returns(
@@ -252,10 +303,6 @@ def build_risk_html_report(
         yahoo_client=resolved_yahoo_client,
     )
     regime_summary = _load_regime_summary(regime_path)
-    risk_report_config = _load_risk_report_config(
-        risk_config_path=risk_config_path,
-        allocation_policy_path=allocation_policy_path,
-    )
     allocation_policy = risk_report_config.policy
 
     vols_geomean_1m_3m = {
@@ -1348,11 +1395,15 @@ def _load_risk_report_config(
         if not isinstance(legacy_loaded, dict):
             raise ValueError("Allocation policy config must be a mapping")
         policy = _parse_allocation_policy(dict(legacy_loaded.get("policy", legacy_loaded)))
+    proxy_payload = payload.get("proxy", {})
+    if not isinstance(proxy_payload, Mapping):
+        raise ValueError("Risk report proxy config must be a mapping")
 
     return RiskReportConfig(
         eq_country_lookthrough_path=eq_path,
         us_sector_lookthrough_path=us_path,
         policy=policy,
+        proxy=dict(proxy_payload),
     )
 
 
@@ -1394,13 +1445,17 @@ def _build_asset_class_policy_drift(
     asset_class_targets: Mapping[str, float],
 ) -> list[PolicyDriftRow]:
     current = {row.asset_class.upper(): row for row in allocation_summary}
-    normalized_policy = _normalize_weights({str(k).upper(): float(v) for k, v in asset_class_targets.items()})
-    buckets = sorted(set(current) | set(normalized_policy))
+    raw_policy = {
+        str(k).upper(): float(v)
+        for k, v in asset_class_targets.items()
+        if float(v) > 0
+    }
+    buckets = sorted(set(current) | set(raw_policy))
     rows: list[PolicyDriftRow] = []
     for bucket in buckets:
         current_row = current.get(bucket)
         current_weight = current_row.dollar_weight if current_row is not None else 0.0
-        policy_weight = normalized_policy.get(bucket, 0.0)
+        policy_weight = raw_policy.get(bucket, 0.0)
         rows.append(
             PolicyDriftRow(
                 bucket=bucket,
@@ -1709,12 +1764,12 @@ def _prefix_eq_country_bucket(
     normalized_bucket = str(bucket).upper()
     if normalized_bucket.startswith("DM-") or normalized_bucket.startswith("EM-"):
         return normalized_bucket.replace("OTHERS", "Others").replace("OTHER", "Others")
-    if normalized_bucket in EQ_COUNTRY_OTHER_BUCKETS:
+    if _is_eq_country_other_bucket(normalized_bucket):
         return None
     region = _eq_country_region_for_bucket(normalized_bucket, lookthrough)
     if region is None:
         return normalized_bucket
-    suffix = "Others" if normalized_bucket in EQ_COUNTRY_OTHER_BUCKETS else normalized_bucket
+    suffix = "Others" if _is_eq_country_other_bucket(normalized_bucket) else normalized_bucket
     return f"{region}-{suffix}"
 
 
@@ -1723,8 +1778,16 @@ def _eq_country_region_for_bucket(
     lookthrough: Mapping[str, list[tuple[str, float]]],
 ) -> str | None:
     normalized_bucket = str(bucket).upper()
-    dm_buckets = {str(name).upper() for name, _ in lookthrough.get("DM", []) if str(name).upper() not in EQ_COUNTRY_OTHER_BUCKETS}
-    em_buckets = {str(name).upper() for name, _ in lookthrough.get("EM", []) if str(name).upper() not in EQ_COUNTRY_OTHER_BUCKETS}
+    dm_buckets = {
+        str(name).upper()
+        for name, _ in lookthrough.get("DM", [])
+        if not _is_eq_country_other_bucket(str(name).upper())
+    }
+    em_buckets = {
+        str(name).upper()
+        for name, _ in lookthrough.get("EM", [])
+        if not _is_eq_country_other_bucket(str(name).upper())
+    }
     if normalized_bucket in dm_buckets and normalized_bucket not in em_buckets:
         return "DM"
     if normalized_bucket in em_buckets and normalized_bucket not in dm_buckets:
@@ -1762,7 +1825,7 @@ def _eq_country_policy_bucket_sort_key(
     region_order = [
         (
             "Others"
-            if str(name).upper() in EQ_COUNTRY_OTHER_BUCKETS
+            if _is_eq_country_other_bucket(str(name).upper())
             else str(name).upper()
         )
         for name, _ in lookthrough.get(prefix, [])
@@ -1791,10 +1854,11 @@ def _expand_us_sector_allocations(
 ) -> list[tuple[str, float]]:
     if row.asset_class != "EQ":
         return []
+    normalized_symbol = str(row.canonical_symbol or row.symbol).upper()
+    if normalized_symbol in lookthrough:
+        return lookthrough[normalized_symbol]
     if row.eq_sector and row.eq_country == "US":
         return [(row.eq_sector, 1.0)]
-    if row.canonical_symbol in lookthrough:
-        return lookthrough[row.canonical_symbol]
     return []
 
 
@@ -1803,6 +1867,8 @@ def _load_weight_table(
     key_column: str,
     bucket_column: str,
 ) -> dict[str, list[tuple[str, float]]]:
+    if path.suffix.lower() == ".json" and key_column == "canonical_symbol" and bucket_column == "sector":
+        return load_us_sector_weight_table(path)
     if not path.exists():
         return {}
     with path.open("r", encoding="utf-8", newline="") as handle:
@@ -1816,6 +1882,74 @@ def _load_weight_table(
                 continue
             materialized.setdefault(key, []).append((bucket, weight))
         return materialized
+
+
+def _refresh_us_sector_lookthrough_for_report(
+    *,
+    rows: Sequence[RiskInputRow],
+    lookthrough_path: Path,
+) -> None:
+    if lookthrough_path.suffix.lower() != ".json":
+        return
+    existing_symbols = load_tracked_us_sector_symbols(lookthrough_path)
+    symbols = _report_us_etf_lookthrough_symbols(rows, existing_symbols=existing_symbols)
+    if not symbols:
+        return
+    refresh_us_sector_lookthrough_for_report(
+        symbols=symbols,
+        output_path=lookthrough_path,
+    )
+
+
+def _report_us_etf_lookthrough_symbols(
+    rows: Sequence[RiskInputRow],
+    *,
+    existing_symbols: set[str],
+) -> list[str]:
+    symbols: list[str] = []
+    seen: set[str] = set()
+    for row in rows:
+        if not _looks_like_us_etf_candidate(row, existing_symbols=existing_symbols):
+            continue
+        symbol = str(row.canonical_symbol or row.symbol).strip().upper()
+        if not symbol or symbol in seen:
+            continue
+        seen.add(symbol)
+        symbols.append(symbol)
+    return symbols
+
+
+def _looks_like_us_etf_candidate(
+    row: RiskInputRow,
+    *,
+    existing_symbols: set[str],
+) -> bool:
+    if row.mapping_status != "mapped" or row.asset_class != "EQ" or row.eq_country != "US":
+        return False
+    symbol = str(row.canonical_symbol or row.symbol).strip().upper()
+    if not symbol:
+        return False
+    if symbol in existing_symbols:
+        return True
+    if row.exchange.upper() == "LSEETF":
+        return True
+
+    display_name = str(row.display_name or "").strip()
+    eq_sector = str(row.eq_sector or "").strip()
+    if not display_name or display_name.upper() == symbol:
+        return False
+    if not eq_sector:
+        return not _looks_like_company_name(display_name)
+    if eq_sector.upper() not in US_SECTOR_BUCKETS:
+        return True
+    if display_name.upper() == eq_sector.upper():
+        return True
+    return False
+
+
+def _looks_like_company_name(display_name: str) -> bool:
+    normalized = f" {str(display_name).upper().strip()} "
+    return any(hint in normalized for hint in COMPANY_NAME_HINTS)
 
 
 def _signed_exposure_usd(
@@ -1978,8 +2112,9 @@ def _load_proxy(
     path: str | Path | None,
     *,
     yahoo_client: YahooFinanceClient,
+    fallback_payload: Mapping[str, Any] | None = None,
 ) -> dict[str, float]:
-    loaded = _load_proxy_payload(path)
+    loaded = _load_proxy_payload(path, fallback_payload=fallback_payload)
     proxy, aliases = _parse_proxy_payload(loaded)
     proxy = _populate_proxy_defaults_from_yahoo(proxy, yahoo_client=yahoo_client)
     _resolve_proxy_aliases(proxy, aliases)
@@ -1988,13 +2123,26 @@ def _load_proxy(
     return proxy
 
 
-def _load_proxy_payload(path: str | Path | None) -> Mapping[str, Any]:
+def _load_proxy_payload(
+    path: str | Path | None,
+    *,
+    fallback_payload: Mapping[str, Any] | None = None,
+) -> Mapping[str, Any]:
     if path is None:
-        return {}
+        return dict(fallback_payload or {})
     loaded = json.loads(Path(path).read_text(encoding="utf-8"))
     if not isinstance(loaded, dict):
         raise ValueError("Expected proxy JSON object, e.g. {'VIX': 19.2}")
     return loaded
+
+
+def _is_eq_country_other_bucket(bucket: str) -> bool:
+    normalized_bucket = str(bucket).upper()
+    if normalized_bucket in EQ_COUNTRY_OTHER_BUCKETS:
+        return True
+    if normalized_bucket.endswith("-OTHER") or normalized_bucket.endswith("-OTHERS"):
+        return True
+    return False
 
 
 def _parse_proxy_payload(loaded: Mapping[str, Any]) -> tuple[dict[str, float], dict[str, str]]:

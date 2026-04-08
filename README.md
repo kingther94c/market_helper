@@ -11,7 +11,7 @@ Create or verify the project environment:
 conda activate py313
 ```
 
-The shared Conda spec lives in `env.yml`.
+The shared Conda spec lives in `env.yml`. It defines the development environment only and is not part of the domain runtime-config layout below.
 
 Notebook support is included in the environment. To register this env as a Jupyter kernel:
 
@@ -35,8 +35,9 @@ The primary development notebook lives at `notebooks/dev_lab/current.ipynb`. A r
 
 This repository follows a domain-first layout:
 
-- `configs/{app,portfolio_monitor,regime_detection,integration}/` for runtime config
+- `configs/{app,portfolio_monitor,regime_detection,integration}/` for runtime config, templates, and tracked reference inputs
 - `data/{raw,interim,processed,cache,artifacts}/` for datasets and generated outputs
+- `outputs/` for previews, samples, and scratch artifacts rather than runtime config
 - `notebooks/{dev_lab,portfolio_monitor,regime_detection,integration}/` for exploration
 - `market_helper/{data_sources,domain,presentation,cli,common,app}/` for package code
 - `scripts/` for executable workflow entrypoints
@@ -63,9 +64,33 @@ Legacy modules (for example `market_helper.ui.*`) remain as compatibility wrappe
 conda run -n py313 python -m pytest -q tests/unit
 ```
 
+## ETF sector lookthrough sync
+
+To refresh ETF sector weights in [`configs/portfolio_monitor/us_sector_lookthrough.json`](configs/portfolio_monitor/us_sector_lookthrough.json), put your local secrets in [`configs/portfolio_monitor/local.env`](configs/portfolio_monitor/local.env) and run:
+
+```bash
+conda run -n py313 python -m market_helper.cli.main etf-sector-sync \
+  --symbol SOXX \
+  --symbol QQQ
+```
+
+Or via the script wrapper:
+
+```bash
+./scripts/run_report.sh etf-sector-sync --symbol SOXX --symbol QQQ
+```
+
+- The command fetches ETF sector weights from Financial Modeling Prep and merges just those tickers into `us_sector_lookthrough.json`.
+- `--api-key` is optional; if omitted, the command reads `FMP_API_KEY` from the process environment, then falls back to `configs/portfolio_monitor/local.env`.
+- FMP sector labels are normalized into the portfolio monitor's existing buckets such as `Financials`, `Health Care`, and `Consumer Discretionary`.
+- The JSON store tracks each symbol's `updated_at`, cached sector weights, and the shared daily FMP call count.
+- During `risk-html-report`, the report flow now auto-registers newly seen US ETF candidates with `updated_at=2000-01-01`, then refreshes only symbols older than 30 days, subject to the `250` calls/day budget.
+
 ## IBKR Web API Setup
 
 Use [`configs/app/settings.example.json`](configs/app/settings.example.json) as the local config template for the read-only Web API path.
+
+This file is a future scaffold for a planned Web API flow. Current CLI reporting workflows do not load it yet.
 
 - Put your IBKR username in `provider.username`.
 - Keep the password in an env var such as `IBKR_CP_PASSWORD`, referenced by `provider.password_env_var`.
@@ -138,7 +163,11 @@ If `--account` is omitted, `./scripts/run_report.sh ibkr-live` now defaults to:
 - `ACCOUNT_ENV=prod` -> `DEFAULT_PROD_ACCOUNT_ID`
 - `ACCOUNT_ENV=dev` -> `DEFAULT_DEV_ACCOUNT_ID`
 
-Keep those defaults in the local-only file `configs/portfolio_monitor/report_accounts.local.env`, which is gitignored. A tracked template lives at `configs/portfolio_monitor/report_accounts.example.env`.
+Keep those defaults, plus local-only secrets like `FMP_API_KEY`, in the gitignored file `configs/portfolio_monitor/local.env`. A tracked template lives at `configs/portfolio_monitor/local.example.env`.
+
+Legacy fallbacks are still accepted during the transition:
+- `configs/portfolio_monitor/report_accounts.local.env`
+- `configs/report_accounts.local.env`
 
 Example:
 
@@ -160,7 +189,7 @@ End-to-end live position -> HTML risk report:
 - After the HTML is written, the script also tries to open it in your default browser.
 - `--output` controls the final HTML path.
 - `--positions-output` optionally overrides where the intermediate live position CSV is written.
-- If `--proxy` is omitted, the script defaults to `configs/portfolio_monitor/proxy.json`.
+- If `--proxy` is omitted, the report falls back to the `proxy` block in `configs/portfolio_monitor/report_config.yaml`.
 
 
 Generate an HTML risk report (historical vol + estimate vol + correlation-based portfolio risk):
@@ -174,10 +203,13 @@ conda run -n py313 python -m market_helper.cli.main risk-html-report \
 
 - `--returns` expects JSON: `{"INTERNAL_ID": [daily_return_1, ...]}`
 - `--proxy` is optional JSON for estimate-vol inputs.
-  If omitted, `risk-html-report` pulls `VIX`, `MOVE`, `OVX`, and `GVZ` from Yahoo Finance daily history, sets `FXVOL=0`, and makes `DEFAULT` follow `VIX`.
+  If omitted, `risk-html-report` first looks for a `proxy` block in `configs/portfolio_monitor/report_config.yaml`, then fills any missing `VIX`, `MOVE`, `OVX`, and `GVZ` values from Yahoo Finance daily history, sets `FXVOL=0`, and makes `DEFAULT` follow `VIX`.
   If provided, the JSON can also use aliases such as `{"DEFAULT": "VIX", "FXVOL": 0}`.
-  The repo default lives at `configs/portfolio_monitor/proxy.json`.
 - `--regime` is optional regime snapshot JSON (from `regime-detect`) to add a top-of-report regime banner and factor scores.
+- `--risk-config` is the recommended unified YAML config entrypoint for lookthrough tables, proxy defaults, and policy mixes. If omitted, the report uses `configs/portfolio_monitor/report_config.yaml`.
+- `portfolio_asset_class_targets` inside `report_config.yaml` are used as raw policy targets for the portfolio-level drift table and are not auto-normalized. Values above `1.0` are allowed when you want to express gross-exposure style targets.
+- `--security-reference` defaults to the generated local cache at `data/artifacts/portfolio_monitor/security_reference.csv`.
+- `--allocation-policy` remains available as a deprecated compatibility override for legacy policy-only YAML files.
 
 Script wrapper:
 
@@ -192,6 +224,8 @@ If `--output` is omitted, the script writes to:
 - `data/artifacts/portfolio_monitor/ibkr_position_report.csv`
 - `data/artifacts/portfolio_monitor/live_ibkr_position_report.csv`
 - `data/artifacts/portfolio_monitor/portfolio_risk_report.html`
+
+Those files under `data/artifacts/portfolio_monitor/` are generated outputs, not config inputs. The checked-in preview files under `outputs/` are also output artifacts rather than runtime config.
 
 ## Deterministic regime detection (v1)
 
@@ -215,6 +249,8 @@ conda run -n py313 python -m market_helper.cli.main regime-detect \
   --output data/artifacts/regime_detection/regime_snapshots.json \
   --indicators-output data/artifacts/regime_detection/indicator_snapshots.json
 ```
+
+Optional tuning overrides can be based on `configs/regime_detection/regime_config.example.yml`.
 
 Latest-only snapshot:
 

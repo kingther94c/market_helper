@@ -7,6 +7,7 @@ from pathlib import Path
 from typing import Sequence
 
 from market_helper.workflows.generate_report import (
+    generate_etf_sector_sync,
     generate_ibkr_position_report,
     generate_live_ibkr_position_report,
     generate_position_report,
@@ -74,17 +75,17 @@ def build_parser() -> argparse.ArgumentParser:
         "--mapping-table",
         dest="security_reference",
         required=False,
-        help="Optional curated security-reference CSV path. Defaults to configs/portfolio_monitor/security_reference.csv.",
+        help="Optional generated security-reference CSV path. Defaults to data/artifacts/portfolio_monitor/security_reference.csv.",
     )
     risk_html_report.add_argument(
         "--risk-config",
         required=False,
-        help="Optional unified risk-report YAML config path (lookthrough + policy).",
+        help="Recommended: optional unified risk-report YAML config path (lookthrough + policy). Defaults to configs/portfolio_monitor/report_config.yaml.",
     )
     risk_html_report.add_argument(
         "--allocation-policy",
         required=False,
-        help="Deprecated: optional policy-only YAML override path.",
+        help="Deprecated compatibility-only: optional policy-only YAML override path.",
     )
     risk_html_report.add_argument(
         "--vol-method",
@@ -101,7 +102,28 @@ def build_parser() -> argparse.ArgumentParser:
     security_reference_sync.add_argument(
         "--output",
         required=False,
-        help="Optional output path. Defaults to configs/portfolio_monitor/security_reference.csv.",
+        help="Optional output path. Defaults to data/artifacts/portfolio_monitor/security_reference.csv.",
+    )
+
+    etf_sector_sync = subparsers.add_parser(
+        "etf-sector-sync",
+        help="Fetch ETF sector weights from FMP and merge them into us_sector_lookthrough.json.",
+    )
+    etf_sector_sync.add_argument(
+        "--symbol",
+        action="append",
+        required=True,
+        help="ETF ticker to fetch. Repeat for multiple symbols.",
+    )
+    etf_sector_sync.add_argument(
+        "--output",
+        required=False,
+        help="Optional output path. Defaults to configs/portfolio_monitor/us_sector_lookthrough.json.",
+    )
+    etf_sector_sync.add_argument(
+        "--api-key",
+        required=False,
+        help="Optional FMP API key. Falls back to FMP_API_KEY or configs/portfolio_monitor/local.env.",
     )
 
     regime_detect = subparsers.add_parser(
@@ -112,7 +134,11 @@ def build_parser() -> argparse.ArgumentParser:
     regime_detect.add_argument("--proxy", required=True, help="Path to proxy JSON with VIX/MOVE/HY_OAS/UST2Y/UST10Y.")
     regime_detect.add_argument("--output", required=True, help="Path to output regime snapshots JSON.")
     regime_detect.add_argument("--indicators-output", required=False, help="Optional indicator snapshot output JSON.")
-    regime_detect.add_argument("--config", required=False, help="Optional regime config YAML path.")
+    regime_detect.add_argument(
+        "--config",
+        required=False,
+        help="Optional regime config YAML path. Example template: configs/regime_detection/regime_config.example.yml.",
+    )
     regime_detect.add_argument("--latest-only", action="store_true", help="Write latest snapshot only.")
 
     regime_report = subparsers.add_parser(
@@ -120,7 +146,11 @@ def build_parser() -> argparse.ArgumentParser:
         help="Print human-readable summary of latest regime plus policy suggestion.",
     )
     regime_report.add_argument("--regime", required=True, help="Path to regime snapshots JSON.")
-    regime_report.add_argument("--policy", required=False, help="Optional policy YAML overrides.")
+    regime_report.add_argument(
+        "--policy",
+        required=False,
+        help="Optional policy YAML overrides. Example template: configs/regime_detection/regime_policy.example.yml.",
+    )
 
     mapping_table_report = subparsers.add_parser(
         "extract-report-mapping",
@@ -184,6 +214,13 @@ def main(argv: Sequence[str] | None = None) -> int:
     if args.command == "security-reference-sync":
         generate_security_reference_sync(
             output_path=Path(args.output) if args.output else None,
+        )
+        return 0
+    if args.command == "etf-sector-sync":
+        generate_etf_sector_sync(
+            symbols=list(args.symbol),
+            output_path=Path(args.output) if args.output else None,
+            api_key=args.api_key,
         )
         return 0
     if args.command == "extract-report-mapping":

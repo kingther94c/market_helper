@@ -179,7 +179,7 @@ def test_cli_risk_html_report_dispatches_to_workflow(monkeypatch, tmp_path) -> N
             "--output",
             str(tmp_path / "portfolio_risk_report.html"),
             "--risk-config",
-            str(tmp_path / "risk_report.yaml"),
+            str(tmp_path / "report_config.yaml"),
             "--allocation-policy",
             str(tmp_path / "allocation_policy.yaml"),
             "--vol-method",
@@ -193,7 +193,7 @@ def test_cli_risk_html_report_dispatches_to_workflow(monkeypatch, tmp_path) -> N
     assert str(captured["proxy_path"]).endswith("proxy.json")
     assert str(captured["regime_path"]).endswith("regime.json")
     assert str(captured["security_reference_path"]).endswith("security_reference.csv")
-    assert str(captured["risk_config_path"]).endswith("risk_report.yaml")
+    assert str(captured["risk_config_path"]).endswith("report_config.yaml")
     assert str(captured["allocation_policy_path"]).endswith("allocation_policy.yaml")
     assert captured["vol_method"] == "ewma"
     assert str(captured["output_path"]).endswith("portfolio_risk_report.html")
@@ -244,6 +244,40 @@ def test_cli_regime_detect_dispatches_to_workflow(monkeypatch, tmp_path) -> None
     assert exit_code == 0
     assert captured["latest_only"] is True
     assert str(captured["returns_path"]).endswith("returns.json")
+
+
+def test_cli_etf_sector_sync_dispatches_to_workflow(monkeypatch, tmp_path) -> None:
+    captured: dict[str, object] = {}
+
+    def fake_generate_etf_sector_sync(*, symbols, output_path, api_key):
+        captured["symbols"] = symbols
+        captured["output_path"] = output_path
+        captured["api_key"] = api_key
+        return output_path
+
+    monkeypatch.setattr(
+        "market_helper.cli.main.generate_etf_sector_sync",
+        fake_generate_etf_sector_sync,
+    )
+
+    exit_code = main(
+        [
+            "etf-sector-sync",
+            "--symbol",
+            "SOXX",
+            "--symbol",
+            "QQQ",
+            "--output",
+            str(tmp_path / "us_sector_lookthrough.json"),
+            "--api-key",
+            "demo-key",
+        ]
+    )
+
+    assert exit_code == 0
+    assert captured["symbols"] == ["SOXX", "QQQ"]
+    assert str(captured["output_path"]).endswith("us_sector_lookthrough.json")
+    assert captured["api_key"] == "demo-key"
 
 
 def test_cli_extract_report_mapping_dispatches_to_workflow(monkeypatch, tmp_path) -> None:
