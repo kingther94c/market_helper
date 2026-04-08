@@ -143,6 +143,9 @@ def test_cli_risk_html_report_dispatches_to_workflow(monkeypatch, tmp_path) -> N
         proxy_path,
         regime_path,
         security_reference_path,
+        risk_config_path,
+        allocation_policy_path,
+        vol_method,
     ):
         captured["positions_csv_path"] = positions_csv_path
         captured["returns_path"] = returns_path
@@ -150,6 +153,9 @@ def test_cli_risk_html_report_dispatches_to_workflow(monkeypatch, tmp_path) -> N
         captured["proxy_path"] = proxy_path
         captured["regime_path"] = regime_path
         captured["security_reference_path"] = security_reference_path
+        captured["risk_config_path"] = risk_config_path
+        captured["allocation_policy_path"] = allocation_policy_path
+        captured["vol_method"] = vol_method
         return output_path
 
     monkeypatch.setattr(
@@ -172,6 +178,12 @@ def test_cli_risk_html_report_dispatches_to_workflow(monkeypatch, tmp_path) -> N
             str(tmp_path / "security_reference.csv"),
             "--output",
             str(tmp_path / "portfolio_risk_report.html"),
+            "--risk-config",
+            str(tmp_path / "risk_report.yaml"),
+            "--allocation-policy",
+            str(tmp_path / "allocation_policy.yaml"),
+            "--vol-method",
+            "ewma",
         ]
     )
 
@@ -181,6 +193,9 @@ def test_cli_risk_html_report_dispatches_to_workflow(monkeypatch, tmp_path) -> N
     assert str(captured["proxy_path"]).endswith("proxy.json")
     assert str(captured["regime_path"]).endswith("regime.json")
     assert str(captured["security_reference_path"]).endswith("security_reference.csv")
+    assert str(captured["risk_config_path"]).endswith("risk_report.yaml")
+    assert str(captured["allocation_policy_path"]).endswith("allocation_policy.yaml")
+    assert captured["vol_method"] == "ewma"
     assert str(captured["output_path"]).endswith("portfolio_risk_report.html")
 
 
