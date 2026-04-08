@@ -12,6 +12,7 @@ from pathlib import Path
 from typing import Any, Iterable, Mapping
 
 import pandas as pd
+import yaml
 
 from market_helper.data_sources.yahoo_finance import YahooFinanceClient
 from market_helper.domain.portfolio_monitor.services.fixed_income_vol import (
@@ -69,6 +70,9 @@ DEFAULT_EQ_COUNTRY_LOOKTHROUGH_PATH = (
 )
 DEFAULT_US_SECTOR_LOOKTHROUGH_PATH = (
     Path(__file__).resolve().parents[2] / "configs" / "portfolio_monitor" / "us_sector_lookthrough.csv"
+)
+DEFAULT_RISK_REPORT_CONFIG_PATH = (
+    Path(__file__).resolve().parents[2] / "configs" / "portfolio_monitor" / "risk_report.yaml"
 )
 FI_TENOR_BUCKET_ORDER = ("0-1Y", "1-3Y", "3-5Y", "5-7Y", "7-10Y", "10-20Y", "20Y+", "UNASSIGNED")
 FI_TENOR_BUCKET_LABELS = {
@@ -191,6 +195,30 @@ class RegimeReportSummary:
     scores: dict[str, float]
 
 
+@dataclass(frozen=True)
+class AllocationPolicyConfig:
+    portfolio_asset_class_targets: dict[str, float]
+    equity_country_policy_mix: dict[str, float]
+    us_equity_sector_policy_mix: dict[str, float]
+
+
+@dataclass(frozen=True)
+class PolicyDriftRow:
+    bucket: str
+    scope: str
+    current_weight: float
+    policy_weight: float
+    active_weight: float
+    current_risk_contribution: float
+
+
+@dataclass(frozen=True)
+class RiskReportConfig:
+    eq_country_lookthrough_path: Path
+    us_sector_lookthrough_path: Path
+    policy: AllocationPolicyConfig
+
+
 def build_risk_html_report(
     *,
     positions_csv_path: str | Path,
@@ -199,6 +227,8 @@ def build_risk_html_report(
     proxy_path: str | Path | None = None,
     regime_path: str | Path | None = None,
     security_reference_path: str | Path | None = None,
+    risk_config_path: str | Path | None = None,
+    allocation_policy_path: str | Path | None = None,
     yahoo_client: YahooFinanceClient | None = None,
     vol_method: str = "geomean_1m_3m",
     inter_asset_corr: str = "historical",
@@ -218,6 +248,11 @@ def build_risk_html_report(
         yahoo_client=resolved_yahoo_client,
     )
     regime_summary = _load_regime_summary(regime_path)
+    risk_report_config = _load_risk_report_config(
+        risk_config_path=risk_config_path,
+        allocation_policy_path=allocation_policy_path,
+    )
+    allocation_policy = risk_report_config.policy
 
     vols_geomean_1m_3m = {
         row.internal_id: _security_vol(
@@ -264,7 +299,14 @@ def build_risk_html_report(
     portfolio_vol_ewma = _portfolio_vol_from_group_loadings(ewma_group_loadings, selected_group_corr)
 
     security_geomean_loadings = _build_security_loadings(rows, vols_geomean_1m_3m)
+    security_realized_loadings = _build_security_loadings(rows, vols_5y_realized)
     security_ewma_loadings = _build_security_loadings(rows, vols_ewma)
+    selected_security_loadings = _select_security_loadings(
+        vol_method=vol_method,
+        geomean=security_geomean_loadings,
+        realized_5y=security_realized_loadings,
+        ewma=security_ewma_loadings,
+    )
     risk_rows = [
         RiskMetricsRow(
             internal_id=row.internal_id,
@@ -289,7 +331,7 @@ def build_risk_html_report(
             vol_ewma=vols_ewma[row.internal_id],
             sparkline_3m_svg=_sparkline_svg_for_returns(returns.get(row.internal_id, [])),
             risk_contribution_historical=abs(security_geomean_loadings[row.internal_id]),
-            risk_contribution_estimated=abs(security_ewma_loadings[row.internal_id]),
+            risk_contribution_estimated=abs(selected_security_loadings[row.internal_id]),
             mapping_status=row.mapping_status,
             dir_exposure=row.dir_exposure,
             eq_country=row.eq_country,
@@ -299,9 +341,37 @@ def build_risk_html_report(
         for row in rows
     ]
     allocation_summary = build_allocation_summary(risk_rows)
-    country_breakdown = _build_eq_country_breakdown(rows, security_ewma_loadings)
-    sector_breakdown = _build_us_sector_breakdown(rows, security_ewma_loadings)
-    fi_tenor_breakdown = _build_fi_tenor_breakdown(rows, security_ewma_loadings)
+    country_breakdown = _build_eq_country_breakdown(
+        rows,
+        selected_security_loadings,
+        lookthrough_path=risk_report_config.eq_country_lookthrough_path,
+    )
+    sector_breakdown = _build_us_sector_breakdown(
+        rows,
+        selected_security_loadings,
+        lookthrough_path=risk_report_config.us_sector_lookthrough_path,
+    )
+    fi_tenor_breakdown = _build_fi_tenor_breakdown(rows, selected_security_loadings)
+    policy_drift_asset_class = _build_asset_class_policy_drift(
+        allocation_summary=allocation_summary,
+        asset_class_targets=allocation_policy.portfolio_asset_class_targets,
+    )
+    policy_drift_country = _build_breakdown_policy_drift(
+        breakdown=country_breakdown,
+        scope="EQ",
+        policy_weights=_expand_policy_mix(
+            mix=allocation_policy.equity_country_policy_mix,
+            lookthrough=_load_weight_table(risk_report_config.eq_country_lookthrough_path, "eq_country", "country_bucket"),
+        ),
+    )
+    policy_drift_sector = _build_breakdown_policy_drift(
+        breakdown=sector_breakdown,
+        scope="US_EQ",
+        policy_weights=_expand_policy_mix(
+            mix=allocation_policy.us_equity_sector_policy_mix,
+            lookthrough=_load_weight_table(risk_report_config.us_sector_lookthrough_path, "canonical_symbol", "sector"),
+        ),
+    )
     summary = PortfolioRiskSummary(
         portfolio_vol_geomean_1m_3m=portfolio_vol_geomean_1m_3m,
         portfolio_vol_5y_realized=portfolio_vol_5y_realized,
@@ -320,6 +390,9 @@ def build_risk_html_report(
         country_breakdown=country_breakdown,
         sector_breakdown=sector_breakdown,
         fi_tenor_breakdown=fi_tenor_breakdown,
+        policy_drift_asset_class=policy_drift_asset_class,
+        policy_drift_country=policy_drift_country,
+        policy_drift_sector=policy_drift_sector,
         regime_summary=regime_summary,
         vol_method=vol_method,
         inter_asset_corr=inter_asset_corr,
@@ -718,6 +791,9 @@ def render_html(
     country_breakdown: list[BreakdownRow],
     sector_breakdown: list[BreakdownRow],
     fi_tenor_breakdown: list[BreakdownRow],
+    policy_drift_asset_class: list[PolicyDriftRow],
+    policy_drift_country: list[PolicyDriftRow],
+    policy_drift_sector: list[PolicyDriftRow],
     regime_summary: RegimeReportSummary | None,
     vol_method: str,
     inter_asset_corr: str,
@@ -746,6 +822,12 @@ def render_html(
     country_rows = _render_breakdown_rows(country_breakdown)
     sector_rows = _render_breakdown_rows(sector_breakdown)
     tenor_rows = _render_breakdown_rows(fi_tenor_breakdown, include_bucket_label=True)
+    policy_asset_rows = _render_policy_drift_rows(policy_drift_asset_class)
+    policy_country_rows = _render_policy_drift_rows(policy_drift_country)
+    policy_sector_rows = _render_policy_drift_rows(policy_drift_sector)
+    policy_asset_chart = _render_policy_drift_chart(policy_drift_asset_class)
+    policy_country_chart = _render_policy_drift_chart(policy_drift_country)
+    policy_sector_chart = _render_policy_drift_chart(policy_drift_sector)
 
     regime_block = ""
     if regime_summary is not None:
@@ -783,6 +865,13 @@ def render_html(
     .metric strong {{ font-size: 20px; }}
     .scores {{ display: flex; gap: 12px; flex-wrap: wrap; color: #334155; }}
     .sparkline {{ width: 120px; height: 28px; }}
+    .chart {{ display: grid; gap: 8px; margin-bottom: 12px; }}
+    .chart-row {{ display: grid; grid-template-columns: 140px 1fr 72px; gap: 10px; align-items: center; }}
+    .chart-track {{ position: relative; height: 14px; border-radius: 999px; background: #e2e8f0; overflow: hidden; }}
+    .chart-midline {{ position: absolute; left: 50%; top: 0; bottom: 0; width: 1px; background: #94a3b8; }}
+    .chart-fill-pos {{ position: absolute; left: 50%; top: 0; bottom: 0; background: #16a34a; }}
+    .chart-fill-neg {{ position: absolute; top: 0; bottom: 0; background: #dc2626; }}
+    .chart-value {{ text-align: right; color: #334155; font-size: 12px; font-variant-numeric: tabular-nums; }}
   </style>
 </head>
 <body>
@@ -812,6 +901,16 @@ def render_html(
   </div>
 
   <div class='card'>
+    <h2>Policy Drift - Asset Class (Dollar Weight Active)</h2>
+    <p>Active = current dollar weight minus policy weight. Vol contributions shown below use <strong>{html.escape(vol_method)}</strong>.</p>
+    <div class='chart'>{policy_asset_chart}</div>
+    <table>
+      <thead><tr><th>Bucket</th><th>Scope</th><th class='num'>Current Weight</th><th class='num'>Policy Weight</th><th class='num'>Active (OW/UW)</th><th class='num'>Vol Contribution</th></tr></thead>
+      <tbody>{policy_asset_rows}</tbody>
+    </table>
+  </div>
+
+  <div class='card'>
     <h2>EQ Country Breakdown</h2>
     <table>
       <thead><tr><th>Country</th><th>Scope</th><th class='num'>Net Exposure</th><th class='num'>Gross Exposure</th><th class='num'>Dollar%</th><th class='num'>Vol Contribution</th></tr></thead>
@@ -820,10 +919,28 @@ def render_html(
   </div>
 
   <div class='card'>
+    <h2>Policy Drift - Equity Country (within EQ scope)</h2>
+    <div class='chart'>{policy_country_chart}</div>
+    <table>
+      <thead><tr><th>Bucket</th><th>Scope</th><th class='num'>Current Weight</th><th class='num'>Policy Weight</th><th class='num'>Active (OW/UW)</th><th class='num'>Vol Contribution</th></tr></thead>
+      <tbody>{policy_country_rows}</tbody>
+    </table>
+  </div>
+
+  <div class='card'>
     <h2>US Sector Breakdown</h2>
     <table>
       <thead><tr><th>Sector</th><th>Scope</th><th class='num'>Net Exposure</th><th class='num'>Gross Exposure</th><th class='num'>Dollar%</th><th class='num'>Vol Contribution</th></tr></thead>
       <tbody>{sector_rows}</tbody>
+    </table>
+  </div>
+
+  <div class='card'>
+    <h2>Policy Drift - US Sector (within US EQ scope)</h2>
+    <div class='chart'>{policy_sector_chart}</div>
+    <table>
+      <thead><tr><th>Bucket</th><th>Scope</th><th class='num'>Current Weight</th><th class='num'>Policy Weight</th><th class='num'>Active (OW/UW)</th><th class='num'>Vol Contribution</th></tr></thead>
+      <tbody>{policy_sector_rows}</tbody>
     </table>
   </div>
 
@@ -894,6 +1011,53 @@ def _render_allocation_summary_rows(rows: Iterable[CategorySummaryRow]) -> str:
         "</tr>"
         for row in materialized
     )
+
+
+def _render_policy_drift_rows(rows: Iterable[PolicyDriftRow]) -> str:
+    materialized = list(rows)
+    if not materialized:
+        return "<tr><td colspan='6'>No data</td></tr>"
+    return "\n".join(
+        "<tr>"
+        f"<td>{html.escape(row.bucket)}</td>"
+        f"<td>{html.escape(row.scope)}</td>"
+        f"<td class='num'>{row.current_weight:.2%}</td>"
+        f"<td class='num'>{row.policy_weight:.2%}</td>"
+        f"<td class='num'>{row.active_weight:+.2%}</td>"
+        f"<td class='num'>{row.current_risk_contribution:.2%}</td>"
+        "</tr>"
+        for row in materialized
+    )
+
+
+def _render_policy_drift_chart(rows: Iterable[PolicyDriftRow]) -> str:
+    materialized = list(rows)
+    if not materialized:
+        return "<div>No data</div>"
+    max_abs = max(abs(row.active_weight) for row in materialized) or 1e-9
+    chart_rows: list[str] = []
+    for row in materialized:
+        if row.active_weight >= 0:
+            fill = (
+                "<span class='chart-fill-pos' "
+                f"style='width:{(abs(row.active_weight) / max_abs) * 50:.2f}%;'></span>"
+            )
+        else:
+            left = 50 - (abs(row.active_weight) / max_abs) * 50
+            fill = (
+                "<span class='chart-fill-neg' "
+                f"style='left:{left:.2f}%; width:{(abs(row.active_weight) / max_abs) * 50:.2f}%;'></span>"
+            )
+        chart_rows.append(
+            "<div class='chart-row'>"
+            f"<div>{html.escape(row.bucket)}</div>"
+            "<div class='chart-track'><span class='chart-midline'></span>"
+            f"{fill}"
+            "</div>"
+            f"<div class='chart-value'>{row.active_weight:+.2%}</div>"
+            "</div>"
+        )
+    return "\n".join(chart_rows)
 
 
 def _sparkline_svg_for_returns(returns: pd.Series | list[float]) -> str:
@@ -1112,11 +1276,155 @@ def _portfolio_vol_from_group_loadings(
     return math.sqrt(max(variance, 0.0))
 
 
+def _select_security_loadings(
+    *,
+    vol_method: str,
+    geomean: Mapping[str, float],
+    realized_5y: Mapping[str, float],
+    ewma: Mapping[str, float],
+) -> Mapping[str, float]:
+    normalized = vol_method.strip().lower()
+    if normalized == "5y_realized":
+        return realized_5y
+    if normalized == "ewma":
+        return ewma
+    return geomean
+
+
+def _load_risk_report_config(
+    *,
+    risk_config_path: str | Path | None,
+    allocation_policy_path: str | Path | None,
+) -> RiskReportConfig:
+    config_path = Path(risk_config_path) if risk_config_path is not None else DEFAULT_RISK_REPORT_CONFIG_PATH
+    payload: dict[str, Any] = {}
+    if config_path.exists():
+        loaded = yaml.safe_load(config_path.read_text(encoding="utf-8")) or {}
+        if not isinstance(loaded, dict):
+            raise ValueError("Risk report config must be a mapping")
+        payload = dict(loaded.get("risk_report", loaded))
+
+    lookthrough_payload = dict(payload.get("lookthrough", {}))
+    eq_file = str(lookthrough_payload.get("eq_country", DEFAULT_EQ_COUNTRY_LOOKTHROUGH_PATH.name))
+    us_file = str(lookthrough_payload.get("us_sector", DEFAULT_US_SECTOR_LOOKTHROUGH_PATH.name))
+    base_dir = config_path.parent if config_path.exists() else DEFAULT_RISK_REPORT_CONFIG_PATH.parent
+    eq_path = Path(eq_file) if Path(eq_file).is_absolute() else (base_dir / eq_file)
+    us_path = Path(us_file) if Path(us_file).is_absolute() else (base_dir / us_file)
+
+    policy = _parse_allocation_policy(dict(payload.get("policy", {})))
+    if allocation_policy_path is not None:
+        legacy_loaded = yaml.safe_load(Path(allocation_policy_path).read_text(encoding="utf-8")) or {}
+        if not isinstance(legacy_loaded, dict):
+            raise ValueError("Allocation policy config must be a mapping")
+        policy = _parse_allocation_policy(dict(legacy_loaded.get("policy", legacy_loaded)))
+
+    return RiskReportConfig(
+        eq_country_lookthrough_path=eq_path,
+        us_sector_lookthrough_path=us_path,
+        policy=policy,
+    )
+
+
+def _parse_allocation_policy(payload: Mapping[str, Any]) -> AllocationPolicyConfig:
+    portfolio = dict(payload.get("portfolio_asset_class_targets", {}))
+    equity = dict(payload.get("equity_country_policy_mix", {"ACWI": 1.0}))
+    us_equity = dict(payload.get("us_equity_sector_policy_mix", {"SPY": 1.0}))
+    return AllocationPolicyConfig(
+        portfolio_asset_class_targets={str(k).upper(): float(v) for k, v in portfolio.items()},
+        equity_country_policy_mix={str(k).upper(): float(v) for k, v in equity.items()},
+        us_equity_sector_policy_mix={str(k).upper(): float(v) for k, v in us_equity.items()},
+    )
+
+
+def _expand_policy_mix(
+    *,
+    mix: Mapping[str, float],
+    lookthrough: Mapping[str, list[tuple[str, float]]],
+) -> dict[str, float]:
+    expanded: dict[str, float] = {}
+    for key, mix_weight in mix.items():
+        normalized_key = str(key).upper()
+        if mix_weight <= 0:
+            continue
+        if normalized_key in lookthrough:
+            for bucket, bucket_weight in lookthrough[normalized_key]:
+                expanded[bucket] = expanded.get(bucket, 0.0) + float(mix_weight) * float(bucket_weight)
+            continue
+        expanded[normalized_key] = expanded.get(normalized_key, 0.0) + float(mix_weight)
+    total = sum(expanded.values())
+    if total <= 0:
+        return {}
+    return {bucket: weight / total for bucket, weight in expanded.items()}
+
+
+def _build_asset_class_policy_drift(
+    *,
+    allocation_summary: list[CategorySummaryRow],
+    asset_class_targets: Mapping[str, float],
+) -> list[PolicyDriftRow]:
+    current = {row.asset_class.upper(): row for row in allocation_summary}
+    normalized_policy = _normalize_weights({str(k).upper(): float(v) for k, v in asset_class_targets.items()})
+    buckets = sorted(set(current) | set(normalized_policy))
+    rows: list[PolicyDriftRow] = []
+    for bucket in buckets:
+        current_row = current.get(bucket)
+        current_weight = current_row.dollar_weight if current_row is not None else 0.0
+        policy_weight = normalized_policy.get(bucket, 0.0)
+        rows.append(
+            PolicyDriftRow(
+                bucket=bucket,
+                scope="PORTFOLIO",
+                current_weight=current_weight,
+                policy_weight=policy_weight,
+                active_weight=current_weight - policy_weight,
+                current_risk_contribution=current_row.risk_contribution_estimated if current_row is not None else 0.0,
+            )
+        )
+    return sorted(rows, key=lambda item: abs(item.active_weight), reverse=True)
+
+
+def _build_breakdown_policy_drift(
+    *,
+    breakdown: list[BreakdownRow],
+    scope: str,
+    policy_weights: Mapping[str, float],
+) -> list[PolicyDriftRow]:
+    current_total = sum(max(row.dollar_weight, 0.0) for row in breakdown)
+    current_by_bucket = {row.bucket: row for row in breakdown}
+    buckets = sorted(set(current_by_bucket) | set(policy_weights))
+    drift_rows: list[PolicyDriftRow] = []
+    for bucket in buckets:
+        current_row = current_by_bucket.get(bucket)
+        current_weight = ((current_row.dollar_weight / current_total) if current_row is not None and current_total > 0 else 0.0)
+        policy_weight = policy_weights.get(bucket, 0.0)
+        drift_rows.append(
+            PolicyDriftRow(
+                bucket=bucket,
+                scope=scope,
+                current_weight=current_weight,
+                policy_weight=policy_weight,
+                active_weight=current_weight - policy_weight,
+                current_risk_contribution=current_row.risk_contribution_estimated if current_row is not None else 0.0,
+            )
+        )
+    return sorted(drift_rows, key=lambda item: abs(item.active_weight), reverse=True)
+
+
+def _normalize_weights(weights: Mapping[str, float]) -> dict[str, float]:
+    cleaned = {str(bucket): float(value) for bucket, value in weights.items() if float(value) > 0}
+    total = sum(cleaned.values())
+    if total <= 0:
+        return {}
+    return {bucket: value / total for bucket, value in cleaned.items()}
+
+
 def _build_eq_country_breakdown(
     rows: list[RiskInputRow],
     estimated_loadings: Mapping[str, float],
+    *,
+    lookthrough_path: Path = DEFAULT_EQ_COUNTRY_LOOKTHROUGH_PATH,
 ) -> list[BreakdownRow]:
-    lookthrough = _load_weight_table(DEFAULT_EQ_COUNTRY_LOOKTHROUGH_PATH, "eq_country", "country_bucket")
+    lookthrough = _load_weight_table(lookthrough_path, "eq_country", "country_bucket")
     return _build_breakdown(
         rows=rows,
         estimated_loadings=estimated_loadings,
@@ -1128,8 +1436,10 @@ def _build_eq_country_breakdown(
 def _build_us_sector_breakdown(
     rows: list[RiskInputRow],
     estimated_loadings: Mapping[str, float],
+    *,
+    lookthrough_path: Path = DEFAULT_US_SECTOR_LOOKTHROUGH_PATH,
 ) -> list[BreakdownRow]:
-    lookthrough = _load_weight_table(DEFAULT_US_SECTOR_LOOKTHROUGH_PATH, "canonical_symbol", "sector")
+    lookthrough = _load_weight_table(lookthrough_path, "canonical_symbol", "sector")
     return _build_breakdown(
         rows=rows,
         estimated_loadings=estimated_loadings,

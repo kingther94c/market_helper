@@ -76,6 +76,23 @@ def build_parser() -> argparse.ArgumentParser:
         required=False,
         help="Optional curated security-reference CSV path. Defaults to configs/portfolio_monitor/security_reference.csv.",
     )
+    risk_html_report.add_argument(
+        "--risk-config",
+        required=False,
+        help="Optional unified risk-report YAML config path (lookthrough + policy).",
+    )
+    risk_html_report.add_argument(
+        "--allocation-policy",
+        required=False,
+        help="Deprecated: optional policy-only YAML override path.",
+    )
+    risk_html_report.add_argument(
+        "--vol-method",
+        required=False,
+        default="geomean_1m_3m",
+        choices=["geomean_1m_3m", "5y_realized", "ewma"],
+        help="Volatility method used for contribution views.",
+    )
 
     security_reference_sync = subparsers.add_parser(
         "security-reference-sync",
@@ -159,6 +176,9 @@ def main(argv: Sequence[str] | None = None) -> int:
             proxy_path=Path(args.proxy) if args.proxy else None,
             regime_path=Path(args.regime) if args.regime else None,
             security_reference_path=Path(args.security_reference) if args.security_reference else None,
+            risk_config_path=Path(args.risk_config) if args.risk_config else None,
+            allocation_policy_path=Path(args.allocation_policy) if args.allocation_policy else None,
+            vol_method=args.vol_method,
         )
         return 0
     if args.command == "security-reference-sync":

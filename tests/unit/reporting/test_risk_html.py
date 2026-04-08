@@ -185,6 +185,9 @@ def test_build_risk_html_report_renders_summary_and_tables(tmp_path: Path) -> No
     assert "Portfolio vol (EWMA" in rendered
     assert "Asset Class Summary" in rendered
     assert "EQ Country Breakdown" in rendered
+    assert "Policy Drift - Asset Class" in rendered
+    assert "Policy Drift - Equity Country" in rendered
+    assert "Policy Drift - US Sector" in rendered
     assert "Regime Snapshot" in rendered
     assert "Goldilocks Expansion" in rendered
     assert "SPY" in rendered
@@ -192,6 +195,51 @@ def test_build_risk_html_report_renders_summary_and_tables(tmp_path: Path) -> No
     assert "3M Trend" in rendered
     assert "class='sparkline'" in rendered
     assert "<tr><td>FI</td><td>FI</td>" not in rendered
+
+
+def test_build_risk_html_report_accepts_configurable_allocation_policy(tmp_path: Path) -> None:
+    positions_csv = tmp_path / "positions.csv"
+    positions_csv.write_text(
+        "\n".join(
+            [
+                "as_of,account,internal_id,con_id,symbol,local_symbol,exchange,currency,source,quantity,avg_cost,latest_price,market_value,cost_basis,unrealized_pnl,weight",
+                "2026-03-26T00:00:00+00:00,U1,STK:SPY:ARCA,756733,SPY,SPY,ARCA,USD,ibkr,10,500,510,5100,5000,100,1.0",
+            ]
+        ),
+        encoding="utf-8",
+    )
+    returns_json = tmp_path / "returns.json"
+    returns_json.write_text(
+        json.dumps({"STK:SPY:ARCA": [0.001 * ((idx % 7) - 3) for idx in range(90)]}),
+        encoding="utf-8",
+    )
+    policy_yaml = tmp_path / "allocation_policy.yaml"
+    policy_yaml.write_text(
+        "\n".join(
+            [
+                "policy:",
+                "  portfolio_asset_class_targets:",
+                "    EQ: 1.0",
+                "  equity_country_policy_mix:",
+                "    DM: 1.0",
+                "  us_equity_sector_policy_mix:",
+                "    SOXX: 1.0",
+            ]
+        ),
+        encoding="utf-8",
+    )
+
+    output_path = tmp_path / "risk_report.html"
+    build_risk_html_report(
+        positions_csv_path=positions_csv,
+        returns_path=returns_json,
+        output_path=output_path,
+        allocation_policy_path=policy_yaml,
+    )
+    rendered = output_path.read_text(encoding="utf-8")
+    assert "PORTFOLIO" in rendered
+    assert "Semiconductor" in rendered
+    assert "JP" in rendered
 
 
 def test_build_risk_html_report_uses_security_reference_for_enrichment(tmp_path: Path) -> None:

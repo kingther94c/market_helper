@@ -195,6 +195,9 @@ def generate_risk_html_report(
     proxy_path: str | Path | None = None,
     regime_path: str | Path | None = None,
     security_reference_path: str | Path | None = None,
+    risk_config_path: str | Path | None = None,
+    allocation_policy_path: str | Path | None = None,
+    vol_method: str = "geomean_1m_3m",
 ) -> Path:
     """Render the HTML risk report from a previously generated position CSV."""
     reference_path = Path(security_reference_path) if security_reference_path is not None else DEFAULT_SECURITY_REFERENCE_PATH
@@ -206,6 +209,9 @@ def generate_risk_html_report(
         proxy_path=proxy_path,
         regime_path=regime_path,
         security_reference_path=reference_path,
+        risk_config_path=risk_config_path,
+        allocation_policy_path=allocation_policy_path,
+        vol_method=vol_method,
     )
 
 
