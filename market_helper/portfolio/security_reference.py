@@ -94,6 +94,9 @@ LEGACY_SECURITY_REFERENCE_HEADERS = [
 ]
 MONTH_CODES = "FGHJKMNQUVXZ"
 DEFAULT_SECURITY_REFERENCE_PATH = (
+    Path(__file__).resolve().parents[2] / "data" / "artifacts" / "portfolio_monitor" / "security_reference.csv"
+)
+LEGACY_SECURITY_REFERENCE_PATH = (
     Path(__file__).resolve().parents[2] / "configs" / "portfolio_monitor" / "security_reference.csv"
 )
 DEFAULT_SECURITY_UNIVERSE_PATH = (
@@ -1012,10 +1015,20 @@ def normalize_contract_root(symbol: str) -> str:
 
 
 def _load_prior_reference_table(path: str | Path) -> SecurityReferenceTable | None:
-    try:
-        return SecurityReferenceTable.from_csv(path)
-    except FileNotFoundError:
-        return None
+    for candidate in _prior_reference_path_candidates(path):
+        try:
+            return SecurityReferenceTable.from_csv(candidate)
+        except FileNotFoundError:
+            continue
+    return None
+
+
+def _prior_reference_path_candidates(path: str | Path) -> list[Path]:
+    resolved = Path(path)
+    candidates = [resolved]
+    if resolved == DEFAULT_SECURITY_REFERENCE_PATH and LEGACY_SECURITY_REFERENCE_PATH not in candidates:
+        candidates.append(LEGACY_SECURITY_REFERENCE_PATH)
+    return candidates
 
 
 def _default_currency_for_universe_row(row: SecurityUniverseRow) -> str:
