@@ -8,10 +8,12 @@ risk_report:
     FI_10Y_EQ_MOD_DURATION: 8.0
   policy:
     portfolio_asset_class_targets:
-      EQ: 0.60
-      FI: 0.25
-      CASH: 0.10
-      CM: 0.05
+      EQ: 0.80
+      FI: 1.0
+      FX: 1.0
+      CASH: 0.05
+      CM: 0.10
+      MACRO: 0.05
     equity_country_policy_mix:
       ACWI: 1.0
     us_equity_sector_policy_mix:

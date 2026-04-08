@@ -1403,13 +1403,17 @@ def _build_asset_class_policy_drift(
     asset_class_targets: Mapping[str, float],
 ) -> list[PolicyDriftRow]:
     current = {row.asset_class.upper(): row for row in allocation_summary}
-    normalized_policy = _normalize_weights({str(k).upper(): float(v) for k, v in asset_class_targets.items()})
-    buckets = sorted(set(current) | set(normalized_policy))
+    raw_policy = {
+        str(k).upper(): float(v)
+        for k, v in asset_class_targets.items()
+        if float(v) > 0
+    }
+    buckets = sorted(set(current) | set(raw_policy))
     rows: list[PolicyDriftRow] = []
     for bucket in buckets:
         current_row = current.get(bucket)
         current_weight = current_row.dollar_weight if current_row is not None else 0.0
-        policy_weight = normalized_policy.get(bucket, 0.0)
+        policy_weight = raw_policy.get(bucket, 0.0)
         rows.append(
             PolicyDriftRow(
                 bucket=bucket,

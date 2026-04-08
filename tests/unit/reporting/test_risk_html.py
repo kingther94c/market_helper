@@ -317,6 +317,27 @@ def test_build_risk_html_report_accepts_configurable_allocation_policy(tmp_path:
     assert "JP" in rendered
 
 
+def test_asset_class_policy_drift_preserves_non_normalized_targets() -> None:
+    drift_rows = risk_html_module._build_asset_class_policy_drift(
+        allocation_summary=[],
+        asset_class_targets={
+            "EQ": 0.80,
+            "FI": 1.0,
+            "FX": 1.0,
+            "CASH": 0.05,
+            "CM": 0.10,
+            "MACRO": 0.05,
+        },
+    )
+
+    by_bucket = {row.bucket: row for row in drift_rows}
+
+    assert by_bucket["EQ"].policy_weight == pytest.approx(0.80)
+    assert by_bucket["FI"].policy_weight == pytest.approx(1.0)
+    assert by_bucket["FX"].policy_weight == pytest.approx(1.0)
+    assert sum(row.policy_weight for row in drift_rows) == pytest.approx(3.0)
+
+
 def test_build_risk_html_report_prefixes_policy_drift_equity_country_dm_em_buckets(
     tmp_path: Path,
 ) -> None:
