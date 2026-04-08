@@ -5,8 +5,8 @@ Track raw, interim, and processed datasets in this document.
 ## Security reference and holdings datasets
 
 ### `security_reference`
-Curated wide instrument master table. This tracked CSV lives at `configs/portfolio_monitor/security_reference.csv`
-and defines the supported investment universe for reporting/risk v1.
+Generated wide instrument master table. This local cache lives at `data/artifacts/portfolio_monitor/security_reference.csv`
+and is derived from `configs/security_universe.csv` for reporting/risk v1.
 
 | column | type | description |
 | --- | --- | --- |
@@ -39,7 +39,7 @@ Runtime-only unmatched references reuse the canonical-looking `internal_id` shap
 `STK:AAPL:SMART`, while outside-scope instruments still use explicit markers such as
 `OUTSIDE_SCOPE:OPT:SPY:AMEX`. When IBKR ingestion encounters unmatched rows, the report workflow
 writes a sibling `security_reference_PROPOSED.csv` so the user can review and merge any approved
-rows into the tracked curated CSV.
+rows into the tracked curated universe CSV.
 
 ### `position_snapshot`
 Normalized portfolio positions.

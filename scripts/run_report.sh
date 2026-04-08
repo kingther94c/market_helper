@@ -8,7 +8,6 @@ ACCOUNT_ENV="${ACCOUNT_ENV:-prod}"
 CANONICAL_LOCAL_ACCOUNT_CONFIG="${ROOT_DIR}/configs/portfolio_monitor/report_accounts.local.env"
 LEGACY_LOCAL_ACCOUNT_CONFIG="${ROOT_DIR}/configs/report_accounts.local.env"
 LOCAL_ACCOUNT_CONFIG="${CANONICAL_LOCAL_ACCOUNT_CONFIG}"
-DEFAULT_PROXY_CONFIG="${ROOT_DIR}/configs/portfolio_monitor/proxy.json"
 DEFAULT_PROD_ACCOUNT_ID="${DEFAULT_PROD_ACCOUNT_ID:-}"
 DEFAULT_DEV_ACCOUNT_ID="${DEFAULT_DEV_ACCOUNT_ID:-}"
 
@@ -145,7 +144,7 @@ case "${MODE}" in
         ;;
     security-reference-sync)
         CLI_COMMAND="security-reference-sync"
-        DEFAULT_OUTPUT="${ROOT_DIR}/configs/portfolio_monitor/security_reference.csv"
+        DEFAULT_OUTPUT="${ROOT_DIR}/data/artifacts/portfolio_monitor/security_reference.csv"
         ;;
     mapping-table)
         CLI_COMMAND="extract-report-mapping"
@@ -300,10 +299,6 @@ if [[ "${MODE}" == "ibkr-live-html" ]]; then
 
     resolve_live_account
 
-    if [[ -z "${PROXY_PATH}" && -f "${DEFAULT_PROXY_CONFIG}" ]]; then
-        PROXY_PATH="${DEFAULT_PROXY_CONFIG}"
-    fi
-
     LIVE_COMMAND=(
         "${CONDA_BIN}" run -n "${ENV_NAME}" python -m market_helper.cli.main ibkr-live-position-report
         --output "${POSITIONS_OUTPUT_PATH}"
@@ -368,9 +363,6 @@ case "${MODE}" in
     risk-html)
         [[ -n "${POSITIONS_CSV_PATH}" ]] || fail "risk-html mode requires --positions-csv"
         require_file "positions csv" "${POSITIONS_CSV_PATH}"
-        if [[ -z "${PROXY_PATH}" && -f "${DEFAULT_PROXY_CONFIG}" ]]; then
-            PROXY_PATH="${DEFAULT_PROXY_CONFIG}"
-        fi
         COMMAND+=(--positions-csv "${POSITIONS_CSV_PATH}")
         [[ -n "${RETURNS_PATH}" ]] && { require_file "returns" "${RETURNS_PATH}"; COMMAND+=(--returns "${RETURNS_PATH}"); }
         [[ -n "${PROXY_PATH}" ]] && { require_file "proxy" "${PROXY_PATH}"; COMMAND+=(--proxy "${PROXY_PATH}"); }

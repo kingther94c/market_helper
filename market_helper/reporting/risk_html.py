@@ -72,7 +72,7 @@ DEFAULT_US_SECTOR_LOOKTHROUGH_PATH = (
     Path(__file__).resolve().parents[2] / "configs" / "portfolio_monitor" / "us_sector_lookthrough.csv"
 )
 DEFAULT_RISK_REPORT_CONFIG_PATH = (
-    Path(__file__).resolve().parents[2] / "configs" / "portfolio_monitor" / "risk_report.yaml"
+    Path(__file__).resolve().parents[2] / "configs" / "portfolio_monitor" / "report_config.yaml"
 )
 FI_TENOR_BUCKET_ORDER = ("0-1Y", "1-3Y", "3-5Y", "5-7Y", "7-10Y", "10-20Y", "20Y+", "UNASSIGNED")
 FI_TENOR_BUCKET_LABELS = {
@@ -220,6 +220,7 @@ class RiskReportConfig:
     eq_country_lookthrough_path: Path
     us_sector_lookthrough_path: Path
     policy: AllocationPolicyConfig
+    proxy: dict[str, Any]
 
 
 def build_risk_html_report(
@@ -238,7 +239,15 @@ def build_risk_html_report(
 ) -> Path:
     resolved_yahoo_client = yahoo_client or YahooFinanceClient()
     reference_table = _load_security_reference_table(security_reference_path)
-    proxy = _load_proxy(proxy_path, yahoo_client=resolved_yahoo_client)
+    risk_report_config = _load_risk_report_config(
+        risk_config_path=risk_config_path,
+        allocation_policy_path=allocation_policy_path,
+    )
+    proxy = _load_proxy(
+        proxy_path,
+        yahoo_client=resolved_yahoo_client,
+        fallback_payload=risk_report_config.proxy,
+    )
     fi_10y_eq_mod_duration = _resolve_fi_10y_eq_mod_duration(proxy)
     rows = load_position_rows(
         positions_csv_path,
@@ -252,10 +261,6 @@ def build_risk_html_report(
         yahoo_client=resolved_yahoo_client,
     )
     regime_summary = _load_regime_summary(regime_path)
-    risk_report_config = _load_risk_report_config(
-        risk_config_path=risk_config_path,
-        allocation_policy_path=allocation_policy_path,
-    )
     allocation_policy = risk_report_config.policy
 
     vols_geomean_1m_3m = {
@@ -1348,11 +1353,15 @@ def _load_risk_report_config(
         if not isinstance(legacy_loaded, dict):
             raise ValueError("Allocation policy config must be a mapping")
         policy = _parse_allocation_policy(dict(legacy_loaded.get("policy", legacy_loaded)))
+    proxy_payload = payload.get("proxy", {})
+    if not isinstance(proxy_payload, Mapping):
+        raise ValueError("Risk report proxy config must be a mapping")
 
     return RiskReportConfig(
         eq_country_lookthrough_path=eq_path,
         us_sector_lookthrough_path=us_path,
         policy=policy,
+        proxy=dict(proxy_payload),
     )
 
 
@@ -1709,12 +1718,12 @@ def _prefix_eq_country_bucket(
     normalized_bucket = str(bucket).upper()
     if normalized_bucket.startswith("DM-") or normalized_bucket.startswith("EM-"):
         return normalized_bucket.replace("OTHERS", "Others").replace("OTHER", "Others")
-    if normalized_bucket in EQ_COUNTRY_OTHER_BUCKETS:
+    if _is_eq_country_other_bucket(normalized_bucket):
         return None
     region = _eq_country_region_for_bucket(normalized_bucket, lookthrough)
     if region is None:
         return normalized_bucket
-    suffix = "Others" if normalized_bucket in EQ_COUNTRY_OTHER_BUCKETS else normalized_bucket
+    suffix = "Others" if _is_eq_country_other_bucket(normalized_bucket) else normalized_bucket
     return f"{region}-{suffix}"
 
 
@@ -1723,8 +1732,16 @@ def _eq_country_region_for_bucket(
     lookthrough: Mapping[str, list[tuple[str, float]]],
 ) -> str | None:
     normalized_bucket = str(bucket).upper()
-    dm_buckets = {str(name).upper() for name, _ in lookthrough.get("DM", []) if str(name).upper() not in EQ_COUNTRY_OTHER_BUCKETS}
-    em_buckets = {str(name).upper() for name, _ in lookthrough.get("EM", []) if str(name).upper() not in EQ_COUNTRY_OTHER_BUCKETS}
+    dm_buckets = {
+        str(name).upper()
+        for name, _ in lookthrough.get("DM", [])
+        if not _is_eq_country_other_bucket(str(name).upper())
+    }
+    em_buckets = {
+        str(name).upper()
+        for name, _ in lookthrough.get("EM", [])
+        if not _is_eq_country_other_bucket(str(name).upper())
+    }
     if normalized_bucket in dm_buckets and normalized_bucket not in em_buckets:
         return "DM"
     if normalized_bucket in em_buckets and normalized_bucket not in dm_buckets:
@@ -1762,7 +1779,7 @@ def _eq_country_policy_bucket_sort_key(
     region_order = [
         (
             "Others"
-            if str(name).upper() in EQ_COUNTRY_OTHER_BUCKETS
+            if _is_eq_country_other_bucket(str(name).upper())
             else str(name).upper()
         )
         for name, _ in lookthrough.get(prefix, [])
@@ -1978,8 +1995,9 @@ def _load_proxy(
     path: str | Path | None,
     *,
     yahoo_client: YahooFinanceClient,
+    fallback_payload: Mapping[str, Any] | None = None,
 ) -> dict[str, float]:
-    loaded = _load_proxy_payload(path)
+    loaded = _load_proxy_payload(path, fallback_payload=fallback_payload)
     proxy, aliases = _parse_proxy_payload(loaded)
     proxy = _populate_proxy_defaults_from_yahoo(proxy, yahoo_client=yahoo_client)
     _resolve_proxy_aliases(proxy, aliases)
@@ -1988,13 +2006,26 @@ def _load_proxy(
     return proxy
 
 
-def _load_proxy_payload(path: str | Path | None) -> Mapping[str, Any]:
+def _load_proxy_payload(
+    path: str | Path | None,
+    *,
+    fallback_payload: Mapping[str, Any] | None = None,
+) -> Mapping[str, Any]:
     if path is None:
-        return {}
+        return dict(fallback_payload or {})
     loaded = json.loads(Path(path).read_text(encoding="utf-8"))
     if not isinstance(loaded, dict):
         raise ValueError("Expected proxy JSON object, e.g. {'VIX': 19.2}")
     return loaded
+
+
+def _is_eq_country_other_bucket(bucket: str) -> bool:
+    normalized_bucket = str(bucket).upper()
+    if normalized_bucket in EQ_COUNTRY_OTHER_BUCKETS:
+        return True
+    if normalized_bucket.endswith("-OTHER") or normalized_bucket.endswith("-OTHERS"):
+        return True
+    return False
 
 
 def _parse_proxy_payload(loaded: Mapping[str, Any]) -> tuple[dict[str, float], dict[str, str]]:

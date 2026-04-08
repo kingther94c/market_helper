@@ -2,6 +2,10 @@ risk_report:
   lookthrough:
     eq_country: eq_country_lookthrough.csv
     us_sector: us_sector_lookthrough.csv
+  proxy:
+    DEFAULT: VIX
+    FXVOL: 0.0
+    FI_10Y_EQ_MOD_DURATION: 8.0
   policy:
     portfolio_asset_class_targets:
       EQ: 0.60

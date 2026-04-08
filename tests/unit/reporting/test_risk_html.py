@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import csv
 import json
 from pathlib import Path
 from urllib.error import HTTPError
@@ -18,6 +19,9 @@ from market_helper.reporting.risk_html import (
     historical_geomean_vol,
     pairwise_corr,
 )
+
+
+REPO_ROOT = Path(__file__).resolve().parents[3]
 
 
 def _single_price_chart(level: float) -> dict[str, object]:
@@ -120,6 +124,77 @@ def test_load_proxy_config_resolves_default_alias_to_yahoo_vix(tmp_path: Path) -
     assert proxy["FXVOL"] == 0.0
     assert proxy["VIX"] == pytest.approx(17.8)
     assert proxy["MOVE"] == pytest.approx(109.0)
+
+
+def test_load_proxy_uses_unified_risk_report_config_proxy_section(tmp_path: Path) -> None:
+    risk_html_module._YAHOO_PROXY_LEVEL_CACHE.clear()
+    risk_config = tmp_path / "report_config.yaml"
+    risk_config.write_text(
+        "\n".join(
+            [
+                "risk_report:",
+                "  proxy:",
+                "    VIX: 21.5",
+                "    DEFAULT: VIX",
+                "    FXVOL: 7.0",
+                "    FI_10Y_EQ_MOD_DURATION: 10.0",
+            ]
+        ),
+        encoding="utf-8",
+    )
+
+    loaded = risk_html_module._load_risk_report_config(
+        risk_config_path=risk_config,
+        allocation_policy_path=None,
+    )
+    proxy = risk_html_module._load_proxy(
+        None,
+        yahoo_client=YahooFinanceClient(downloader=lambda url: _single_price_chart(100.0)),
+        fallback_payload=loaded.proxy,
+    )
+
+    assert proxy["VIX"] == pytest.approx(21.5)
+    assert proxy["DEFAULT"] == pytest.approx(21.5)
+    assert proxy["FXVOL"] == pytest.approx(7.0)
+    assert proxy["FI_10Y_EQ_MOD_DURATION"] == pytest.approx(10.0)
+
+
+def test_default_eq_country_lookthrough_uses_explicit_dm_em_other_buckets() -> None:
+    lookthrough_path = REPO_ROOT / "configs" / "portfolio_monitor" / "eq_country_lookthrough.csv"
+    with lookthrough_path.open("r", encoding="utf-8", newline="") as handle:
+        rows = list(csv.DictReader(handle))
+
+    by_key: dict[str, set[str]] = {}
+    for row in rows:
+        by_key.setdefault(str(row["eq_country"]).upper(), set()).add(str(row["country_bucket"]))
+
+    assert all(str(row["country_bucket"]).upper() != "OTHERS" for row in rows)
+    assert {"DM-Others", "EM-Others"} <= by_key["ACWI"]
+    assert "DM-Others" in by_key["DM"]
+    assert "EM-Others" in by_key["EM"]
+
+
+def test_default_us_sector_lookthrough_covers_all_us_equity_universe_symbols() -> None:
+    universe_path = REPO_ROOT / "configs" / "security_universe.csv"
+    lookthrough_path = REPO_ROOT / "configs" / "portfolio_monitor" / "us_sector_lookthrough.csv"
+
+    with universe_path.open("r", encoding="utf-8", newline="") as handle:
+        universe_rows = list(csv.DictReader(handle))
+    with lookthrough_path.open("r", encoding="utf-8", newline="") as handle:
+        lookthrough_rows = list(csv.DictReader(handle))
+
+    expected_symbols = {
+        str(row["ibkr_symbol"]).upper()
+        for row in universe_rows
+        if str(row["asset_class"]).upper() == "EQ" and str(row["eq_country"]).upper() == "US"
+    }
+    configured_symbols = {
+        str(row["canonical_symbol"]).upper()
+        for row in lookthrough_rows
+        if str(row["canonical_symbol"]).strip()
+    }
+
+    assert not (expected_symbols - configured_symbols)
 
 
 def test_build_risk_html_report_renders_summary_and_tables(tmp_path: Path) -> None:
@@ -298,7 +373,8 @@ def test_build_risk_html_report_prefixes_policy_drift_equity_country_dm_em_bucke
     assert "DM-Others" in rendered
     assert "EM-CN" in rendered
     assert "EM-Others" in rendered
-    assert rendered.index("DM-US") < rendered.index("DM-Others") < rendered.index("EM-CN") < rendered.index("EM-Others")
+    policy_section = rendered.split("Policy Drift - Equity Country", 1)[1].split("Policy Drift - US Sector", 1)[0]
+    assert policy_section.index("DM-US") < policy_section.index("DM-Others") < policy_section.index("EM-CN") < policy_section.index("EM-Others")
 
 
 def test_build_risk_html_report_uses_security_reference_for_enrichment(tmp_path: Path) -> None:

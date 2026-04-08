@@ -25,7 +25,7 @@ To support risk calculations we add a thin integration boundary under `market_he
 
 1. Pull positions from IBKR API (stocks, ETFs, futures).
 2. For each IBKR contract:
-   - resolve against the curated `security_reference.csv` in strict order:
+   - resolve against the generated local `security_reference.csv` cache in strict order:
      - exact `ibkr_conid`
      - curated `(ibkr_symbol, ibkr_sec_type, ibkr_exchange)` alias
      - unique curated `(ibkr_symbol, ibkr_sec_type)` candidate when exchange-level matching is missing
@@ -37,4 +37,4 @@ To support risk calculations we add a thin integration boundary under `market_he
 4. Resolve conId to `internal_id`, then emit `PriceSnapshot`.
 5. Join position snapshots with latest prices before risk calculations.
 
-This design keeps broker-specific details at the edge, lets curated universe decisions live in a tracked CSV, and still preserves visibility into unsupported/unmapped instruments without auto-growing the canonical universe.
+This design keeps broker-specific details at the edge, lets curated universe decisions live in tracked `security_universe.csv`, and still preserves visibility into unsupported/unmapped instruments without auto-growing the canonical universe.
