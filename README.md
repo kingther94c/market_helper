@@ -183,6 +183,7 @@ conda run -n py313 python -m market_helper.cli.main risk-html-report \
   If provided, the JSON can also use aliases such as `{"DEFAULT": "VIX", "FXVOL": 0}`.
 - `--regime` is optional regime snapshot JSON (from `regime-detect`) to add a top-of-report regime banner and factor scores.
 - `--risk-config` is the recommended unified YAML config entrypoint for lookthrough tables, proxy defaults, and policy mixes. If omitted, the report uses `configs/portfolio_monitor/report_config.yaml`.
+- `portfolio_asset_class_targets` inside `report_config.yaml` are used as raw policy targets for the portfolio-level drift table and are not auto-normalized. Values above `1.0` are allowed when you want to express gross-exposure style targets.
 - `--security-reference` defaults to the generated local cache at `data/artifacts/portfolio_monitor/security_reference.csv`.
 - `--allocation-policy` remains available as a deprecated compatibility override for legacy policy-only YAML files.
 
