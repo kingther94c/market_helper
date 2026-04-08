@@ -242,6 +242,65 @@ def test_build_risk_html_report_accepts_configurable_allocation_policy(tmp_path:
     assert "JP" in rendered
 
 
+def test_build_risk_html_report_prefixes_policy_drift_equity_country_dm_em_buckets(
+    tmp_path: Path,
+) -> None:
+    positions_csv = tmp_path / "positions.csv"
+    positions_csv.write_text(
+        "\n".join(
+            [
+                "as_of,account,internal_id,con_id,symbol,local_symbol,exchange,currency,source,quantity,avg_cost,latest_price,market_value,cost_basis,unrealized_pnl,weight",
+                "2026-03-26T00:00:00+00:00,U1,STK:ACWI:SMART,756733,ACWI,ACWI,ARCA,USD,ibkr,10,100,100,10000,10000,0,1.0",
+            ]
+        ),
+        encoding="utf-8",
+    )
+    returns_json = tmp_path / "returns.json"
+    returns_json.write_text(
+        json.dumps({"STK:ACWI:SMART": [0.001 * ((idx % 7) - 3) for idx in range(90)]}),
+        encoding="utf-8",
+    )
+    security_reference_path = tmp_path / "security_reference.csv"
+    export_security_reference_csv(
+        [
+            SecurityReference(
+                internal_id="STK:ACWI:SMART",
+                asset_class="EQ",
+                canonical_symbol="ACWI",
+                display_ticker="ACWI",
+                display_name="ACWI",
+                currency="USD",
+                primary_exchange="ARCA",
+                multiplier=1.0,
+                ibkr_sec_type="STK",
+                ibkr_symbol="ACWI",
+                ibkr_exchange="SMART",
+                yahoo_symbol="ACWI",
+                eq_country="ACWI",
+                dir_exposure="L",
+                lookup_status="verified",
+            ),
+        ],
+        security_reference_path,
+    )
+
+    output_path = tmp_path / "risk_report.html"
+    build_risk_html_report(
+        positions_csv_path=positions_csv,
+        returns_path=returns_json,
+        output_path=output_path,
+        security_reference_path=security_reference_path,
+    )
+
+    rendered = output_path.read_text(encoding="utf-8")
+    assert "Policy Drift - Equity Country" in rendered
+    assert "DM-US" in rendered
+    assert "DM-Others" in rendered
+    assert "EM-CN" in rendered
+    assert "EM-Others" in rendered
+    assert rendered.index("DM-US") < rendered.index("DM-Others") < rendered.index("EM-CN") < rendered.index("EM-Others")
+
+
 def test_build_risk_html_report_uses_security_reference_for_enrichment(tmp_path: Path) -> None:
     positions_csv = tmp_path / "positions.csv"
     positions_csv.write_text(
