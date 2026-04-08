@@ -2,7 +2,7 @@
 
 ## Current Focus
 - Keep the new universe-first IBKR report flow stable while continuing to consolidate portfolio-monitor logic under `market_helper/domain/portfolio_monitor`.
-- Treat `configs/security_universe.csv` as the manual semantic source of truth and keep `configs/portfolio_monitor/security_reference.csv` as the generated/cacheable lookup artifact exposed through `common/models/security_reference.py` and portfolio-monitor services.
+- Treat `configs/security_universe.csv` as the manual semantic source of truth and keep `data/artifacts/portfolio_monitor/security_reference.csv` as the generated local lookup cache exposed through `common/models/security_reference.py` and portfolio-monitor services.
 - Treat `fi_tenor` as an explicit instrument-semantic field rather than as a derived duration bucket, while keeping `fi_mod_duration` available as a separate analytics/display attribute.
 - Keep funded-AUM calculations aligned with report intent by counting only stock-like and cash exposures, not futures/options notionals.
 - Continue splitting analytics from rendering so generated reference, position CSV, HTML risk report, and any future workbook renderer stay composable entrypoints.
@@ -21,5 +21,5 @@
 - Hardened Yahoo risk-history retrieval so HTTP `429` / transient failures now retry with backoff, respect `Retry-After`, reuse stale symbol caches when refresh fails, and skip transiently unavailable symbols so the report can still fall back to proxy-risk estimates.
 - Corrected fixed-income proxy fallback semantics so `MOVE` is no longer treated as direct FI price volatility; the report now maps proxy yield-vol through `fi_mod_duration`, producing realistic fallback vols for treasury and bond exposures.
 - Cleaned up the HTML risk `Asset Class Summary` table with a dedicated renderer and exposure-first ordering so the section no longer inherits the generic breakdown-column mismatch.
-- Added report-only FI 10Y-equivalent exposure normalization for HTML dollar views, using `fi_mod_duration / FI_10Y_EQ_MOD_DURATION` with default base duration `8.0` from proxy config, while keeping volatility and contribution math on the original raw-risk basis.
+- Added report-only FI 10Y-equivalent exposure normalization for HTML dollar views, using `fi_mod_duration / FI_10Y_EQ_MOD_DURATION` with default base duration `8.0` from the unified risk-report config, while keeping volatility and contribution math on the original raw-risk basis.
 - Expanded unit coverage for volatility helpers, proxy/fixed-income helpers, Yahoo cache behavior, and risk-report regressions.

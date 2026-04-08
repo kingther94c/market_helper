@@ -165,7 +165,7 @@ End-to-end live position -> HTML risk report:
 - After the HTML is written, the script also tries to open it in your default browser.
 - `--output` controls the final HTML path.
 - `--positions-output` optionally overrides where the intermediate live position CSV is written.
-- If `--proxy` is omitted, the script defaults to `configs/portfolio_monitor/proxy.json`.
+- If `--proxy` is omitted, the report falls back to the `proxy` block in `configs/portfolio_monitor/report_config.yaml`.
 
 
 Generate an HTML risk report (historical vol + estimate vol + correlation-based portfolio risk):
@@ -179,11 +179,11 @@ conda run -n py313 python -m market_helper.cli.main risk-html-report \
 
 - `--returns` expects JSON: `{"INTERNAL_ID": [daily_return_1, ...]}`
 - `--proxy` is optional JSON for estimate-vol inputs.
-  If omitted, `risk-html-report` pulls `VIX`, `MOVE`, `OVX`, and `GVZ` from Yahoo Finance daily history, sets `FXVOL=0`, and makes `DEFAULT` follow `VIX`.
+  If omitted, `risk-html-report` first looks for a `proxy` block in `configs/portfolio_monitor/report_config.yaml`, then fills any missing `VIX`, `MOVE`, `OVX`, and `GVZ` values from Yahoo Finance daily history, sets `FXVOL=0`, and makes `DEFAULT` follow `VIX`.
   If provided, the JSON can also use aliases such as `{"DEFAULT": "VIX", "FXVOL": 0}`.
-  The repo default lives at `configs/portfolio_monitor/proxy.json`.
 - `--regime` is optional regime snapshot JSON (from `regime-detect`) to add a top-of-report regime banner and factor scores.
-- `--risk-config` is the recommended unified YAML config entrypoint for lookthrough tables and policy mixes. If omitted, the report uses `configs/portfolio_monitor/risk_report.yaml`.
+- `--risk-config` is the recommended unified YAML config entrypoint for lookthrough tables, proxy defaults, and policy mixes. If omitted, the report uses `configs/portfolio_monitor/report_config.yaml`.
+- `--security-reference` defaults to the generated local cache at `data/artifacts/portfolio_monitor/security_reference.csv`.
 - `--allocation-policy` remains available as a deprecated compatibility override for legacy policy-only YAML files.
 
 Script wrapper:

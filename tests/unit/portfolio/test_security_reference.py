@@ -6,6 +6,7 @@ from market_helper.portfolio import (
     export_security_reference_csv,
     join_positions_with_latest_price,
 )
+import market_helper.portfolio.security_reference as security_reference_module
 from market_helper.portfolio.security_reference import PositionSnapshot, PriceSnapshot
 
 
@@ -179,3 +180,59 @@ def test_join_positions_with_latest_price() -> None:
 
     rows = join_positions_with_latest_price(positions, prices)
     assert rows[0]["latest_price"] == 510.0
+
+
+def test_build_security_reference_table_falls_back_to_legacy_cache_when_default_missing(
+    tmp_path,
+    monkeypatch,
+) -> None:
+    default_path = tmp_path / "data" / "artifacts" / "portfolio_monitor" / "security_reference.csv"
+    legacy_path = tmp_path / "configs" / "portfolio_monitor" / "security_reference.csv"
+    universe_path = tmp_path / "configs" / "security_universe.csv"
+    legacy_path.parent.mkdir(parents=True, exist_ok=True)
+    universe_path.parent.mkdir(parents=True, exist_ok=True)
+
+    universe_path.write_text(
+        "\n".join(
+            [
+                "asset_class,ibkr_symbol,display_name,ibkr_exchange,yahoo_symbol,eq_country,eq_sector,dir_exposure,fi_mod_duration,fi_tenor",
+                "EQ,SPY,US,SMART,SPY,US,,L,,",
+            ]
+        ),
+        encoding="utf-8",
+    )
+
+    export_security_reference_csv(
+        [
+            SecurityReference(
+                internal_id="STK:SPY:SMART",
+                asset_class="EQ",
+                canonical_symbol="SPY",
+                display_ticker="SPY",
+                display_name="US",
+                currency="USD",
+                primary_exchange="ARCA",
+                multiplier=1.0,
+                ibkr_sec_type="STK",
+                ibkr_symbol="SPY",
+                ibkr_exchange="SMART",
+                ibkr_conid="756733",
+                yahoo_symbol="SPY",
+                eq_country="US",
+                dir_exposure="L",
+                lookup_status="verified",
+            ),
+        ],
+        legacy_path,
+    )
+
+    monkeypatch.setattr(security_reference_module, "DEFAULT_SECURITY_REFERENCE_PATH", default_path)
+    monkeypatch.setattr(security_reference_module, "LEGACY_SECURITY_REFERENCE_PATH", legacy_path)
+    monkeypatch.setattr(security_reference_module, "DEFAULT_SECURITY_UNIVERSE_PATH", universe_path)
+
+    table = security_reference_module.build_security_reference_table()
+    matched = table.get_security("STK:SPY:SMART")
+
+    assert matched is not None
+    assert matched.ibkr_conid == "756733"
+    assert matched.lookup_status == "verified"

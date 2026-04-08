@@ -115,7 +115,7 @@ def test_run_report_missing_account_config_points_to_canonical_path(tmp_path: Pa
 def test_run_report_risk_html_forwards_unified_and_legacy_config_flags(tmp_path: Path) -> None:
     project_root, fake_conda = _prepare_script_project(tmp_path)
     positions_csv = project_root / "inputs" / "positions.csv"
-    risk_config = project_root / "configs" / "portfolio_monitor" / "risk_report.yaml"
+    risk_config = project_root / "configs" / "portfolio_monitor" / "report_config.yaml"
     legacy_policy = project_root / "configs" / "portfolio_monitor" / "allocation_policy.yaml"
     positions_csv.parent.mkdir(parents=True)
     risk_config.parent.mkdir(parents=True)
@@ -143,3 +143,17 @@ def test_run_report_risk_html_forwards_unified_and_legacy_config_flags(tmp_path:
     assert str(risk_config) in result.stdout
     assert "--allocation-policy" in result.stdout
     assert str(legacy_policy) in result.stdout
+    assert "--proxy" not in result.stdout
+
+
+def test_run_report_security_reference_sync_defaults_to_artifacts_cache_path(tmp_path: Path) -> None:
+    project_root, fake_conda = _prepare_script_project(tmp_path)
+
+    result = _run_script(
+        project_root,
+        fake_conda,
+        "security-reference-sync",
+    )
+
+    assert result.returncode == 0
+    assert "data/artifacts/portfolio_monitor/security_reference.csv" in result.stdout

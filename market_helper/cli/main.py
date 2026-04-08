@@ -74,12 +74,12 @@ def build_parser() -> argparse.ArgumentParser:
         "--mapping-table",
         dest="security_reference",
         required=False,
-        help="Optional curated security-reference CSV path. Defaults to configs/portfolio_monitor/security_reference.csv.",
+        help="Optional generated security-reference CSV path. Defaults to data/artifacts/portfolio_monitor/security_reference.csv.",
     )
     risk_html_report.add_argument(
         "--risk-config",
         required=False,
-        help="Recommended: optional unified risk-report YAML config path (lookthrough + policy). Defaults to configs/portfolio_monitor/risk_report.yaml.",
+        help="Recommended: optional unified risk-report YAML config path (lookthrough + policy). Defaults to configs/portfolio_monitor/report_config.yaml.",
     )
     risk_html_report.add_argument(
         "--allocation-policy",
@@ -101,7 +101,7 @@ def build_parser() -> argparse.ArgumentParser:
     security_reference_sync.add_argument(
         "--output",
         required=False,
-        help="Optional output path. Defaults to configs/portfolio_monitor/security_reference.csv.",
+        help="Optional output path. Defaults to data/artifacts/portfolio_monitor/security_reference.csv.",
     )
 
     regime_detect = subparsers.add_parser(
