@@ -6,19 +6,9 @@ ENV_NAME="${ENV_NAME:-py313}"
 CONDA_BIN="${CONDA_BIN:-$(command -v conda || true)}"
 ACCOUNT_ENV="${ACCOUNT_ENV:-prod}"
 CANONICAL_LOCAL_CONFIG="${ROOT_DIR}/configs/portfolio_monitor/local.env"
-LEGACY_PORTFOLIO_LOCAL_CONFIG="${ROOT_DIR}/configs/portfolio_monitor/report_accounts.local.env"
-LEGACY_ROOT_LOCAL_CONFIG="${ROOT_DIR}/configs/report_accounts.local.env"
 LOCAL_CONFIG="${CANONICAL_LOCAL_CONFIG}"
 DEFAULT_PROD_ACCOUNT_ID="${DEFAULT_PROD_ACCOUNT_ID:-}"
 DEFAULT_DEV_ACCOUNT_ID="${DEFAULT_DEV_ACCOUNT_ID:-}"
-
-if [[ ! -f "${LOCAL_CONFIG}" && -f "${LEGACY_PORTFOLIO_LOCAL_CONFIG}" ]]; then
-    LOCAL_CONFIG="${LEGACY_PORTFOLIO_LOCAL_CONFIG}"
-    echo "Warning: ${LEGACY_PORTFOLIO_LOCAL_CONFIG} is deprecated. Move local-only config to ${CANONICAL_LOCAL_CONFIG}." >&2
-elif [[ ! -f "${LOCAL_CONFIG}" && -f "${LEGACY_ROOT_LOCAL_CONFIG}" ]]; then
-    LOCAL_CONFIG="${LEGACY_ROOT_LOCAL_CONFIG}"
-    echo "Warning: ${LEGACY_ROOT_LOCAL_CONFIG} is deprecated. Move local-only config to ${CANONICAL_LOCAL_CONFIG}." >&2
-fi
 
 if [[ -f "${LOCAL_CONFIG}" ]]; then
     # shellcheck disable=SC1090
@@ -53,9 +43,6 @@ Environment:
   FMP_API_KEY Optional default API key for etf-sector-sync.
   ACCOUNT_ENV Live-account profile. Use prod or dev. Defaults to: prod
   LOCAL_CONFIG Optional local config file. Defaults to: configs/portfolio_monitor/local.env
-               Legacy fallbacks:
-                 configs/portfolio_monitor/report_accounts.local.env (deprecated)
-                 configs/report_accounts.local.env (deprecated)
 EOF
 }
 

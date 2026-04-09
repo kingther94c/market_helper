@@ -51,12 +51,7 @@ def test_refresh_us_sector_lookthrough_for_report_adds_pending_symbol_without_ap
 ) -> None:
     path = tmp_path / "us_sector_lookthrough.json"
     monkeypatch.delenv("FMP_API_KEY", raising=False)
-    monkeypatch.setattr(
-        etf_sector_lookthrough,
-        "DEFAULT_CANONICAL_LOCAL_ENV_PATH",
-        tmp_path / "missing-local.env",
-    )
-    monkeypatch.setattr(etf_sector_lookthrough, "DEFAULT_LEGACY_LOCAL_ENV_PATHS", ())
+    monkeypatch.setattr(etf_sector_lookthrough, "DEFAULT_CANONICAL_LOCAL_ENV_PATH", tmp_path / "missing-local.env")
 
     written_path = refresh_us_sector_lookthrough_for_report(
         symbols=["SOXX"],
@@ -124,7 +119,6 @@ def test_refresh_us_sector_lookthrough_reads_fmp_api_key_from_local_env(
 
     monkeypatch.delenv("FMP_API_KEY", raising=False)
     monkeypatch.setattr(etf_sector_lookthrough, "DEFAULT_CANONICAL_LOCAL_ENV_PATH", local_env)
-    monkeypatch.setattr(etf_sector_lookthrough, "DEFAULT_LEGACY_LOCAL_ENV_PATHS", ())
 
     captured: dict[str, object] = {}
 

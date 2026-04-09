@@ -71,58 +71,6 @@ def test_run_report_uses_canonical_local_account_config(tmp_path: Path) -> None:
     assert "deprecated" not in result.stderr.lower()
 
 
-def test_run_report_uses_legacy_portfolio_local_account_config_with_warning(tmp_path: Path) -> None:
-    project_root, fake_conda = _prepare_script_project(tmp_path)
-    legacy_config = project_root / "configs" / "portfolio_monitor" / "report_accounts.local.env"
-    legacy_config.parent.mkdir(parents=True)
-    legacy_config.write_text(
-        'DEFAULT_PROD_ACCOUNT_ID="U20002"\nDEFAULT_DEV_ACCOUNT_ID="DU20002"\n',
-        encoding="utf-8",
-    )
-
-    result = _run_script(
-        project_root,
-        fake_conda,
-        "ibkr-live",
-        "--output",
-        str(project_root / "outputs" / "live.csv"),
-    )
-
-    assert result.returncode == 0
-    assert "Using default prod live account: U20002" in result.stdout
-    assert "--account" in result.stdout
-    assert "U20002" in result.stdout
-    assert "deprecated" in result.stderr.lower()
-    assert "configs/portfolio_monitor/report_accounts.local.env" in result.stderr
-    assert "configs/portfolio_monitor/local.env" in result.stderr
-
-
-def test_run_report_uses_legacy_root_local_account_config_with_warning(tmp_path: Path) -> None:
-    project_root, fake_conda = _prepare_script_project(tmp_path)
-    legacy_config = project_root / "configs" / "report_accounts.local.env"
-    legacy_config.parent.mkdir(parents=True)
-    legacy_config.write_text(
-        'DEFAULT_PROD_ACCOUNT_ID="U30003"\nDEFAULT_DEV_ACCOUNT_ID="DU30003"\n',
-        encoding="utf-8",
-    )
-
-    result = _run_script(
-        project_root,
-        fake_conda,
-        "ibkr-live",
-        "--output",
-        str(project_root / "outputs" / "live.csv"),
-    )
-
-    assert result.returncode == 0
-    assert "Using default prod live account: U30003" in result.stdout
-    assert "--account" in result.stdout
-    assert "U30003" in result.stdout
-    assert "deprecated" in result.stderr.lower()
-    assert "configs/report_accounts.local.env" in result.stderr
-    assert "configs/portfolio_monitor/local.env" in result.stderr
-
-
 def test_run_report_missing_account_config_points_to_canonical_path(tmp_path: Path) -> None:
     project_root, fake_conda = _prepare_script_project(tmp_path)
 
@@ -136,7 +84,6 @@ def test_run_report_missing_account_config_points_to_canonical_path(tmp_path: Pa
 
     assert result.returncode != 0
     assert "configs/portfolio_monitor/local.env" in result.stderr
-    assert "configs/report_accounts.local.env" not in result.stderr
 
 
 def test_run_report_risk_html_forwards_unified_and_legacy_config_flags(tmp_path: Path) -> None:
