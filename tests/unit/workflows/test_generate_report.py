@@ -7,6 +7,7 @@ from market_helper.workflows.generate_report import (
     generate_position_report,
     generate_report_mapping_table,
 )
+from tests.helpers.target_report_workbook import write_target_report_workbook
 
 
 def test_generate_position_report_reads_json_and_writes_csv(tmp_path) -> None:
@@ -62,8 +63,7 @@ def test_generate_position_report_reads_json_and_writes_csv(tmp_path) -> None:
 
 
 def test_generate_report_mapping_table_reads_workbook_and_writes_csv(tmp_path: Path) -> None:
-    repo_root = Path(__file__).resolve().parents[3]
-    workbook_path = repo_root / "outputs" / "reports" / "target_report.xlsx"
+    workbook_path = write_target_report_workbook(tmp_path / "target_report.xlsx")
     output_path = tmp_path / "outputs" / "target_report_security_reference.csv"
 
     written_path = generate_report_mapping_table(

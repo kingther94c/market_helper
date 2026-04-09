@@ -29,7 +29,7 @@ conda run -n py313 jupyter notebook
 
 For TWS / IB Gateway work, `market_helper` is `ib_async`-first. Standard live lookup and report flows should use the `market_helper.data_sources.ibkr.tws` adapter rather than `ibapi` directly.
 
-The primary development notebook lives at `notebooks/dev_lab/current.ipynb`. A reusable IBKR contract lookup notebook now lives at `notebooks/portfolio_monitor/derive_sec_table.ipynb`.
+`notebooks/dev_lab/` is a local scratch area and should stay out of version control. A reusable IBKR contract lookup notebook lives at `notebooks/portfolio_monitor/derive_sec_table.ipynb`.
 
 ## Project structure
 
@@ -222,6 +222,7 @@ If `--output` is omitted, the script writes to:
 - `data/artifacts/portfolio_monitor/portfolio_risk_report.html`
 
 Those files under `data/artifacts/portfolio_monitor/` are generated outputs, not config inputs. The checked-in preview files under `outputs/` are also output artifacts rather than runtime config.
+`data/artifacts/portfolio_monitor/live_ibkr_position_report.csv` is a local generated output and should remain gitignored.
 
 ## Deterministic regime detection (v1)
 
