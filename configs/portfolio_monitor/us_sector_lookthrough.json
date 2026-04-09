@@ -1,67 +1,87 @@
 {
   "api_usage": {
     "count": 19,
-    "date": "2026-04-08"
+    "date": "2026-04-09"
   },
-  "daily_call_limit": 250,
-  "provider": "fmp",
+  "daily_call_limit": 25,
+  "provider": "alpha_vantage",
   "schema_version": 1,
   "symbols": {
     "QQQ": {
-      "error_message": "Network error while requesting https://financialmodelingprep.com/stable/etf/sector-weightings?symbol=QQQ&apikey=xsQIBKysEE4qcdg5hXoidwg8NHosQBf1: [Errno 8] nodename nor servname provided, or not known",
+      "error_message": "",
+      "last_attempted_at": "2026-04-09",
       "sectors": [
         {
           "sector": "Technology",
-          "weight": 0.6
-        },
-        {
-          "sector": "Consumer Discretionary",
-          "weight": 0.18
+          "weight": 0.486
         },
         {
           "sector": "Communication Services",
-          "weight": 0.15
+          "weight": 0.159
         },
         {
-          "sector": "Health Care",
-          "weight": 0.04
-        },
-        {
-          "sector": "Industrials",
-          "weight": 0.02
+          "sector": "Consumer Discretionary",
+          "weight": 0.117
         },
         {
           "sector": "Consumer Staples",
-          "weight": 0.01
+          "weight": 0.083
+        },
+        {
+          "sector": "Health Care",
+          "weight": 0.051
+        },
+        {
+          "sector": "Industrials",
+          "weight": 0.037
+        },
+        {
+          "sector": "Utilities",
+          "weight": 0.015
+        },
+        {
+          "sector": "Materials",
+          "weight": 0.013
+        },
+        {
+          "sector": "Energy",
+          "weight": 0.007
+        },
+        {
+          "sector": "Financials",
+          "weight": 0.002
         }
       ],
-      "status": "error",
-      "updated_at": "2026-04-08"
+      "status": "ok",
+      "updated_at": "2026-04-09"
     },
     "SOXL": {
-      "error_message": "Network error while requesting https://financialmodelingprep.com/stable/etf/sector-weightings?symbol=SOXL&apikey=xsQIBKysEE4qcdg5hXoidwg8NHosQBf1: [Errno 8] nodename nor servname provided, or not known",
+      "error_message": "Alpha Vantage ETF profile request failed for SOXL: Thank you for using Alpha Vantage! Please consider spreading out your free API requests more sparingly (1 request per second). You may subscribe to any of the premium plans at https://www.alphavantage.co/premium/ to lift the free key rate limit (25 requests per day), raise the per-second burst limit, and instantly unlock all premium endpoints",
+      "last_attempted_at": "2026-04-09",
       "sectors": [
         {
           "sector": "Technology",
           "weight": 1.0
         }
       ],
-      "status": "error",
-      "updated_at": "2026-04-08"
+      "status": "stale",
+      "updated_at": "2000-01-01"
     },
     "SOXX": {
-      "error_message": "Network error while requesting https://financialmodelingprep.com/stable/etf/sector-weightings?symbol=SOXX&apikey=xsQIBKysEE4qcdg5hXoidwg8NHosQBf1: [Errno 8] nodename nor servname provided, or not known",
+      "error_message": "Alpha Vantage ETF profile request failed for SOXX: Thank you for using Alpha Vantage! Please consider spreading out your free API requests more sparingly (1 request per second). You may subscribe to any of the premium plans at https://www.alphavantage.co/premium/ to lift the free key rate limit (25 requests per day), raise the per-second burst limit, and instantly unlock all premium endpoints",
+      "last_attempted_at": "2026-04-09",
       "sectors": [
         {
           "sector": "Technology",
           "weight": 1.0
         }
       ],
-      "status": "error",
-      "updated_at": "2026-04-08"
+      "status": "stale",
+      "updated_at": "2000-01-01"
     },
     "SPY": {
-      "error_message": "Network error while requesting https://financialmodelingprep.com/stable/etf/sector-weightings?symbol=SPY&apikey=xsQIBKysEE4qcdg5hXoidwg8NHosQBf1: [Errno 8] nodename nor servname provided, or not known",
+      "error_message": "Alpha Vantage ETF profile request failed for SPY: Thank you for using Alpha Vantage! Please consider spreading out your free API requests more sparingly (1 request per second). You may subscribe to any of the premium plans at https://www.alphavantage.co/premium/ to lift the free key rate limit (25 requests per day), raise the per-second burst limit, and instantly unlock all premium endpoints",
+      "last_attempted_at": "2026-04-09",
       "sectors": [
         {
           "sector": "Technology",
@@ -108,11 +128,12 @@
           "weight": 0.01
         }
       ],
-      "status": "error",
-      "updated_at": "2026-04-08"
+      "status": "stale",
+      "updated_at": "2000-01-01"
     },
     "SPYL": {
-      "error_message": "Network error while requesting https://financialmodelingprep.com/stable/etf/sector-weightings?symbol=SPYL&apikey=xsQIBKysEE4qcdg5hXoidwg8NHosQBf1: [Errno 8] nodename nor servname provided, or not known",
+      "error_message": "Alpha Vantage ETF profile for SPYL did not include sectors",
+      "last_attempted_at": "2026-04-09",
       "sectors": [
         {
           "sector": "Technology",
@@ -159,11 +180,12 @@
           "weight": 0.01
         }
       ],
-      "status": "error",
-      "updated_at": "2026-04-08"
+      "status": "stale",
+      "updated_at": "2000-01-01"
     },
     "SQQQ": {
-      "error_message": "Network error while requesting https://financialmodelingprep.com/stable/etf/sector-weightings?symbol=SQQQ&apikey=xsQIBKysEE4qcdg5hXoidwg8NHosQBf1: [Errno 8] nodename nor servname provided, or not known",
+      "error_message": "Alpha Vantage ETF profile request failed for SQQQ: Thank you for using Alpha Vantage! Please consider spreading out your free API requests more sparingly (1 request per second). You may subscribe to any of the premium plans at https://www.alphavantage.co/premium/ to lift the free key rate limit (25 requests per day), raise the per-second burst limit, and instantly unlock all premium endpoints",
+      "last_attempted_at": "2026-04-09",
       "sectors": [
         {
           "sector": "Technology",
@@ -190,11 +212,12 @@
           "weight": 0.01
         }
       ],
-      "status": "error",
-      "updated_at": "2026-04-08"
+      "status": "stale",
+      "updated_at": "2000-01-01"
     },
     "TQQQ": {
-      "error_message": "Network error while requesting https://financialmodelingprep.com/stable/etf/sector-weightings?symbol=TQQQ&apikey=xsQIBKysEE4qcdg5hXoidwg8NHosQBf1: [Errno 8] nodename nor servname provided, or not known",
+      "error_message": "Alpha Vantage ETF profile request failed for TQQQ: Thank you for using Alpha Vantage! Please consider spreading out your free API requests more sparingly (1 request per second). You may subscribe to any of the premium plans at https://www.alphavantage.co/premium/ to lift the free key rate limit (25 requests per day), raise the per-second burst limit, and instantly unlock all premium endpoints",
+      "last_attempted_at": "2026-04-09",
       "sectors": [
         {
           "sector": "Technology",
@@ -221,11 +244,12 @@
           "weight": 0.01
         }
       ],
-      "status": "error",
-      "updated_at": "2026-04-08"
+      "status": "stale",
+      "updated_at": "2000-01-01"
     },
     "VOO": {
-      "error_message": "Network error while requesting https://financialmodelingprep.com/stable/etf/sector-weightings?symbol=VOO&apikey=xsQIBKysEE4qcdg5hXoidwg8NHosQBf1: [Errno 8] nodename nor servname provided, or not known",
+      "error_message": "Alpha Vantage ETF profile request failed for VOO: Thank you for using Alpha Vantage! Please consider spreading out your free API requests more sparingly (1 request per second). You may subscribe to any of the premium plans at https://www.alphavantage.co/premium/ to lift the free key rate limit (25 requests per day), raise the per-second burst limit, and instantly unlock all premium endpoints",
+      "last_attempted_at": "2026-04-09",
       "sectors": [
         {
           "sector": "Technology",
@@ -272,129 +296,140 @@
           "weight": 0.01
         }
       ],
-      "status": "error",
-      "updated_at": "2026-04-08"
+      "status": "stale",
+      "updated_at": "2000-01-01"
     },
     "XLB": {
-      "error_message": "Network error while requesting https://financialmodelingprep.com/stable/etf/sector-weightings?symbol=XLB&apikey=xsQIBKysEE4qcdg5hXoidwg8NHosQBf1: [Errno 8] nodename nor servname provided, or not known",
+      "error_message": "",
+      "last_attempted_at": "2026-04-09",
       "sectors": [
         {
           "sector": "Materials",
-          "weight": 1.0
+          "weight": 0.943
         }
       ],
-      "status": "error",
-      "updated_at": "2026-04-08"
+      "status": "ok",
+      "updated_at": "2026-04-09"
     },
     "XLC": {
-      "error_message": "Network error while requesting https://financialmodelingprep.com/stable/etf/sector-weightings?symbol=XLC&apikey=xsQIBKysEE4qcdg5hXoidwg8NHosQBf1: [Errno 8] nodename nor servname provided, or not known",
+      "error_message": "Alpha Vantage ETF profile request failed for XLC: Thank you for using Alpha Vantage! Please consider spreading out your free API requests more sparingly (1 request per second). You may subscribe to any of the premium plans at https://www.alphavantage.co/premium/ to lift the free key rate limit (25 requests per day), raise the per-second burst limit, and instantly unlock all premium endpoints",
+      "last_attempted_at": "2026-04-09",
       "sectors": [
         {
           "sector": "Communication Services",
           "weight": 1.0
         }
       ],
-      "status": "error",
-      "updated_at": "2026-04-08"
+      "status": "stale",
+      "updated_at": "2000-01-01"
     },
     "XLE": {
-      "error_message": "Network error while requesting https://financialmodelingprep.com/stable/etf/sector-weightings?symbol=XLE&apikey=xsQIBKysEE4qcdg5hXoidwg8NHosQBf1: [Errno 8] nodename nor servname provided, or not known",
+      "error_message": "Alpha Vantage ETF profile request failed for XLE: Thank you for using Alpha Vantage! Please consider spreading out your free API requests more sparingly (1 request per second). You may subscribe to any of the premium plans at https://www.alphavantage.co/premium/ to lift the free key rate limit (25 requests per day), raise the per-second burst limit, and instantly unlock all premium endpoints",
+      "last_attempted_at": "2026-04-09",
       "sectors": [
         {
           "sector": "Energy",
           "weight": 1.0
         }
       ],
-      "status": "error",
-      "updated_at": "2026-04-08"
+      "status": "stale",
+      "updated_at": "2000-01-01"
     },
     "XLF": {
-      "error_message": "Network error while requesting https://financialmodelingprep.com/stable/etf/sector-weightings?symbol=XLF&apikey=xsQIBKysEE4qcdg5hXoidwg8NHosQBf1: [Errno 8] nodename nor servname provided, or not known",
+      "error_message": "Alpha Vantage ETF profile request failed for XLF: Thank you for using Alpha Vantage! Please consider spreading out your free API requests more sparingly (1 request per second). You may subscribe to any of the premium plans at https://www.alphavantage.co/premium/ to lift the free key rate limit (25 requests per day), raise the per-second burst limit, and instantly unlock all premium endpoints",
+      "last_attempted_at": "2026-04-09",
       "sectors": [
         {
           "sector": "Financials",
           "weight": 1.0
         }
       ],
-      "status": "error",
-      "updated_at": "2026-04-08"
+      "status": "stale",
+      "updated_at": "2000-01-01"
     },
     "XLI": {
-      "error_message": "Network error while requesting https://financialmodelingprep.com/stable/etf/sector-weightings?symbol=XLI&apikey=xsQIBKysEE4qcdg5hXoidwg8NHosQBf1: [Errno 8] nodename nor servname provided, or not known",
+      "error_message": "",
+      "last_attempted_at": "2026-04-09",
       "sectors": [
         {
           "sector": "Industrials",
-          "weight": 1.0
+          "weight": 0.997
         }
       ],
-      "status": "error",
-      "updated_at": "2026-04-08"
+      "status": "ok",
+      "updated_at": "2026-04-09"
     },
     "XLK": {
-      "error_message": "Network error while requesting https://financialmodelingprep.com/stable/etf/sector-weightings?symbol=XLK&apikey=xsQIBKysEE4qcdg5hXoidwg8NHosQBf1: [Errno 8] nodename nor servname provided, or not known",
+      "error_message": "Alpha Vantage ETF profile request failed for XLK: Thank you for using Alpha Vantage! Please consider spreading out your free API requests more sparingly (1 request per second). You may subscribe to any of the premium plans at https://www.alphavantage.co/premium/ to lift the free key rate limit (25 requests per day), raise the per-second burst limit, and instantly unlock all premium endpoints",
+      "last_attempted_at": "2026-04-09",
       "sectors": [
         {
           "sector": "Technology",
           "weight": 1.0
         }
       ],
-      "status": "error",
-      "updated_at": "2026-04-08"
+      "status": "stale",
+      "updated_at": "2000-01-01"
     },
     "XLP": {
-      "error_message": "Network error while requesting https://financialmodelingprep.com/stable/etf/sector-weightings?symbol=XLP&apikey=xsQIBKysEE4qcdg5hXoidwg8NHosQBf1: [Errno 8] nodename nor servname provided, or not known",
+      "error_message": "Alpha Vantage ETF profile request failed for XLP: Thank you for using Alpha Vantage! Please consider spreading out your free API requests more sparingly (1 request per second). You may subscribe to any of the premium plans at https://www.alphavantage.co/premium/ to lift the free key rate limit (25 requests per day), raise the per-second burst limit, and instantly unlock all premium endpoints",
+      "last_attempted_at": "2026-04-09",
       "sectors": [
         {
           "sector": "Consumer Staples",
           "weight": 1.0
         }
       ],
-      "status": "error",
-      "updated_at": "2026-04-08"
+      "status": "stale",
+      "updated_at": "2000-01-01"
     },
     "XLRE": {
-      "error_message": "Network error while requesting https://financialmodelingprep.com/stable/etf/sector-weightings?symbol=XLRE&apikey=xsQIBKysEE4qcdg5hXoidwg8NHosQBf1: [Errno 8] nodename nor servname provided, or not known",
+      "error_message": "",
+      "last_attempted_at": "2026-04-09",
       "sectors": [
         {
           "sector": "Real Estate",
-          "weight": 1.0
+          "weight": 0.993
         }
       ],
-      "status": "error",
-      "updated_at": "2026-04-08"
+      "status": "ok",
+      "updated_at": "2026-04-09"
     },
     "XLU": {
-      "error_message": "Network error while requesting https://financialmodelingprep.com/stable/etf/sector-weightings?symbol=XLU&apikey=xsQIBKysEE4qcdg5hXoidwg8NHosQBf1: [Errno 8] nodename nor servname provided, or not known",
+      "error_message": "Alpha Vantage ETF profile request failed for XLU: Thank you for using Alpha Vantage! Please consider spreading out your free API requests more sparingly (1 request per second). You may subscribe to any of the premium plans at https://www.alphavantage.co/premium/ to lift the free key rate limit (25 requests per day), raise the per-second burst limit, and instantly unlock all premium endpoints",
+      "last_attempted_at": "2026-04-09",
       "sectors": [
         {
           "sector": "Utilities",
           "weight": 1.0
         }
       ],
-      "status": "error",
-      "updated_at": "2026-04-08"
+      "status": "stale",
+      "updated_at": "2000-01-01"
     },
     "XLV": {
-      "error_message": "Network error while requesting https://financialmodelingprep.com/stable/etf/sector-weightings?symbol=XLV&apikey=xsQIBKysEE4qcdg5hXoidwg8NHosQBf1: [Errno 8] nodename nor servname provided, or not known",
+      "error_message": "Alpha Vantage ETF profile request failed for XLV: Thank you for using Alpha Vantage! Please consider spreading out your free API requests more sparingly (1 request per second). You may subscribe to any of the premium plans at https://www.alphavantage.co/premium/ to lift the free key rate limit (25 requests per day), raise the per-second burst limit, and instantly unlock all premium endpoints",
+      "last_attempted_at": "2026-04-09",
       "sectors": [
         {
           "sector": "Health Care",
           "weight": 1.0
         }
       ],
-      "status": "error",
-      "updated_at": "2026-04-08"
+      "status": "stale",
+      "updated_at": "2000-01-01"
     },
     "XLY": {
-      "error_message": "Network error while requesting https://financialmodelingprep.com/stable/etf/sector-weightings?symbol=XLY&apikey=xsQIBKysEE4qcdg5hXoidwg8NHosQBf1: [Errno 8] nodename nor servname provided, or not known",
+      "error_message": "Alpha Vantage ETF profile request failed for XLY: Thank you for using Alpha Vantage! Please consider spreading out your free API requests more sparingly (1 request per second). You may subscribe to any of the premium plans at https://www.alphavantage.co/premium/ to lift the free key rate limit (25 requests per day), raise the per-second burst limit, and instantly unlock all premium endpoints",
+      "last_attempted_at": "2026-04-09",
       "sectors": [
         {
           "sector": "Consumer Discretionary",
           "weight": 1.0
         }
       ],
-      "status": "error",
-      "updated_at": "2026-04-08"
+      "status": "stale",
+      "updated_at": "2000-01-01"
     }
   }
 }

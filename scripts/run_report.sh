@@ -34,13 +34,13 @@ Modes:
   ibkr-live-html Generate live IBKR positions first, then build the HTML risk report in one run.
   risk-html   Generate an HTML risk report from a position CSV plus return/proxy inputs.
   security-reference-sync Rebuild the generated security reference from configs/security_universe.csv.
-  etf-sector-sync Fetch ETF sector weights from FMP into configs/portfolio_monitor/us_sector_lookthrough.json.
+  etf-sector-sync Fetch ETF sector weights from Alpha Vantage into configs/portfolio_monitor/us_sector_lookthrough.json.
   mapping-table Extract a security-reference CSV seed from a target workbook.
 
 Environment:
   ENV_NAME    Conda environment name to use. Defaults to: py313
   CONDA_BIN   Optional explicit path to the conda executable.
-  FMP_API_KEY Optional default API key for etf-sector-sync.
+  ALPHA_VANTAGE_API_KEY Optional default API key for etf-sector-sync.
   ACCOUNT_ENV Live-account profile. Use prod or dev. Defaults to: prod
   LOCAL_CONFIG Optional local config file. Defaults to: configs/portfolio_monitor/local.env
 EOF
@@ -175,7 +175,7 @@ SECURITY_REFERENCE_PATH=""
 RISK_CONFIG_PATH=""
 ALLOCATION_POLICY_PATH=""
 WORKBOOK_PATH=""
-FMP_API_KEY="${FMP_API_KEY:-}"
+ALPHA_VANTAGE_API_KEY="${ALPHA_VANTAGE_API_KEY:-}"
 SYMBOLS=()
 
 while [[ $# -gt 0 ]]; do
@@ -277,7 +277,7 @@ while [[ $# -gt 0 ]]; do
             ;;
         --api-key)
             require_value "$1" "${2:-}"
-            FMP_API_KEY="$2"
+            ALPHA_VANTAGE_API_KEY="$2"
             shift 2
             ;;
         --symbol)
@@ -391,7 +391,7 @@ case "${MODE}" in
         for symbol in "${SYMBOLS[@]}"; do
             COMMAND+=(--symbol "${symbol}")
         done
-        [[ -n "${FMP_API_KEY}" ]] && COMMAND+=(--api-key "${FMP_API_KEY}")
+        [[ -n "${ALPHA_VANTAGE_API_KEY}" ]] && COMMAND+=(--api-key "${ALPHA_VANTAGE_API_KEY}")
         ;;
     mapping-table)
         [[ -n "${WORKBOOK_PATH}" ]] || fail "mapping-table mode requires --workbook"

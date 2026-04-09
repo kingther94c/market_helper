@@ -80,11 +80,11 @@ Or via the script wrapper:
 ./scripts/run_report.sh etf-sector-sync --symbol SOXX --symbol QQQ
 ```
 
-- The command fetches ETF sector weights from Financial Modeling Prep and merges just those tickers into `us_sector_lookthrough.json`.
-- `--api-key` is optional; if omitted, the command reads `FMP_API_KEY` from the process environment, then falls back to `configs/portfolio_monitor/local.env`.
-- FMP sector labels are normalized into the portfolio monitor's existing buckets such as `Financials`, `Health Care`, and `Consumer Discretionary`.
-- The JSON store tracks each symbol's `updated_at`, cached sector weights, and the shared daily FMP call count.
-- During `risk-html-report`, the report flow now auto-registers newly seen US ETF candidates with `updated_at=2000-01-01`, then refreshes only symbols older than 30 days, subject to the `250` calls/day budget.
+- The command fetches ETF sector weights from Alpha Vantage `ETF_PROFILE` and merges just those tickers into `us_sector_lookthrough.json`.
+- `--api-key` is optional; if omitted, the command reads `ALPHA_VANTAGE_API_KEY` from the process environment, then falls back to `configs/portfolio_monitor/local.env`.
+- Alpha Vantage sector labels are normalized into the portfolio monitor's existing buckets such as `Technology`, `Health Care`, and `Consumer Discretionary`.
+- The JSON store tracks each symbol's `updated_at`, cached sector weights, and the shared daily Alpha Vantage call count.
+- During `risk-html-report`, the report flow now auto-registers newly seen US ETF candidates with `updated_at=2000-01-01`, then refreshes only symbols older than 30 days, subject to the `25` calls/day budget.
 
 ## IBKR Web API Setup
 
@@ -176,7 +176,7 @@ If `--account` is omitted, `./scripts/run_report.sh ibkr-live` now defaults to:
 - `ACCOUNT_ENV=prod` -> `DEFAULT_PROD_ACCOUNT_ID`
 - `ACCOUNT_ENV=dev` -> `DEFAULT_DEV_ACCOUNT_ID`
 
-Keep those defaults, plus local-only secrets like `FMP_API_KEY`, in the gitignored file `configs/portfolio_monitor/local.env`. A tracked template lives at `configs/portfolio_monitor/local.example.env`.
+Keep those defaults, plus local-only secrets like `ALPHA_VANTAGE_API_KEY`, in the gitignored file `configs/portfolio_monitor/local.env`. A tracked template lives at `configs/portfolio_monitor/local.example.env`.
 
 Example:
 

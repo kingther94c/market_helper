@@ -32,7 +32,7 @@ from market_helper.data_sources.ibkr.tws import (
     portfolio_items_to_ibkr_price_rows,
 )
 from market_helper.domain.portfolio_monitor.services.etf_sector_lookthrough import (
-    sync_us_sector_lookthrough_from_fmp,
+    sync_us_sector_lookthrough_from_alpha_vantage,
 )
 from market_helper.presentation.exporters.csv import export_position_report_csv
 from market_helper.presentation.exporters.security_reference_seed import (
@@ -244,7 +244,7 @@ def generate_etf_sector_sync(
     api_key: str | None = None,
     client: object | None = None,
 ) -> Path:
-    return sync_us_sector_lookthrough_from_fmp(
+    return sync_us_sector_lookthrough_from_alpha_vantage(
         symbols=symbols,
         output_path=output_path,
         api_key=api_key,

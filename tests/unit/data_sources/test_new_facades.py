@@ -3,7 +3,10 @@ from urllib.error import HTTPError
 import pandas as pd
 import pytest
 
-from market_helper.data_sources.fmp import FmpClient, FmpEtfSectorWeight
+from market_helper.data_sources.alpha_vantage import (
+    AlphaVantageClient,
+    AlphaVantageEtfSectorWeight,
+)
 from market_helper.data_sources.fred import download_fred_series_batch
 from market_helper.data_sources.ibkr.tws import choose_tws_account
 from market_helper.data_sources.yahoo_finance import YahooFinanceClient
@@ -110,18 +113,24 @@ def test_yahoo_finance_client_uses_yfinance_for_runtime_fetch(monkeypatch) -> No
     ]
 
 
-def test_fmp_facade_fetches_sector_weights() -> None:
-    client = FmpClient(
+def test_alpha_vantage_facade_fetches_sector_weights() -> None:
+    client = AlphaVantageClient(
         api_key="demo",
-        downloader=lambda _url: [
-            {"sector": "Technology", "weightPercentage": 80},
-            {"sector": "Financial Services", "weightPercentage": 20},
-        ],
+        downloader=lambda _url: {
+            "sectors": [
+                {"sector": "INFORMATION TECHNOLOGY", "weight": "0.8"},
+                {"sector": "FINANCIALS", "weight": "0.2"},
+            ]
+        },
     )
 
     payload = client.fetch_etf_sector_weightings("SOXX")
 
     assert payload == [
-        FmpEtfSectorWeight(symbol="SOXX", sector="Technology", weight=0.8),
-        FmpEtfSectorWeight(symbol="SOXX", sector="Financial Services", weight=0.2),
+        AlphaVantageEtfSectorWeight(
+            symbol="SOXX",
+            sector="INFORMATION TECHNOLOGY",
+            weight=0.8,
+        ),
+        AlphaVantageEtfSectorWeight(symbol="SOXX", sector="FINANCIALS", weight=0.2),
     ]
