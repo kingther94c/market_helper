@@ -54,6 +54,8 @@ HIST_3M_DAYS = 63
 OPTION_LOCAL_SYMBOL_RE = re.compile(r"\s\d{6}[CP]\d+")
 DEFAULT_MOVE_TO_YIELD_VOL_FACTOR = 0.0001
 DEFAULT_FI_10Y_EQ_MOD_DURATION = 8.0
+DEFAULT_LONG_TERM_LOOKBACK_YEARS = 5
+DEFAULT_CASH_VOL = 0.01
 DEFAULT_PROXY_LEVELS = {
     "VIX": 18.0,
     "MOVE": 110.0,
@@ -244,6 +246,28 @@ class AllocationPolicyConfig:
 
 
 @dataclass(frozen=True)
+class ProxyYahooConfig:
+    symbols: dict[str, str]
+    period: str
+    interval: str
+
+
+@dataclass(frozen=True)
+class VolatilityMethodologyConfig:
+    trading_days: int
+    short_window_days: int
+    long_window_days: int
+    long_term_lookback_years: int
+    cash_vol: float
+
+
+@dataclass(frozen=True)
+class FixedIncomeMethodologyConfig:
+    fi_10y_eq_mod_duration: float
+    move_to_yield_vol_factor: float
+
+
+@dataclass(frozen=True)
 class PolicyDriftRow:
     bucket: str
     scope: str
@@ -259,6 +283,10 @@ class RiskReportConfig:
     us_sector_lookthrough_path: Path
     policy: AllocationPolicyConfig
     proxy: dict[str, Any]
+    proxy_defaults: dict[str, float]
+    proxy_yahoo: ProxyYahooConfig
+    volatility: VolatilityMethodologyConfig
+    fixed_income: FixedIncomeMethodologyConfig
 
 
 def build_risk_html_report(
@@ -285,8 +313,14 @@ def build_risk_html_report(
         proxy_path,
         yahoo_client=resolved_yahoo_client,
         fallback_payload=risk_report_config.proxy,
+        default_levels=risk_report_config.proxy_defaults,
+        yahoo_symbols=risk_report_config.proxy_yahoo.symbols,
+        yahoo_period=risk_report_config.proxy_yahoo.period,
+        yahoo_interval=risk_report_config.proxy_yahoo.interval,
     )
-    fi_10y_eq_mod_duration = _resolve_fi_10y_eq_mod_duration(proxy)
+    fi_10y_eq_mod_duration = _resolve_fi_10y_eq_mod_duration(
+        risk_report_config.fixed_income.fi_10y_eq_mod_duration
+    )
     rows = load_position_rows(
         positions_csv_path,
         security_reference_table=reference_table,
@@ -312,6 +346,9 @@ def build_risk_html_report(
             duration=row.duration,
             proxy=proxy,
             method="geomean_1m_3m",
+            volatility=risk_report_config.volatility,
+            proxy_defaults=risk_report_config.proxy_defaults,
+            move_to_yield_vol_factor=risk_report_config.fixed_income.move_to_yield_vol_factor,
         )
         if _is_report_included(row)
         else 0.0
@@ -324,6 +361,9 @@ def build_risk_html_report(
             duration=row.duration,
             proxy=proxy,
             method="5y_realized",
+            volatility=risk_report_config.volatility,
+            proxy_defaults=risk_report_config.proxy_defaults,
+            move_to_yield_vol_factor=risk_report_config.fixed_income.move_to_yield_vol_factor,
         )
         if _is_report_included(row)
         else 0.0
@@ -336,6 +376,9 @@ def build_risk_html_report(
             duration=row.duration,
             proxy=proxy,
             method="ewma",
+            volatility=risk_report_config.volatility,
+            proxy_defaults=risk_report_config.proxy_defaults,
+            move_to_yield_vol_factor=risk_report_config.fixed_income.move_to_yield_vol_factor,
         )
         if _is_report_included(row)
         else 0.0
@@ -698,23 +741,44 @@ def infer_display_name(symbol: str, local_symbol: str, instrument_type: str) -> 
     return symbol
 
 
-def historical_geomean_vol(returns: list[float]) -> float:
+def historical_geomean_vol(
+    returns: list[float],
+    *,
+    trading_days: int = TRADING_DAYS,
+    short_window_days: int = HIST_1M_DAYS,
+    long_window_days: int = HIST_3M_DAYS,
+) -> float:
     series = _coerce_return_series(returns)
     if len(series.dropna()) < 2:
         return 0.0
+    return _historical_geomean_vol_from_series(
+        series,
+        trading_days=trading_days,
+        short_window_days=short_window_days,
+        long_window_days=long_window_days,
+    )
+
+
+def _historical_geomean_vol_from_series(
+    series: pd.Series,
+    *,
+    trading_days: int,
+    short_window_days: int,
+    long_window_days: int,
+) -> float:
     short_vol = rolling_vol(
         returns=series,
-        window=HIST_1M_DAYS,
-        annualization_factor=TRADING_DAYS,
+        window=short_window_days,
+        annualization_factor=trading_days,
         ddof=1,
-        min_periods=HIST_1M_DAYS,
+        min_periods=short_window_days,
     )
     long_vol = rolling_vol(
         returns=series,
-        window=HIST_3M_DAYS,
-        annualization_factor=TRADING_DAYS,
+        window=long_window_days,
+        annualization_factor=trading_days,
         ddof=1,
-        min_periods=HIST_3M_DAYS,
+        min_periods=long_window_days,
     )
     blended = geometric_blend_vol([short_vol, long_vol])
     latest = last_valid_scalar(blended)
@@ -723,14 +787,14 @@ def historical_geomean_vol(returns: list[float]) -> float:
     return max(last_valid_scalar(short_vol) or 0.0, last_valid_scalar(long_vol) or 0.0)
 
 
-def annualized_vol(returns: list[float]) -> float:
-    return historical_vol(returns=_coerce_return_series(returns), annualization_factor=TRADING_DAYS, ddof=1)
+def annualized_vol(returns: list[float], *, trading_days: int = TRADING_DAYS) -> float:
+    return historical_vol(returns=_coerce_return_series(returns), annualization_factor=trading_days, ddof=1)
 
 
-def ewma_vol(returns: list[float], *, decay: float = 0.94) -> float:
+def ewma_vol(returns: list[float], *, decay: float = 0.94, trading_days: int = TRADING_DAYS) -> float:
     series = series_ewma_vol(
         returns=_coerce_return_series(returns),
-        annualization_factor=TRADING_DAYS,
+        annualization_factor=trading_days,
         lambda_=decay,
         min_periods=20,
         demean=False,
@@ -738,21 +802,31 @@ def ewma_vol(returns: list[float], *, decay: float = 0.94) -> float:
     return last_valid_scalar(series) or 0.0
 
 
-def estimated_asset_class_vol(asset_class: str, proxy: Mapping[str, float]) -> float:
+def estimated_asset_class_vol(
+    asset_class: str,
+    proxy: Mapping[str, float],
+    *,
+    proxy_defaults: Mapping[str, float] | None = None,
+    cash_vol: float = DEFAULT_CASH_VOL,
+) -> float:
+    defaults = _merged_proxy_default_levels(proxy_defaults)
+    default_vix = defaults["VIX"]
+    default_move = defaults["MOVE"]
+    default_gvz = defaults["GVZ"]
     name = asset_class.upper()
     if name == "EQ":
-        return proxy.get("VIX", DEFAULT_PROXY_LEVELS["VIX"]) / 100.0
+        return proxy.get("VIX", default_vix) / 100.0
     if name == "FI":
-        return proxy.get("MOVE", DEFAULT_PROXY_LEVELS["MOVE"]) / 100.0
+        return proxy.get("MOVE", default_move) / 100.0
     if name == "CM":
-        return proxy.get("OVX", proxy.get("GVZ", DEFAULT_PROXY_LEVELS["GVZ"])) / 100.0
+        return proxy.get("OVX", proxy.get("GVZ", default_gvz)) / 100.0
     if name == "CASH":
-        return 0.01
+        return cash_vol
     if name == "FX":
         return proxy.get("FXVOL", DEFAULT_PROXY_FXVOL) / 100.0
     if name == "MACRO":
-        return proxy.get("DEFAULT", proxy.get("VIX", DEFAULT_PROXY_LEVELS["VIX"])) / 100.0
-    return proxy.get("DEFAULT", proxy.get("VIX", DEFAULT_PROXY_LEVELS["VIX"])) / 100.0
+        return proxy.get("DEFAULT", proxy.get("VIX", default_vix)) / 100.0
+    return proxy.get("DEFAULT", proxy.get("VIX", default_vix)) / 100.0
 
 
 def build_historical_correlation(
@@ -1203,41 +1277,50 @@ def _security_vol(
     duration: float | None,
     proxy: Mapping[str, float],
     method: str,
+    volatility: VolatilityMethodologyConfig | None = None,
+    proxy_defaults: Mapping[str, float] | None = None,
+    move_to_yield_vol_factor: float = DEFAULT_MOVE_TO_YIELD_VOL_FACTOR,
 ) -> float:
+    methodology = volatility or VolatilityMethodologyConfig(
+        trading_days=TRADING_DAYS,
+        short_window_days=HIST_1M_DAYS,
+        long_window_days=HIST_3M_DAYS,
+        long_term_lookback_years=DEFAULT_LONG_TERM_LOOKBACK_YEARS,
+        cash_vol=DEFAULT_CASH_VOL,
+    )
     series = _coerce_return_series(returns)
     if not series.dropna().empty:
         normalized = method.strip().lower()
         if normalized == "5y_realized":
-            return long_term_vol(returns=series, lookback=TRADING_DAYS * 5, annualization_factor=TRADING_DAYS, ddof=1)
+            return long_term_vol(
+                returns=series,
+                lookback=methodology.trading_days * methodology.long_term_lookback_years,
+                annualization_factor=methodology.trading_days,
+                ddof=1,
+            )
         if normalized == "ewma":
             ewma_series = series_ewma_vol(
                 returns=series,
-                annualization_factor=TRADING_DAYS,
+                annualization_factor=methodology.trading_days,
                 lambda_=DEFAULT_EWMA_LAMBDA,
                 min_periods=20,
                 demean=False,
             )
             return last_valid_scalar(ewma_series) or 0.0
-        short_vol = rolling_vol(
-            returns=series,
-            window=HIST_1M_DAYS,
-            annualization_factor=TRADING_DAYS,
-            ddof=1,
-            min_periods=HIST_1M_DAYS,
+        return _historical_geomean_vol_from_series(
+            series,
+            trading_days=methodology.trading_days,
+            short_window_days=methodology.short_window_days,
+            long_window_days=methodology.long_window_days,
         )
-        long_vol = rolling_vol(
-            returns=series,
-            window=HIST_3M_DAYS,
-            annualization_factor=TRADING_DAYS,
-            ddof=1,
-            min_periods=HIST_3M_DAYS,
-        )
-        geomean_series = geometric_blend_vol([short_vol, long_vol])
-        latest = last_valid_scalar(geomean_series)
-        if latest is not None:
-            return latest
-        return max(last_valid_scalar(short_vol) or 0.0, last_valid_scalar(long_vol) or 0.0)
-    return _proxy_fallback_security_vol(asset_class=asset_class, duration=duration, proxy=proxy)
+    return _proxy_fallback_security_vol(
+        asset_class=asset_class,
+        duration=duration,
+        proxy=proxy,
+        proxy_defaults=proxy_defaults,
+        move_to_yield_vol_factor=move_to_yield_vol_factor,
+        cash_vol=methodology.cash_vol,
+    )
 
 
 def _proxy_fallback_security_vol(
@@ -1245,11 +1328,15 @@ def _proxy_fallback_security_vol(
     asset_class: str,
     duration: float | None,
     proxy: Mapping[str, float],
+    proxy_defaults: Mapping[str, float] | None = None,
+    move_to_yield_vol_factor: float = DEFAULT_MOVE_TO_YIELD_VOL_FACTOR,
+    cash_vol: float = DEFAULT_CASH_VOL,
 ) -> float:
+    defaults = _merged_proxy_default_levels(proxy_defaults)
     if asset_class.upper() == "FI" and duration is not None and duration > 0:
         yield_vol = proxy_index_to_yield_vol(
-            proxy.get("MOVE", 110.0),
-            mapping_factor=DEFAULT_MOVE_TO_YIELD_VOL_FACTOR,
+            proxy.get("MOVE", defaults["MOVE"]),
+            mapping_factor=move_to_yield_vol_factor,
         )
         return float(
             yield_vol_to_price_vol(
@@ -1257,7 +1344,12 @@ def _proxy_fallback_security_vol(
                 modified_duration=duration,
             )
         )
-    return estimated_asset_class_vol(asset_class, proxy)
+    return estimated_asset_class_vol(
+        asset_class,
+        proxy,
+        proxy_defaults=defaults,
+        cash_vol=cash_vol,
+    )
 
 
 def _build_security_loadings(
@@ -1398,12 +1490,28 @@ def _load_risk_report_config(
     proxy_payload = payload.get("proxy", {})
     if not isinstance(proxy_payload, Mapping):
         raise ValueError("Risk report proxy config must be a mapping")
+    _reject_legacy_fixed_income_proxy_keys(proxy_payload, source="risk_report.proxy")
+    volatility_payload = payload.get("volatility", {})
+    if not isinstance(volatility_payload, Mapping):
+        raise ValueError("Risk report volatility config must be a mapping")
+    fixed_income_payload = payload.get("fixed_income", {})
+    if not isinstance(fixed_income_payload, Mapping):
+        raise ValueError("Risk report fixed_income config must be a mapping")
+    explicit_proxy_payload = {
+        str(key): value
+        for key, value in proxy_payload.items()
+        if str(key).strip().upper() not in {"DEFAULTS", "YAHOO"}
+    }
 
     return RiskReportConfig(
         eq_country_lookthrough_path=eq_path,
         us_sector_lookthrough_path=us_path,
         policy=policy,
-        proxy=dict(proxy_payload),
+        proxy=explicit_proxy_payload,
+        proxy_defaults=_parse_proxy_default_levels(proxy_payload.get("defaults", {})),
+        proxy_yahoo=_parse_proxy_yahoo_config(proxy_payload.get("yahoo", {})),
+        volatility=_parse_volatility_config(volatility_payload),
+        fixed_income=_parse_fixed_income_config(fixed_income_payload),
     )
 
 
@@ -1416,6 +1524,111 @@ def _parse_allocation_policy(payload: Mapping[str, Any]) -> AllocationPolicyConf
         equity_country_policy_mix={str(k).upper(): float(v) for k, v in equity.items()},
         us_equity_sector_policy_mix={str(k).upper(): float(v) for k, v in us_equity.items()},
     )
+
+
+def _parse_proxy_default_levels(payload: Mapping[str, Any]) -> dict[str, float]:
+    if not isinstance(payload, Mapping):
+        raise ValueError("Risk report proxy.defaults config must be a mapping")
+    defaults = dict(DEFAULT_PROXY_LEVELS)
+    for raw_key, raw_value in payload.items():
+        key = str(raw_key).strip().upper()
+        if key not in DEFAULT_PROXY_LEVELS:
+            raise ValueError(f"Unsupported proxy.defaults key: {key}")
+        defaults[key] = _coerce_non_negative_float(raw_value, f"proxy.defaults.{key}")
+    return defaults
+
+
+def _parse_proxy_yahoo_config(payload: Mapping[str, Any]) -> ProxyYahooConfig:
+    if not isinstance(payload, Mapping):
+        raise ValueError("Risk report proxy.yahoo config must be a mapping")
+    symbols = dict(DEFAULT_PROXY_YAHOO_SYMBOLS)
+    raw_symbols = payload.get("symbols", {})
+    if not isinstance(raw_symbols, Mapping):
+        raise ValueError("Risk report proxy.yahoo.symbols config must be a mapping")
+    for raw_key, raw_value in raw_symbols.items():
+        key = str(raw_key).strip().upper()
+        if key not in DEFAULT_PROXY_YAHOO_SYMBOLS:
+            raise ValueError(f"Unsupported proxy.yahoo.symbols key: {key}")
+        symbol = str(raw_value).strip()
+        if not symbol:
+            raise ValueError(f"proxy.yahoo.symbols.{key} must be non-empty")
+        symbols[key] = symbol
+    period = str(payload.get("period", DEFAULT_PROXY_YAHOO_PERIOD)).strip()
+    interval = str(payload.get("interval", DEFAULT_PROXY_YAHOO_INTERVAL)).strip()
+    if not period:
+        raise ValueError("proxy.yahoo.period must be non-empty")
+    if not interval:
+        raise ValueError("proxy.yahoo.interval must be non-empty")
+    return ProxyYahooConfig(symbols=symbols, period=period, interval=interval)
+
+
+def _parse_volatility_config(payload: Mapping[str, Any]) -> VolatilityMethodologyConfig:
+    if not isinstance(payload, Mapping):
+        raise ValueError("Risk report volatility config must be a mapping")
+    return VolatilityMethodologyConfig(
+        trading_days=_coerce_positive_int(payload.get("trading_days", TRADING_DAYS), "volatility.trading_days"),
+        short_window_days=_coerce_positive_int(
+            payload.get("short_window_days", HIST_1M_DAYS),
+            "volatility.short_window_days",
+        ),
+        long_window_days=_coerce_positive_int(
+            payload.get("long_window_days", HIST_3M_DAYS),
+            "volatility.long_window_days",
+        ),
+        long_term_lookback_years=_coerce_positive_int(
+            payload.get("long_term_lookback_years", DEFAULT_LONG_TERM_LOOKBACK_YEARS),
+            "volatility.long_term_lookback_years",
+        ),
+        cash_vol=_coerce_non_negative_float(payload.get("cash_vol", DEFAULT_CASH_VOL), "volatility.cash_vol"),
+    )
+
+
+def _parse_fixed_income_config(payload: Mapping[str, Any]) -> FixedIncomeMethodologyConfig:
+    if not isinstance(payload, Mapping):
+        raise ValueError("Risk report fixed_income config must be a mapping")
+    return FixedIncomeMethodologyConfig(
+        fi_10y_eq_mod_duration=_coerce_positive_float(
+            payload.get("fi_10y_eq_mod_duration", DEFAULT_FI_10Y_EQ_MOD_DURATION),
+            "fixed_income.fi_10y_eq_mod_duration",
+        ),
+        move_to_yield_vol_factor=_coerce_positive_float(
+            payload.get("move_to_yield_vol_factor", DEFAULT_MOVE_TO_YIELD_VOL_FACTOR),
+            "fixed_income.move_to_yield_vol_factor",
+        ),
+    )
+
+
+def _coerce_positive_int(value: Any, label: str) -> int:
+    parsed = float(value)
+    if not parsed.is_integer():
+        raise ValueError(f"{label} must be an integer")
+    resolved = int(parsed)
+    if resolved <= 0:
+        raise ValueError(f"{label} must be positive")
+    return resolved
+
+
+def _coerce_positive_float(value: Any, label: str) -> float:
+    resolved = float(value)
+    if resolved <= 0:
+        raise ValueError(f"{label} must be positive")
+    return resolved
+
+
+def _coerce_non_negative_float(value: Any, label: str) -> float:
+    resolved = float(value)
+    if resolved < 0:
+        raise ValueError(f"{label} must be non-negative")
+    return resolved
+
+
+def _reject_legacy_fixed_income_proxy_keys(payload: Mapping[str, Any], *, source: str) -> None:
+    normalized_keys = {str(key).strip().upper() for key in payload}
+    if "FI_10Y_EQ_MOD_DURATION" in normalized_keys:
+        raise ValueError(
+            f"{source}.FI_10Y_EQ_MOD_DURATION is no longer supported; "
+            "use fixed_income.fi_10y_eq_mod_duration"
+        )
 
 
 def _expand_policy_mix(
@@ -2009,8 +2222,8 @@ def _multiplier(
     )
 
 
-def _resolve_fi_10y_eq_mod_duration(proxy: Mapping[str, float]) -> float:
-    value = float(proxy.get("FI_10Y_EQ_MOD_DURATION", DEFAULT_FI_10Y_EQ_MOD_DURATION))
+def _resolve_fi_10y_eq_mod_duration(value: float = DEFAULT_FI_10Y_EQ_MOD_DURATION) -> float:
+    value = float(value)
     if value <= 0:
         raise ValueError("FI_10Y_EQ_MOD_DURATION must be positive")
     return value
@@ -2104,6 +2317,32 @@ def _has_usable_returns(returns: pd.Series | list[float] | None) -> bool:
     return not _coerce_return_series(returns).dropna().empty
 
 
+def _merged_proxy_default_levels(default_levels: Mapping[str, float] | None) -> dict[str, float]:
+    merged = dict(DEFAULT_PROXY_LEVELS)
+    if default_levels is None:
+        return merged
+    for raw_key, raw_value in default_levels.items():
+        key = str(raw_key).strip().upper()
+        if key not in merged:
+            continue
+        merged[key] = float(raw_value)
+    return merged
+
+
+def _merged_proxy_yahoo_symbols(yahoo_symbols: Mapping[str, str] | None) -> dict[str, str]:
+    merged = dict(DEFAULT_PROXY_YAHOO_SYMBOLS)
+    if yahoo_symbols is None:
+        return merged
+    for raw_key, raw_value in yahoo_symbols.items():
+        key = str(raw_key).strip().upper()
+        if key not in merged:
+            continue
+        symbol = str(raw_value).strip()
+        if symbol:
+            merged[key] = symbol
+    return merged
+
+
 def _load_returns(path: str | Path) -> dict[str, pd.Series]:
     return load_internal_id_return_series_override(path)
 
@@ -2113,13 +2352,26 @@ def _load_proxy(
     *,
     yahoo_client: YahooFinanceClient,
     fallback_payload: Mapping[str, Any] | None = None,
+    default_levels: Mapping[str, float] | None = None,
+    yahoo_symbols: Mapping[str, str] | None = None,
+    yahoo_period: str = DEFAULT_PROXY_YAHOO_PERIOD,
+    yahoo_interval: str = DEFAULT_PROXY_YAHOO_INTERVAL,
 ) -> dict[str, float]:
+    resolved_defaults = _merged_proxy_default_levels(default_levels)
     loaded = _load_proxy_payload(path, fallback_payload=fallback_payload)
+    _reject_legacy_fixed_income_proxy_keys(loaded, source="proxy")
     proxy, aliases = _parse_proxy_payload(loaded)
-    proxy = _populate_proxy_defaults_from_yahoo(proxy, yahoo_client=yahoo_client)
+    proxy = _populate_proxy_defaults_from_yahoo(
+        proxy,
+        yahoo_client=yahoo_client,
+        default_levels=resolved_defaults,
+        yahoo_symbols=yahoo_symbols,
+        yahoo_period=yahoo_period,
+        yahoo_interval=yahoo_interval,
+    )
     _resolve_proxy_aliases(proxy, aliases)
     proxy.setdefault("FXVOL", DEFAULT_PROXY_FXVOL)
-    proxy.setdefault("DEFAULT", proxy.get("VIX", DEFAULT_PROXY_LEVELS["VIX"]))
+    proxy.setdefault("DEFAULT", proxy.get("VIX", resolved_defaults["VIX"]))
     return proxy
 
 
@@ -2171,17 +2423,28 @@ def _populate_proxy_defaults_from_yahoo(
     proxy: Mapping[str, float],
     *,
     yahoo_client: YahooFinanceClient,
+    default_levels: Mapping[str, float] | None = None,
+    yahoo_symbols: Mapping[str, str] | None = None,
+    yahoo_period: str = DEFAULT_PROXY_YAHOO_PERIOD,
+    yahoo_interval: str = DEFAULT_PROXY_YAHOO_INTERVAL,
 ) -> dict[str, float]:
+    resolved_defaults = _merged_proxy_default_levels(default_levels)
     resolved = dict(proxy)
-    for key, fallback in DEFAULT_PROXY_LEVELS.items():
+    for key, fallback in resolved_defaults.items():
         if key in resolved:
             continue
         try:
-            resolved[key] = _fetch_proxy_level_from_yahoo(key, yahoo_client=yahoo_client)
+            resolved[key] = _fetch_proxy_level_from_yahoo(
+                key,
+                yahoo_client=yahoo_client,
+                yahoo_symbols=yahoo_symbols,
+                yahoo_period=yahoo_period,
+                yahoo_interval=yahoo_interval,
+            )
         except (RuntimeError, ValueError):
             resolved[key] = fallback
     resolved.setdefault("FXVOL", DEFAULT_PROXY_FXVOL)
-    resolved.setdefault("DEFAULT", resolved.get("VIX", DEFAULT_PROXY_LEVELS["VIX"]))
+    resolved.setdefault("DEFAULT", resolved.get("VIX", resolved_defaults["VIX"]))
     return resolved
 
 
@@ -2205,15 +2468,19 @@ def _fetch_proxy_level_from_yahoo(
     key: str,
     *,
     yahoo_client: YahooFinanceClient,
+    yahoo_symbols: Mapping[str, str] | None = None,
+    yahoo_period: str = DEFAULT_PROXY_YAHOO_PERIOD,
+    yahoo_interval: str = DEFAULT_PROXY_YAHOO_INTERVAL,
 ) -> float:
-    yahoo_symbol = DEFAULT_PROXY_YAHOO_SYMBOLS[key]
+    resolved_symbols = _merged_proxy_yahoo_symbols(yahoo_symbols)
+    yahoo_symbol = resolved_symbols[key]
     cached = _YAHOO_PROXY_LEVEL_CACHE.get(yahoo_symbol)
     if cached is not None:
         return cached
     history = yahoo_client.fetch_price_history(
         yahoo_symbol,
-        period=DEFAULT_PROXY_YAHOO_PERIOD,
-        interval=DEFAULT_PROXY_YAHOO_INTERVAL,
+        period=yahoo_period,
+        interval=yahoo_interval,
     )
     level = _latest_yahoo_history_level(history)
     _YAHOO_PROXY_LEVEL_CACHE[yahoo_symbol] = level

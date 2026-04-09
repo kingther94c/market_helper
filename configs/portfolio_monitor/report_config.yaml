@@ -5,7 +5,28 @@ risk_report:
   proxy:
     DEFAULT: VIX
     FXVOL: 0.0
-    FI_10Y_EQ_MOD_DURATION: 8.0
+    defaults:
+      VIX: 18.0
+      MOVE: 110.0
+      OVX: 25.0
+      GVZ: 25.0
+    yahoo:
+      symbols:
+        VIX: ^VIX
+        MOVE: ^MOVE
+        OVX: ^OVX
+        GVZ: ^GVZ
+      period: 1mo
+      interval: 1d
+  volatility:
+    trading_days: 252
+    short_window_days: 21
+    long_window_days: 63
+    long_term_lookback_years: 5
+    cash_vol: 0.01
+  fixed_income:
+    fi_10y_eq_mod_duration: 8.0
+    move_to_yield_vol_factor: 0.0001
   policy:
     portfolio_asset_class_targets:
       EQ: 0.80
