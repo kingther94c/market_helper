@@ -8,11 +8,11 @@ from market_helper.reporting.mapping_table import (
     extract_security_reference_seed,
     load_security_reference_seed_table,
 )
+from tests.helpers.target_report_workbook import write_target_report_workbook
 
 
 def test_extract_security_reference_seed_reads_target_workbook(tmp_path: Path) -> None:
-    repo_root = Path(__file__).resolve().parents[3]
-    workbook_path = repo_root / "outputs" / "reports" / "target_report.xlsx"
+    workbook_path = write_target_report_workbook(tmp_path / "target_report.xlsx")
 
     table = extract_security_reference_seed(workbook_path)
 

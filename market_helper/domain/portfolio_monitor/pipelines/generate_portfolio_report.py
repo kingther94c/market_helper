@@ -759,6 +759,7 @@ def _security_enrichment_fields(
 
 __all__ = [
     "build_live_ibkr_position_security_table",
+    "generate_etf_sector_sync",
     "generate_ibkr_position_report",
     "generate_live_ibkr_position_report",
     "generate_position_report",

@@ -6,6 +6,8 @@ from market_helper.reporting import POSITION_REPORT_HEADERS
 
 
 FIXTURE_PATH = Path(__file__).parent / "fixtures" / "live_ibkr_position_report_mock.csv"
+LIVE_ACCOUNT_ID = "U1234567"
+PAPER_ACCOUNT_ID = "DU1234567"
 
 
 class FakeContract:
@@ -78,13 +80,13 @@ class FakeTwsIbAsyncClient:
         self.disconnected = True
 
     def list_accounts(self) -> list[str]:
-        return ["U2935967", "DU1464216"]
+        return [LIVE_ACCOUNT_ID, PAPER_ACCOUNT_ID]
 
     def list_portfolio(self, account_id: str) -> list[object]:
-        assert account_id == "U2935967"
+        assert account_id == LIVE_ACCOUNT_ID
         return [
             FakePortfolioItem(
-                account="U2935967",
+                account=LIVE_ACCOUNT_ID,
                 contract=FakeContract(
                     conId=91812967,
                     secType="STK",
@@ -100,7 +102,7 @@ class FakeTwsIbAsyncClient:
                 marketValue=84702.06,
             ),
             FakePortfolioItem(
-                account="U2935967",
+                account=LIVE_ACCOUNT_ID,
                 contract=FakeContract(
                     conId=818615223,
                     secType="FUT",
@@ -116,7 +118,7 @@ class FakeTwsIbAsyncClient:
                 marketValue=431250.0,
             ),
             FakePortfolioItem(
-                account="U2935967",
+                account=LIVE_ACCOUNT_ID,
                 contract=FakeContract(
                     conId=815824229,
                     secType="FUT",
@@ -155,7 +157,7 @@ def test_cli_live_report_mock_e2e_matches_expected_csv(monkeypatch, tmp_path) ->
             "--client-id",
             "7",
             "--account",
-            "U2935967",
+            LIVE_ACCOUNT_ID,
             "--timeout",
             "9.5",
             "--as-of",
@@ -172,7 +174,7 @@ def test_cli_live_report_mock_e2e_matches_expected_csv(monkeypatch, tmp_path) ->
     assert client.port == 7497
     assert client.client_id == 7
     assert client.timeout == 9.5
-    assert client.account == "U2935967"
+    assert client.account == LIVE_ACCOUNT_ID
     assert client.connected is True
     assert client.disconnected is True
 
@@ -187,4 +189,3 @@ def test_cli_live_report_mock_e2e_matches_expected_csv(monkeypatch, tmp_path) ->
     assert actual_reader.fieldnames == POSITION_REPORT_HEADERS
     assert expected_reader.fieldnames == POSITION_REPORT_HEADERS
     assert actual_rows == expected_rows
-
