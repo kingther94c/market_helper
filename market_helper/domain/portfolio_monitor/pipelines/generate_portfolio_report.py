@@ -23,6 +23,7 @@ from market_helper.data_sources.ibkr.adapters import (
     normalize_ibkr_latest_prices,
     normalize_ibkr_positions,
 )
+from market_helper.data_sources.ibkr.flex import export_flex_horizon_report_csv, parse_flex_performance_xml
 from market_helper.data_sources.ibkr.tws import (
     TwsIbAsyncClient,
     account_values_to_ibkr_cash_position_rows,
@@ -51,6 +52,17 @@ class LiveIbkrRowSource:
     raw_position: dict[str, object]
     portfolio_item: object | None = None
 
+
+
+
+def generate_ibkr_flex_performance_report(
+    *,
+    flex_xml_path: str | Path,
+    output_dir: str | Path,
+) -> Path:
+    """Convert an IBKR Flex XML report into a dated horizon-performance CSV file."""
+    dataset = parse_flex_performance_xml(flex_xml_path)
+    return export_flex_horizon_report_csv(dataset, output_dir=output_dir)
 
 def generate_position_report(
     *,

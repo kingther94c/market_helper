@@ -60,6 +60,10 @@ Build a broker-agnostic, read-only IBKR integration layer for market monitoring 
 - Added a separate regime policy layer (`market_helper/suggest/regime_policy.py`) mapping regime labels to risk multipliers and target asset-class tilts (suggestion only, no execution).
 - Added minimal regime evaluation scaffold (`market_helper/backtest/regime_eval.py`) for basic performance/turnover metrics on regime-conditioned targets.
 - Added unit/e2e tests for indicator transforms, rulebook hysteresis/mutual exclusivity, policy mapping, CLI dispatch, and CLI regime output schema.
+- Added first-pass IBKR Flex XML performance ingestion (`market_helper.data_sources.ibkr.flex.performance`) to extract daily NAV/cash events plus horizon-level performance, and export a dated performance report CSV (`performance_report_YYYYMMDD.csv`) covering MTD/YTD/1M across MWR/TWR and USD/SGD.
+- Added CLI/workflow entrypoint `ibkr-flex-performance-report` so a downloaded Flex XML can be converted directly into report CSV artifacts while we prepare Flex Web Service query-id/token integration.
+- Added parser + CLI unit coverage for the Flex XML-to-CSV path, including horizon matrix extraction/selection across section versions and dated report export for downstream HTML migration.
+
 - Added example configs: `configs/regime_detection/regime_config.example.yml` and `configs/regime_detection/regime_policy.example.yml`.
 - Added a workbook-to-JSON mapping-table extraction path so stable portfolio metadata can be seeded from `target_report.xlsx` without making the HTML report depend directly on the workbook at runtime.
 - Replaced the old in-memory / workbook-JSON mapping split with a generated wide `data/artifacts/portfolio_monitor/security_reference.csv` cache covering `ETF`, `EQ`, `FX_FUT`, `FI_FUT`, `OTHER_FUT`, and `CASH`.
@@ -136,7 +140,7 @@ Build a broker-agnostic, read-only IBKR integration layer for market monitoring 
 
 ## Backlog / Future Phases
 - Extend the TWS `ib_async` adapter surface beyond the current client/portfolio/report/contract-lookup coverage, especially market-data and richer account/session tooling.
-- Implement Flex fetch/parse/map archival flow.
+- Extend the new Flex XML parse/map flow to direct Flex Web Service fetch using query-id/token and asynchronous statement download polling.
 - Build broker-agnostic business services (portfolio/quote/allocation/risk/monitor).
 - Build HTML monitor rendering and snapshot tests.
 - Add e2e workflow coverage across Web API, TWS, and Flex.

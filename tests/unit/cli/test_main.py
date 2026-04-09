@@ -33,6 +33,35 @@ def test_cli_position_report_dispatches_to_workflow(monkeypatch, tmp_path) -> No
     assert str(captured["output_path"]).endswith("position_report.csv")
 
 
+
+
+def test_cli_ibkr_flex_performance_report_dispatches_to_workflow(monkeypatch, tmp_path) -> None:
+    captured: dict[str, object] = {}
+
+    def fake_generate_ibkr_flex_performance_report(*, flex_xml_path, output_dir):
+        captured["flex_xml_path"] = flex_xml_path
+        captured["output_dir"] = output_dir
+        return output_dir / "performance_report_20260402.csv"
+
+    monkeypatch.setattr(
+        "market_helper.cli.main.generate_ibkr_flex_performance_report",
+        fake_generate_ibkr_flex_performance_report,
+    )
+
+    exit_code = main(
+        [
+            "ibkr-flex-performance-report",
+            "--flex-xml",
+            str(tmp_path / "flex_report.xml"),
+            "--output-dir",
+            str(tmp_path / "outputs"),
+        ]
+    )
+
+    assert exit_code == 0
+    assert str(captured["flex_xml_path"]).endswith("flex_report.xml")
+    assert str(captured["output_dir"]).endswith("outputs")
+
 def test_cli_ibkr_position_report_dispatches_to_ibkr_workflow(monkeypatch, tmp_path) -> None:
     captured: dict[str, object] = {}
 
