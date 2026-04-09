@@ -104,7 +104,7 @@ def test_load_proxy_config_resolves_default_alias_to_yahoo_vix(tmp_path: Path) -
     risk_html_module._YAHOO_PROXY_LEVEL_CACHE.clear()
     proxy_json = tmp_path / "proxy.json"
     proxy_json.write_text(
-        json.dumps({"DEFAULT": "VIX", "FXVOL": 0, "FI_10Y_EQ_MOD_DURATION": 8.0}),
+        json.dumps({"DEFAULT": "VIX", "FXVOL": 0}),
         encoding="utf-8",
     )
 
@@ -135,10 +135,25 @@ def test_load_proxy_uses_unified_risk_report_config_proxy_section(tmp_path: Path
             [
                 "risk_report:",
                 "  proxy:",
-                "    VIX: 21.5",
                 "    DEFAULT: VIX",
                 "    FXVOL: 7.0",
-                "    FI_10Y_EQ_MOD_DURATION: 10.0",
+                "    defaults:",
+                "      VIX: 21.5",
+                "      MOVE: 99.0",
+                "    yahoo:",
+                "      symbols:",
+                "        VIX: ^VIXALT",
+                "      period: 3mo",
+                "      interval: 1wk",
+                "  volatility:",
+                "    trading_days: 260",
+                "    short_window_days: 22",
+                "    long_window_days: 66",
+                "    long_term_lookback_years: 4",
+                "    cash_vol: 0.02",
+                "  fixed_income:",
+                "    fi_10y_eq_mod_duration: 10.0",
+                "    move_to_yield_vol_factor: 0.0002",
             ]
         ),
         encoding="utf-8",
@@ -150,14 +165,74 @@ def test_load_proxy_uses_unified_risk_report_config_proxy_section(tmp_path: Path
     )
     proxy = risk_html_module._load_proxy(
         None,
-        yahoo_client=YahooFinanceClient(downloader=lambda url: _single_price_chart(100.0)),
+        yahoo_client=YahooFinanceClient(
+            downloader=lambda url: (
+                _single_price_chart(18.4)
+                if "%5EVIXALT" in url and "range=3mo" in url and "interval=1wk" in url
+                else _single_price_chart(101.0)
+            )
+        ),
         fallback_payload=loaded.proxy,
+        default_levels=loaded.proxy_defaults,
+        yahoo_symbols=loaded.proxy_yahoo.symbols,
+        yahoo_period=loaded.proxy_yahoo.period,
+        yahoo_interval=loaded.proxy_yahoo.interval,
     )
 
-    assert proxy["VIX"] == pytest.approx(21.5)
-    assert proxy["DEFAULT"] == pytest.approx(21.5)
+    assert loaded.proxy_defaults["VIX"] == pytest.approx(21.5)
+    assert loaded.proxy_defaults["MOVE"] == pytest.approx(99.0)
+    assert loaded.proxy_yahoo.symbols["VIX"] == "^VIXALT"
+    assert loaded.proxy_yahoo.period == "3mo"
+    assert loaded.proxy_yahoo.interval == "1wk"
+    assert loaded.volatility.trading_days == 260
+    assert loaded.volatility.cash_vol == pytest.approx(0.02)
+    assert loaded.fixed_income.fi_10y_eq_mod_duration == pytest.approx(10.0)
+    assert loaded.fixed_income.move_to_yield_vol_factor == pytest.approx(0.0002)
+    assert proxy["VIX"] == pytest.approx(18.4)
+    assert proxy["DEFAULT"] == pytest.approx(18.4)
     assert proxy["FXVOL"] == pytest.approx(7.0)
-    assert proxy["FI_10Y_EQ_MOD_DURATION"] == pytest.approx(10.0)
+
+
+def test_load_proxy_rejects_legacy_fi_duration_key(tmp_path: Path) -> None:
+    proxy_json = tmp_path / "proxy.json"
+    proxy_json.write_text(
+        json.dumps({"MOVE": 110.0, "FI_10Y_EQ_MOD_DURATION": 10.0}),
+        encoding="utf-8",
+    )
+
+    with pytest.raises(
+        ValueError,
+        match="proxy\\.FI_10Y_EQ_MOD_DURATION is no longer supported",
+    ):
+        risk_html_module._load_proxy(
+            proxy_json,
+            yahoo_client=YahooFinanceClient(downloader=lambda url: _single_price_chart(17.8)),
+        )
+
+
+def test_load_risk_report_config_rejects_legacy_proxy_fi_duration_key(tmp_path: Path) -> None:
+    risk_config = tmp_path / "report_config.yaml"
+    risk_config.write_text(
+        "\n".join(
+            [
+                "risk_report:",
+                "  proxy:",
+                "    FI_10Y_EQ_MOD_DURATION: 10.0",
+                "  fixed_income:",
+                "    fi_10y_eq_mod_duration: 8.0",
+            ]
+        ),
+        encoding="utf-8",
+    )
+
+    with pytest.raises(
+        ValueError,
+        match="risk_report\\.proxy\\.FI_10Y_EQ_MOD_DURATION is no longer supported",
+    ):
+        risk_html_module._load_risk_report_config(
+            risk_config_path=risk_config,
+            allocation_policy_path=None,
+        )
 
 
 def test_default_eq_country_lookthrough_uses_explicit_dm_em_other_buckets() -> None:
@@ -869,7 +944,7 @@ def test_fi_10y_equivalent_exposure_values_scale_and_preserve_sign() -> None:
 
 def test_resolve_fi_10y_eq_mod_duration_rejects_non_positive_values() -> None:
     with pytest.raises(ValueError, match="FI_10Y_EQ_MOD_DURATION must be positive"):
-        risk_html_module._resolve_fi_10y_eq_mod_duration({"FI_10Y_EQ_MOD_DURATION": 0.0})
+        risk_html_module._resolve_fi_10y_eq_mod_duration(0.0)
 
 
 def test_build_risk_html_report_displays_fi_10y_equivalent_exposures_only(
@@ -1042,8 +1117,16 @@ def test_build_risk_html_report_respects_fi_10y_eq_mod_duration_override(
     returns_json.write_text("{}", encoding="utf-8")
 
     proxy_json = tmp_path / "proxy.json"
-    proxy_json.write_text(
-        json.dumps({"MOVE": 110.0, "FI_10Y_EQ_MOD_DURATION": 10.0}),
+    proxy_json.write_text(json.dumps({"MOVE": 110.0}), encoding="utf-8")
+    risk_config = tmp_path / "report_config.yaml"
+    risk_config.write_text(
+        "\n".join(
+            [
+                "risk_report:",
+                "  fixed_income:",
+                "    fi_10y_eq_mod_duration: 10.0",
+            ]
+        ),
         encoding="utf-8",
     )
 
@@ -1095,6 +1178,7 @@ def test_build_risk_html_report_respects_fi_10y_eq_mod_duration_override(
         returns_path=returns_json,
         output_path=output_path,
         proxy_path=proxy_json,
+        risk_config_path=risk_config,
         security_reference_path=security_reference_path,
     )
 
@@ -1191,6 +1275,41 @@ def test_security_vol_uses_duration_scaled_fi_proxy_when_returns_missing() -> No
     )
 
     assert value == pytest.approx(0.083897, rel=1e-6)
+
+
+def test_security_vol_uses_configured_fixed_income_and_cash_fallbacks() -> None:
+    volatility = risk_html_module.VolatilityMethodologyConfig(
+        trading_days=252,
+        short_window_days=21,
+        long_window_days=63,
+        long_term_lookback_years=5,
+        cash_vol=0.02,
+    )
+
+    fi_value = risk_html_module._security_vol(
+        returns=pd.Series(dtype=float),
+        asset_class="FI",
+        duration=7.627,
+        proxy={"MOVE": 110.0},
+        method="ewma",
+        volatility=volatility,
+        move_to_yield_vol_factor=0.0002,
+    )
+    cash_value = risk_html_module._security_vol(
+        returns=pd.Series(dtype=float),
+        asset_class="CASH",
+        duration=None,
+        proxy={},
+        method="ewma",
+        volatility=volatility,
+    )
+
+    expected_fi = risk_html_module.yield_vol_to_price_vol(
+        yield_vol=risk_html_module.proxy_index_to_yield_vol(110.0, mapping_factor=0.0002),
+        modified_duration=7.627,
+    )
+    assert fi_value == pytest.approx(expected_fi)
+    assert cash_value == pytest.approx(0.02)
 
 
 def test_build_risk_html_report_falls_back_to_proxy_when_yahoo_rate_limited(
