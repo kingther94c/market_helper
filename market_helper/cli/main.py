@@ -8,6 +8,7 @@ from typing import Sequence
 
 from market_helper.workflows.generate_report import (
     generate_etf_sector_sync,
+    generate_ibkr_flex_performance_report,
     generate_ibkr_position_report,
     generate_live_ibkr_position_report,
     generate_position_report,
@@ -39,6 +40,14 @@ def build_parser() -> argparse.ArgumentParser:
     position_report.add_argument("--positions", required=True, help="Path to positions JSON.")
     position_report.add_argument("--prices", required=True, help="Path to prices JSON.")
     position_report.add_argument("--output", required=True, help="Path to output CSV.")
+
+
+    ibkr_flex_performance_report = subparsers.add_parser(
+        "ibkr-flex-performance-report",
+        help="Parse an IBKR Flex XML and export a dated horizon performance CSV (MTD/YTD/1M, MWR/TWR, USD/SGD).",
+    )
+    ibkr_flex_performance_report.add_argument("--flex-xml", required=True, help="Path to downloaded Flex XML file.")
+    ibkr_flex_performance_report.add_argument("--output-dir", required=True, help="Directory for generated CSV outputs.")
 
     ibkr_position_report = subparsers.add_parser(
         "ibkr-position-report",
@@ -178,6 +187,12 @@ def main(argv: Sequence[str] | None = None) -> int:
     # surface and it is easier to maintain when each command branch is visible.
     if args.command == "position-report":
         generate_position_report(positions_path=Path(args.positions), prices_path=Path(args.prices), output_path=Path(args.output))
+        return 0
+    if args.command == "ibkr-flex-performance-report":
+        generate_ibkr_flex_performance_report(
+            flex_xml_path=Path(args.flex_xml),
+            output_dir=Path(args.output_dir),
+        )
         return 0
     if args.command == "ibkr-position-report":
         generate_ibkr_position_report(

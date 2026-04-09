@@ -117,6 +117,19 @@ Or use the workflow wrapper script:
   --prices prices.json
 ```
 
+
+Convert a downloaded IBKR Flex XML into analysis-ready daily performance and cash-flow CSV files:
+
+```bash
+conda run -n py313 python -m market_helper.cli.main ibkr-flex-performance-report \
+  --flex-xml ~/Downloads/U2935967_U2935967_20250408_20260407_AF_NA_0ba46aa1d7af36dab4e736fe44138d61.xml \
+  --output-dir data/artifacts/portfolio_monitor/flex
+```
+
+- Output: `performance_report_YYYYMMDD.csv` (dated by report `as_of`), containing `MTD` / `YTD` / `1M`, `money_weighted` / `time_weighted`, `USD` / `SGD`, and both `dollar_pnl` + `return_pct`.
+- This keeps the CSV shape aligned with the future HTML layer and leaves room for policy-portfolio relative overlays.
+- Flex Web Service query-id/token fetching is planned next.
+
 Generate a CSV position report directly from raw IBKR payload files:
 
 ```bash
