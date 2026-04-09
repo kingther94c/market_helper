@@ -72,6 +72,9 @@ DEFAULT_PROXY_YAHOO_PERIOD = "1mo"
 DEFAULT_PROXY_YAHOO_INTERVAL = "1d"
 DEFAULT_PROXY_FXVOL = 0.0
 _YAHOO_PROXY_LEVEL_CACHE: dict[str, float] = {}
+DEFAULT_USDSGD_YAHOO_SYMBOL = "USDSGD=X"
+DEFAULT_SGDUSD_YAHOO_SYMBOL = "SGDUSD=X"
+_YAHOO_FX_RATE_CACHE: dict[str, float] = {}
 DEFAULT_EQ_COUNTRY_LOOKTHROUGH_PATH = (
     Path(__file__).resolve().parents[2] / "configs" / "portfolio_monitor" / "eq_country_lookthrough.csv"
 )
@@ -163,6 +166,7 @@ class RiskInputRow:
     eq_sector: str
     fi_tenor: str
     yahoo_symbol: str
+    currency: str = "USD"
 
 
 @dataclass(frozen=True)
@@ -224,7 +228,8 @@ class PortfolioRiskSummary:
     portfolio_vol_geomean_1m_3m: float
     portfolio_vol_5y_realized: float
     portfolio_vol_ewma: float
-    funded_aum: float
+    funded_aum_usd: float
+    funded_aum_sgd: float | None
     gross_exposure: float
     net_exposure: float
     mapped_positions: int
@@ -325,6 +330,10 @@ def build_risk_html_report(
         positions_csv_path,
         security_reference_table=reference_table,
         fi_10y_eq_mod_duration=fi_10y_eq_mod_duration,
+    )
+    funded_aum_usd, funded_aum_sgd = _funded_aum_dual(
+        rows,
+        usdsgd_rate=_resolve_usdsgd_rate(yahoo_client=resolved_yahoo_client),
     )
     _refresh_us_sector_lookthrough_for_report(
         rows=rows,
@@ -480,7 +489,8 @@ def build_risk_html_report(
         portfolio_vol_geomean_1m_3m=portfolio_vol_geomean_1m_3m,
         portfolio_vol_5y_realized=portfolio_vol_5y_realized,
         portfolio_vol_ewma=portfolio_vol_ewma,
-        funded_aum=_funded_aum(rows),
+        funded_aum_usd=funded_aum_usd,
+        funded_aum_sgd=funded_aum_sgd,
         gross_exposure=sum(row.display_gross_exposure_usd for row in included_rows),
         net_exposure=sum(row.display_exposure_usd for row in included_rows),
         mapped_positions=sum(1 for row in included_rows if row.mapping_status == "mapped"),
@@ -616,6 +626,7 @@ def load_position_rows(
                 "eq_sector": eq_sector,
                 "fi_tenor": fi_tenor,
                 "yahoo_symbol": yahoo_symbol,
+                "currency": str(row.get("currency") or ""),
             }
         )
 
@@ -667,6 +678,7 @@ def load_position_rows(
                 eq_sector=str(row["eq_sector"]),
                 fi_tenor=str(row["fi_tenor"]),
                 yahoo_symbol=str(row["yahoo_symbol"]),
+                currency=str(row.get("currency") or "USD"),
             )
         )
     return materialized_rows
@@ -1021,7 +1033,8 @@ def render_html(
       <div class='metric'><span>Portfolio vol (1M/3M geomean, {html.escape(inter_asset_corr)})</span><strong>{summary.portfolio_vol_geomean_1m_3m:.2%}</strong></div>
       <div class='metric'><span>Portfolio vol (5Y realized, {html.escape(inter_asset_corr)})</span><strong>{summary.portfolio_vol_5y_realized:.2%}</strong></div>
       <div class='metric'><span>Portfolio vol (EWMA, {html.escape(inter_asset_corr)})</span><strong>{summary.portfolio_vol_ewma:.2%}</strong></div>
-      <div class='metric'><span>Funded AUM</span><strong>{summary.funded_aum:,.0f}</strong></div>
+      <div class='metric'><span>Funded AUM (USD)</span><strong>{summary.funded_aum_usd:,.0f}</strong></div>
+      <div class='metric'><span>Funded AUM (SGD)</span><strong>{_format_optional_amount(summary.funded_aum_sgd)}</strong></div>
       <div class='metric'><span>Gross exposure (FI 10Y eq)</span><strong>{summary.gross_exposure:,.0f}</strong></div>
       <div class='metric'><span>Net exposure (FI 10Y eq)</span><strong>{summary.net_exposure:,.0f}</strong></div>
       <div class='metric'><span>Mapping coverage (included rows)</span><strong>{summary.mapped_positions}/{summary.total_positions}</strong></div>
@@ -1107,6 +1120,12 @@ def render_html(
 </body>
 </html>
 """
+
+
+def _format_optional_amount(value: float | None) -> str:
+    if value is None:
+        return "n/a"
+    return f"{value:,.0f}"
 
 
 def _render_breakdown_rows(
@@ -2273,6 +2292,27 @@ def _funded_aum(rows: list[RiskInputRow]) -> float:
     )
 
 
+def _funded_aum_dual(
+    rows: list[RiskInputRow],
+    *,
+    usdsgd_rate: float | None,
+) -> tuple[float, float | None]:
+    if usdsgd_rate in (None, 0.0):
+        return _funded_aum(rows), None
+    return _funded_aum_dual_from_dicts(
+        [
+            {
+                "instrument_type": row.instrument_type,
+                "gross_exposure_usd": row.gross_exposure_usd,
+                "weight": row.weight,
+                "currency": row.currency,
+            }
+            for row in rows
+        ],
+        usdsgd_rate=float(usdsgd_rate),
+    )
+
+
 def _funded_aum_from_dicts(rows: list[dict[str, object]]) -> float:
     funded_instruments = [
         float(row.get("gross_exposure_usd") or 0.0)
@@ -2286,6 +2326,44 @@ def _funded_aum_from_dicts(rows: list[dict[str, object]]) -> float:
     if fallback > 0:
         return fallback
     return sum(abs(value) for value in funded_instruments)
+
+
+def _funded_aum_dual_from_dicts(
+    rows: list[dict[str, object]],
+    *,
+    usdsgd_rate: float,
+) -> tuple[float, float]:
+    funded_rows = [row for row in rows if _counts_toward_funded_aum(str(row.get("instrument_type") or ""))]
+    if not funded_rows:
+        fallback = sum(float(row.get("weight") or 0.0) for row in rows)
+        return fallback, fallback * usdsgd_rate
+
+    funded_usd = 0.0
+    funded_sgd = 0.0
+    for row in funded_rows:
+        amount = float(row.get("gross_exposure_usd") or 0.0)
+        currency = str(row.get("currency") or "USD").strip().upper() or "USD"
+        funded_usd += _convert_summary_amount(amount=amount, currency=currency, target_currency="USD", usdsgd_rate=usdsgd_rate)
+        funded_sgd += _convert_summary_amount(amount=amount, currency=currency, target_currency="SGD", usdsgd_rate=usdsgd_rate)
+    return funded_usd, funded_sgd
+
+
+def _convert_summary_amount(
+    *,
+    amount: float,
+    currency: str,
+    target_currency: str,
+    usdsgd_rate: float,
+) -> float:
+    normalized_currency = str(currency).strip().upper() or "USD"
+    normalized_target = str(target_currency).strip().upper()
+    if normalized_currency == normalized_target:
+        return amount
+    if normalized_target == "USD" and normalized_currency == "SGD":
+        return amount / usdsgd_rate
+    if normalized_target == "SGD" and normalized_currency != "SGD":
+        return amount * usdsgd_rate
+    return amount
 
 
 def _counts_toward_funded_aum(instrument_type: str) -> bool:
@@ -2500,6 +2578,41 @@ def _latest_yahoo_history_level(history: Mapping[str, Any]) -> float:
     if value in (None, ""):
         raise ValueError("Yahoo proxy history returned no usable latest price")
     return float(value)
+
+
+def _resolve_usdsgd_rate(*, yahoo_client: YahooFinanceClient) -> float | None:
+    cached = _YAHOO_FX_RATE_CACHE.get(DEFAULT_USDSGD_YAHOO_SYMBOL)
+    if cached is not None:
+        return cached
+    try:
+        rate = _fetch_symbol_level_from_yahoo(
+            DEFAULT_USDSGD_YAHOO_SYMBOL,
+            yahoo_client=yahoo_client,
+        )
+    except (RuntimeError, ValueError):
+        try:
+            inverse_rate = _fetch_symbol_level_from_yahoo(
+                DEFAULT_SGDUSD_YAHOO_SYMBOL,
+                yahoo_client=yahoo_client,
+            )
+        except (RuntimeError, ValueError):
+            return None
+        if inverse_rate <= 0:
+            return None
+        rate = 1.0 / inverse_rate
+    _YAHOO_FX_RATE_CACHE[DEFAULT_USDSGD_YAHOO_SYMBOL] = rate
+    return rate
+
+
+def _fetch_symbol_level_from_yahoo(
+    symbol: str,
+    *,
+    yahoo_client: YahooFinanceClient,
+    period: str = DEFAULT_PROXY_YAHOO_PERIOD,
+    interval: str = DEFAULT_PROXY_YAHOO_INTERVAL,
+) -> float:
+    history = yahoo_client.fetch_price_history(symbol, period=period, interval=interval)
+    return _latest_yahoo_history_level(history)
 
 
 def _load_regime_summary(path: str | Path | None) -> RegimeReportSummary | None:

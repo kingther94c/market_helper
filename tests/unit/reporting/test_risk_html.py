@@ -71,6 +71,19 @@ def test_funded_aum_counts_only_stk_like_and_cash_rows() -> None:
     assert funded_aum == 8200.0
 
 
+def test_funded_aum_dual_converts_sgd_cash_into_usd_and_sgd_views() -> None:
+    funded_aum_usd, funded_aum_sgd = risk_html_module._funded_aum_dual_from_dicts(
+        [
+            {"instrument_type": "ETF", "gross_exposure_usd": 5100.0, "currency": "USD"},
+            {"instrument_type": "Cash", "gross_exposure_usd": 900.0, "currency": "SGD"},
+        ],
+        usdsgd_rate=1.35,
+    )
+
+    assert funded_aum_usd == pytest.approx(5100.0 + (900.0 / 1.35))
+    assert funded_aum_sgd == pytest.approx((5100.0 * 1.35) + 900.0)
+
+
 def test_load_proxy_defaults_from_yahoo_and_sets_default_semantics() -> None:
     risk_html_module._YAHOO_PROXY_LEVEL_CACHE.clear()
 
@@ -722,6 +735,7 @@ def test_build_risk_html_report_uses_yahoo_cache_when_no_returns_override(
     monkeypatch,
 ) -> None:
     risk_html_module._YAHOO_PROXY_LEVEL_CACHE.clear()
+    risk_html_module._YAHOO_FX_RATE_CACHE.clear()
     positions_csv = tmp_path / "positions.csv"
     positions_csv.write_text(
         "\n".join(
@@ -817,8 +831,10 @@ def test_build_risk_html_report_uses_yahoo_cache_when_no_returns_override(
     )
 
     rendered = output_path.read_text(encoding="utf-8")
-    assert calls["count"] == 5
+    assert calls["count"] == 6
     assert "Portfolio Risk Report" in rendered
+    assert "Funded AUM (USD)" in rendered
+    assert "Funded AUM (SGD)" in rendered
     assert "SPY" in rendered
     assert (tmp_path / "yahoo_cache" / "SPY.json").exists()
 
