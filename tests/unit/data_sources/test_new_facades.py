@@ -1,5 +1,6 @@
 from urllib.error import HTTPError
 
+import pandas as pd
 import pytest
 
 from market_helper.data_sources.fmp import FmpClient, FmpEtfSectorWeight
@@ -76,6 +77,37 @@ def test_yahoo_finance_client_retries_rate_limit_errors() -> None:
 
     assert payload["symbol"] == "SPY"
     assert calls["count"] == 3
+
+
+def test_yahoo_finance_client_uses_yfinance_for_runtime_fetch(monkeypatch) -> None:
+    class FakeTicker:
+        def __init__(self, ticker: str, session=None) -> None:
+            assert ticker == "SPY"
+            self.history_metadata = {"currency": "USD"}
+
+        def history(self, *, period: str, interval: str, auto_adjust: bool, actions: bool):
+            assert period == "5y"
+            assert interval == "1d"
+            assert auto_adjust is False
+            assert actions is False
+            return pd.DataFrame(
+                {
+                    "Close": [100.0, 101.0],
+                    "Adj Close": [99.5, 100.5],
+                },
+                index=pd.to_datetime(["2024-01-02", "2024-01-03"], utc=True),
+            )
+
+    monkeypatch.setattr("market_helper.data_sources.yahoo_finance.client.yf.Ticker", FakeTicker)
+
+    payload = YahooFinanceClient().fetch_price_history("SPY")
+
+    assert payload["symbol"] == "SPY"
+    assert payload["currency"] == "USD"
+    assert payload["prices"] == [
+        {"timestamp": 1704153600, "close": 100.0, "adjclose": 99.5},
+        {"timestamp": 1704240000, "close": 101.0, "adjclose": 100.5},
+    ]
 
 
 def test_fmp_facade_fetches_sector_weights() -> None:
