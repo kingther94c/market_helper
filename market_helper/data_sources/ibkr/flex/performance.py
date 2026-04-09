@@ -3,6 +3,7 @@ from __future__ import annotations
 """Parse IBKR Flex XML into performance-report friendly datasets."""
 
 from dataclasses import dataclass
+from calendar import monthrange
 from datetime import date, datetime, timezone
 from pathlib import Path
 import csv
@@ -256,7 +257,8 @@ def _extract_cash_flow_rows(root: ET.Element) -> list[FlexCashFlowRow]:
 
 def _extract_horizon_rows(root: ET.Element, *, daily_rows: list[FlexDailyPerformanceRow]) -> list[FlexHorizonPerformanceRow]:
     by_version: dict[str, dict[tuple[str, str, str], dict[str, float | None]]] = {}
-    as_of = _resolve_as_of_from_daily(daily_rows)
+    nav_snapshots = _extract_nav_snapshots(root)
+    as_of = _resolve_as_of(root, daily_rows=daily_rows, nav_snapshots=nav_snapshots)
 
     for element in root.iter():
         tag = _local_name(element.tag)
@@ -273,7 +275,11 @@ def _extract_horizon_rows(root: ET.Element, *, daily_rows: list[FlexDailyPerform
             metric_cell = version_map.setdefault((horizon, weighting, currency), {"dollar_pnl": None, "return_pct": None})
             metric_cell[measure] = parsed_value
 
+    special_rows = _extract_special_horizon_rows(root, as_of=as_of, nav_snapshots=nav_snapshots)
+
     if not by_version:
+        if special_rows:
+            return special_rows
         return _fallback_horizon_rows_from_daily(daily_rows, as_of=as_of)
 
     selected_version = _pick_best_version(by_version)
@@ -294,7 +300,7 @@ def _extract_horizon_rows(root: ET.Element, *, daily_rows: list[FlexDailyPerform
                         return_pct=cell.get("return_pct"),
                     )
                 )
-    return rows
+    return _merge_horizon_rows(primary=rows, fallback=special_rows)
 
 
 def _fallback_horizon_rows_from_daily(
@@ -407,10 +413,116 @@ def _sum_pnl(rows: list[FlexDailyPerformanceRow]) -> float | None:
     return sum(values)
 
 
+def _extract_special_horizon_rows(
+    root: ET.Element,
+    *,
+    as_of: date,
+    nav_snapshots: list[tuple[date, str, float]],
+) -> list[FlexHorizonPerformanceRow]:
+    summary_total = _find_mtdytd_total_row(root)
+    base_currency = _detect_base_currency(root, nav_snapshots)
+    if summary_total is None or base_currency is None:
+        return []
+
+    start_nav_by_horizon = {
+        "MTD": _resolve_start_nav(nav_snapshots, _start_of_month(as_of), currency=base_currency),
+        "YTD": _resolve_start_nav(nav_snapshots, date(as_of.year, 1, 1), currency=base_currency),
+        "1M": _resolve_start_nav(nav_snapshots, _subtract_months(as_of, 1), currency=base_currency),
+    }
+    end_nav = _resolve_end_nav(nav_snapshots, currency=base_currency)
+
+    pnl_by_horizon = {
+        "MTD": _parse_float_or_none(summary_total.attrib.get("mtmMTD")),
+        "YTD": _parse_float_or_none(summary_total.attrib.get("mtmYTD")),
+        "1M": _derive_nav_delta(start_nav_by_horizon["1M"], end_nav),
+    }
+
+    rows: list[FlexHorizonPerformanceRow] = []
+    for horizon in ("MTD", "YTD", "1M"):
+        pnl_value = pnl_by_horizon[horizon]
+        start_nav = start_nav_by_horizon[horizon]
+        return_pct = None
+        if pnl_value is not None and start_nav not in (None, 0.0):
+            return_pct = pnl_value / start_nav
+
+        for weighting in ("money_weighted", "time_weighted"):
+            for currency in ("USD", "SGD"):
+                use_value = currency == base_currency
+                source_version = (
+                    "MTDYTDPerformanceSummaryTotal"
+                    if horizon in {"MTD", "YTD"}
+                    else "EquitySummaryByReportDateInBase"
+                )
+                rows.append(
+                    FlexHorizonPerformanceRow(
+                        as_of=as_of,
+                        source_version=source_version,
+                        horizon=horizon,
+                        weighting=weighting,
+                        currency=currency,
+                        dollar_pnl=pnl_value if use_value else None,
+                        return_pct=return_pct if use_value else None,
+                    )
+                )
+    return rows
+
+
+def _merge_horizon_rows(
+    *,
+    primary: list[FlexHorizonPerformanceRow],
+    fallback: list[FlexHorizonPerformanceRow],
+) -> list[FlexHorizonPerformanceRow]:
+    if not fallback:
+        return primary
+
+    fallback_map = {
+        (row.horizon, row.weighting, row.currency): row
+        for row in fallback
+    }
+    merged: list[FlexHorizonPerformanceRow] = []
+    for row in primary:
+        fallback_row = fallback_map.get((row.horizon, row.weighting, row.currency))
+        if fallback_row is None:
+            merged.append(row)
+            continue
+        merged.append(
+            FlexHorizonPerformanceRow(
+                as_of=row.as_of,
+                source_version=(
+                    row.source_version
+                    if row.dollar_pnl is not None or row.return_pct is not None
+                    else fallback_row.source_version
+                ),
+                horizon=row.horizon,
+                weighting=row.weighting,
+                currency=row.currency,
+                dollar_pnl=row.dollar_pnl if row.dollar_pnl is not None else fallback_row.dollar_pnl,
+                return_pct=row.return_pct if row.return_pct is not None else fallback_row.return_pct,
+            )
+        )
+    return merged
+
+
 def _resolve_as_of_date(dataset: FlexPerformanceDataset) -> date:
     if dataset.horizon_rows:
         return dataset.horizon_rows[0].as_of
     return _resolve_as_of_from_daily(dataset.daily_performance)
+
+
+def _resolve_as_of(
+    root: ET.Element,
+    *,
+    daily_rows: list[FlexDailyPerformanceRow],
+    nav_snapshots: list[tuple[date, str, float]],
+) -> date:
+    if daily_rows:
+        return max(row.date for row in daily_rows)
+    if nav_snapshots:
+        return max(snapshot_date for snapshot_date, _, _ in nav_snapshots)
+    statement_as_of = _extract_statement_as_of(root)
+    if statement_as_of is not None:
+        return statement_as_of
+    return datetime.now(timezone.utc).date()
 
 
 def _resolve_as_of_from_daily(rows: list[FlexDailyPerformanceRow]) -> date:
@@ -445,7 +557,7 @@ def _extract_date(attrs: dict[str, str]) -> date | None:
 
 def _parse_date(raw: str) -> date | None:
     text = raw.strip()
-    for fmt in ("%Y-%m-%d", "%Y%m%d", "%Y-%m-%d;%H:%M:%S", "%Y-%m-%d %H:%M:%S"):
+    for fmt in ("%Y-%m-%d", "%Y%m%d", "%Y%m%d;%H%M%S", "%Y-%m-%d;%H:%M:%S", "%Y-%m-%d %H:%M:%S"):
         try:
             return datetime.strptime(text, fmt).date()
         except ValueError:
@@ -488,6 +600,94 @@ def _tokenize_key(key: str) -> set[str]:
         tokens.update(part.lower() for part in camel_chunks)
         tokens.add("".join(part.lower() for part in camel_chunks))
     return tokens
+
+
+def _extract_nav_snapshots(root: ET.Element) -> list[tuple[date, str, float]]:
+    snapshots: list[tuple[date, str, float]] = []
+    for element in root.iter():
+        if _local_name(element.tag).lower() != "equitysummarybyreportdateinbase":
+            continue
+        snapshot_date = _extract_date(element.attrib)
+        currency = str(element.attrib.get("currency", "")).upper()
+        total = _parse_float_or_none(element.attrib.get("total"))
+        if snapshot_date is None or currency == "" or total is None:
+            continue
+        snapshots.append((snapshot_date, currency, total))
+    return sorted(snapshots, key=lambda item: item[0])
+
+
+def _extract_statement_as_of(root: ET.Element) -> date | None:
+    for element in root.iter():
+        if _local_name(element.tag) != "FlexStatement":
+            continue
+        return _extract_date(element.attrib)
+    return None
+
+
+def _detect_base_currency(root: ET.Element, nav_snapshots: list[tuple[date, str, float]]) -> str | None:
+    if nav_snapshots:
+        return nav_snapshots[-1][1]
+    for element in root.iter():
+        currency = str(element.attrib.get("currency", "")).upper()
+        if currency in {"USD", "SGD"} and _local_name(element.tag).lower().endswith("inbase"):
+            return currency
+    return None
+
+
+def _find_mtdytd_total_row(root: ET.Element) -> ET.Element | None:
+    for element in root.iter():
+        if _local_name(element.tag) != "MTDYTDPerformanceSummaryUnderlying":
+            continue
+        if str(element.attrib.get("description", "")).strip().lower() == "total":
+            return element
+    return None
+
+
+def _resolve_start_nav(
+    nav_snapshots: list[tuple[date, str, float]],
+    horizon_start: date,
+    *,
+    currency: str,
+) -> float | None:
+    filtered = [snapshot for snapshot in nav_snapshots if snapshot[1] == currency]
+    if not filtered:
+        return None
+
+    prior = [nav for snapshot_date, _, nav in filtered if snapshot_date < horizon_start]
+    if prior:
+        return prior[-1]
+
+    future = [nav for snapshot_date, _, nav in filtered if snapshot_date >= horizon_start]
+    if future:
+        return future[0]
+    return None
+
+
+def _resolve_end_nav(nav_snapshots: list[tuple[date, str, float]], *, currency: str) -> float | None:
+    filtered = [nav for _, snapshot_currency, nav in nav_snapshots if snapshot_currency == currency]
+    if not filtered:
+        return None
+    return filtered[-1]
+
+
+def _derive_nav_delta(start_nav: float | None, end_nav: float | None) -> float | None:
+    if start_nav is None or end_nav is None:
+        return None
+    return end_nav - start_nav
+
+
+def _start_of_month(value: date) -> date:
+    return date(value.year, value.month, 1)
+
+
+def _subtract_months(value: date, months: int) -> date:
+    year = value.year
+    month = value.month - months
+    while month <= 0:
+        year -= 1
+        month += 12
+    day = min(value.day, monthrange(year, month)[1])
+    return date(year, month, day)
 
 
 def _local_name(tag: str) -> str:
