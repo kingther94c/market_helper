@@ -165,12 +165,6 @@ If `--account` is omitted, `./scripts/run_report.sh ibkr-live` now defaults to:
 
 Keep those defaults, plus local-only secrets like `FMP_API_KEY`, in the gitignored file `configs/portfolio_monitor/local.env`. A tracked template lives at `configs/portfolio_monitor/local.example.env`.
 
-Legacy fallbacks are still accepted during the transition:
-- `configs/portfolio_monitor/report_accounts.local.env`
-- `configs/report_accounts.local.env`
-
-The legacy root path `configs/report_accounts.local.env` is still accepted as a deprecated fallback so older local setups keep working during the transition.
-
 Example:
 
 ```bash

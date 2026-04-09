@@ -32,7 +32,7 @@ Build a broker-agnostic, read-only IBKR integration layer for market monitoring 
 - Added compatibility wrappers so legacy `config`, `safety`, `utils`, `workflows`, and CLI entrypoints now resolve through the new domain-driven package structure.
 - Added new domain/data-source/presentation package facades for portfolio monitor, regime detection, and integration scaffolding.
 - Added `docs/architecture/refactor_migration_map.md` plus module-specific devplans under `docs/devplans/`.
-- Added new config directories under `configs/{app,portfolio_monitor,regime_detection,integration}` and switched the default curated security-reference path to `configs/portfolio_monitor/security_reference.csv`.
+- Added new config directories under `configs/{app,portfolio_monitor,regime_detection,integration}` and switched the default generated security-reference path to `data/artifacts/portfolio_monitor/security_reference.csv`.
 - Added new artifact roots under `data/artifacts/{portfolio_monitor,regime_detection,integration}` and updated script defaults toward those paths.
 - Added new notebook locations: `notebooks/dev_lab/current.ipynb`, `notebooks/dev_lab/archive/`, `notebooks/portfolio_monitor/`, and `notebooks/regime_detection/`.
 - Phase 0 guardrail docs added (`requirements`, `read_only_policy`, `provider_matrix`).
@@ -62,12 +62,12 @@ Build a broker-agnostic, read-only IBKR integration layer for market monitoring 
 - Added unit/e2e tests for indicator transforms, rulebook hysteresis/mutual exclusivity, policy mapping, CLI dispatch, and CLI regime output schema.
 - Added example configs: `configs/regime_detection/regime_config.example.yml` and `configs/regime_detection/regime_policy.example.yml`.
 - Added a workbook-to-JSON mapping-table extraction path so stable portfolio metadata can be seeded from `target_report.xlsx` without making the HTML report depend directly on the workbook at runtime.
-- Replaced the old in-memory / workbook-JSON mapping split with a curated wide `configs/portfolio_monitor/security_reference.csv` source of truth covering `ETF`, `EQ`, `FX_FUT`, `FI_FUT`, `OTHER_FUT`, and `CASH`.
+- Replaced the old in-memory / workbook-JSON mapping split with a generated wide `data/artifacts/portfolio_monitor/security_reference.csv` cache covering `ETF`, `EQ`, `FX_FUT`, `FI_FUT`, `OTHER_FUT`, and `CASH`.
 - Reworked `market_helper/portfolio/security_reference.py` around CSV loading, provider indexes, and runtime `UNMAPPED` / `OUTSIDE_SCOPE` fallbacks while keeping compatibility helpers for existing report code.
 - Updated IBKR normalization to resolve positions against the curated universe first (exact `conId`, then alias/family lookup, then cash), with futures canonicalized at family level rather than expiry-contract level.
 - Moved the HTML risk report off workbook-derived runtime JSON so category/display/duration/expected-vol enrichment now comes from curated security reference rows.
 - Downgraded workbook extraction into a bootstrap importer that exports a security-reference CSV seed instead of a runtime JSON mapping table.
-- Promoted `configs/security_universe.csv` to the single manually maintained instrument source of truth and turned `configs/portfolio_monitor/security_reference.csv` into a generated materialized lookup table rebuilt from universe rows plus cached/live IBKR metadata.
+- Promoted `configs/security_universe.csv` to the single manually maintained instrument source of truth and turned `data/artifacts/portfolio_monitor/security_reference.csv` into a generated materialized lookup table rebuilt from universe rows plus cached/live IBKR metadata.
 - Replaced the old report/risk semantics (`report_category`, `risk_bucket`, `default_expected_vol`, provider-hint columns) with universe-native fields centered on `asset_class`, `eq_country`, `eq_sector`, `dir_exposure`, `fi_mod_duration`, and `fi_tenor`.
 - Added universe-first generation/sync services, a dedicated `security-reference-sync` CLI path, and a `security_universe_PROPOSED.csv` review flow for unmapped runtime instruments.
 - Updated raw IBKR JSON and live TWS report workflows so they rebuild the generated security reference first, preserve universe-stable `internal_id`s, and refresh runtime lookup fields without letting primary-exchange resolution destabilize IDs.
@@ -114,7 +114,7 @@ Build a broker-agnostic, read-only IBKR integration layer for market monitoring 
 9. Optionally add a broader Client Portal Web API wrapper layer if we need more endpoints beyond position reporting.
 
 ## Instrument Mapping Plan
-- Treat `configs/security_universe.csv` as the manual semantic source of truth and `configs/portfolio_monitor/security_reference.csv` as a generated/cacheable materialized view rather than as the business-authoritative mapping file.
+- Treat `configs/security_universe.csv` as the manual semantic source of truth and `data/artifacts/portfolio_monitor/security_reference.csv` as a generated/cacheable materialized view rather than as the business-authoritative mapping file.
 - Keep `internal_id` as a system-owned canonical key; do not let Yahoo, Bloomberg, Google, or IBKR identifiers become the system primary key.
 - Treat ETF and stock mappings as mostly direct instrument aliases, but treat futures, options, and other derivatives as two-layer mappings: product family first, concrete contract second.
 - Use strong provider-native IDs when available, especially IBKR `conId`, and store weaker vendor tickers as aliases rather than as the canonical identity.

@@ -182,7 +182,7 @@ def test_join_positions_with_latest_price() -> None:
     assert rows[0]["latest_price"] == 510.0
 
 
-def test_build_security_reference_table_falls_back_to_legacy_cache_when_default_missing(
+def test_build_security_reference_table_does_not_fall_back_to_legacy_cache_when_default_missing(
     tmp_path,
     monkeypatch,
 ) -> None:
@@ -227,12 +227,11 @@ def test_build_security_reference_table_falls_back_to_legacy_cache_when_default_
     )
 
     monkeypatch.setattr(security_reference_module, "DEFAULT_SECURITY_REFERENCE_PATH", default_path)
-    monkeypatch.setattr(security_reference_module, "LEGACY_SECURITY_REFERENCE_PATH", legacy_path)
     monkeypatch.setattr(security_reference_module, "DEFAULT_SECURITY_UNIVERSE_PATH", universe_path)
 
     table = security_reference_module.build_security_reference_table()
     matched = table.get_security("STK:SPY:SMART")
 
     assert matched is not None
-    assert matched.ibkr_conid == "756733"
-    assert matched.lookup_status == "verified"
+    assert matched.ibkr_conid == ""
+    assert matched.lookup_status == "seeded"

@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import csv
 import json
 import os
 from datetime import date, datetime, timezone
@@ -13,15 +12,8 @@ from market_helper.data_sources.fmp import FmpClient, FmpEtfSectorWeight
 DEFAULT_US_SECTOR_LOOKTHROUGH_PATH = (
     Path(__file__).resolve().parents[4] / "configs" / "portfolio_monitor" / "us_sector_lookthrough.json"
 )
-DEFAULT_LEGACY_US_SECTOR_LOOKTHROUGH_PATH = (
-    Path(__file__).resolve().parents[4] / "configs" / "portfolio_monitor" / "us_sector_lookthrough.csv"
-)
 DEFAULT_CANONICAL_LOCAL_ENV_PATH = (
     Path(__file__).resolve().parents[4] / "configs" / "portfolio_monitor" / "local.env"
-)
-DEFAULT_LEGACY_LOCAL_ENV_PATHS = (
-    Path(__file__).resolve().parents[4] / "configs" / "portfolio_monitor" / "report_accounts.local.env",
-    Path(__file__).resolve().parents[4] / "configs" / "report_accounts.local.env",
 )
 DEFAULT_FMP_API_KEY_ENV_VAR = "FMP_API_KEY"
 DEFAULT_LOOKTHROUGH_SCHEMA_VERSION = 1
@@ -113,11 +105,7 @@ def refresh_us_sector_lookthrough_for_report(
 
 
 def load_us_sector_weight_table(path: str | Path) -> dict[str, list[tuple[str, float]]]:
-    lookthrough_path = Path(path)
-    if lookthrough_path.suffix.lower() != ".json":
-        return _load_legacy_csv_weight_table(lookthrough_path)
-
-    store = _load_store(lookthrough_path)
+    store = _load_store(Path(path))
     materialized: dict[str, list[tuple[str, float]]] = {}
     for symbol, payload in _store_symbols(store).items():
         sectors = payload.get("sectors", [])
@@ -137,14 +125,7 @@ def load_us_sector_weight_table(path: str | Path) -> dict[str, list[tuple[str, f
 
 
 def load_tracked_us_sector_symbols(path: str | Path) -> set[str]:
-    lookthrough_path = Path(path)
-    if lookthrough_path.suffix.lower() != ".json":
-        return {
-            str(row.get("canonical_symbol") or "").strip().upper()
-            for row in _load_existing_rows(lookthrough_path)
-            if str(row.get("canonical_symbol") or "").strip()
-        }
-    store = _load_store(lookthrough_path)
+    store = _load_store(Path(path))
     return set(_store_symbols(store))
 
 
@@ -293,13 +274,6 @@ def _load_store(path: Path, *, daily_call_limit: int = DEFAULT_FMP_DAILY_CALL_LI
         if not isinstance(loaded, dict):
             raise ValueError("ETF sector lookthrough JSON must be an object")
         return _normalize_store(loaded, daily_call_limit=daily_call_limit)
-
-    legacy_rows = _load_existing_rows(_legacy_csv_path_for(path))
-    if legacy_rows:
-        return _normalize_store(
-            _legacy_rows_to_store(legacy_rows, daily_call_limit=daily_call_limit),
-            daily_call_limit=daily_call_limit,
-        )
     return _default_store(daily_call_limit=daily_call_limit)
 
 
@@ -404,62 +378,6 @@ def _store_symbols(store: Mapping[str, Any]) -> dict[str, dict[str, Any]]:
     return raw_symbols
 
 
-def _legacy_csv_path_for(path: Path) -> Path:
-    if path.suffix.lower() == ".csv":
-        return path
-    return path.with_suffix(".csv")
-
-
-def _legacy_rows_to_store(
-    rows: Sequence[dict[str, str]],
-    *,
-    daily_call_limit: int,
-) -> dict[str, Any]:
-    store = _default_store(daily_call_limit=daily_call_limit)
-    grouped: dict[str, list[dict[str, object]]] = {}
-    for row in rows:
-        symbol = str(row.get("canonical_symbol") or "").strip().upper()
-        sector = str(row.get("sector") or "").strip()
-        weight = _coerce_weight(row.get("weight"))
-        if not symbol or not sector or weight <= 0:
-            continue
-        grouped.setdefault(symbol, []).append(
-            {
-                "sector": sector,
-                "weight": _rounded_weight(weight),
-            }
-        )
-    store["symbols"] = {
-        symbol: {
-            "updated_at": DEFAULT_LOOKTHROUGH_INITIAL_UPDATED_AT,
-            "status": "ok",
-            "error_message": "",
-            "sectors": sectors,
-        }
-        for symbol, sectors in grouped.items()
-    }
-    return store
-
-
-def _load_existing_rows(path: Path) -> list[dict[str, str]]:
-    if not path.exists():
-        return []
-    with path.open("r", encoding="utf-8", newline="") as handle:
-        return [dict(row) for row in csv.DictReader(handle)]
-
-
-def _load_legacy_csv_weight_table(path: Path) -> dict[str, list[tuple[str, float]]]:
-    materialized: dict[str, list[tuple[str, float]]] = {}
-    for row in _load_existing_rows(path):
-        symbol = str(row.get("canonical_symbol") or "").strip().upper()
-        sector = str(row.get("sector") or "").strip()
-        weight = _coerce_weight(row.get("weight"))
-        if not symbol or not sector or weight <= 0:
-            continue
-        materialized.setdefault(symbol, []).append((sector, weight))
-    return materialized
-
-
 def _write_store(path: Path, store: Mapping[str, Any]) -> None:
     path.write_text(
         json.dumps(store, indent=2, sort_keys=True) + "\n",
@@ -481,19 +399,7 @@ def _read_local_env_value(key: str) -> str:
     normalized_key = str(key).strip()
     if not normalized_key:
         return ""
-
-    for path in _local_env_search_paths():
-        value = _read_env_file_value(path, normalized_key)
-        if value:
-            return value
-    return ""
-
-
-def _local_env_search_paths() -> tuple[Path, ...]:
-    return (
-        DEFAULT_CANONICAL_LOCAL_ENV_PATH,
-        *DEFAULT_LEGACY_LOCAL_ENV_PATHS,
-    )
+    return _read_env_file_value(DEFAULT_CANONICAL_LOCAL_ENV_PATH, normalized_key)
 
 
 def _read_env_file_value(path: Path, key: str) -> str:

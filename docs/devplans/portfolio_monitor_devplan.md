@@ -3,8 +3,8 @@
 ## Current Focus
 - Keep the new universe-first IBKR report flow stable while continuing to consolidate portfolio-monitor logic under `market_helper/domain/portfolio_monitor`.
 - Treat `configs/security_universe.csv` as the manual semantic source of truth and keep `data/artifacts/portfolio_monitor/security_reference.csv` as the generated local lookup cache exposed through `common/models/security_reference.py` and portfolio-monitor services.
-- Treat `configs/portfolio_monitor/report_config.yaml` as the canonical tracked runtime entrypoint for risk-report lookthrough, proxy, and policy settings, with legacy single-purpose config files only as compatibility fallbacks during migration.
-- Treat `configs/portfolio_monitor/local.env` as the canonical gitignored local-only config for account defaults and provider secrets, while keeping the older `report_accounts.local.env` paths as temporary compatibility fallbacks.
+- Treat `configs/portfolio_monitor/report_config.yaml` as the canonical tracked runtime entrypoint for risk-report lookthrough, proxy, and policy settings.
+- Treat `configs/portfolio_monitor/local.env` as the canonical gitignored local-only config for account defaults and provider secrets.
 - Treat `configs/portfolio_monitor/us_sector_lookthrough.json` as the canonical ETF sector lookthrough store, including per-symbol timestamps and shared API-usage metadata, rather than extending the older CSV as the primary source.
 - Treat `fi_tenor` as an explicit instrument-semantic field rather than as a derived duration bucket, while keeping `fi_mod_duration` available as a separate analytics/display attribute.
 - Keep funded-AUM calculations aligned with report intent by counting only stock-like and cash exposures, not futures/options notionals.
@@ -20,7 +20,7 @@
 
 ## Recently Completed
 - Consolidated tracked risk-report config under `configs/portfolio_monitor/report_config.yaml`, including canonical `lookthrough`, `proxy`, and policy sections used by the HTML risk flow.
-- Consolidated gitignored local-only settings under `configs/portfolio_monitor/local.env`, including account defaults and `FMP_API_KEY`, while preserving deprecated fallback support for older local file paths.
+- Consolidated gitignored local-only settings under `configs/portfolio_monitor/local.env`, including account defaults and `FMP_API_KEY`.
 - Added an FMP-backed `etf-sector-sync` workflow plus `market_helper.data_sources.fmp` client support so ETF sector lookthrough can be refreshed through a first-class CLI/script entrypoint.
 - Switched canonical US sector lookthrough storage from CSV to `configs/portfolio_monitor/us_sector_lookthrough.json`, including per-symbol `updated_at`, cached normalized sector weights, refresh status, and shared daily API-usage tracking.
 - Added automatic ETF sector lookthrough registration/refresh during `risk-html-report`, with new symbols seeded at `2000-01-01`, stale symbols refreshed after 30 days, and refreshes capped by the shared `250` calls/day budget.
