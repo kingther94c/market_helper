@@ -115,6 +115,22 @@ def test_flex_web_service_client_get_statement_raises_pending_error_for_retryabl
         client.get_statement("ABC123")
 
 
+def test_flex_web_service_client_get_statement_treats_error_1003_as_pending() -> None:
+    client = FlexWebServiceClient(
+        token="secret-token",
+        downloader=lambda _url: """
+<FlexStatementResponse>
+  <Status>Fail</Status>
+  <ErrorCode>1003</ErrorCode>
+  <ErrorMessage>Statement is not available.</ErrorMessage>
+</FlexStatementResponse>
+""".strip(),
+    )
+
+    with pytest.raises(FlexWebServicePendingError):
+        client.get_statement("ABC123")
+
+
 def test_flex_web_service_client_fetch_statement_polls_until_ready() -> None:
     responses = iter(
         [
@@ -151,6 +167,44 @@ def test_flex_web_service_client_fetch_statement_polls_until_ready() -> None:
 
     assert "<FlexQueryResponse>" in payload
     assert sleeps == [2.5]
+
+
+def test_flex_web_service_client_fetch_statement_surfaces_polling_guidance_on_timeout() -> None:
+    responses = iter(
+        [
+            """
+<FlexStatementResponse>
+  <Status>Success</Status>
+  <ReferenceCode>ABC123</ReferenceCode>
+</FlexStatementResponse>
+""".strip(),
+            """
+<FlexStatementResponse>
+  <Status>Fail</Status>
+  <ErrorCode>1003</ErrorCode>
+  <ErrorMessage>Statement is not available.</ErrorMessage>
+</FlexStatementResponse>
+""".strip(),
+            """
+<FlexStatementResponse>
+  <Status>Fail</Status>
+  <ErrorCode>1003</ErrorCode>
+  <ErrorMessage>Statement is not available.</ErrorMessage>
+</FlexStatementResponse>
+""".strip(),
+        ]
+    )
+    sleeps: list[float] = []
+    client = FlexWebServiceClient(
+        token="secret-token",
+        downloader=lambda _url: next(responses),
+        sleep=sleeps.append,
+    )
+
+    with pytest.raises(FlexWebServicePendingError, match="Polling exhausted after 2 attempts"):
+        client.fetch_statement("1462703", poll_interval_seconds=7.5, max_attempts=2)
+
+    assert sleeps == [7.5]
 
 
 def test_flex_web_service_client_send_request_raises_non_retryable_error() -> None:

@@ -17,6 +17,7 @@ GET_STATEMENT_PATH = "GetStatement"
 
 RETRYABLE_FLEX_ERROR_CODES = frozenset(
     {
+        "1003",
         "1001",
         "1004",
         "1005",
@@ -144,7 +145,12 @@ class FlexWebServiceClient:
                     self.sleep(poll_interval_seconds)
 
         if last_error is not None:
-            raise last_error
+            total_wait_seconds = poll_interval_seconds * max(max_attempts - 1, 0)
+            raise FlexWebServicePendingError(
+                f"{last_error}. Polling exhausted after {max_attempts} attempts "
+                f"(~{total_wait_seconds:.0f}s wait). Increase poll_interval_seconds/max_attempts "
+                "for large or historical Flex queries."
+            ) from last_error
         raise FlexWebServiceError("Flex statement polling exhausted without a terminal response")
 
     def _download(self, path: str, params: dict[str, object]) -> str:
