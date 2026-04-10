@@ -16,6 +16,7 @@ from market_helper.data_sources.ibkr.flex.performance import (
     _convert_currency_amount,
     _detect_base_currency,
     _extract_base_nav_points,
+    _extract_cash_report_summaries,
     _extract_nav_snapshots,
     _load_usdsgd_history,
     _lookup_fx_rate,
@@ -53,6 +54,13 @@ class PerformanceHistorySource:
     source_kind: str
     priority: int
     source_as_of: date | None
+
+
+@dataclass(frozen=True)
+class CashSummarySnapshot:
+    as_of: date
+    source_priority: int
+    cumulative_flows_by_currency: dict[str, float]
 
 
 def rebuild_performance_history_feather(
@@ -101,7 +109,18 @@ def build_performance_history_frame(
     extra_xml_paths: Sequence[str | Path] | None = None,
 ) -> pd.DataFrame:
     sources = _discover_history_sources(Path(raw_dir), extra_xml_paths=extra_xml_paths)
-    frames = [_build_source_history_frame(source, yahoo_client=yahoo_client) for source in sources]
+    flow_events_by_currency = _build_flow_events_by_currency(
+        sources,
+        yahoo_client=yahoo_client,
+    )
+    frames = [
+        _build_source_history_frame(
+            source,
+            yahoo_client=yahoo_client,
+            flow_events_by_currency=flow_events_by_currency,
+        )
+        for source in sources
+    ]
     non_empty_frames = [frame for frame in frames if not frame.empty]
     if not non_empty_frames:
         return _empty_history_frame()
@@ -323,6 +342,7 @@ def _build_source_history_frame(
     source: PerformanceHistorySource,
     *,
     yahoo_client: YahooFinanceClient | None,
+    flow_events_by_currency: dict[str, dict[date, float]],
 ) -> pd.DataFrame:
     xml_text = source.path.read_text(encoding="utf-8")
     root = ET.fromstring(xml_text)
@@ -337,7 +357,6 @@ def _build_source_history_frame(
     if not base_nav_points:
         return _empty_history_frame()
 
-    known_base_flows = {row.date: float(row.cash_flow) for row in dataset.daily_performance}
     fx_history = (
         _load_usdsgd_history(yahoo_client=yahoo_client)
         if yahoo_client is not None and base_currency in {"USD", "SGD"}
@@ -371,9 +390,8 @@ def _build_source_history_frame(
             to_currency=currency,
             fx_history=fx_history,
         )
-        known_flows = _convert_known_flows_to_currency(
-            known_base_flows,
-            from_currency=base_currency,
+        known_flows, has_cash_flow_coverage = _convert_flow_events_to_currency(
+            flow_events_by_currency,
             to_currency=currency,
             fx_history=fx_history,
         )
@@ -382,6 +400,7 @@ def _build_source_history_frame(
             currency=currency,
             nav_points=nav_points,
             known_flows=known_flows,
+            fill_missing_flows_with_zero=has_cash_flow_coverage,
         )
 
     for point_date in nav_dates:
@@ -398,6 +417,7 @@ def _populate_currency_columns(
     currency: str,
     nav_points: list[FlexNavPoint],
     known_flows: dict[date, float],
+    fill_missing_flows_with_zero: bool = False,
 ) -> None:
     if not nav_points:
         return
@@ -427,6 +447,8 @@ def _populate_currency_columns(
             },
         )
         target_row[nav_col] = float(point.nav)
+        if fill_missing_flows_with_zero:
+            target_row[flow_col] = 0.0
 
         known_flow = known_flows.get(point.date)
         if point.date in known_flows:
@@ -500,6 +522,162 @@ def _convert_known_flows_to_currency(
     return converted
 
 
+def _build_flow_events_by_currency(
+    sources: Sequence[PerformanceHistorySource],
+    *,
+    yahoo_client: YahooFinanceClient | None,
+) -> dict[str, dict[date, float]]:
+    flow_events_by_currency: dict[str, dict[date, float]] = {}
+    summary_snapshots: list[CashSummarySnapshot] = []
+
+    for source in sources:
+        xml_text = source.path.read_text(encoding="utf-8")
+        root = ET.fromstring(xml_text)
+        dataset = parse_flex_performance_xml(source.path, yahoo_client=yahoo_client)
+        nav_snapshots = _extract_nav_snapshots(root)
+        base_currency = _detect_base_currency(root, nav_snapshots) or "USD"
+
+        explicit_flow_events = _extract_explicit_flow_events(
+            dataset.daily_performance,
+            base_currency=base_currency,
+        )
+        if explicit_flow_events:
+            _merge_flow_events(flow_events_by_currency, explicit_flow_events)
+            continue
+
+        if source.source_as_of is None:
+            continue
+        cumulative_flows = _extract_cumulative_cash_flows_by_currency(
+            root,
+            base_currency=base_currency,
+        )
+        if not cumulative_flows:
+            continue
+        summary_snapshots.append(
+            CashSummarySnapshot(
+                as_of=source.source_as_of,
+                source_priority=source.priority,
+                cumulative_flows_by_currency=cumulative_flows,
+            )
+        )
+
+    _merge_summary_flow_snapshots(
+        flow_events_by_currency,
+        summary_snapshots,
+    )
+    return flow_events_by_currency
+
+
+def _extract_explicit_flow_events(
+    daily_rows: Sequence[object],
+    *,
+    base_currency: str,
+) -> dict[str, dict[date, float]]:
+    events: dict[str, dict[date, float]] = {}
+    for row in daily_rows:
+        flow_date = getattr(row, "date", None)
+        raw_amount = getattr(row, "cash_flow", None)
+        if flow_date is None or raw_amount is None:
+            continue
+        amount = float(raw_amount)
+        if abs(amount) <= 1e-12:
+            continue
+        bucket = events.setdefault(base_currency, {})
+        bucket[flow_date] = bucket.get(flow_date, 0.0) + amount
+    return events
+
+
+def _extract_cumulative_cash_flows_by_currency(
+    root: ET.Element,
+    *,
+    base_currency: str,
+) -> dict[str, float]:
+    summaries = _extract_cash_report_summaries(root)
+    cumulative: dict[str, float] = {}
+    for currency, summary in summaries.items():
+        if currency == "BASE_SUMMARY" or summary.deposit_withdrawals_ytd is None:
+            continue
+        amount = float(summary.deposit_withdrawals_ytd)
+        if abs(amount) <= 1e-12:
+            continue
+        cumulative[currency] = amount
+
+    if cumulative:
+        return cumulative
+
+    base_summary = summaries.get("BASE_SUMMARY") or summaries.get(base_currency)
+    if base_summary is None or base_summary.deposit_withdrawals_ytd is None:
+        return {}
+    base_amount = float(base_summary.deposit_withdrawals_ytd)
+    if abs(base_amount) <= 1e-12:
+        return {}
+    return {base_currency: base_amount}
+
+
+def _merge_summary_flow_snapshots(
+    flow_events_by_currency: dict[str, dict[date, float]],
+    snapshots: Sequence[CashSummarySnapshot],
+) -> None:
+    previous_cumulative: dict[tuple[int, str], float] = {}
+    ordered_snapshots = sorted(
+        snapshots,
+        key=lambda snapshot: (snapshot.as_of, snapshot.source_priority),
+    )
+    for snapshot in ordered_snapshots:
+        for currency, cumulative_amount in sorted(snapshot.cumulative_flows_by_currency.items()):
+            key = (snapshot.as_of.year, currency)
+            prior_amount = previous_cumulative.get(key, 0.0)
+            delta = cumulative_amount - prior_amount
+            previous_cumulative[key] = cumulative_amount
+            if abs(delta) <= 1e-12:
+                continue
+            bucket = flow_events_by_currency.setdefault(currency, {})
+            bucket[snapshot.as_of] = bucket.get(snapshot.as_of, 0.0) + delta
+
+
+def _merge_flow_events(
+    target: dict[str, dict[date, float]],
+    incoming: dict[str, dict[date, float]],
+) -> None:
+    for currency, dated_amounts in incoming.items():
+        bucket = target.setdefault(currency, {})
+        for flow_date, amount in dated_amounts.items():
+            bucket[flow_date] = bucket.get(flow_date, 0.0) + amount
+
+
+def _convert_flow_events_to_currency(
+    flow_events_by_currency: dict[str, dict[date, float]],
+    *,
+    to_currency: str,
+    fx_history: list[tuple[date, float]] | None,
+) -> tuple[dict[date, float], bool]:
+    converted: dict[date, float] = {}
+    has_cash_flow_coverage = False
+    for from_currency, dated_amounts in flow_events_by_currency.items():
+        for flow_date, amount in dated_amounts.items():
+            if abs(amount) <= 1e-12:
+                continue
+            if from_currency == to_currency:
+                converted_amount = amount
+            else:
+                if fx_history is None:
+                    continue
+                rate = _lookup_fx_rate(fx_history, flow_date)
+                if rate is None:
+                    continue
+                converted_amount = _convert_currency_amount(
+                    amount,
+                    from_currency=from_currency,
+                    to_currency=to_currency,
+                    usdsgd_rate=rate,
+                )
+            if converted_amount is None:
+                continue
+            converted[flow_date] = converted.get(flow_date, 0.0) + float(converted_amount)
+            has_cash_flow_coverage = True
+    return converted, has_cash_flow_coverage
+
+
 def _discover_history_sources(
     raw_dir: Path,
     *,
@@ -509,7 +687,12 @@ def _discover_history_sources(
     for path in sorted(raw_dir.glob("*.xml")):
         source = _build_source_descriptor(path)
         if source is None:
-            continue
+            source = PerformanceHistorySource(
+                path=path,
+                source_kind="adhoc",
+                priority=1,
+                source_as_of=_read_statement_metadata(path),
+            )
         discovered[path.resolve()] = source
 
     for raw_path in extra_xml_paths or ():

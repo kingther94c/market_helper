@@ -299,6 +299,90 @@ def test_parse_flex_performance_xml_uses_cash_report_summary_when_daily_cash_flo
     assert mtd_mwr_sgd.return_pct != pytest.approx(mtd_twr_sgd.return_pct)
 
 
+def test_parse_flex_performance_xml_aggregates_multicurrency_cash_report_summary(tmp_path) -> None:
+    xml_path = tmp_path / "flex.xml"
+    xml_path.write_text(
+        """
+<FlexQueryResponse>
+  <FlexStatements>
+    <FlexStatement toDate="20260403" whenGenerated="20260404;080634">
+      <EquitySummaryInBase>
+        <EquitySummaryByReportDateInBase currency="SGD" reportDate="20260331" total="100" />
+        <EquitySummaryByReportDateInBase currency="SGD" reportDate="20260401" total="100" />
+        <EquitySummaryByReportDateInBase currency="SGD" reportDate="20260402" total="166" />
+        <EquitySummaryByReportDateInBase currency="SGD" reportDate="20260403" total="166" />
+      </EquitySummaryInBase>
+      <CashReport>
+        <CashReportCurrency
+          currency="SGD"
+          levelOfDetail="Currency"
+          fromDate="20260331"
+          toDate="20260403"
+          depositWithdrawals="40"
+          depositWithdrawalsMTD="40"
+          depositWithdrawalsYTD="40"
+        />
+        <CashReportCurrency
+          currency="USD"
+          levelOfDetail="Currency"
+          fromDate="20260331"
+          toDate="20260403"
+          depositWithdrawals="10"
+          depositWithdrawalsMTD="10"
+          depositWithdrawalsYTD="10"
+        />
+      </CashReport>
+    </FlexStatement>
+  </FlexStatements>
+</FlexQueryResponse>
+""".strip(),
+        encoding="utf-8",
+    )
+
+    def _epoch(raw: str) -> int:
+        return int(datetime.strptime(raw, "%Y-%m-%d").replace(tzinfo=timezone.utc).timestamp())
+
+    yahoo_client = YahooFinanceClient(
+        downloader=lambda _url: {
+            "chart": {
+                "result": [
+                    {
+                        "meta": {"currency": "SGD"},
+                        "timestamp": [
+                            _epoch("2026-03-31"),
+                            _epoch("2026-04-01"),
+                            _epoch("2026-04-02"),
+                            _epoch("2026-04-03"),
+                        ],
+                        "indicators": {
+                            "quote": [{"close": [2.0, 2.0, 2.0, 2.0]}],
+                            "adjclose": [{"adjclose": [2.0, 2.0, 2.0, 2.0]}],
+                        },
+                    }
+                ]
+            }
+        }
+    )
+
+    dataset = parse_flex_performance_xml(xml_path, yahoo_client=yahoo_client)
+
+    mtd_twr_sgd = [
+        row
+        for row in dataset.horizon_rows
+        if row.horizon == "MTD" and row.weighting == "time_weighted" and row.currency == "SGD"
+    ][0]
+    mtd_twr_usd = [
+        row
+        for row in dataset.horizon_rows
+        if row.horizon == "MTD" and row.weighting == "time_weighted" and row.currency == "USD"
+    ][0]
+
+    assert mtd_twr_sgd.source_version == "DailyNavRebuilt+CashReportSummary"
+    assert mtd_twr_usd.source_version == "DailyNavRebuilt+CashReportSummary+YahooFinanceFX"
+    assert mtd_twr_sgd.return_pct == pytest.approx(-0.336)
+    assert mtd_twr_usd.return_pct == pytest.approx(-0.336)
+
+
 def test_export_flex_performance_csv_writes_legacy_detail_files(tmp_path) -> None:
     xml_path = tmp_path / "flex.xml"
     xml_path.write_text(
