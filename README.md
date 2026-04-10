@@ -2,6 +2,14 @@
 
 A scaffolded market research and workflow project organized around data sources, domain services, presentation outputs, and CLI workflows.
 
+## Development loop
+
+Before starting implementation, review:
+
+- [`DEV_DOCS/RULES.md`](DEV_DOCS/RULES.md)
+- [`DEV_DOCS/PLAN.md`](DEV_DOCS/PLAN.md)
+
+`DEV_DOCS/RULES.md` is the compact always-check file. `DEV_DOCS/PLAN.md` is the living delivery plan and must be updated in every PR that changes completed work, current status, or next steps.
 ## Environment
 
 Create or verify the project environment:
@@ -42,7 +50,7 @@ This repository follows a domain-first layout:
 - `market_helper/{data_sources,domain,presentation,cli,common,app}/` for package code
 - `scripts/` for executable workflow entrypoints
 - `tests/` for unit, integration, and e2e coverage
-- `docs/` for architecture notes and devplans
+- `DEV_DOCS/` for the compact development rules, living project plan, architecture notes, and devplans
 
 
 ### Package organization direction
@@ -96,7 +104,7 @@ This file is a future scaffold for a planned Web API flow. Current CLI reporting
 - Keep the password in an env var such as `IBKR_CP_PASSWORD`, referenced by `provider.password_env_var`.
 - For most individual-account setups, start with username/password plus the local gateway session rather than looking for an API key first.
 
-More detail is in [`docs/ibkr_web_api_auth.md`](docs/ibkr_web_api_auth.md).
+More detail is in [`DEV_DOCS/docs/ibkr_web_api_auth.md`](DEV_DOCS/docs/ibkr_web_api_auth.md).
 
 ## Position report
 

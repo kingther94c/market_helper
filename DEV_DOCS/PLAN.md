@@ -1,12 +1,14 @@
-# DEVPLAN
+# PLAN
 
 ## PR Non-Negotiable
-**Every PR must update DEVPLAN.md. Missing that update is a serious PR mistake.**
+**Every PR must update `DEV_DOCS/PLAN.md`. Missing that update is a serious PR mistake.**
 **During every PR, we must explicitly review what has been completed, reassess whether the current plan is still optimal, tighten or simplify the implementation plan where needed, and refresh the future roadmap before merging.**
-**Every PR must also update any relevant file under `docs/devplans/` when scope, status, architecture, or next steps changed.**
+**Every PR must also update any relevant file under `DEV_DOCS/docs/devplans/` when scope, status, architecture, or next steps changed.**
+**Every PR must sync `env.yml` for new packages, clear notebook outputs before commit, and do a private-info leak check before push.**
+**Every PR should recheck whether touched content under `DEV_DOCS/` is still relevant and delete or refresh stale material instead of leaving it behind.**
 
 ## Process Rule
-**Every PR must update DEVPLAN.md to reflect completed work, current status, and next steps.**
+**Every PR must update `DEV_DOCS/PLAN.md` to reflect completed work, current status, and next steps.**
 
 ## Objective
 Build a broker-agnostic, read-only IBKR integration layer for market monitoring and portfolio analytics, with IBKR Client Portal Web API as the primary path and clean extension points for future providers/services. The immediate delivery path is a reliable position-report workflow plus notebook-led live TWS / IB Gateway lookup tooling that can run from normalized snapshots, raw IBKR payloads, and live local TWS / IB Gateway sessions.
@@ -26,12 +28,13 @@ Build a broker-agnostic, read-only IBKR integration layer for market monitoring 
 - Full interactive frontend app in this phase.
 
 ## Completed
+- Consolidated developer-facing docs under `DEV_DOCS/`, moving the former top-level `docs/` tree into `DEV_DOCS/docs/`.
 - Added a readability pass across core workflow, provider, risk, and security-reference modules with higher-signal docstrings/comments to reduce maintenance friction during the ongoing refactor.
 - Began the domain-driven refactor inside the existing top-level package without introducing a `src/` migration, preserving the VS Code notebook workflow.
 - Added new package roots: `market_helper/app`, `market_helper/common`, `market_helper/data_sources`, `market_helper/domain`, and `market_helper/presentation`.
 - Added compatibility wrappers so legacy `config`, `safety`, `utils`, `workflows`, and CLI entrypoints now resolve through the new domain-driven package structure.
 - Added new domain/data-source/presentation package facades for portfolio monitor, regime detection, and integration scaffolding.
-- Added `docs/architecture/refactor_migration_map.md` plus module-specific devplans under `docs/devplans/`.
+- Added `DEV_DOCS/docs/architecture/refactor_migration_map.md` plus module-specific devplans under `DEV_DOCS/docs/devplans/`.
 - Added new config directories under `configs/{app,portfolio_monitor,regime_detection,integration}` and switched the default generated security-reference path to `data/artifacts/portfolio_monitor/security_reference.csv`.
 - Added new artifact roots under `data/artifacts/{portfolio_monitor,regime_detection,integration}` and updated script defaults toward those paths.
 - Added new notebook locations: `notebooks/dev_lab/current.ipynb`, `notebooks/dev_lab/archive/`, `notebooks/portfolio_monitor/`, and `notebooks/regime_detection/`.
@@ -61,8 +64,8 @@ Build a broker-agnostic, read-only IBKR integration layer for market monitoring 
 - Added minimal regime evaluation scaffold (`market_helper/backtest/regime_eval.py`) for basic performance/turnover metrics on regime-conditioned targets.
 - Added unit/e2e tests for indicator transforms, rulebook hysteresis/mutual exclusivity, policy mapping, CLI dispatch, and CLI regime output schema.
 - Added first-pass IBKR Flex XML performance ingestion (`market_helper.data_sources.ibkr.flex.performance`) to extract daily NAV/cash events plus horizon-level performance, and export a dated performance report CSV (`performance_report_YYYYMMDD.csv`) covering MTD/YTD/1M across MWR/TWR and USD/SGD.
-- Added CLI/workflow entrypoint `ibkr-flex-performance-report` so a downloaded Flex XML can be converted directly into report CSV artifacts while we prepare Flex Web Service query-id/token integration.
-- Added parser + CLI unit coverage for the Flex XML-to-CSV path, including horizon matrix extraction/selection across section versions and dated report export for downstream HTML migration.
+- Added live IBKR Flex Web Service fetching (`SendRequest` / `GetStatement` + polling) so `ibkr-flex-performance-report` and `./scripts/run_report.sh ibkr-flex` can run directly from `IBKR_FLEX_TOKEN` and `IBKR_PERFORMANCE_REPORT_ID`, while still supporting local XML input.
+- Added parser + CLI unit coverage for the Flex XML-to-CSV path, including horizon matrix extraction/selection across section versions, env-backed query fetching, and dated report export for downstream HTML migration.
 
 - Added example configs: `configs/regime_detection/regime_config.example.yml` and `configs/regime_detection/regime_policy.example.yml`.
 - Added a workbook-to-JSON mapping-table extraction path so stable portfolio metadata can be seeded from `target_report.xlsx` without making the HTML report depend directly on the workbook at runtime.

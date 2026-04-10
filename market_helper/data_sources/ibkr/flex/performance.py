@@ -4,11 +4,16 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from calendar import monthrange
-from datetime import date, datetime, timezone
+from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 import csv
+import math
 import re
+from typing import TYPE_CHECKING
 import xml.etree.ElementTree as ET
+
+if TYPE_CHECKING:
+    from market_helper.data_sources.yahoo_finance import YahooFinanceClient
 
 
 _DATE_KEYS = ("date", "reportDate", "statementDate", "fromDate", "toDate")
@@ -39,6 +44,11 @@ _CURRENCY_ALIASES = {
 }
 _PNL_ALIASES = ("pnl", "profit", "gain", "loss")
 _RETURN_ALIASES = ("return", "performance", "pct", "percentage")
+DEFAULT_USDSGD_YAHOO_SYMBOL = "USDSGD=X"
+DEFAULT_SGDUSD_YAHOO_SYMBOL = "SGDUSD=X"
+DEFAULT_YAHOO_FX_PERIOD = "2y"
+DEFAULT_YAHOO_FX_INTERVAL = "1d"
+_YAHOO_FX_HISTORY_CACHE: dict[str, list[tuple[date, float]]] = {}
 
 
 @dataclass(frozen=True)
@@ -83,7 +93,27 @@ class FlexPerformanceExportPaths:
     cash_flows_csv: Path
 
 
-def parse_flex_performance_xml(path: str | Path) -> FlexPerformanceDataset:
+@dataclass(frozen=True)
+class FlexNavPoint:
+    date: date
+    nav: float
+
+
+@dataclass(frozen=True)
+class FlexCashReportSummary:
+    currency: str
+    range_start: date | None
+    range_end: date | None
+    deposit_withdrawals: float | None
+    deposit_withdrawals_mtd: float | None
+    deposit_withdrawals_ytd: float | None
+
+
+def parse_flex_performance_xml(
+    path: str | Path,
+    *,
+    yahoo_client: YahooFinanceClient | None = None,
+) -> FlexPerformanceDataset:
     root = ET.fromstring(Path(path).read_text(encoding="utf-8"))
 
     raw_daily = _extract_daily_rows(root)
@@ -117,7 +147,11 @@ def parse_flex_performance_xml(path: str | Path) -> FlexPerformanceDataset:
             for d, amt in sorted(cash_by_date.items())
         ]
 
-    horizon_rows = _extract_horizon_rows(root, daily_rows=normalized_daily)
+    horizon_rows = _extract_horizon_rows(
+        root,
+        daily_rows=normalized_daily,
+        yahoo_client=yahoo_client,
+    )
 
     return FlexPerformanceDataset(
         daily_performance=sorted(normalized_daily, key=lambda row: row.date),
@@ -255,7 +289,12 @@ def _extract_cash_flow_rows(root: ET.Element) -> list[FlexCashFlowRow]:
     return rows
 
 
-def _extract_horizon_rows(root: ET.Element, *, daily_rows: list[FlexDailyPerformanceRow]) -> list[FlexHorizonPerformanceRow]:
+def _extract_horizon_rows(
+    root: ET.Element,
+    *,
+    daily_rows: list[FlexDailyPerformanceRow],
+    yahoo_client: YahooFinanceClient | None = None,
+) -> list[FlexHorizonPerformanceRow]:
     by_version: dict[str, dict[tuple[str, str, str], dict[str, float | None]]] = {}
     nav_snapshots = _extract_nav_snapshots(root)
     as_of = _resolve_as_of(root, daily_rows=daily_rows, nav_snapshots=nav_snapshots)
@@ -275,7 +314,33 @@ def _extract_horizon_rows(root: ET.Element, *, daily_rows: list[FlexDailyPerform
             metric_cell = version_map.setdefault((horizon, weighting, currency), {"dollar_pnl": None, "return_pct": None})
             metric_cell[measure] = parsed_value
 
-    special_rows = _extract_special_horizon_rows(root, as_of=as_of, nav_snapshots=nav_snapshots)
+    reconstructed_rows = _rebuild_horizon_rows_from_daily_nav(
+        root,
+        as_of=as_of,
+        daily_rows=daily_rows,
+        nav_snapshots=nav_snapshots,
+        yahoo_client=yahoo_client,
+    )
+    legacy_special_rows = _extract_special_horizon_rows(
+        root,
+        as_of=as_of,
+        nav_snapshots=nav_snapshots,
+        yahoo_client=yahoo_client,
+    )
+    reconstructed_has_cash_flow_logic = any(
+        "+ExplicitCashFlows" in row.source_version or "+CashReportSummary" in row.source_version
+        for row in reconstructed_rows
+    )
+    if reconstructed_rows and legacy_special_rows:
+        special_rows = (
+            _merge_horizon_rows(primary=reconstructed_rows, fallback=legacy_special_rows)
+            if reconstructed_has_cash_flow_logic
+            else _merge_horizon_rows(primary=legacy_special_rows, fallback=reconstructed_rows)
+        )
+    elif reconstructed_rows:
+        special_rows = reconstructed_rows
+    else:
+        special_rows = legacy_special_rows
 
     if not by_version:
         if special_rows:
@@ -418,24 +483,35 @@ def _extract_special_horizon_rows(
     *,
     as_of: date,
     nav_snapshots: list[tuple[date, str, float]],
+    yahoo_client: YahooFinanceClient | None = None,
 ) -> list[FlexHorizonPerformanceRow]:
     summary_total = _find_mtdytd_total_row(root)
     base_currency = _detect_base_currency(root, nav_snapshots)
     if summary_total is None or base_currency is None:
         return []
 
-    start_nav_by_horizon = {
-        "MTD": _resolve_start_nav(nav_snapshots, _start_of_month(as_of), currency=base_currency),
-        "YTD": _resolve_start_nav(nav_snapshots, date(as_of.year, 1, 1), currency=base_currency),
-        "1M": _resolve_start_nav(nav_snapshots, _subtract_months(as_of, 1), currency=base_currency),
+    start_nav_snapshots = {
+        "MTD": _resolve_start_nav_snapshot(nav_snapshots, _start_of_month(as_of), currency=base_currency),
+        "YTD": _resolve_start_nav_snapshot(nav_snapshots, date(as_of.year, 1, 1), currency=base_currency),
+        "1M": _resolve_start_nav_snapshot(nav_snapshots, _subtract_months(as_of, 1), currency=base_currency),
     }
-    end_nav = _resolve_end_nav(nav_snapshots, currency=base_currency)
+    start_nav_by_horizon = {
+        horizon: snapshot[1] if snapshot is not None else None
+        for horizon, snapshot in start_nav_snapshots.items()
+    }
+    end_nav_snapshot = _resolve_end_nav_snapshot(nav_snapshots, currency=base_currency)
+    end_nav = end_nav_snapshot[1] if end_nav_snapshot is not None else None
 
     pnl_by_horizon = {
         "MTD": _parse_float_or_none(summary_total.attrib.get("mtmMTD")),
         "YTD": _parse_float_or_none(summary_total.attrib.get("mtmYTD")),
         "1M": _derive_nav_delta(start_nav_by_horizon["1M"], end_nav),
     }
+    fx_history = (
+        _load_usdsgd_history(yahoo_client=yahoo_client)
+        if yahoo_client is not None and base_currency in {"USD", "SGD"}
+        else None
+    )
 
     rows: list[FlexHorizonPerformanceRow] = []
     for horizon in ("MTD", "YTD", "1M"):
@@ -453,17 +529,134 @@ def _extract_special_horizon_rows(
                     if horizon in {"MTD", "YTD"}
                     else "EquitySummaryByReportDateInBase"
                 )
+                derived_source_version = source_version
+                derived_pnl = pnl_value if use_value else None
+                derived_return = return_pct if use_value else None
+                if not use_value and fx_history:
+                    derived_pnl, derived_return = _convert_horizon_metrics_with_fx(
+                        base_currency=base_currency,
+                        target_currency=currency,
+                        pnl_value=pnl_value,
+                        start_snapshot=start_nav_snapshots[horizon],
+                        end_snapshot=end_nav_snapshot,
+                        fx_history=fx_history,
+                    )
+                    if derived_pnl is not None or derived_return is not None:
+                        derived_source_version = f"{source_version}+YahooFinanceFX"
                 rows.append(
+                    FlexHorizonPerformanceRow(
+                        as_of=as_of,
+                        source_version=derived_source_version,
+                        horizon=horizon,
+                        weighting=weighting,
+                        currency=currency,
+                        dollar_pnl=derived_pnl,
+                        return_pct=derived_return,
+                    )
+                )
+    return rows
+
+
+def _rebuild_horizon_rows_from_daily_nav(
+    root: ET.Element,
+    *,
+    as_of: date,
+    daily_rows: list[FlexDailyPerformanceRow],
+    nav_snapshots: list[tuple[date, str, float]],
+    yahoo_client: YahooFinanceClient | None = None,
+) -> list[FlexHorizonPerformanceRow]:
+    base_currency = _detect_base_currency(root, nav_snapshots)
+    if base_currency is None:
+        base_currency = "USD"
+
+    nav_points = _extract_base_nav_points(
+        daily_rows=daily_rows,
+        nav_snapshots=nav_snapshots,
+        base_currency=base_currency,
+    )
+    if len(nav_points) < 2:
+        return []
+
+    explicit_cash_flows = _extract_explicit_daily_cash_flows(daily_rows)
+    cash_report_summaries = _extract_cash_report_summaries(root)
+    fx_history = (
+        _load_usdsgd_history(yahoo_client=yahoo_client)
+        if yahoo_client is not None and base_currency in {"USD", "SGD"}
+        else None
+    )
+
+    rows: list[FlexHorizonPerformanceRow] = []
+    for target_currency in ("USD", "SGD"):
+        target_nav_points = _convert_nav_points_to_currency(
+            nav_points,
+            from_currency=base_currency,
+            to_currency=target_currency,
+            fx_history=fx_history,
+        )
+        if len(target_nav_points) < 2:
+            rows.extend(
+                [
+                    FlexHorizonPerformanceRow(
+                        as_of=as_of,
+                        source_version="DailyNavRebuilt",
+                        horizon=horizon,
+                        weighting=weighting,
+                        currency=target_currency,
+                        dollar_pnl=None,
+                        return_pct=None,
+                    )
+                    for horizon in ("MTD", "YTD", "1M")
+                    for weighting in ("money_weighted", "time_weighted")
+                ]
+            )
+            continue
+
+        target_explicit_flows = _convert_flow_schedule_to_currency(
+            explicit_cash_flows,
+            from_currency=base_currency,
+            to_currency=target_currency,
+            fx_history=fx_history,
+        )
+        for horizon in ("MTD", "YTD", "1M"):
+            metrics = _rebuild_single_horizon_metrics(
+                nav_points=target_nav_points,
+                explicit_cash_flows=target_explicit_flows,
+                cash_report_summaries=cash_report_summaries,
+                base_currency=base_currency,
+                target_currency=target_currency,
+                horizon=horizon,
+                as_of=as_of,
+                fx_history=fx_history,
+            )
+            source_version = "DailyNavRebuilt"
+            if metrics.used_explicit_cash_flows:
+                source_version = f"{source_version}+ExplicitCashFlows"
+            elif metrics.used_summary_cash_flow:
+                source_version = f"{source_version}+CashReportSummary"
+            if target_currency != base_currency:
+                source_version = f"{source_version}+YahooFinanceFX"
+            rows.extend(
+                [
                     FlexHorizonPerformanceRow(
                         as_of=as_of,
                         source_version=source_version,
                         horizon=horizon,
-                        weighting=weighting,
-                        currency=currency,
-                        dollar_pnl=pnl_value if use_value else None,
-                        return_pct=return_pct if use_value else None,
-                    )
-                )
+                        weighting="money_weighted",
+                        currency=target_currency,
+                        dollar_pnl=metrics.money_weighted_pnl,
+                        return_pct=metrics.money_weighted_return,
+                    ),
+                    FlexHorizonPerformanceRow(
+                        as_of=as_of,
+                        source_version=source_version,
+                        horizon=horizon,
+                        weighting="time_weighted",
+                        currency=target_currency,
+                        dollar_pnl=metrics.time_weighted_pnl,
+                        return_pct=metrics.time_weighted_return,
+                    ),
+                ]
+            )
     return rows
 
 
@@ -501,6 +694,406 @@ def _merge_horizon_rows(
             )
         )
     return merged
+
+
+@dataclass(frozen=True)
+class RebuiltHorizonMetrics:
+    money_weighted_pnl: float | None
+    money_weighted_return: float | None
+    time_weighted_pnl: float | None
+    time_weighted_return: float | None
+    used_explicit_cash_flows: bool
+    used_summary_cash_flow: bool
+
+
+def _extract_base_nav_points(
+    *,
+    daily_rows: list[FlexDailyPerformanceRow],
+    nav_snapshots: list[tuple[date, str, float]],
+    base_currency: str,
+) -> list[FlexNavPoint]:
+    filtered_snapshots = [
+        FlexNavPoint(date=snapshot_date, nav=nav)
+        for snapshot_date, snapshot_currency, nav in nav_snapshots
+        if snapshot_currency == base_currency
+    ]
+    if filtered_snapshots:
+        return filtered_snapshots
+    return _nav_points_from_daily_rows(daily_rows)
+
+
+def _nav_points_from_daily_rows(rows: list[FlexDailyPerformanceRow]) -> list[FlexNavPoint]:
+    if not rows:
+        return []
+    sorted_rows = sorted(rows, key=lambda row: row.date)
+    points: list[FlexNavPoint] = []
+    first = sorted_rows[0]
+    if first.nav_start is not None:
+        points.append(FlexNavPoint(date=first.date - timedelta(days=1), nav=first.nav_start))
+    for row in sorted_rows:
+        if row.nav_end is None:
+            continue
+        points.append(FlexNavPoint(date=row.date, nav=row.nav_end))
+    deduped: dict[date, float] = {}
+    for point in points:
+        deduped[point.date] = point.nav
+    return [FlexNavPoint(date=point_date, nav=deduped[point_date]) for point_date in sorted(deduped)]
+
+
+def _extract_explicit_daily_cash_flows(rows: list[FlexDailyPerformanceRow]) -> dict[date, float]:
+    flows: dict[date, float] = {}
+    for row in rows:
+        if abs(row.cash_flow) <= 1e-12:
+            continue
+        flows[row.date] = flows.get(row.date, 0.0) + row.cash_flow
+    return flows
+
+
+def _extract_cash_report_summaries(root: ET.Element) -> dict[str, FlexCashReportSummary]:
+    summaries: dict[str, FlexCashReportSummary] = {}
+    for element in root.iter():
+        if _local_name(element.tag) != "CashReportCurrency":
+            continue
+        currency = str(element.attrib.get("currency", "")).upper().strip()
+        if currency == "":
+            continue
+        summaries[currency] = FlexCashReportSummary(
+            currency=currency,
+            range_start=_parse_date(str(element.attrib.get("fromDate", "") or "")),
+            range_end=_parse_date(str(element.attrib.get("toDate", "") or "")),
+            deposit_withdrawals=_parse_float_or_none(element.attrib.get("depositWithdrawals")),
+            deposit_withdrawals_mtd=_parse_float_or_none(element.attrib.get("depositWithdrawalsMTD")),
+            deposit_withdrawals_ytd=_parse_float_or_none(element.attrib.get("depositWithdrawalsYTD")),
+        )
+    return summaries
+
+
+def _convert_nav_points_to_currency(
+    points: list[FlexNavPoint],
+    *,
+    from_currency: str,
+    to_currency: str,
+    fx_history: list[tuple[date, float]] | None,
+) -> list[FlexNavPoint]:
+    if from_currency == to_currency:
+        return points
+    if fx_history is None:
+        return []
+    converted: list[FlexNavPoint] = []
+    for point in points:
+        rate = _lookup_fx_rate(fx_history, point.date)
+        if rate is None:
+            continue
+        converted_nav = _convert_currency_amount(
+            point.nav,
+            from_currency=from_currency,
+            to_currency=to_currency,
+            usdsgd_rate=rate,
+        )
+        if converted_nav is None:
+            continue
+        converted.append(FlexNavPoint(date=point.date, nav=converted_nav))
+    return converted
+
+
+def _convert_flow_schedule_to_currency(
+    flows: dict[date, float],
+    *,
+    from_currency: str,
+    to_currency: str,
+    fx_history: list[tuple[date, float]] | None,
+) -> dict[date, float]:
+    if from_currency == to_currency:
+        return flows
+    if fx_history is None:
+        return {}
+    converted: dict[date, float] = {}
+    for flow_date, amount in flows.items():
+        rate = _lookup_fx_rate(fx_history, flow_date)
+        if rate is None:
+            continue
+        converted_amount = _convert_currency_amount(
+            amount,
+            from_currency=from_currency,
+            to_currency=to_currency,
+            usdsgd_rate=rate,
+        )
+        if converted_amount is None:
+            continue
+        converted[flow_date] = converted.get(flow_date, 0.0) + converted_amount
+    return converted
+
+
+def _rebuild_single_horizon_metrics(
+    *,
+    nav_points: list[FlexNavPoint],
+    explicit_cash_flows: dict[date, float],
+    cash_report_summaries: dict[str, FlexCashReportSummary],
+    base_currency: str,
+    target_currency: str,
+    horizon: str,
+    as_of: date,
+    fx_history: list[tuple[date, float]] | None,
+) -> RebuiltHorizonMetrics:
+    horizon_start = _horizon_start_date(horizon, as_of=as_of)
+    horizon_points = _slice_nav_points_for_horizon(nav_points, horizon_start=horizon_start, as_of=as_of)
+    if len(horizon_points) < 2:
+        return RebuiltHorizonMetrics(
+            money_weighted_pnl=None,
+            money_weighted_return=None,
+            time_weighted_pnl=None,
+            time_weighted_return=None,
+            used_explicit_cash_flows=False,
+            used_summary_cash_flow=False,
+        )
+
+    flow_schedule = {
+        flow_date: amount
+        for flow_date, amount in explicit_cash_flows.items()
+        if horizon_points[0].date < flow_date <= horizon_points[-1].date and abs(amount) > 1e-12
+    }
+    used_explicit_cash_flows = bool(flow_schedule)
+    used_summary_cash_flow = False
+    if not flow_schedule:
+        summary_flow_schedule = _build_summary_flow_schedule(
+            cash_report_summaries=cash_report_summaries,
+            base_currency=base_currency,
+            target_currency=target_currency,
+            horizon=horizon,
+            horizon_points=horizon_points,
+            as_of=as_of,
+            fx_history=fx_history,
+        )
+        if summary_flow_schedule:
+            flow_schedule = summary_flow_schedule
+            used_summary_cash_flow = True
+
+    time_weighted_return = _calculate_time_weighted_return(horizon_points, flow_schedule)
+    money_weighted_return = _calculate_period_irr_return(horizon_points, flow_schedule)
+    start_nav = horizon_points[0].nav
+    time_weighted_pnl = (
+        start_nav * time_weighted_return
+        if time_weighted_return is not None
+        else None
+    )
+    money_weighted_pnl = (
+        start_nav * money_weighted_return
+        if money_weighted_return is not None
+        else None
+    )
+    return RebuiltHorizonMetrics(
+        money_weighted_pnl=money_weighted_pnl,
+        money_weighted_return=money_weighted_return,
+        time_weighted_pnl=time_weighted_pnl,
+        time_weighted_return=time_weighted_return,
+        used_explicit_cash_flows=used_explicit_cash_flows,
+        used_summary_cash_flow=used_summary_cash_flow,
+    )
+
+
+def _horizon_start_date(horizon: str, *, as_of: date) -> date:
+    if horizon == "MTD":
+        return _start_of_month(as_of)
+    if horizon == "YTD":
+        return date(as_of.year, 1, 1)
+    if horizon == "1M":
+        return _subtract_months(as_of, 1)
+    raise ValueError(f"Unsupported horizon: {horizon}")
+
+
+def _slice_nav_points_for_horizon(
+    points: list[FlexNavPoint],
+    *,
+    horizon_start: date,
+    as_of: date,
+) -> list[FlexNavPoint]:
+    eligible = [point for point in points if point.date <= as_of]
+    if len(eligible) < 2:
+        return eligible
+    opening_index = 0
+    for index, point in enumerate(eligible):
+        if point.date < horizon_start:
+            opening_index = index
+            continue
+        if index > 0:
+            opening_index = index - 1
+        break
+    return eligible[opening_index:]
+
+
+def _build_summary_flow_schedule(
+    *,
+    cash_report_summaries: dict[str, FlexCashReportSummary],
+    base_currency: str,
+    target_currency: str,
+    horizon: str,
+    horizon_points: list[FlexNavPoint],
+    as_of: date,
+    fx_history: list[tuple[date, float]] | None,
+) -> dict[date, float]:
+    synthetic_date = _pick_synthetic_flow_date(horizon_points)
+    if synthetic_date is None:
+        return {}
+
+    target_summary = _preferred_cash_summary(
+        cash_report_summaries,
+        base_currency=base_currency,
+        target_currency=target_currency,
+    )
+    amount = _cash_summary_amount_for_horizon(target_summary, horizon=horizon, as_of=as_of)
+    if amount is None and target_currency != base_currency:
+        base_summary = _preferred_cash_summary(
+            cash_report_summaries,
+            base_currency=base_currency,
+            target_currency=base_currency,
+        )
+        base_amount = _cash_summary_amount_for_horizon(base_summary, horizon=horizon, as_of=as_of)
+        if base_amount is not None and fx_history is not None:
+            rate = _lookup_fx_rate(fx_history, synthetic_date)
+            if rate is not None:
+                amount = _convert_currency_amount(
+                    base_amount,
+                    from_currency=base_currency,
+                    to_currency=target_currency,
+                    usdsgd_rate=rate,
+                )
+    if amount is None or abs(amount) <= 1e-12:
+        return {}
+    return {synthetic_date: amount}
+
+
+def _preferred_cash_summary(
+    cash_report_summaries: dict[str, FlexCashReportSummary],
+    *,
+    base_currency: str,
+    target_currency: str,
+) -> FlexCashReportSummary | None:
+    if target_currency == base_currency:
+        return cash_report_summaries.get("BASE_SUMMARY") or cash_report_summaries.get(target_currency)
+    return cash_report_summaries.get(target_currency)
+
+
+def _cash_summary_amount_for_horizon(
+    summary: FlexCashReportSummary | None,
+    *,
+    horizon: str,
+    as_of: date,
+) -> float | None:
+    if summary is None:
+        return None
+    if horizon == "MTD":
+        return summary.deposit_withdrawals_mtd
+    if horizon == "YTD":
+        return summary.deposit_withdrawals_ytd
+    if horizon == "1M":
+        if summary.range_start is not None and (as_of - summary.range_start).days <= 35:
+            return summary.deposit_withdrawals
+        return None
+    raise ValueError(f"Unsupported horizon: {horizon}")
+
+
+def _pick_synthetic_flow_date(points: list[FlexNavPoint]) -> date | None:
+    if len(points) < 2:
+        return None
+    start_date = points[0].date
+    end_date = points[-1].date
+    midpoint_ordinal = start_date.toordinal() + (max((end_date - start_date).days, 1) / 2.0)
+    candidates = points[1:]
+    return min(candidates, key=lambda point: abs(point.date.toordinal() - midpoint_ordinal)).date
+
+
+def _calculate_time_weighted_return(
+    points: list[FlexNavPoint],
+    flow_schedule: dict[date, float],
+) -> float | None:
+    if len(points) < 2:
+        return None
+    product = 1.0
+    for previous, current in zip(points, points[1:]):
+        if previous.nav == 0:
+            return None
+        cash_flow = flow_schedule.get(current.date, 0.0)
+        period_return = (current.nav - cash_flow) / previous.nav - 1.0
+        product *= 1.0 + period_return
+    return product - 1.0
+
+
+def _calculate_period_irr_return(
+    points: list[FlexNavPoint],
+    flow_schedule: dict[date, float],
+) -> float | None:
+    if len(points) < 2:
+        return None
+    start_point = points[0]
+    end_point = points[-1]
+    if start_point.nav <= 0:
+        return None
+    if not flow_schedule:
+        return (end_point.nav / start_point.nav) - 1.0
+
+    total_days = max((end_point.date - start_point.date).days, 1)
+    cashflows = [(-start_point.nav, start_point.date)]
+    for flow_date, amount in sorted(flow_schedule.items()):
+        cashflows.append((-amount, flow_date))
+    cashflows.append((end_point.nav, end_point.date))
+
+    def npv(rate: float) -> float:
+        if rate <= -0.999999999:
+            return math.inf
+        total = 0.0
+        for amount, flow_date in cashflows:
+            fraction = (flow_date - start_point.date).days / total_days
+            total += amount / ((1.0 + rate) ** fraction)
+        return total
+
+    bracket = [
+        -0.9999,
+        -0.99,
+        -0.95,
+        -0.9,
+        -0.75,
+        -0.5,
+        -0.25,
+        -0.1,
+        -0.05,
+        0.0,
+        0.05,
+        0.1,
+        0.2,
+        0.5,
+        1.0,
+        2.0,
+        5.0,
+        10.0,
+    ]
+    bracket_values = [(rate, npv(rate)) for rate in bracket]
+    for rate, value in bracket_values:
+        if abs(value) <= 1e-12:
+            return rate
+    low = None
+    high = None
+    for (left_rate, left_value), (right_rate, right_value) in zip(bracket_values, bracket_values[1:]):
+        if not math.isfinite(left_value) or not math.isfinite(right_value):
+            continue
+        if left_value == 0:
+            return left_rate
+        if left_value * right_value < 0:
+            low = left_rate
+            high = right_rate
+            break
+    if low is None or high is None:
+        return None
+    for _ in range(120):
+        mid = (low + high) / 2.0
+        mid_value = npv(mid)
+        if abs(mid_value) <= 1e-12:
+            return mid
+        low_value = npv(low)
+        if low_value * mid_value < 0:
+            high = mid
+        else:
+            low = mid
+    return (low + high) / 2.0
 
 
 def _resolve_as_of_date(dataset: FlexPerformanceDataset) -> date:
@@ -643,31 +1236,162 @@ def _find_mtdytd_total_row(root: ET.Element) -> ET.Element | None:
     return None
 
 
-def _resolve_start_nav(
+def _resolve_start_nav_snapshot(
     nav_snapshots: list[tuple[date, str, float]],
     horizon_start: date,
     *,
     currency: str,
-) -> float | None:
-    filtered = [snapshot for snapshot in nav_snapshots if snapshot[1] == currency]
+) -> tuple[date, float] | None:
+    filtered = [(snapshot_date, nav) for snapshot_date, snapshot_currency, nav in nav_snapshots if snapshot_currency == currency]
     if not filtered:
         return None
 
-    prior = [nav for snapshot_date, _, nav in filtered if snapshot_date < horizon_start]
+    prior = [snapshot for snapshot in filtered if snapshot[0] < horizon_start]
     if prior:
         return prior[-1]
 
-    future = [nav for snapshot_date, _, nav in filtered if snapshot_date >= horizon_start]
+    future = [snapshot for snapshot in filtered if snapshot[0] >= horizon_start]
     if future:
         return future[0]
     return None
 
 
-def _resolve_end_nav(nav_snapshots: list[tuple[date, str, float]], *, currency: str) -> float | None:
-    filtered = [nav for _, snapshot_currency, nav in nav_snapshots if snapshot_currency == currency]
+def _resolve_end_nav_snapshot(
+    nav_snapshots: list[tuple[date, str, float]],
+    *,
+    currency: str,
+) -> tuple[date, float] | None:
+    filtered = [(snapshot_date, nav) for snapshot_date, snapshot_currency, nav in nav_snapshots if snapshot_currency == currency]
     if not filtered:
         return None
     return filtered[-1]
+
+
+def _load_usdsgd_history(*, yahoo_client: YahooFinanceClient) -> list[tuple[date, float]] | None:
+    cached = _YAHOO_FX_HISTORY_CACHE.get(DEFAULT_USDSGD_YAHOO_SYMBOL)
+    if cached is not None:
+        return cached
+
+    try:
+        history = yahoo_client.fetch_price_history(
+            DEFAULT_USDSGD_YAHOO_SYMBOL,
+            period=DEFAULT_YAHOO_FX_PERIOD,
+            interval=DEFAULT_YAHOO_FX_INTERVAL,
+        )
+        levels = _extract_history_levels(history)
+    except (RuntimeError, ValueError):
+        try:
+            inverse_history = yahoo_client.fetch_price_history(
+                DEFAULT_SGDUSD_YAHOO_SYMBOL,
+                period=DEFAULT_YAHOO_FX_PERIOD,
+                interval=DEFAULT_YAHOO_FX_INTERVAL,
+            )
+            inverse_levels = _extract_history_levels(inverse_history)
+        except (RuntimeError, ValueError):
+            return None
+        levels = [
+            (level_date, 1.0 / level_value)
+            for level_date, level_value in inverse_levels
+            if level_value > 0
+        ]
+
+    if not levels:
+        return None
+    _YAHOO_FX_HISTORY_CACHE[DEFAULT_USDSGD_YAHOO_SYMBOL] = levels
+    return levels
+
+
+def _extract_history_levels(history: dict[str, object]) -> list[tuple[date, float]]:
+    prices = history.get("prices")
+    if not isinstance(prices, list):
+        raise ValueError("Yahoo FX history returned no prices")
+
+    levels: list[tuple[date, float]] = []
+    for row in prices:
+        if not isinstance(row, dict):
+            continue
+        timestamp = row.get("timestamp")
+        level = _parse_float_or_none(row.get("adjclose"))
+        if level is None:
+            level = _parse_float_or_none(row.get("close"))
+        if level is None:
+            continue
+        try:
+            level_date = datetime.fromtimestamp(int(timestamp), tz=timezone.utc).date()
+        except (TypeError, ValueError):
+            continue
+        levels.append((level_date, level))
+    if not levels:
+        raise ValueError("Yahoo FX history returned no usable prices")
+    return sorted(levels, key=lambda item: item[0])
+
+
+def _convert_horizon_metrics_with_fx(
+    *,
+    base_currency: str,
+    target_currency: str,
+    pnl_value: float | None,
+    start_snapshot: tuple[date, float] | None,
+    end_snapshot: tuple[date, float] | None,
+    fx_history: list[tuple[date, float]],
+) -> tuple[float | None, float | None]:
+    if start_snapshot is None or end_snapshot is None:
+        return None, None
+
+    start_rate = _lookup_fx_rate(fx_history, start_snapshot[0])
+    end_rate = _lookup_fx_rate(fx_history, end_snapshot[0])
+    converted_start_nav = (
+        _convert_currency_amount(
+            start_snapshot[1],
+            from_currency=base_currency,
+            to_currency=target_currency,
+            usdsgd_rate=start_rate,
+        )
+        if start_rate is not None
+        else None
+    )
+    converted_pnl = (
+        _convert_currency_amount(
+            pnl_value,
+            from_currency=base_currency,
+            to_currency=target_currency,
+            usdsgd_rate=end_rate,
+        )
+        if pnl_value is not None and end_rate is not None
+        else None
+    )
+    converted_return = None
+    if converted_pnl is not None and converted_start_nav not in (None, 0.0):
+        converted_return = converted_pnl / converted_start_nav
+    return converted_pnl, converted_return
+
+
+def _lookup_fx_rate(levels: list[tuple[date, float]], target_date: date) -> float | None:
+    prior_rate = None
+    for level_date, rate in levels:
+        if level_date <= target_date:
+            prior_rate = rate
+            continue
+        return prior_rate if prior_rate is not None else rate
+    return prior_rate
+
+
+def _convert_currency_amount(
+    amount: float,
+    *,
+    from_currency: str,
+    to_currency: str,
+    usdsgd_rate: float,
+) -> float | None:
+    if usdsgd_rate <= 0:
+        return None
+    if from_currency == to_currency:
+        return amount
+    if from_currency == "USD" and to_currency == "SGD":
+        return amount * usdsgd_rate
+    if from_currency == "SGD" and to_currency == "USD":
+        return amount / usdsgd_rate
+    return None
 
 
 def _derive_nav_delta(start_nav: float | None, end_nav: float | None) -> float | None:
