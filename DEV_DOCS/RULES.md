@@ -4,6 +4,7 @@
 - Every PR must update `DEV_DOCS/PLAN.md` to reflect completed work, current status, and next steps.
 - Update the relevant file under `DEV_DOCS/docs/devplans/` whenever scope, architecture, status, or follow-up work changed.
 - Any newly required package must be added to `env.yml` in the same change.
+- Use `Feather` as the canonical store for maintained internal intermediate tables that users are not expected to edit directly; only emit debug CSVs on demand.
 - Clear notebook outputs before every commit.
 - Check every commit for private-information leakage before pushing.
 - Reassess whether touched content under `DEV_DOCS/` is still relevant on every PR; delete stale material or update it instead of leaving it to drift.

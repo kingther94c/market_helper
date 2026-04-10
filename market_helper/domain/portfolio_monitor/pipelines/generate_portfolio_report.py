@@ -3,10 +3,14 @@ from __future__ import annotations
 """Pipeline entrypoints for portfolio-monitor reporting flows."""
 
 from dataclasses import dataclass
+from datetime import date
 import json
 from pathlib import Path
+import shutil
 import tempfile
 from typing import TYPE_CHECKING
+import warnings
+import xml.etree.ElementTree as ET
 
 from market_helper.common.models import (
     DEFAULT_SECURITY_REFERENCE_PATH,
@@ -25,7 +29,12 @@ from market_helper.data_sources.ibkr.adapters import (
     normalize_ibkr_latest_prices,
     normalize_ibkr_positions,
 )
-from market_helper.data_sources.ibkr.flex import export_flex_horizon_report_csv, parse_flex_performance_xml
+from market_helper.data_sources.ibkr.flex import (
+    FlexPerformanceDataset,
+    export_flex_horizon_report_csv,
+    parse_flex_performance_xml,
+)
+from market_helper.data_sources.ibkr.flex.performance import FlexHorizonPerformanceRow
 from market_helper.providers.flex import (
     DEFAULT_IBKR_FLEX_MAX_ATTEMPTS,
     DEFAULT_IBKR_FLEX_POLL_INTERVAL_SECONDS,
@@ -40,6 +49,12 @@ from market_helper.data_sources.ibkr.tws import (
 )
 from market_helper.domain.portfolio_monitor.services.etf_sector_lookthrough import (
     sync_us_sector_lookthrough_from_fmp,
+)
+from market_helper.domain.portfolio_monitor.services.performance_history import (
+    DEFAULT_PERFORMANCE_HISTORY_FILENAME,
+    build_horizon_rows_from_performance_history,
+    load_performance_history,
+    rebuild_performance_history_feather,
 )
 from market_helper.presentation.exporters.csv import export_position_report_csv
 from market_helper.presentation.exporters.security_reference_seed import (
@@ -56,11 +71,33 @@ from market_helper.portfolio.ibkr import enrich_security_from_contract_details
 if TYPE_CHECKING:
     from market_helper.data_sources.yahoo_finance import YahooFinanceClient
 
+DEFAULT_IBKR_FLEX_ARCHIVE_START_YEAR = 2020
+
 
 @dataclass(frozen=True)
 class LiveIbkrRowSource:
     raw_position: dict[str, object]
     portfolio_item: object | None = None
+
+
+@dataclass(frozen=True)
+class FlexArchiveRecord:
+    year: int
+    kind: str
+    target_path: Path
+    status: str
+    source_file: Path | None = None
+    xml_from_date: date | None = None
+    xml_to_date: date | None = None
+
+
+@dataclass(frozen=True)
+class FlexStatementMetadata:
+    from_date: date | None
+    to_date: date | None
+    period: str
+    when_generated: str
+    account_id: str
 
 
 def generate_ibkr_flex_performance_report(
@@ -69,6 +106,9 @@ def generate_ibkr_flex_performance_report(
     flex_xml_path: str | Path | None = None,
     query_id: str | None = None,
     token: str | None = None,
+    from_date: date | str | None = None,
+    to_date: date | str | None = None,
+    period: str | None = None,
     xml_output_path: str | Path | None = None,
     poll_interval_seconds: float = DEFAULT_IBKR_FLEX_POLL_INTERVAL_SECONDS,
     max_attempts: int = DEFAULT_IBKR_FLEX_MAX_ATTEMPTS,
@@ -76,15 +116,54 @@ def generate_ibkr_flex_performance_report(
     yahoo_client: YahooFinanceClient | None = None,
 ) -> Path:
     """Convert either a local Flex XML or a live Flex query into a dated CSV."""
-    resolved_flex_xml_path, cleanup_path = _resolve_flex_xml_path(
-        flex_xml_path=flex_xml_path,
-        query_id=query_id,
-        token=token,
-        xml_output_path=xml_output_path,
-        poll_interval_seconds=poll_interval_seconds,
-        max_attempts=max_attempts,
-        client=client,
-    )
+    cleanup_path = None
+    raw_dir = _flex_raw_archive_dir(output_dir)
+    history_path = _performance_history_path(output_dir)
+    if flex_xml_path is not None:
+        resolved_flex_xml_path = Path(flex_xml_path)
+    else:
+        normalized_query_id, normalized_token = _normalize_live_flex_credentials(
+            query_id=query_id,
+            token=token,
+        )
+        flex_client = client or FlexWebServiceClient(token=normalized_token)
+        resolved_today = _current_local_date()
+        if _uses_default_current_ytd_request(from_date=from_date, to_date=to_date, period=period):
+            previous_year = resolved_today.year - 1
+            if previous_year >= DEFAULT_IBKR_FLEX_ARCHIVE_START_YEAR:
+                _ensure_full_year_archive(
+                    raw_dir=raw_dir,
+                    year=previous_year,
+                    query_id=normalized_query_id,
+                    flex_client=flex_client,
+                    poll_interval_seconds=poll_interval_seconds,
+                    max_attempts=max_attempts,
+                    overwrite_existing=False,
+                )
+            latest_record = refresh_current_year_latest_flex_xml(
+                output_dir=output_dir,
+                query_id=normalized_query_id,
+                token=normalized_token,
+                xml_output_path=xml_output_path,
+                poll_interval_seconds=poll_interval_seconds,
+                max_attempts=max_attempts,
+                client=flex_client,
+                today=resolved_today,
+            )
+            resolved_flex_xml_path = latest_record.target_path
+        else:
+            resolved_flex_xml_path, cleanup_path = _resolve_flex_xml_path(
+                output_dir=output_dir,
+                query_id=normalized_query_id,
+                token=normalized_token,
+                from_date=from_date,
+                to_date=to_date,
+                period=period,
+                xml_output_path=xml_output_path,
+                poll_interval_seconds=poll_interval_seconds,
+                max_attempts=max_attempts,
+                client=flex_client,
+            )
     try:
         resolved_yahoo_client = yahoo_client
         if resolved_yahoo_client is None:
@@ -95,41 +174,91 @@ def generate_ibkr_flex_performance_report(
             resolved_flex_xml_path,
             yahoo_client=resolved_yahoo_client,
         )
+        history_extra_paths = _history_extra_xml_paths(
+            raw_dir=raw_dir,
+            resolved_flex_xml_path=resolved_flex_xml_path,
+        )
+        rebuilt_history_path = rebuild_performance_history_feather(
+            raw_dir=raw_dir,
+            output_path=history_path,
+            yahoo_client=resolved_yahoo_client,
+            extra_xml_paths=history_extra_paths,
+        )
+        history_frame = load_performance_history(rebuilt_history_path)
+        history_rows, history_missing_years = build_horizon_rows_from_performance_history(
+            history_frame,
+            archive_start_year=DEFAULT_IBKR_FLEX_ARCHIVE_START_YEAR,
+        )
+        report_year = _resolve_dataset_report_year(dataset)
+        historical_rows, xml_missing_years = _load_historical_annual_horizon_rows(
+            raw_dir=raw_dir,
+            current_year=report_year,
+            yahoo_client=resolved_yahoo_client,
+        )
+        missing_years = sorted(set(history_missing_years) | set(xml_missing_years))
+        if missing_years:
+            warnings.warn(
+                "Missing full-year IBKR Flex archives for: {years}".format(
+                    years=", ".join(str(year) for year in missing_years)
+                ),
+                stacklevel=2,
+            )
+        fallback_rows = [*dataset.horizon_rows, *historical_rows]
+        final_horizon_rows = _merge_horizon_rows_by_key(primary=history_rows, fallback=fallback_rows)
+        if final_horizon_rows:
+            dataset = FlexPerformanceDataset(
+                daily_performance=dataset.daily_performance,
+                cash_flows=dataset.cash_flows,
+                horizon_rows=final_horizon_rows,
+            )
         return export_flex_horizon_report_csv(dataset, output_dir=output_dir)
     finally:
         if cleanup_path is not None and cleanup_path.exists():
             cleanup_path.unlink()
 
 
+def rebuild_ibkr_flex_performance_history(
+    *,
+    output_dir: str | Path,
+    yahoo_client: YahooFinanceClient | None = None,
+    extra_xml_paths: list[str | Path] | None = None,
+) -> Path:
+    raw_dir = _flex_raw_archive_dir(output_dir)
+    return rebuild_performance_history_feather(
+        raw_dir=raw_dir,
+        output_path=_performance_history_path(output_dir),
+        yahoo_client=yahoo_client,
+        extra_xml_paths=extra_xml_paths,
+    )
+
+
 def _resolve_flex_xml_path(
     *,
-    flex_xml_path: str | Path | None,
-    query_id: str | None,
-    token: str | None,
+    output_dir: str | Path,
+    query_id: str,
+    token: str,
+    from_date: date | str | None,
+    to_date: date | str | None,
+    period: str | None,
     xml_output_path: str | Path | None,
     poll_interval_seconds: float,
     max_attempts: int,
     client: object | None,
 ) -> tuple[Path, Path | None]:
-    if flex_xml_path is not None:
-        return Path(flex_xml_path), None
-
-    normalized_query_id = str(query_id or "").strip()
-    normalized_token = str(token or "").strip()
-    if not normalized_query_id:
-        raise ValueError("query_id is required when flex_xml_path is not provided")
-    if not normalized_token:
-        raise ValueError("token is required when flex_xml_path is not provided")
-
-    flex_client = client or FlexWebServiceClient(token=normalized_token)
+    flex_client = client or FlexWebServiceClient(token=token)
     fetch_statement = getattr(flex_client, "fetch_statement")
     statement_xml = str(
         fetch_statement(
-            normalized_query_id,
+            query_id,
+            from_date=from_date,
+            to_date=to_date,
+            period=period,
             poll_interval_seconds=poll_interval_seconds,
             max_attempts=max_attempts,
         )
     )
+    if xml_output_path is None:
+        return _write_downloaded_flex_xml(statement_xml, xml_output_path=None)
     return _write_downloaded_flex_xml(statement_xml, xml_output_path=xml_output_path)
 
 
@@ -153,6 +282,394 @@ def _write_downloaded_flex_xml(
         handle.write(statement_xml)
         temp_path = Path(handle.name)
     return temp_path, temp_path
+
+
+def backfill_ibkr_flex_full_years(
+    *,
+    output_dir: str | Path,
+    query_id: str,
+    token: str,
+    start_year: int,
+    end_year: int,
+    overwrite_existing: bool = False,
+    poll_interval_seconds: float = DEFAULT_IBKR_FLEX_POLL_INTERVAL_SECONDS,
+    max_attempts: int = DEFAULT_IBKR_FLEX_MAX_ATTEMPTS,
+    client: object | None = None,
+) -> list[FlexArchiveRecord]:
+    normalized_query_id, normalized_token = _normalize_live_flex_credentials(
+        query_id=query_id,
+        token=token,
+    )
+    flex_client = client or FlexWebServiceClient(token=normalized_token)
+    raw_dir = _flex_raw_archive_dir(output_dir)
+    return [
+        _ensure_full_year_archive(
+            raw_dir=raw_dir,
+            year=year,
+            query_id=normalized_query_id,
+            flex_client=flex_client,
+            poll_interval_seconds=poll_interval_seconds,
+            max_attempts=max_attempts,
+            overwrite_existing=overwrite_existing,
+        )
+        for year in range(start_year, end_year + 1)
+    ]
+
+
+def refresh_current_year_latest_flex_xml(
+    *,
+    output_dir: str | Path,
+    query_id: str,
+    token: str,
+    xml_output_path: str | Path | None = None,
+    poll_interval_seconds: float = DEFAULT_IBKR_FLEX_POLL_INTERVAL_SECONDS,
+    max_attempts: int = DEFAULT_IBKR_FLEX_MAX_ATTEMPTS,
+    client: object | None = None,
+    today: date | None = None,
+) -> FlexArchiveRecord:
+    normalized_query_id, normalized_token = _normalize_live_flex_credentials(
+        query_id=query_id,
+        token=token,
+    )
+    resolved_today = today or _current_local_date()
+    year = resolved_today.year
+    target_path = (
+        Path(xml_output_path)
+        if xml_output_path is not None
+        else _latest_year_archive_path(_flex_raw_archive_dir(output_dir), year)
+    )
+    flex_client = client or FlexWebServiceClient(token=normalized_token)
+    statement_xml = str(
+        getattr(flex_client, "fetch_statement")(
+            normalized_query_id,
+            from_date=date(year, 1, 1),
+            to_date=resolved_today,
+            poll_interval_seconds=poll_interval_seconds,
+            max_attempts=max_attempts,
+        )
+    )
+    metadata = _parse_statement_metadata(statement_xml)
+    _write_statement_xml(target_path, statement_xml)
+    return FlexArchiveRecord(
+        year=year,
+        kind="latest",
+        target_path=target_path,
+        status="refreshed",
+        xml_from_date=metadata.from_date,
+        xml_to_date=metadata.to_date,
+    )
+
+
+def _normalize_live_flex_credentials(*, query_id: str | None, token: str | None) -> tuple[str, str]:
+    normalized_query_id = str(query_id or "").strip()
+    normalized_token = str(token or "").strip()
+    if not normalized_query_id:
+        raise ValueError("query_id is required when flex_xml_path is not provided")
+    if not normalized_token:
+        raise ValueError("token is required when flex_xml_path is not provided")
+    return normalized_query_id, normalized_token
+
+
+def _current_local_date() -> date:
+    return date.today()
+
+
+def _uses_default_current_ytd_request(
+    *,
+    from_date: date | str | None,
+    to_date: date | str | None,
+    period: str | None,
+) -> bool:
+    return from_date is None and to_date is None and str(period or "").strip() == ""
+
+
+def _performance_history_path(output_dir: str | Path) -> Path:
+    return Path(output_dir) / DEFAULT_PERFORMANCE_HISTORY_FILENAME
+
+
+def _history_extra_xml_paths(
+    *,
+    raw_dir: Path,
+    resolved_flex_xml_path: Path,
+) -> list[Path]:
+    try:
+        resolved_raw_dir = raw_dir.resolve()
+        resolved_xml = resolved_flex_xml_path.resolve()
+    except OSError:
+        return [resolved_flex_xml_path]
+    if resolved_xml.parent == resolved_raw_dir:
+        return []
+    return [resolved_flex_xml_path]
+
+
+def _flex_raw_archive_dir(output_dir: str | Path) -> Path:
+    raw_dir = Path(output_dir) / "raw"
+    raw_dir.mkdir(parents=True, exist_ok=True)
+    return raw_dir
+
+
+def _full_year_archive_path(raw_dir: Path, year: int) -> Path:
+    return raw_dir / f"ibkr_flex_{year}_full.xml"
+
+
+def _latest_year_archive_path(raw_dir: Path, year: int) -> Path:
+    return raw_dir / f"ibkr_flex_{year}_latest.xml"
+
+
+def _ensure_full_year_archive(
+    *,
+    raw_dir: Path,
+    year: int,
+    query_id: str,
+    flex_client: object,
+    poll_interval_seconds: float,
+    max_attempts: int,
+    overwrite_existing: bool,
+) -> FlexArchiveRecord:
+    target_path = _full_year_archive_path(raw_dir, year)
+    if target_path.exists() and not overwrite_existing:
+        return FlexArchiveRecord(
+            year=year,
+            kind="full",
+            target_path=target_path,
+            status="skipped",
+        )
+
+    if target_path.exists() and overwrite_existing:
+        metadata = _fetch_year_statement_to_path(
+            flex_client=flex_client,
+            query_id=query_id,
+            year=year,
+            target_path=target_path,
+            poll_interval_seconds=poll_interval_seconds,
+            max_attempts=max_attempts,
+        )
+        return FlexArchiveRecord(
+            year=year,
+            kind="full",
+            target_path=target_path,
+            status="overwritten",
+            xml_from_date=metadata.from_date,
+            xml_to_date=metadata.to_date,
+        )
+
+    promoted_path, promoted_source, promoted_metadata = _promote_existing_full_year_candidate(
+        raw_dir=raw_dir,
+        year=year,
+        target_path=target_path,
+    )
+    if promoted_path is not None:
+        return FlexArchiveRecord(
+            year=year,
+            kind="full",
+            target_path=promoted_path,
+            status="promoted",
+            source_file=promoted_source,
+            xml_from_date=promoted_metadata.from_date if promoted_metadata is not None else None,
+            xml_to_date=promoted_metadata.to_date if promoted_metadata is not None else None,
+        )
+
+    metadata = _fetch_year_statement_to_path(
+        flex_client=flex_client,
+        query_id=query_id,
+        year=year,
+        target_path=target_path,
+        poll_interval_seconds=poll_interval_seconds,
+        max_attempts=max_attempts,
+    )
+    return FlexArchiveRecord(
+        year=year,
+        kind="full",
+        target_path=target_path,
+        status="downloaded",
+        xml_from_date=metadata.from_date,
+        xml_to_date=metadata.to_date,
+    )
+
+
+def _fetch_year_statement_to_path(
+    *,
+    flex_client: object,
+    query_id: str,
+    year: int,
+    target_path: Path,
+    poll_interval_seconds: float,
+    max_attempts: int,
+) -> FlexStatementMetadata:
+    statement_xml = str(
+        getattr(flex_client, "fetch_statement")(
+            query_id,
+            from_date=date(year, 1, 1),
+            to_date=date(year, 12, 31),
+            poll_interval_seconds=poll_interval_seconds,
+            max_attempts=max_attempts,
+        )
+    )
+    metadata = _parse_statement_metadata(statement_xml)
+    _write_statement_xml(target_path, statement_xml)
+    return metadata
+
+
+def _promote_existing_full_year_candidate(
+    *,
+    raw_dir: Path,
+    year: int,
+    target_path: Path,
+) -> tuple[Path | None, Path | None, FlexStatementMetadata | None]:
+    for candidate in sorted(raw_dir.glob("*.xml")):
+        if candidate == target_path:
+            continue
+        if "_full" in candidate.stem:
+            continue
+        metadata = _read_statement_metadata(candidate)
+        if metadata is None or not _covers_full_year(metadata, year):
+            continue
+        target_path.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(candidate, target_path)
+        return target_path, candidate, metadata
+    return None, None, None
+
+
+def _load_historical_annual_horizon_rows(
+    *,
+    raw_dir: Path,
+    current_year: int,
+    yahoo_client: YahooFinanceClient | None = None,
+) -> tuple[list[FlexHorizonPerformanceRow], list[int]]:
+    rows: list[FlexHorizonPerformanceRow] = []
+    missing_years: list[int] = []
+    for year in range(DEFAULT_IBKR_FLEX_ARCHIVE_START_YEAR, current_year):
+        full_path = _full_year_archive_path(raw_dir, year)
+        if not full_path.exists():
+            promoted_path, _, _ = _promote_existing_full_year_candidate(
+                raw_dir=raw_dir,
+                year=year,
+                target_path=full_path,
+            )
+            if promoted_path is None:
+                missing_years.append(year)
+                continue
+        annual_dataset = parse_flex_performance_xml(full_path, yahoo_client=yahoo_client)
+        for row in annual_dataset.horizon_rows:
+            if row.horizon != "YTD":
+                continue
+            rows.append(
+                FlexHorizonPerformanceRow(
+                    as_of=row.as_of,
+                    source_version=f"{row.source_version}+HistoricalYear",
+                    horizon=f"Y{year}",
+                    weighting=row.weighting,
+                    currency=row.currency,
+                    dollar_pnl=row.dollar_pnl,
+                    return_pct=row.return_pct,
+                )
+            )
+    return rows, missing_years
+
+
+def _merge_horizon_rows_by_key(
+    *,
+    primary: list[FlexHorizonPerformanceRow],
+    fallback: list[FlexHorizonPerformanceRow],
+) -> list[FlexHorizonPerformanceRow]:
+    if not primary:
+        return fallback
+    fallback_map = {
+        (row.horizon, row.weighting, row.currency): row
+        for row in fallback
+    }
+    merged: list[FlexHorizonPerformanceRow] = []
+    seen_keys: set[tuple[str, str, str]] = set()
+    for row in primary:
+        key = (row.horizon, row.weighting, row.currency)
+        seen_keys.add(key)
+        fallback_row = fallback_map.get(key)
+        if fallback_row is None:
+            merged.append(row)
+            continue
+        if "SimpleNavFallback" in row.source_version and (
+            fallback_row.dollar_pnl is not None or fallback_row.return_pct is not None
+        ):
+            merged.append(fallback_row)
+            continue
+        merged.append(
+            FlexHorizonPerformanceRow(
+                as_of=row.as_of,
+                source_version=(
+                    row.source_version
+                    if row.dollar_pnl is not None or row.return_pct is not None
+                    else fallback_row.source_version
+                ),
+                horizon=row.horizon,
+                weighting=row.weighting,
+                currency=row.currency,
+                dollar_pnl=row.dollar_pnl if row.dollar_pnl is not None else fallback_row.dollar_pnl,
+                return_pct=row.return_pct if row.return_pct is not None else fallback_row.return_pct,
+            )
+        )
+    for row in fallback:
+        key = (row.horizon, row.weighting, row.currency)
+        if key in seen_keys:
+            continue
+        merged.append(row)
+    return merged
+
+
+def _resolve_dataset_report_year(dataset: FlexPerformanceDataset) -> int:
+    if dataset.horizon_rows:
+        return max(row.as_of for row in dataset.horizon_rows).year
+    if dataset.daily_performance:
+        return max(row.date for row in dataset.daily_performance).year
+    return _current_local_date().year
+
+
+def _write_statement_xml(target_path: Path, statement_xml: str) -> None:
+    target_path.parent.mkdir(parents=True, exist_ok=True)
+    target_path.write_text(statement_xml, encoding="utf-8")
+
+
+def _read_statement_metadata(path: Path) -> FlexStatementMetadata | None:
+    try:
+        return _parse_statement_metadata(path.read_text(encoding="utf-8"))
+    except (OSError, ET.ParseError, RuntimeError):
+        return None
+
+
+def _parse_statement_metadata(statement_xml: str) -> FlexStatementMetadata:
+    root = ET.fromstring(statement_xml)
+    for element in root.iter():
+        if element.tag.rsplit("}", 1)[-1] != "FlexStatement":
+            continue
+        return FlexStatementMetadata(
+            from_date=_parse_statement_date(element.attrib.get("fromDate")),
+            to_date=_parse_statement_date(element.attrib.get("toDate")),
+            period=str(element.attrib.get("period", "")).strip(),
+            when_generated=str(element.attrib.get("whenGenerated", "")).strip(),
+            account_id=str(element.attrib.get("accountId", "")).strip(),
+        )
+    raise RuntimeError("Downloaded payload did not include a FlexStatement node")
+
+
+def _covers_full_year(metadata: FlexStatementMetadata, year: int) -> bool:
+    return metadata.from_date == date(year, 1, 1) and metadata.to_date == date(year, 12, 31)
+
+
+def _parse_statement_date(raw: str | None) -> date | None:
+    if raw is None:
+        return None
+    text = str(raw).strip()
+    if text == "":
+        return None
+    if len(text) == 8 and text.isdigit():
+        try:
+            return date(int(text[:4]), int(text[4:6]), int(text[6:8]))
+        except ValueError:
+            return None
+    try:
+        return date.fromisoformat(text)
+    except ValueError:
+        return None
+
 
 def generate_position_report(
     *,

@@ -7,11 +7,13 @@ notebooks, and monkeypatch-based fixtures can keep targeting the old import path
 while the real implementation lives under ``domain.portfolio_monitor``.
 """
 
+from datetime import date
 from pathlib import Path
 from typing import TYPE_CHECKING
 
 from market_helper.data_sources.ibkr.tws import TwsIbAsyncClient
 from market_helper.domain.portfolio_monitor.pipelines.generate_portfolio_report import (
+    backfill_ibkr_flex_full_years as _backfill_ibkr_flex_full_years,
     generate_etf_sector_sync as _generate_etf_sector_sync,
     generate_ibkr_flex_performance_report as _generate_ibkr_flex_performance_report,
     generate_ibkr_position_report as _generate_ibkr_position_report,
@@ -20,6 +22,8 @@ from market_helper.domain.portfolio_monitor.pipelines.generate_portfolio_report 
     generate_report_mapping_table as _generate_report_mapping_table,
     generate_risk_html_report as _generate_risk_html_report,
     generate_security_reference_sync as _generate_security_reference_sync,
+    rebuild_ibkr_flex_performance_history as _rebuild_ibkr_flex_performance_history,
+    refresh_current_year_latest_flex_xml as _refresh_current_year_latest_flex_xml,
 )
 
 if TYPE_CHECKING:
@@ -32,6 +36,9 @@ def generate_ibkr_flex_performance_report(
     flex_xml_path: str | Path | None = None,
     query_id: str | None = None,
     token: str | None = None,
+    from_date: date | str | None = None,
+    to_date: date | str | None = None,
+    period: str | None = None,
     xml_output_path: str | Path | None = None,
     poll_interval_seconds: float = 5.0,
     max_attempts: int = 10,
@@ -43,11 +50,73 @@ def generate_ibkr_flex_performance_report(
         flex_xml_path=flex_xml_path,
         query_id=query_id,
         token=token,
+        from_date=from_date,
+        to_date=to_date,
+        period=period,
         xml_output_path=xml_output_path,
         poll_interval_seconds=poll_interval_seconds,
         max_attempts=max_attempts,
         client=client,
         yahoo_client=yahoo_client,
+    )
+
+
+def backfill_ibkr_flex_full_years(
+    *,
+    output_dir: str | Path,
+    query_id: str,
+    token: str,
+    start_year: int,
+    end_year: int,
+    overwrite_existing: bool = False,
+    poll_interval_seconds: float = 5.0,
+    max_attempts: int = 10,
+    client: object | None = None,
+):
+    return _backfill_ibkr_flex_full_years(
+        output_dir=output_dir,
+        query_id=query_id,
+        token=token,
+        start_year=start_year,
+        end_year=end_year,
+        overwrite_existing=overwrite_existing,
+        poll_interval_seconds=poll_interval_seconds,
+        max_attempts=max_attempts,
+        client=client,
+    )
+
+
+def refresh_current_year_latest_flex_xml(
+    *,
+    output_dir: str | Path,
+    query_id: str,
+    token: str,
+    xml_output_path: str | Path | None = None,
+    poll_interval_seconds: float = 5.0,
+    max_attempts: int = 10,
+    client: object | None = None,
+):
+    return _refresh_current_year_latest_flex_xml(
+        output_dir=output_dir,
+        query_id=query_id,
+        token=token,
+        xml_output_path=xml_output_path,
+        poll_interval_seconds=poll_interval_seconds,
+        max_attempts=max_attempts,
+        client=client,
+    )
+
+
+def rebuild_ibkr_flex_performance_history(
+    *,
+    output_dir: str | Path,
+    yahoo_client: YahooFinanceClient | None = None,
+    extra_xml_paths: list[str | Path] | None = None,
+) -> Path:
+    return _rebuild_ibkr_flex_performance_history(
+        output_dir=output_dir,
+        yahoo_client=yahoo_client,
+        extra_xml_paths=extra_xml_paths,
     )
 
 
@@ -171,6 +240,7 @@ def generate_report_mapping_table(
 
 __all__ = [
     "TwsIbAsyncClient",
+    "backfill_ibkr_flex_full_years",
     "generate_etf_sector_sync",
     "generate_ibkr_flex_performance_report",
     "generate_ibkr_position_report",
@@ -179,4 +249,6 @@ __all__ = [
     "generate_report_mapping_table",
     "generate_risk_html_report",
     "generate_security_reference_sync",
+    "rebuild_ibkr_flex_performance_history",
+    "refresh_current_year_latest_flex_xml",
 ]

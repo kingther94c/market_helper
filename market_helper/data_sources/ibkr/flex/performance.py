@@ -227,7 +227,7 @@ def export_flex_horizon_report_csv(
             fieldnames=["as_of", "source_version", "horizon", "weighting", "currency", "dollar_pnl", "return_pct"],
         )
         writer.writeheader()
-        for row in sorted(dataset.horizon_rows, key=lambda item: (item.horizon, item.weighting, item.currency)):
+        for row in sorted(dataset.horizon_rows, key=lambda item: (_horizon_sort_key(item.horizon), item.weighting, item.currency)):
             writer.writerow(
                 {
                     "as_of": row.as_of.isoformat(),
@@ -241,6 +241,15 @@ def export_flex_horizon_report_csv(
             )
 
     return output_path
+
+
+def _horizon_sort_key(horizon: str) -> tuple[int, int | str]:
+    fixed_order = {"MTD": 0, "YTD": 1, "1M": 2}
+    if horizon in fixed_order:
+        return fixed_order[horizon], 0
+    if horizon.startswith("Y") and horizon[1:].isdigit():
+        return 3, int(horizon[1:])
+    return 4, horizon
 
 
 def _extract_daily_rows(root: ET.Element) -> list[FlexDailyPerformanceRow]:
