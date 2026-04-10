@@ -944,6 +944,54 @@ def _build_summary_flow_schedule(
     if synthetic_date is None:
         return {}
 
+    amount = _aggregate_cash_summary_amount_for_horizon(
+        cash_report_summaries=cash_report_summaries,
+        base_currency=base_currency,
+        target_currency=target_currency,
+        horizon=horizon,
+        as_of=as_of,
+        synthetic_date=synthetic_date,
+        fx_history=fx_history,
+    )
+    if amount is None or abs(amount) <= 1e-12:
+        return {}
+    return {synthetic_date: amount}
+
+
+def _aggregate_cash_summary_amount_for_horizon(
+    *,
+    cash_report_summaries: dict[str, FlexCashReportSummary],
+    base_currency: str,
+    target_currency: str,
+    horizon: str,
+    as_of: date,
+    synthetic_date: date,
+    fx_history: list[tuple[date, float]] | None,
+) -> float | None:
+    total_amount = 0.0
+    found_convertible_amount = False
+    rate = _lookup_fx_rate(fx_history, synthetic_date) if fx_history is not None else None
+
+    for summary_currency, summary in cash_report_summaries.items():
+        if summary_currency == "BASE_SUMMARY":
+            continue
+        raw_amount = _cash_summary_amount_for_horizon(summary, horizon=horizon, as_of=as_of)
+        if raw_amount is None or abs(raw_amount) <= 1e-12:
+            continue
+        converted_amount = _convert_cash_summary_amount(
+            amount=raw_amount,
+            from_currency=summary_currency,
+            to_currency=target_currency,
+            usdsgd_rate=rate,
+        )
+        if converted_amount is None:
+            continue
+        total_amount += converted_amount
+        found_convertible_amount = True
+
+    if found_convertible_amount:
+        return total_amount
+
     target_summary = _preferred_cash_summary(
         cash_report_summaries,
         base_currency=base_currency,
@@ -957,18 +1005,34 @@ def _build_summary_flow_schedule(
             target_currency=base_currency,
         )
         base_amount = _cash_summary_amount_for_horizon(base_summary, horizon=horizon, as_of=as_of)
-        if base_amount is not None and fx_history is not None:
-            rate = _lookup_fx_rate(fx_history, synthetic_date)
-            if rate is not None:
-                amount = _convert_currency_amount(
-                    base_amount,
-                    from_currency=base_currency,
-                    to_currency=target_currency,
-                    usdsgd_rate=rate,
-                )
-    if amount is None or abs(amount) <= 1e-12:
-        return {}
-    return {synthetic_date: amount}
+        amount = _convert_cash_summary_amount(
+            amount=base_amount,
+            from_currency=base_currency,
+            to_currency=target_currency,
+            usdsgd_rate=rate,
+        )
+    return amount
+
+
+def _convert_cash_summary_amount(
+    *,
+    amount: float | None,
+    from_currency: str,
+    to_currency: str,
+    usdsgd_rate: float | None,
+) -> float | None:
+    if amount is None:
+        return None
+    if from_currency == to_currency:
+        return amount
+    if usdsgd_rate is None:
+        return None
+    return _convert_currency_amount(
+        amount,
+        from_currency=from_currency,
+        to_currency=to_currency,
+        usdsgd_rate=usdsgd_rate,
+    )
 
 
 def _preferred_cash_summary(
