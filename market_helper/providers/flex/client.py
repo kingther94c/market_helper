@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from datetime import date, datetime
 from dataclasses import dataclass
 import time
 from typing import Callable
@@ -60,7 +61,14 @@ class FlexWebServiceClient:
     api_version: str = DEFAULT_IBKR_FLEX_API_VERSION
     sleep: Callable[[float], None] = time.sleep
 
-    def send_request(self, query_id: str) -> str:
+    def send_request(
+        self,
+        query_id: str,
+        *,
+        from_date: date | datetime | str | None = None,
+        to_date: date | datetime | str | None = None,
+        period: str | None = None,
+    ) -> str:
         normalized_query_id = str(query_id).strip()
         normalized_token = str(self.token).strip()
         if not normalized_query_id:
@@ -70,7 +78,14 @@ class FlexWebServiceClient:
 
         payload = self._download(
             SEND_REQUEST_PATH,
-            {"t": normalized_token, "q": normalized_query_id, "v": self.api_version},
+            _build_send_request_params(
+                query_id=normalized_query_id,
+                token=normalized_token,
+                api_version=self.api_version,
+                from_date=from_date,
+                to_date=to_date,
+                period=period,
+            ),
         )
         response = _parse_status_response(payload)
         if response is None:
@@ -102,6 +117,9 @@ class FlexWebServiceClient:
         self,
         query_id: str,
         *,
+        from_date: date | datetime | str | None = None,
+        to_date: date | datetime | str | None = None,
+        period: str | None = None,
         poll_interval_seconds: float = DEFAULT_IBKR_FLEX_POLL_INTERVAL_SECONDS,
         max_attempts: int = DEFAULT_IBKR_FLEX_MAX_ATTEMPTS,
     ) -> str:
@@ -110,7 +128,12 @@ class FlexWebServiceClient:
         if poll_interval_seconds < 0:
             raise ValueError("poll_interval_seconds must be >= 0")
 
-        reference_code = self.send_request(query_id)
+        reference_code = self.send_request(
+            query_id,
+            from_date=from_date,
+            to_date=to_date,
+            period=period,
+        )
         last_error: FlexWebServicePendingError | None = None
         for attempt in range(max_attempts):
             try:
@@ -183,3 +206,49 @@ def _child_text(root: ET.Element, name: str) -> str:
 
 def _local_name(tag: str) -> str:
     return tag.rsplit("}", 1)[-1]
+
+
+def _build_send_request_params(
+    *,
+    query_id: str,
+    token: str,
+    api_version: str,
+    from_date: date | datetime | str | None,
+    to_date: date | datetime | str | None,
+    period: str | None,
+) -> dict[str, object]:
+    normalized_period = str(period or "").strip()
+    normalized_from_date = _normalize_flex_date(from_date, field_name="from_date")
+    normalized_to_date = _normalize_flex_date(to_date, field_name="to_date")
+
+    if normalized_period and (normalized_from_date is not None or normalized_to_date is not None):
+        raise ValueError("period cannot be combined with from_date/to_date")
+    if (normalized_from_date is None) != (normalized_to_date is None):
+        raise ValueError("from_date and to_date must be provided together")
+
+    params: dict[str, object] = {"t": token, "q": query_id, "v": api_version}
+    if normalized_period:
+        params["p"] = normalized_period
+    if normalized_from_date is not None and normalized_to_date is not None:
+        params["fd"] = normalized_from_date
+        params["td"] = normalized_to_date
+    return params
+
+
+def _normalize_flex_date(raw: date | datetime | str | None, *, field_name: str) -> str | None:
+    if raw is None:
+        return None
+    if isinstance(raw, datetime):
+        return raw.date().strftime("%Y%m%d")
+    if isinstance(raw, date):
+        return raw.strftime("%Y%m%d")
+
+    text = str(raw).strip()
+    if text == "":
+        return None
+    for fmt in ("%Y%m%d", "%Y-%m-%d", "%Y/%m/%d"):
+        try:
+            return datetime.strptime(text, fmt).strftime("%Y%m%d")
+        except ValueError:
+            continue
+    raise ValueError(f"{field_name} must be a date or a YYYYMMDD/YYYY-MM-DD string")

@@ -24,6 +24,66 @@ def test_flex_web_service_client_send_request_returns_reference_code() -> None:
     assert "q=1462703" in seen_urls[0]
 
 
+def test_flex_web_service_client_send_request_supports_date_range_override() -> None:
+    seen_urls: list[str] = []
+
+    def downloader(url: str) -> str:
+        seen_urls.append(url)
+        return """
+<FlexStatementResponse>
+  <Status>Success</Status>
+  <ReferenceCode>ABC123</ReferenceCode>
+</FlexStatementResponse>
+""".strip()
+
+    client = FlexWebServiceClient(token="secret-token", downloader=downloader)
+
+    reference_code = client.send_request("1462703", from_date="2025-01-01", to_date="2025-12-31")
+
+    assert reference_code == "ABC123"
+    assert "fd=20250101" in seen_urls[0]
+    assert "td=20251231" in seen_urls[0]
+
+
+def test_flex_web_service_client_send_request_supports_period_override() -> None:
+    seen_urls: list[str] = []
+
+    def downloader(url: str) -> str:
+        seen_urls.append(url)
+        return """
+<FlexStatementResponse>
+  <Status>Success</Status>
+  <ReferenceCode>ABC123</ReferenceCode>
+</FlexStatementResponse>
+""".strip()
+
+    client = FlexWebServiceClient(token="secret-token", downloader=downloader)
+
+    reference_code = client.send_request("1462703", period="LAST365")
+
+    assert reference_code == "ABC123"
+    assert "p=LAST365" in seen_urls[0]
+
+
+def test_flex_web_service_client_send_request_rejects_partial_date_range() -> None:
+    client = FlexWebServiceClient(token="secret-token", downloader=lambda _url: "")
+
+    with pytest.raises(ValueError, match="from_date and to_date must be provided together"):
+        client.send_request("1462703", from_date="2025-01-01")
+
+
+def test_flex_web_service_client_send_request_rejects_period_plus_date_range() -> None:
+    client = FlexWebServiceClient(token="secret-token", downloader=lambda _url: "")
+
+    with pytest.raises(ValueError, match="period cannot be combined"):
+        client.send_request(
+            "1462703",
+            from_date="2025-01-01",
+            to_date="2025-12-31",
+            period="LAST365",
+        )
+
+
 def test_flex_web_service_client_get_statement_returns_statement_xml() -> None:
     statement_xml = """
 <FlexQueryResponse>
