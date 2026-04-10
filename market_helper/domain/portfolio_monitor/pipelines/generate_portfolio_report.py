@@ -5,6 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 import json
 from pathlib import Path
+import tempfile
 
 from market_helper.common.models import (
     DEFAULT_SECURITY_REFERENCE_PATH,
@@ -24,6 +25,11 @@ from market_helper.data_sources.ibkr.adapters import (
     normalize_ibkr_positions,
 )
 from market_helper.data_sources.ibkr.flex import export_flex_horizon_report_csv, parse_flex_performance_xml
+from market_helper.providers.flex import (
+    DEFAULT_IBKR_FLEX_MAX_ATTEMPTS,
+    DEFAULT_IBKR_FLEX_POLL_INTERVAL_SECONDS,
+    FlexWebServiceClient,
+)
 from market_helper.data_sources.ibkr.tws import (
     TwsIbAsyncClient,
     account_values_to_ibkr_cash_position_rows,
@@ -53,16 +59,88 @@ class LiveIbkrRowSource:
     portfolio_item: object | None = None
 
 
-
-
 def generate_ibkr_flex_performance_report(
     *,
-    flex_xml_path: str | Path,
     output_dir: str | Path,
+    flex_xml_path: str | Path | None = None,
+    query_id: str | None = None,
+    token: str | None = None,
+    xml_output_path: str | Path | None = None,
+    poll_interval_seconds: float = DEFAULT_IBKR_FLEX_POLL_INTERVAL_SECONDS,
+    max_attempts: int = DEFAULT_IBKR_FLEX_MAX_ATTEMPTS,
+    client: object | None = None,
 ) -> Path:
-    """Convert an IBKR Flex XML report into a dated horizon-performance CSV file."""
-    dataset = parse_flex_performance_xml(flex_xml_path)
-    return export_flex_horizon_report_csv(dataset, output_dir=output_dir)
+    """Convert either a local Flex XML or a live Flex query into a dated CSV."""
+    resolved_flex_xml_path, cleanup_path = _resolve_flex_xml_path(
+        flex_xml_path=flex_xml_path,
+        query_id=query_id,
+        token=token,
+        xml_output_path=xml_output_path,
+        poll_interval_seconds=poll_interval_seconds,
+        max_attempts=max_attempts,
+        client=client,
+    )
+    try:
+        dataset = parse_flex_performance_xml(resolved_flex_xml_path)
+        return export_flex_horizon_report_csv(dataset, output_dir=output_dir)
+    finally:
+        if cleanup_path is not None and cleanup_path.exists():
+            cleanup_path.unlink()
+
+
+def _resolve_flex_xml_path(
+    *,
+    flex_xml_path: str | Path | None,
+    query_id: str | None,
+    token: str | None,
+    xml_output_path: str | Path | None,
+    poll_interval_seconds: float,
+    max_attempts: int,
+    client: object | None,
+) -> tuple[Path, Path | None]:
+    if flex_xml_path is not None:
+        return Path(flex_xml_path), None
+
+    normalized_query_id = str(query_id or "").strip()
+    normalized_token = str(token or "").strip()
+    if not normalized_query_id:
+        raise ValueError("query_id is required when flex_xml_path is not provided")
+    if not normalized_token:
+        raise ValueError("token is required when flex_xml_path is not provided")
+
+    flex_client = client or FlexWebServiceClient(token=normalized_token)
+    fetch_statement = getattr(flex_client, "fetch_statement")
+    statement_xml = str(
+        fetch_statement(
+            normalized_query_id,
+            poll_interval_seconds=poll_interval_seconds,
+            max_attempts=max_attempts,
+        )
+    )
+    return _write_downloaded_flex_xml(statement_xml, xml_output_path=xml_output_path)
+
+
+def _write_downloaded_flex_xml(
+    statement_xml: str,
+    *,
+    xml_output_path: str | Path | None,
+) -> tuple[Path, Path | None]:
+    if xml_output_path is not None:
+        target_path = Path(xml_output_path)
+        target_path.parent.mkdir(parents=True, exist_ok=True)
+        target_path.write_text(statement_xml, encoding="utf-8")
+        return target_path, None
+
+    with tempfile.NamedTemporaryFile(
+        mode="w",
+        encoding="utf-8",
+        suffix=".xml",
+        delete=False,
+    ) as handle:
+        handle.write(statement_xml)
+        temp_path = Path(handle.name)
+    return temp_path, temp_path
+
 
 def generate_position_report(
     *,

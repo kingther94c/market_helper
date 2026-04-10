@@ -248,6 +248,80 @@ def test_sync_us_sector_lookthrough_preserves_cached_data_on_refresh_error(tmp_p
     assert "secret-key" not in payload["symbols"]["QQQ"]["error_message"]
 
 
+def test_sync_us_sector_lookthrough_stops_querying_after_two_consecutive_failures_in_same_day(tmp_path) -> None:
+    path = tmp_path / "us_sector_lookthrough.json"
+    attempted_symbols: list[str] = []
+
+    class FailingClient:
+        def fetch_etf_sector_weightings(self, symbol: str):
+            attempted_symbols.append(symbol)
+            raise RuntimeError(f"temporary failure for {symbol}")
+
+    sync_us_sector_lookthrough_from_alpha_vantage(
+        symbols=["QQQ", "SOXX", "SPY"],
+        output_path=path,
+        client=FailingClient(),
+        today=date(2026, 4, 8),
+    )
+
+    payload = json.loads(path.read_text(encoding="utf-8"))
+
+    assert attempted_symbols == ["QQQ", "SOXX"]
+    assert payload["api_usage"] == {"date": "2026-04-08", "count": 2}
+    assert payload["failure_streak"] == {"date": "2026-04-08", "count": 2}
+    assert payload["symbols"]["SPY"]["last_attempted_at"] == ""
+    assert payload["symbols"]["SPY"]["status"] == "pending"
+
+    class UnexpectedRetryClient:
+        def fetch_etf_sector_weightings(self, symbol: str):
+            raise AssertionError(f"Did not expect another Alpha Vantage retry for {symbol}")
+
+    sync_us_sector_lookthrough_from_alpha_vantage(
+        symbols=["QQQ", "SOXX", "SPY"],
+        output_path=path,
+        client=UnexpectedRetryClient(),
+        today=date(2026, 4, 8),
+    )
+
+    payload = json.loads(path.read_text(encoding="utf-8"))
+
+    assert payload["api_usage"] == {"date": "2026-04-08", "count": 2}
+    assert payload["failure_streak"] == {"date": "2026-04-08", "count": 2}
+
+
+def test_sync_us_sector_lookthrough_only_counts_consecutive_failures(tmp_path) -> None:
+    path = tmp_path / "us_sector_lookthrough.json"
+    attempted_symbols: list[str] = []
+
+    class MixedClient:
+        def fetch_etf_sector_weightings(self, symbol: str):
+            attempted_symbols.append(symbol)
+            if symbol in {"QQQ", "SPY"}:
+                raise RuntimeError(f"temporary failure for {symbol}")
+            return [
+                AlphaVantageEtfSectorWeight(
+                    symbol=symbol,
+                    sector="INFORMATION TECHNOLOGY",
+                    weight=1.0,
+                )
+            ]
+
+    sync_us_sector_lookthrough_from_alpha_vantage(
+        symbols=["QQQ", "SOXX", "SPY", "TQQQ"],
+        output_path=path,
+        client=MixedClient(),
+        today=date(2026, 4, 8),
+    )
+
+    payload = json.loads(path.read_text(encoding="utf-8"))
+
+    assert attempted_symbols == ["QQQ", "SOXX", "SPY", "TQQQ"]
+    assert payload["api_usage"] == {"date": "2026-04-08", "count": 4}
+    assert payload["failure_streak"] == {"date": "2026-04-08", "count": 0}
+    assert payload["symbols"]["SOXX"]["status"] == "ok"
+    assert payload["symbols"]["TQQQ"]["status"] == "ok"
+
+
 def test_refresh_us_sector_lookthrough_skips_symbol_already_attempted_today(tmp_path) -> None:
     path = tmp_path / "us_sector_lookthrough.json"
     path.write_text(

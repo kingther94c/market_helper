@@ -24,6 +24,7 @@ DEFAULT_LOOKTHROUGH_SCHEMA_VERSION = 1
 DEFAULT_LOOKTHROUGH_INITIAL_UPDATED_AT = "2000-01-01"
 DEFAULT_LOOKTHROUGH_MAX_AGE_DAYS = 30
 DEFAULT_ALPHA_VANTAGE_DAILY_CALL_LIMIT = 25
+DEFAULT_ALPHA_VANTAGE_CONSECUTIVE_FAILURE_LIMIT = 2
 LOOKTHROUGH_PROVIDER = "alpha_vantage"
 LOOKTHROUGH_OK_STATUSES = {"pending", "ok", "error", "stale"}
 API_KEY_QUERY_PARAM_PATTERN = re.compile(r"([?&]apikey=)[^&\s:]+", re.IGNORECASE)
@@ -171,8 +172,12 @@ def _refresh_store(
     daily_call_limit: int,
 ) -> None:
     usage = _normalize_api_usage(store, today=today)
+    failure_streak = _normalize_failure_streak(store, today=today)
     remaining_budget = max(0, int(daily_call_limit) - int(usage["count"]))
-    if remaining_budget <= 0:
+    if (
+        remaining_budget <= 0
+        or int(failure_streak["count"]) >= DEFAULT_ALPHA_VANTAGE_CONSECUTIVE_FAILURE_LIMIT
+    ):
         return
 
     stale_symbols = _stale_symbols(
@@ -183,7 +188,10 @@ def _refresh_store(
         max_age_days=max_age_days,
     )
     for symbol in stale_symbols:
-        if remaining_budget <= 0:
+        if (
+            remaining_budget <= 0
+            or int(failure_streak["count"]) >= DEFAULT_ALPHA_VANTAGE_CONSECUTIVE_FAILURE_LIMIT
+        ):
             break
         entry = _store_symbols(store)[symbol]
         entry["last_attempted_at"] = today.isoformat()
@@ -195,11 +203,13 @@ def _refresh_store(
         except Exception as exc:
             entry["status"] = "stale" if _entry_has_sectors(entry) else "error"
             entry["error_message"] = _sanitize_error_message(exc)
+            failure_streak["count"] = int(failure_streak["count"]) + 1
         else:
             entry["status"] = "ok"
             entry["error_message"] = ""
             entry["updated_at"] = today.isoformat()
             entry["sectors"] = normalized_rows
+            failure_streak["count"] = 0
         remaining_budget -= 1
         usage["count"] = int(usage["count"]) + 1
 
@@ -303,6 +313,10 @@ def _default_store(*, daily_call_limit: int) -> dict[str, Any]:
             "date": "",
             "count": 0,
         },
+        "failure_streak": {
+            "date": "",
+            "count": 0,
+        },
         "symbols": {},
     }
 
@@ -322,6 +336,11 @@ def _normalize_store(payload: Mapping[str, Any], *, daily_call_limit: int) -> di
         {"date": "", "count": 0}
         if migrated_from_other_provider
         else _normalize_api_usage_payload(payload.get("api_usage"))
+    )
+    store["failure_streak"] = (
+        {"date": "", "count": 0}
+        if migrated_from_other_provider
+        else _normalize_failure_streak_payload(payload.get("failure_streak"))
     )
 
     raw_symbols = payload.get("symbols", {})
@@ -389,6 +408,17 @@ def _normalize_api_usage(store: dict[str, Any], *, today: date) -> dict[str, Any
     return usage
 
 
+def _normalize_failure_streak(store: dict[str, Any], *, today: date) -> dict[str, Any]:
+    streak = _normalize_failure_streak_payload(store.get("failure_streak"))
+    if streak["date"] != today.isoformat():
+        streak = {
+            "date": today.isoformat(),
+            "count": 0,
+        }
+    store["failure_streak"] = streak
+    return streak
+
+
 def _normalize_api_usage_payload(raw_usage: Any) -> dict[str, Any]:
     if not isinstance(raw_usage, Mapping):
         return {"date": "", "count": 0}
@@ -402,6 +432,10 @@ def _normalize_api_usage_payload(raw_usage: Any) -> dict[str, Any]:
         "date": usage_date,
         "count": normalized_count,
     }
+
+
+def _normalize_failure_streak_payload(raw_usage: Any) -> dict[str, Any]:
+    return _normalize_api_usage_payload(raw_usage)
 
 
 def _ensure_symbols_tracked(store: dict[str, Any], symbols: Sequence[str]) -> None:

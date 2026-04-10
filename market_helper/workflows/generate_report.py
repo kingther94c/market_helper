@@ -24,12 +24,24 @@ from market_helper.domain.portfolio_monitor.pipelines.generate_portfolio_report 
 
 def generate_ibkr_flex_performance_report(
     *,
-    flex_xml_path: str | Path,
     output_dir: str | Path,
+    flex_xml_path: str | Path | None = None,
+    query_id: str | None = None,
+    token: str | None = None,
+    xml_output_path: str | Path | None = None,
+    poll_interval_seconds: float = 5.0,
+    max_attempts: int = 10,
+    client: object | None = None,
 ) -> Path:
     return _generate_ibkr_flex_performance_report(
-        flex_xml_path=flex_xml_path,
         output_dir=output_dir,
+        flex_xml_path=flex_xml_path,
+        query_id=query_id,
+        token=token,
+        xml_output_path=xml_output_path,
+        poll_interval_seconds=poll_interval_seconds,
+        max_attempts=max_attempts,
+        client=client,
     )
 
 

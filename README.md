@@ -2,6 +2,15 @@
 
 A scaffolded market research and workflow project organized around data sources, domain services, presentation outputs, and CLI workflows.
 
+## Development loop
+
+Before starting implementation, review:
+
+- [`DEV_REQ/RULES.md`](DEV_REQ/RULES.md)
+- [`DEV_REQ/PLAN.md`](DEV_REQ/PLAN.md)
+
+`DEV_REQ/RULES.md` is the compact always-check file. `DEV_REQ/PLAN.md` is the living delivery plan and must be updated in every PR that changes completed work, current status, or next steps.
+
 ## Environment
 
 Create or verify the project environment:
@@ -43,6 +52,7 @@ This repository follows a domain-first layout:
 - `scripts/` for executable workflow entrypoints
 - `tests/` for unit, integration, and e2e coverage
 - `docs/` for architecture notes and devplans
+- `DEV_REQ/` for the compact development rules and living project plan
 
 
 ### Package organization direction
@@ -128,7 +138,20 @@ conda run -n py313 python -m market_helper.cli.main ibkr-flex-performance-report
 
 - Output: `performance_report_YYYYMMDD.csv` (dated by report `as_of`), containing `MTD` / `YTD` / `1M`, `money_weighted` / `time_weighted`, `USD` / `SGD`, and both `dollar_pnl` + `return_pct`.
 - This keeps the CSV shape aligned with the future HTML layer and leaves room for policy-portfolio relative overlays.
-- Flex Web Service query-id/token fetching is planned next.
+
+Or fetch the statement directly from IBKR Flex Web Service using either explicit flags or env vars:
+
+```bash
+IBKR_FLEX_TOKEN=... IBKR_PERFORMANCE_REPORT_ID=... \
+conda run -n py313 python -m market_helper.cli.main ibkr-flex-performance-report \
+  --output-dir data/artifacts/portfolio_monitor/flex
+```
+
+The wrapper script now supports the same env-backed path through `configs/portfolio_monitor/local.env`:
+
+```bash
+./scripts/run_report.sh ibkr-flex
+```
 
 Generate a CSV position report directly from raw IBKR payload files:
 

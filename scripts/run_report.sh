@@ -20,6 +20,7 @@ usage() {
 Usage:
   ./scripts/run_report.sh snapshot --positions PATH --prices PATH [--output PATH]
   ./scripts/run_report.sh ibkr-json --ibkr-positions PATH --ibkr-prices PATH [--output PATH] [--as-of ISO8601]
+  ./scripts/run_report.sh ibkr-flex [--flex-xml PATH] [--xml-output PATH] [--poll-interval SECONDS] [--max-attempts N] [--output PATH]
   ./scripts/run_report.sh ibkr-live [--output PATH] [--account ACCOUNT_ID] [--host HOST] [--port PORT] [--client-id ID] [--timeout SECONDS] [--as-of ISO8601]
   ./scripts/run_report.sh ibkr-live-html [--output PATH] [--positions-output PATH] [--returns PATH] [--proxy PATH] [--regime PATH] [--security-reference PATH] [--risk-config PATH] [--allocation-policy PATH] [--account ACCOUNT_ID] [--host HOST] [--port PORT] [--client-id ID] [--timeout SECONDS] [--as-of ISO8601]
   ./scripts/run_report.sh risk-html --positions-csv PATH [--returns PATH] [--proxy PATH] [--regime PATH] [--security-reference PATH] [--risk-config PATH] [--allocation-policy PATH] [--output PATH]
@@ -30,6 +31,7 @@ Usage:
 Modes:
   snapshot    Generate a report from normalized position/price snapshots.
   ibkr-json   Generate a report from raw IBKR positions/prices payloads.
+  ibkr-flex   Generate a dated performance CSV from IBKR Flex Web Service or a local Flex XML.
   ibkr-live   Generate a report from a live local TWS / IB Gateway session via ib_async.
   ibkr-live-html Generate live IBKR positions first, then build the HTML risk report in one run.
   risk-html   Generate an HTML risk report from a position CSV plus return/proxy inputs.
@@ -41,6 +43,8 @@ Environment:
   ENV_NAME    Conda environment name to use. Defaults to: py313
   CONDA_BIN   Optional explicit path to the conda executable.
   ALPHA_VANTAGE_API_KEY Optional default API key for etf-sector-sync.
+  IBKR_FLEX_TOKEN Optional Flex Web Service token for ibkr-flex.
+  IBKR_PERFORMANCE_REPORT_ID Optional Flex Query / Report id for ibkr-flex.
   ACCOUNT_ENV Live-account profile. Use prod or dev. Defaults to: prod
   LOCAL_CONFIG Optional local config file. Defaults to: configs/portfolio_monitor/local.env
 EOF
@@ -125,6 +129,10 @@ case "${MODE}" in
         CLI_COMMAND="ibkr-position-report"
         DEFAULT_OUTPUT="${ROOT_DIR}/data/artifacts/portfolio_monitor/ibkr_position_report.csv"
         ;;
+    ibkr-flex)
+        CLI_COMMAND=""
+        DEFAULT_OUTPUT="${ROOT_DIR}/data/artifacts/portfolio_monitor/flex"
+        ;;
     ibkr-live)
         CLI_COMMAND="ibkr-live-position-report"
         DEFAULT_OUTPUT="${ROOT_DIR}/data/artifacts/portfolio_monitor/live_ibkr_position_report.csv"
@@ -167,6 +175,10 @@ PORT="7497"
 CLIENT_ID="1"
 TIMEOUT="4.0"
 AS_OF=""
+FLEX_XML_PATH=""
+FLEX_XML_OUTPUT_PATH=""
+FLEX_POLL_INTERVAL="5.0"
+FLEX_MAX_ATTEMPTS="10"
 POSITIONS_CSV_PATH=""
 RETURNS_PATH=""
 PROXY_PATH=""
@@ -233,6 +245,26 @@ while [[ $# -gt 0 ]]; do
         --as-of)
             require_value "$1" "${2:-}"
             AS_OF="$2"
+            shift 2
+            ;;
+        --flex-xml)
+            require_value "$1" "${2:-}"
+            FLEX_XML_PATH="$2"
+            shift 2
+            ;;
+        --xml-output)
+            require_value "$1" "${2:-}"
+            FLEX_XML_OUTPUT_PATH="$2"
+            shift 2
+            ;;
+        --poll-interval)
+            require_value "$1" "${2:-}"
+            FLEX_POLL_INTERVAL="$2"
+            shift 2
+            ;;
+        --max-attempts)
+            require_value "$1" "${2:-}"
+            FLEX_MAX_ATTEMPTS="$2"
             shift 2
             ;;
         --positions-csv)
@@ -304,6 +336,33 @@ done
 
 OUTPUT_PATH="${OUTPUT_PATH:-${DEFAULT_OUTPUT}}"
 mkdir -p "$(dirname "${OUTPUT_PATH}")"
+
+if [[ "${MODE}" == "ibkr-flex" ]]; then
+    mkdir -p "${OUTPUT_PATH}"
+
+    if [[ -n "${FLEX_XML_PATH}" ]]; then
+        require_file "Flex XML" "${FLEX_XML_PATH}"
+    else
+        [[ -n "${IBKR_FLEX_TOKEN:-}" ]] || fail "No IBKR_FLEX_TOKEN configured in ${CANONICAL_LOCAL_CONFIG}. Set it or pass --flex-xml."
+        [[ -n "${IBKR_PERFORMANCE_REPORT_ID:-}" ]] || fail "No IBKR_PERFORMANCE_REPORT_ID configured in ${CANONICAL_LOCAL_CONFIG}. Set it or pass --flex-xml."
+        export IBKR_FLEX_TOKEN
+        export IBKR_PERFORMANCE_REPORT_ID
+    fi
+
+    FLEX_COMMAND=(
+        "${CONDA_BIN}" run -n "${ENV_NAME}" python -m market_helper.cli.main ibkr-flex-performance-report
+        --output-dir "${OUTPUT_PATH}"
+        --poll-interval "${FLEX_POLL_INTERVAL}"
+        --max-attempts "${FLEX_MAX_ATTEMPTS}"
+    )
+    [[ -n "${FLEX_XML_PATH}" ]] && FLEX_COMMAND+=(--flex-xml "${FLEX_XML_PATH}")
+    [[ -n "${FLEX_XML_OUTPUT_PATH}" ]] && FLEX_COMMAND+=(--xml-output "${FLEX_XML_OUTPUT_PATH}")
+
+    echo "Running ibkr-flex workflow..."
+    "${FLEX_COMMAND[@]}"
+    echo "Artifacts written to ${OUTPUT_PATH}"
+    exit 0
+fi
 
 if [[ "${MODE}" == "ibkr-live-html" ]]; then
     POSITIONS_OUTPUT_PATH="${POSITIONS_OUTPUT_PATH:-${DEFAULT_POSITIONS_OUTPUT}}"

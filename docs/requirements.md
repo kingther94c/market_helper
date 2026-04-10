@@ -21,4 +21,4 @@ Create a read-only IBKR integration layer for monitoring and portfolio analytics
 - TWS / IB Gateway code should prefer `ib_async`; only introduce `ibapi` when `ib_async` has a confirmed capability gap.
 
 ## Delivery Strategy
-Use phased, incremental implementation with test coverage added in each phase and synchronized updates to `DEVPLAN.md`.
+Use phased, incremental implementation with test coverage added in each phase and synchronized updates to `DEV_REQ/PLAN.md`.

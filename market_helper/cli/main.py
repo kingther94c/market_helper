@@ -3,6 +3,7 @@ from __future__ import annotations
 """CLI entrypoint for the read-only market_helper workflows."""
 
 import argparse
+import os
 from pathlib import Path
 from typing import Sequence
 
@@ -46,7 +47,38 @@ def build_parser() -> argparse.ArgumentParser:
         "ibkr-flex-performance-report",
         help="Parse an IBKR Flex XML and export a dated horizon performance CSV (MTD/YTD/1M, MWR/TWR, USD/SGD).",
     )
-    ibkr_flex_performance_report.add_argument("--flex-xml", required=True, help="Path to downloaded Flex XML file.")
+    ibkr_flex_performance_report.add_argument(
+        "--flex-xml",
+        required=False,
+        help="Optional path to a downloaded Flex XML file. If omitted, the CLI fetches via Flex Web Service.",
+    )
+    ibkr_flex_performance_report.add_argument(
+        "--query-id",
+        required=False,
+        help="Optional Flex Query / Report id. Falls back to IBKR_PERFORMANCE_REPORT_ID.",
+    )
+    ibkr_flex_performance_report.add_argument(
+        "--token",
+        required=False,
+        help="Optional Flex Web Service token. Falls back to IBKR_FLEX_TOKEN.",
+    )
+    ibkr_flex_performance_report.add_argument(
+        "--xml-output",
+        required=False,
+        help="Optional path to persist the downloaded Flex XML before it is parsed.",
+    )
+    ibkr_flex_performance_report.add_argument(
+        "--poll-interval",
+        type=float,
+        default=5.0,
+        help="Polling interval in seconds when fetching over Flex Web Service.",
+    )
+    ibkr_flex_performance_report.add_argument(
+        "--max-attempts",
+        type=int,
+        default=10,
+        help="Maximum GetStatement polling attempts when fetching over Flex Web Service.",
+    )
     ibkr_flex_performance_report.add_argument("--output-dir", required=True, help="Directory for generated CSV outputs.")
 
     ibkr_position_report = subparsers.add_parser(
@@ -189,9 +221,24 @@ def main(argv: Sequence[str] | None = None) -> int:
         generate_position_report(positions_path=Path(args.positions), prices_path=Path(args.prices), output_path=Path(args.output))
         return 0
     if args.command == "ibkr-flex-performance-report":
+        query_id = args.query_id or os.getenv("IBKR_PERFORMANCE_REPORT_ID")
+        token = args.token or os.getenv("IBKR_FLEX_TOKEN")
+        if not args.flex_xml and not query_id:
+            parser.error(
+                "ibkr-flex-performance-report requires --flex-xml or IBKR_PERFORMANCE_REPORT_ID/--query-id"
+            )
+        if not args.flex_xml and not token:
+            parser.error(
+                "ibkr-flex-performance-report requires IBKR_FLEX_TOKEN/--token when --flex-xml is omitted"
+            )
         generate_ibkr_flex_performance_report(
-            flex_xml_path=Path(args.flex_xml),
             output_dir=Path(args.output_dir),
+            flex_xml_path=Path(args.flex_xml) if args.flex_xml else None,
+            query_id=query_id,
+            token=token,
+            xml_output_path=Path(args.xml_output) if args.xml_output else None,
+            poll_interval_seconds=args.poll_interval,
+            max_attempts=args.max_attempts,
         )
         return 0
     if args.command == "ibkr-position-report":

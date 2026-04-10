@@ -4,6 +4,7 @@ from pathlib import Path
 
 from market_helper.workflows.generate_report import (
     generate_etf_sector_sync,
+    generate_ibkr_flex_performance_report,
     generate_position_report,
     generate_report_mapping_table,
 )
@@ -136,3 +137,50 @@ def test_generate_etf_sector_sync_updates_json_lookthrough_store(tmp_path: Path)
         {"sector": "Financials", "weight": 0.2},
     ]
     assert payload["symbols"]["SOXX"]["status"] == "ok"
+
+
+def test_generate_ibkr_flex_performance_report_fetches_statement_from_web_service(tmp_path: Path) -> None:
+    output_dir = tmp_path / "outputs"
+    xml_output_path = tmp_path / "downloaded_flex.xml"
+    captured: dict[str, object] = {}
+
+    class FakeFlexClient:
+        def fetch_statement(
+            self,
+            query_id: str,
+            *,
+            poll_interval_seconds: float,
+            max_attempts: int,
+        ) -> str:
+            captured["query_id"] = query_id
+            captured["poll_interval_seconds"] = poll_interval_seconds
+            captured["max_attempts"] = max_attempts
+            return """
+<FlexQueryResponse>
+  <FlexStatements>
+    <FlexStatement>
+      <ChangeInNAV reportDate="2026-04-02" startingValue="100000" endingValue="101000" depositWithdrawal="0"/>
+      <PerformanceSummary mtdMoneyWeightedUsdPnl="1000" mtdMoneyWeightedUsdReturn="0.01" />
+    </FlexStatement>
+  </FlexStatements>
+</FlexQueryResponse>
+""".strip()
+
+    written_path = generate_ibkr_flex_performance_report(
+        output_dir=output_dir,
+        query_id="1462703",
+        token="secret-token",
+        xml_output_path=xml_output_path,
+        poll_interval_seconds=2.5,
+        max_attempts=4,
+        client=FakeFlexClient(),
+    )
+
+    assert written_path.name == "performance_report_20260402.csv"
+    assert xml_output_path.exists()
+    assert "PerformanceSummary,MTD,money_weighted,USD,1000,0.01" in written_path.read_text(encoding="utf-8")
+    assert captured == {
+        "query_id": "1462703",
+        "poll_interval_seconds": 2.5,
+        "max_attempts": 4,
+    }

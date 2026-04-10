@@ -38,9 +38,23 @@ def test_cli_position_report_dispatches_to_workflow(monkeypatch, tmp_path) -> No
 def test_cli_ibkr_flex_performance_report_dispatches_to_workflow(monkeypatch, tmp_path) -> None:
     captured: dict[str, object] = {}
 
-    def fake_generate_ibkr_flex_performance_report(*, flex_xml_path, output_dir):
+    def fake_generate_ibkr_flex_performance_report(
+        *,
+        output_dir,
+        flex_xml_path,
+        query_id,
+        token,
+        xml_output_path,
+        poll_interval_seconds,
+        max_attempts,
+    ):
         captured["flex_xml_path"] = flex_xml_path
         captured["output_dir"] = output_dir
+        captured["query_id"] = query_id
+        captured["token"] = token
+        captured["xml_output_path"] = xml_output_path
+        captured["poll_interval_seconds"] = poll_interval_seconds
+        captured["max_attempts"] = max_attempts
         return output_dir / "performance_report_20260402.csv"
 
     monkeypatch.setattr(
@@ -61,6 +75,63 @@ def test_cli_ibkr_flex_performance_report_dispatches_to_workflow(monkeypatch, tm
     assert exit_code == 0
     assert str(captured["flex_xml_path"]).endswith("flex_report.xml")
     assert str(captured["output_dir"]).endswith("outputs")
+    assert captured["query_id"] is None
+    assert captured["token"] is None
+    assert captured["xml_output_path"] is None
+    assert captured["poll_interval_seconds"] == 5.0
+    assert captured["max_attempts"] == 10
+
+
+def test_cli_ibkr_flex_performance_report_uses_env_backed_query_credentials(monkeypatch, tmp_path) -> None:
+    captured: dict[str, object] = {}
+
+    def fake_generate_ibkr_flex_performance_report(
+        *,
+        output_dir,
+        flex_xml_path,
+        query_id,
+        token,
+        xml_output_path,
+        poll_interval_seconds,
+        max_attempts,
+    ):
+        captured["output_dir"] = output_dir
+        captured["flex_xml_path"] = flex_xml_path
+        captured["query_id"] = query_id
+        captured["token"] = token
+        captured["xml_output_path"] = xml_output_path
+        captured["poll_interval_seconds"] = poll_interval_seconds
+        captured["max_attempts"] = max_attempts
+        return output_dir / "performance_report_20260402.csv"
+
+    monkeypatch.setattr(
+        "market_helper.cli.main.generate_ibkr_flex_performance_report",
+        fake_generate_ibkr_flex_performance_report,
+    )
+    monkeypatch.setenv("IBKR_PERFORMANCE_REPORT_ID", "1462703")
+    monkeypatch.setenv("IBKR_FLEX_TOKEN", "secret-token")
+
+    exit_code = main(
+        [
+            "ibkr-flex-performance-report",
+            "--output-dir",
+            str(tmp_path / "outputs"),
+            "--xml-output",
+            str(tmp_path / "downloaded.xml"),
+            "--poll-interval",
+            "2.5",
+            "--max-attempts",
+            "7",
+        ]
+    )
+
+    assert exit_code == 0
+    assert captured["flex_xml_path"] is None
+    assert captured["query_id"] == "1462703"
+    assert captured["token"] == "secret-token"
+    assert str(captured["xml_output_path"]).endswith("downloaded.xml")
+    assert captured["poll_interval_seconds"] == 2.5
+    assert captured["max_attempts"] == 7
 
 def test_cli_ibkr_position_report_dispatches_to_ibkr_workflow(monkeypatch, tmp_path) -> None:
     captured: dict[str, object] = {}

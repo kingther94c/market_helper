@@ -1,12 +1,12 @@
-# DEVPLAN
+# PLAN
 
 ## PR Non-Negotiable
-**Every PR must update DEVPLAN.md. Missing that update is a serious PR mistake.**
+**Every PR must update `DEV_REQ/PLAN.md`. Missing that update is a serious PR mistake.**
 **During every PR, we must explicitly review what has been completed, reassess whether the current plan is still optimal, tighten or simplify the implementation plan where needed, and refresh the future roadmap before merging.**
 **Every PR must also update any relevant file under `docs/devplans/` when scope, status, architecture, or next steps changed.**
 
 ## Process Rule
-**Every PR must update DEVPLAN.md to reflect completed work, current status, and next steps.**
+**Every PR must update `DEV_REQ/PLAN.md` to reflect completed work, current status, and next steps.**
 
 ## Objective
 Build a broker-agnostic, read-only IBKR integration layer for market monitoring and portfolio analytics, with IBKR Client Portal Web API as the primary path and clean extension points for future providers/services. The immediate delivery path is a reliable position-report workflow plus notebook-led live TWS / IB Gateway lookup tooling that can run from normalized snapshots, raw IBKR payloads, and live local TWS / IB Gateway sessions.
@@ -61,8 +61,9 @@ Build a broker-agnostic, read-only IBKR integration layer for market monitoring 
 - Added minimal regime evaluation scaffold (`market_helper/backtest/regime_eval.py`) for basic performance/turnover metrics on regime-conditioned targets.
 - Added unit/e2e tests for indicator transforms, rulebook hysteresis/mutual exclusivity, policy mapping, CLI dispatch, and CLI regime output schema.
 - Added first-pass IBKR Flex XML performance ingestion (`market_helper.data_sources.ibkr.flex.performance`) to extract daily NAV/cash events plus horizon-level performance, and export a dated performance report CSV (`performance_report_YYYYMMDD.csv`) covering MTD/YTD/1M across MWR/TWR and USD/SGD.
-- Added CLI/workflow entrypoint `ibkr-flex-performance-report` so a downloaded Flex XML can be converted directly into report CSV artifacts while we prepare Flex Web Service query-id/token integration.
-- Added parser + CLI unit coverage for the Flex XML-to-CSV path, including horizon matrix extraction/selection across section versions and dated report export for downstream HTML migration.
+- Added live IBKR Flex Web Service fetching (`SendRequest` / `GetStatement` + polling) so `ibkr-flex-performance-report` and `./scripts/run_report.sh ibkr-flex` can run directly from `IBKR_FLEX_TOKEN` and `IBKR_PERFORMANCE_REPORT_ID`, while still supporting local XML input.
+- Added parser + CLI unit coverage for the Flex XML-to-CSV path, including horizon matrix extraction/selection across section versions, env-backed query fetching, and dated report export for downstream HTML migration.
+- Added a same-day Alpha Vantage failure-streak guard so ETF lookthrough refresh stops after repeated consecutive provider errors instead of burning through the remaining daily budget.
 
 - Added example configs: `configs/regime_detection/regime_config.example.yml` and `configs/regime_detection/regime_policy.example.yml`.
 - Added a workbook-to-JSON mapping-table extraction path so stable portfolio metadata can be seeded from `target_report.xlsx` without making the HTML report depend directly on the workbook at runtime.
@@ -140,7 +141,7 @@ Build a broker-agnostic, read-only IBKR integration layer for market monitoring 
 
 ## Backlog / Future Phases
 - Extend the TWS `ib_async` adapter surface beyond the current client/portfolio/report/contract-lookup coverage, especially market-data and richer account/session tooling.
-- Extend the new Flex XML parse/map flow to direct Flex Web Service fetch using query-id/token and asynchronous statement download polling.
+- Extend the live Flex performance path into downstream reporting layers, especially HTML/workbook presentation and longer-horizon performance comparisons.
 - Build broker-agnostic business services (portfolio/quote/allocation/risk/monitor).
 - Build HTML monitor rendering and snapshot tests.
 - Add e2e workflow coverage across Web API, TWS, and Flex.

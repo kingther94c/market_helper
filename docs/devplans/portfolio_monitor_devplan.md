@@ -12,7 +12,7 @@
 - Keep the new risk utility layer under `market_helper/domain/portfolio_monitor/services/` as the reusable home for realized-vol, proxy-vol, fixed-income-vol, and Yahoo return-cache logic rather than letting that logic drift back into `reporting/risk_html.py`.
 
 ## Near-Term Next Steps
-1. Extend the new `ibkr-flex-performance-report` XML-to-CSV path to pull statements directly from Flex Web Service (query id/token + polling) so performance reporting can run without manual downloads.
+1. Integrate the new live `ibkr-flex-performance-report` fetch path into downstream HTML/workbook reporting so performance artifacts can be consumed without manual handoff.
 2. Replace the current heuristic US-ETF discovery used by report-time sector refresh with an explicit `is_etf` / `instrument_kind` semantic field in the security universe or generated reference cache.
 3. Add cached proxy loaders and wire them into the same artifact-driven risk flow now used for dated Yahoo return caches.
 4. Extend the risk layer from summary vol contributions into covariance-consistent marginal/component attribution for securities and bucket rollups.
@@ -21,11 +21,13 @@
 
 ## Recently Completed
 - Added a first-pass IBKR Flex XML performance path (`ibkr-flex-performance-report`) that parses downloaded Flex statements into a dated `performance_report_YYYYMMDD.csv` with MTD/YTD/1M, money/time-weighted, USD/SGD, plus dollar-PnL/return columns; this is the CSV contract for the upcoming HTML layer and policy-portfolio overlays.
+- Extended `ibkr-flex-performance-report` with live Flex Web Service fetching (query id/token + polling), plus an `ibkr-flex` script wrapper path that reads `IBKR_FLEX_TOKEN` and `IBKR_PERFORMANCE_REPORT_ID` from `configs/portfolio_monitor/local.env`.
 - Consolidated tracked risk-report config under `configs/portfolio_monitor/report_config.yaml`, including canonical `lookthrough`, `proxy`, and policy sections used by the HTML risk flow.
 - Consolidated gitignored local-only settings under `configs/portfolio_monitor/local.env`, including account defaults and `FMP_API_KEY`.
-- Added an FMP-backed `etf-sector-sync` workflow plus `market_helper.data_sources.fmp` client support so ETF sector lookthrough can be refreshed through a first-class CLI/script entrypoint.
+- Added an Alpha Vantage-backed `etf-sector-sync` workflow so ETF sector lookthrough can be refreshed through a first-class CLI/script entrypoint.
 - Switched canonical US sector lookthrough storage from CSV to `configs/portfolio_monitor/us_sector_lookthrough.json`, including per-symbol `updated_at`, cached normalized sector weights, refresh status, and shared daily API-usage tracking.
-- Added automatic ETF sector lookthrough registration/refresh during `risk-html-report`, with new symbols seeded at `2000-01-01`, stale symbols refreshed after 30 days, and refreshes capped by the shared `250` calls/day budget.
+- Added automatic ETF sector lookthrough registration/refresh during `risk-html-report`, with new symbols seeded at `2000-01-01`, stale symbols refreshed after 30 days, and refreshes capped by the shared `25` calls/day budget.
+- Added a same-day consecutive-failure guard for ETF sector refresh so repeated Alpha Vantage provider errors stop consuming the remaining daily lookthrough budget.
 - Made US sector expansion prefer canonical ETF lookthrough over single-name `eq_sector` fields, so ETFs like `SOXX`, `QQQ`, `TQQQ`, and `SQQQ` no longer inherit misleading single-sector labels from security metadata.
 - Added CLI, workflow, e2e, and reporting regression coverage for the unified local config path, FMP ETF sync flow, JSON lookthrough loading, and report-time refresh behavior.
 - Added reusable `volatility.py`, `vol_proxies.py`, `fixed_income_vol.py`, and `yahoo_returns.py` service modules for generic portfolio risk math and dated Yahoo return caching.
