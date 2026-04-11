@@ -1,5 +1,6 @@
 import pytest
 
+import market_helper.providers.flex.client as client_module
 from market_helper.providers.flex import FlexWebServiceClient, FlexWebServiceError, FlexWebServicePendingError
 
 
@@ -43,6 +44,34 @@ def test_flex_web_service_client_send_request_supports_date_range_override() -> 
     assert reference_code == "ABC123"
     assert "fd=20250101" in seen_urls[0]
     assert "td=20251231" in seen_urls[0]
+
+
+def test_flex_web_service_client_send_request_normalizes_weekend_boundaries_to_weekdays() -> None:
+    seen_urls: list[str] = []
+
+    def downloader(url: str) -> str:
+        seen_urls.append(url)
+        return """
+<FlexStatementResponse>
+  <Status>Success</Status>
+  <ReferenceCode>ABC123</ReferenceCode>
+</FlexStatementResponse>
+""".strip()
+
+    client = FlexWebServiceClient(token="secret-token", downloader=downloader)
+
+    reference_code = client.send_request("1462703", from_date="2025-03-01", to_date="2025-03-03")
+
+    assert reference_code == "ABC123"
+    assert "fd=20250303" in seen_urls[0]
+    assert "td=20250303" in seen_urls[0]
+
+
+def test_flex_web_service_client_send_request_rejects_inverted_range_after_weekday_normalization() -> None:
+    client = FlexWebServiceClient(token="secret-token", downloader=lambda _url: "")
+
+    with pytest.raises(ValueError, match="after weekday normalization"):
+        client.send_request("1462703", from_date="2025-03-01", to_date="2025-03-02")
 
 
 def test_flex_web_service_client_send_request_supports_period_override() -> None:
@@ -205,6 +234,10 @@ def test_flex_web_service_client_fetch_statement_surfaces_polling_guidance_on_ti
         client.fetch_statement("1462703", poll_interval_seconds=7.5, max_attempts=2)
 
     assert sleeps == [7.5]
+
+
+def test_flex_web_service_default_timeout_budget_is_one_minute() -> None:
+    assert client_module.DEFAULT_IBKR_FLEX_MAX_ATTEMPTS == 13
 
 
 def test_flex_web_service_client_send_request_raises_non_retryable_error() -> None:
