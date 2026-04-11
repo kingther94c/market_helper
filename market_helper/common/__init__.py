@@ -14,6 +14,13 @@ from .models import (
     SecurityReference,
     SecurityReferenceTable,
 )
+from .progress import (
+    NullProgressReporter,
+    ProgressReporter,
+    RecordingProgressReporter,
+    TerminalProgressReporter,
+    resolve_progress_reporter,
+)
 from .read_only import (
     ReadOnlyViolationError,
     assert_operation_allowed,
@@ -31,14 +38,19 @@ __all__ = [
     "PortfolioPositionView",
     "PortfolioPriceSnapshot",
     "PortfolioSnapshot",
+    "ProgressReporter",
     "ReadOnlyViolationError",
+    "RecordingProgressReporter",
     "RecommendationOutput",
     "RegimeSnapshot",
     "SecurityMapping",
     "SecurityReference",
     "SecurityReferenceTable",
+    "TerminalProgressReporter",
+    "NullProgressReporter",
     "assert_operation_allowed",
     "assert_read_only_mode",
     "ensure_utc_iso",
+    "resolve_progress_reporter",
     "utc_now_iso",
 ]

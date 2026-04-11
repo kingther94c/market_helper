@@ -6,6 +6,7 @@ from datetime import date, datetime, timezone
 from pathlib import Path
 from typing import Any, Iterable, Mapping, Sequence
 
+from market_helper.common.progress import ProgressReporter
 from market_helper.data_sources.fmp import FmpClient, FmpEtfSectorWeight
 
 
@@ -54,6 +55,7 @@ def sync_us_sector_lookthrough_from_fmp(
     today: date | None = None,
     max_age_days: int = DEFAULT_LOOKTHROUGH_MAX_AGE_DAYS,
     daily_call_limit: int = DEFAULT_FMP_DAILY_CALL_LIMIT,
+    progress: ProgressReporter | None = None,
 ) -> Path:
     normalized_symbols = _normalize_symbols(symbols)
     if not normalized_symbols:
@@ -76,6 +78,7 @@ def sync_us_sector_lookthrough_from_fmp(
             today=materialized_today,
             max_age_days=max_age_days,
             daily_call_limit=daily_call_limit,
+            progress=progress,
         )
 
     _write_store(destination, store)
@@ -91,6 +94,7 @@ def refresh_us_sector_lookthrough_for_report(
     today: date | None = None,
     max_age_days: int = DEFAULT_LOOKTHROUGH_MAX_AGE_DAYS,
     daily_call_limit: int = DEFAULT_FMP_DAILY_CALL_LIMIT,
+    progress: ProgressReporter | None = None,
 ) -> Path:
     return sync_us_sector_lookthrough_from_fmp(
         symbols=symbols,
@@ -101,6 +105,7 @@ def refresh_us_sector_lookthrough_for_report(
         today=today,
         max_age_days=max_age_days,
         daily_call_limit=daily_call_limit,
+        progress=progress,
     )
 
 
@@ -161,12 +166,10 @@ def _refresh_store(
     today: date,
     max_age_days: int,
     daily_call_limit: int,
+    progress: ProgressReporter | None,
 ) -> None:
     usage = _normalize_api_usage(store, today=today)
     remaining_budget = max(0, int(daily_call_limit) - int(usage["count"]))
-    if remaining_budget <= 0:
-        return
-
     stale_symbols = _stale_symbols(
         store,
         force_refresh=force_refresh,
@@ -174,9 +177,29 @@ def _refresh_store(
         today=today,
         max_age_days=max_age_days,
     )
-    for symbol in stale_symbols:
+    if progress is not None and stale_symbols:
+        progress.stage("ETF sector sync", current=0, total=len(stale_symbols))
+    if remaining_budget <= 0:
+        if progress is not None and stale_symbols:
+            progress.update(
+                "ETF sector sync",
+                completed=len(stale_symbols),
+                total=len(stale_symbols),
+                detail="budget exhausted",
+            )
+        return
+
+    completed = 0
+    for index, symbol in enumerate(stale_symbols, start=1):
         if remaining_budget <= 0:
-            break
+            if progress is not None:
+                progress.update(
+                    "ETF sector sync",
+                    completed=index,
+                    total=len(stale_symbols),
+                    detail=f"{symbol} budget-exhausted",
+                )
+            continue
         entry = _store_symbols(store)[symbol]
         try:
             normalized_rows = _normalize_fmp_rows(
@@ -194,6 +217,14 @@ def _refresh_store(
             entry["sectors"] = normalized_rows
         remaining_budget -= 1
         usage["count"] = int(usage["count"]) + 1
+        if progress is not None:
+            completed += 1
+            progress.update(
+                "ETF sector sync",
+                completed=completed,
+                total=len(stale_symbols),
+                detail=f"{symbol} {entry['status']}",
+            )
 
 
 def _stale_symbols(

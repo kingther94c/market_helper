@@ -1,5 +1,6 @@
 import csv
 
+from market_helper.common.progress import RecordingProgressReporter
 from market_helper.portfolio import SecurityReference, export_security_reference_csv
 from market_helper.workflows.generate_report import generate_live_ibkr_position_report
 import market_helper.domain.portfolio_monitor.pipelines.generate_portfolio_report as report_pipeline
@@ -75,6 +76,32 @@ def test_generate_live_ibkr_position_report_writes_csv_from_gateway_client(tmp_p
     assert rows[0]["currency"] == "USD"
     assert rows[0]["latest_price"] == "214.8"
     assert rows[0]["unrealized_pnl"] == "90.0"
+
+
+def test_generate_live_ibkr_position_report_reports_progress(tmp_path) -> None:
+    output_path = tmp_path / "outputs" / "live_position_report.csv"
+    client = FakeLiveClient()
+    reporter = RecordingProgressReporter()
+
+    generate_live_ibkr_position_report(
+        output_path=output_path,
+        account_id="U12345",
+        as_of="2026-03-26T00:00:00+00:00",
+        client=client,
+        progress=reporter,
+    )
+
+    assert reporter.events[0] == {"kind": "stage", "label": "IBKR live report", "current": 0, "total": 6}
+    assert reporter.events[1] == {
+        "kind": "spinner",
+        "label": "IBKR live report",
+        "detail": "connecting",
+    }
+    assert reporter.events[-1] == {
+        "kind": "done",
+        "label": "IBKR live report",
+        "detail": f"wrote {output_path}",
+    }
 
 
 class FakeCashAccountValue:
