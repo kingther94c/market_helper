@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 from dataclasses import dataclass
 import time
 from typing import Callable
@@ -11,7 +11,8 @@ from market_helper.data_sources.base import DEFAULT_TIMEOUT, build_url, download
 DEFAULT_IBKR_FLEX_BASE_URL = "https://ndcdyn.interactivebrokers.com/AccountManagement/FlexWebService"
 DEFAULT_IBKR_FLEX_API_VERSION = "3"
 DEFAULT_IBKR_FLEX_POLL_INTERVAL_SECONDS = 5.0
-DEFAULT_IBKR_FLEX_MAX_ATTEMPTS = 10
+DEFAULT_IBKR_FLEX_WAIT_TIMEOUT_SECONDS = 60.0
+DEFAULT_IBKR_FLEX_MAX_ATTEMPTS = int(DEFAULT_IBKR_FLEX_WAIT_TIMEOUT_SECONDS / DEFAULT_IBKR_FLEX_POLL_INTERVAL_SECONDS) + 1
 SEND_REQUEST_PATH = "SendRequest"
 GET_STATEMENT_PATH = "GetStatement"
 
@@ -224,13 +225,21 @@ def _build_send_request_params(
     period: str | None,
 ) -> dict[str, object]:
     normalized_period = str(period or "").strip()
-    normalized_from_date = _normalize_flex_date(from_date, field_name="from_date")
-    normalized_to_date = _normalize_flex_date(to_date, field_name="to_date")
+    normalized_from_date = _normalize_flex_request_boundary(
+        _normalize_flex_date(from_date, field_name="from_date"),
+        boundary="from_date",
+    )
+    normalized_to_date = _normalize_flex_request_boundary(
+        _normalize_flex_date(to_date, field_name="to_date"),
+        boundary="to_date",
+    )
 
     if normalized_period and (normalized_from_date is not None or normalized_to_date is not None):
         raise ValueError("period cannot be combined with from_date/to_date")
     if (normalized_from_date is None) != (normalized_to_date is None):
         raise ValueError("from_date and to_date must be provided together")
+    if normalized_from_date is not None and normalized_to_date is not None and normalized_from_date > normalized_to_date:
+        raise ValueError("from_date must be on or before to_date after weekday normalization")
 
     params: dict[str, object] = {"t": token, "q": query_id, "v": api_version}
     if normalized_period:
@@ -258,3 +267,18 @@ def _normalize_flex_date(raw: date | datetime | str | None, *, field_name: str) 
         except ValueError:
             continue
     raise ValueError(f"{field_name} must be a date or a YYYYMMDD/YYYY-MM-DD string")
+
+
+def _normalize_flex_request_boundary(raw: str | None, *, boundary: str) -> str | None:
+    if raw is None:
+        return None
+    resolved = datetime.strptime(raw, "%Y%m%d").date()
+    if boundary == "from_date":
+        while resolved.weekday() >= 5:
+            resolved += timedelta(days=1)
+        return resolved.strftime("%Y%m%d")
+    if boundary == "to_date":
+        while resolved.weekday() >= 5:
+            resolved -= timedelta(days=1)
+        return resolved.strftime("%Y%m%d")
+    raise ValueError(f"Unsupported Flex date boundary: {boundary}")
