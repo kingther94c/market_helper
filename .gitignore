@@ -10,6 +10,7 @@ configs/portfolio_monitor/report_accounts.local.env
 configs/portfolio_monitor/local.env
 configs/portfolio_monitor/security_reference.csv
 configs/portfolio_monitor/us_sector_lookthrough.csv
+data/artifacts/**
 data/artifacts/portfolio_monitor/security_reference.csv
 data/artifacts/portfolio_monitor/live_ibkr_position_report.csv
 data/artifacts/portfolio_monitor/target_report.xlsx
