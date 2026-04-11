@@ -130,15 +130,17 @@ class FlexWebServiceClient:
         if poll_interval_seconds < 0:
             raise ValueError("poll_interval_seconds must be >= 0")
 
-        reference_code = self.send_request(
-            query_id,
-            from_date=from_date,
-            to_date=to_date,
-            period=period,
-        )
         last_error: FlexWebServicePendingError | None = None
+        reference_code: str | None = None
         for attempt in range(max_attempts):
             try:
+                if reference_code is None:
+                    reference_code = self.send_request(
+                        query_id,
+                        from_date=from_date,
+                        to_date=to_date,
+                        period=period,
+                    )
                 return self.get_statement(reference_code)
             except FlexWebServicePendingError as error:
                 last_error = error
