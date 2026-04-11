@@ -66,6 +66,10 @@ Build a broker-agnostic, read-only IBKR integration layer for market monitoring 
 - Added first-pass IBKR Flex XML performance ingestion (`market_helper.data_sources.ibkr.flex.performance`) to extract daily NAV/cash events plus horizon-level performance, and export a dated performance report CSV (`performance_report_YYYYMMDD.csv`) covering MTD/YTD/1M across MWR/TWR and USD/SGD.
 - Added live IBKR Flex Web Service fetching (`SendRequest` / `GetStatement` + polling) so `ibkr-flex-performance-report` and `./scripts/run_report.sh ibkr-flex` can run directly from `IBKR_FLEX_TOKEN` and `IBKR_PERFORMANCE_REPORT_ID`, while still supporting local XML input.
 - Added parser + CLI unit coverage for the Flex XML-to-CSV path, including horizon matrix extraction/selection across section versions, env-backed query fetching, and dated report export for downstream HTML migration.
+- Added a combined portfolio HTML report that renders `Performance` and `Risk` tabs in one page, with the new performance tab driven from `performance_history.feather` plus the dated `performance_report_YYYYMMDD.csv` artifact contract.
+- Extended portfolio-monitor performance analytics with reusable windowed metrics for `MTD`, `YTD`, trailing `1Y/3Y/5Y`, full-history summaries, yearly summary rows, TWR/MWR reporting, and drawdown/cumulative-performance plot frames for HTML/UI reuse.
+- Refactored the HTML risk report into reusable view-model and fragment rendering layers so the existing risk-only report can stay backward compatible while also embedding cleanly inside the new combined report shell.
+- Added a new `combined-html-report` CLI/workflow entrypoint plus script support for `combined-html` and `ibkr-live-combined-html`, and switched `./scripts/run_report.sh risk-html` and `./scripts/run_report.sh ibkr-live-html` to generate the combined report by default.
 
 - Added example configs: `configs/regime_detection/regime_config.example.yml` and `configs/regime_detection/regime_policy.example.yml`.
 - Added a workbook-to-JSON mapping-table extraction path so stable portfolio metadata can be seeded from `target_report.xlsx` without making the HTML report depend directly on the workbook at runtime.
@@ -107,18 +111,19 @@ Build a broker-agnostic, read-only IBKR integration layer for market monitoring 
 ## In Progress
 - Tightening the live TWS / `ib_async` report path with better account/session ergonomics, broader contract coverage, and richer real-world fixture coverage.
 - Hardening the universe-first risk workflow with cached proxy ingestion, more robust derivatives treatment, deeper attribution math, and tighter alignment between target-report semantics and the HTML/notebook summaries.
-- Planning the next reporting layer so the current generated CSV + HTML outputs can converge toward the target workbook structure without reintroducing workbook runtime dependencies.
+- Tightening the new combined `Performance + Risk` report so the current static HTML can evolve toward a fuller UI/workbook replacement without reintroducing workbook runtime dependencies.
 
 ## Next Steps
 1. Add cached loaders for benchmark proxies and wire them into the same reproducible artifact flow now used for Yahoo return histories.
-2. Extend risk attribution from the current vol-contribution view to covariance-consistent marginal/component risk attribution at both security and bucket levels.
-3. Improve derivatives handling, especially options / `OUTSIDE_SCOPE` rows, inverse products, and futures-specific exposure normalization.
-4. Add a local manual-override layer for provisional or account-specific universe entries that should not be committed until reviewed.
-5. Broaden look-through coverage for country/sector decomposition and continue expanding explicit FI tenor mappings where product semantics do not align with simple duration ranges.
-6. Add richer account-selection ergonomics and account/session metadata surfacing for live TWS / IB Gateway runs.
-7. Add more real IBKR payload fixtures and live-contract edge cases to harden normalization compatibility.
-8. Keep evolving the HTML/workbook layer toward the target portfolio view without coupling runtime rendering to `data/artifacts/portfolio_monitor/target_report.xlsx`.
-9. Optionally add a broader Client Portal Web API wrapper layer if we need more endpoints beyond position reporting.
+2. Extend the performance tab beyond the current standard report with richer windows/benchmarks only after the core combined layout is stable.
+3. Extend risk attribution from the current vol-contribution view to covariance-consistent marginal/component risk attribution at both security and bucket levels.
+4. Improve derivatives handling, especially options / `OUTSIDE_SCOPE` rows, inverse products, and futures-specific exposure normalization.
+5. Add a local manual-override layer for provisional or account-specific universe entries that should not be committed until reviewed.
+6. Broaden look-through coverage for country/sector decomposition and continue expanding explicit FI tenor mappings where product semantics do not align with simple duration ranges.
+7. Add richer account-selection ergonomics and account/session metadata surfacing for live TWS / IB Gateway runs.
+8. Add more real IBKR payload fixtures and live-contract edge cases to harden normalization compatibility.
+9. Keep evolving the combined HTML/workbook layer toward the target portfolio view without coupling runtime rendering to `data/artifacts/portfolio_monitor/target_report.xlsx`.
+10. Optionally add a broader Client Portal Web API wrapper layer if we need more endpoints beyond position reporting.
 
 ## Instrument Mapping Plan
 - Treat `configs/security_universe.csv` as the manual semantic source of truth and `data/artifacts/portfolio_monitor/security_reference.csv` as a generated/cacheable materialized view rather than as the business-authoritative mapping file.
@@ -131,6 +136,7 @@ Build a broker-agnostic, read-only IBKR integration layer for market monitoring 
 
 ## Target Report Gap
 - Current runtime output is still split between a normalized position CSV and a separate HTML risk report, while `data/artifacts/portfolio_monitor/target_report.xlsx` remains a structured workbook with at least two sheets: `Position` and `Risk`.
+- Current runtime output now includes a combined static HTML artifact with `Performance` and `Risk` tabs, but it still remains separate from the target workbook layout and formatting model.
 - We should treat the workbook as a source for seed mappings and reporting assumptions, not as a runtime dependency for the HTML report.
 - The new universe-first stack now computes asset-class summaries plus EQ country, US sector, and FI tenor breakdowns, but it still does not render the workbook-style `Position` and `Risk` sheets as a single formatted artifact.
 - The `Position` sheet still includes presentation-oriented sections and summaries that we do not compute yet in workbook form, including target-style bucket subtotal layouts and final display conventions for every instrument family, even though funded-AUM semantics are now aligned more closely with the intended "funded capital" denominator.

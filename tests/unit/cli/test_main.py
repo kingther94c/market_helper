@@ -228,6 +228,88 @@ def test_cli_risk_html_report_dispatches_to_workflow(monkeypatch, tmp_path) -> N
     assert str(captured["output_path"]).endswith("portfolio_risk_report.html")
 
 
+def test_cli_combined_html_report_dispatches_to_workflow(monkeypatch, tmp_path) -> None:
+    captured: dict[str, object] = {}
+
+    def fake_generate_combined_html_report(
+        *,
+        positions_csv_path,
+        output_path,
+        performance_history_path,
+        performance_output_dir,
+        performance_report_csv_path,
+        returns_path,
+        proxy_path,
+        regime_path,
+        security_reference_path,
+        risk_config_path,
+        allocation_policy_path,
+        vol_method,
+    ):
+        captured["positions_csv_path"] = positions_csv_path
+        captured["output_path"] = output_path
+        captured["performance_history_path"] = performance_history_path
+        captured["performance_output_dir"] = performance_output_dir
+        captured["performance_report_csv_path"] = performance_report_csv_path
+        captured["returns_path"] = returns_path
+        captured["proxy_path"] = proxy_path
+        captured["regime_path"] = regime_path
+        captured["security_reference_path"] = security_reference_path
+        captured["risk_config_path"] = risk_config_path
+        captured["allocation_policy_path"] = allocation_policy_path
+        captured["vol_method"] = vol_method
+        return output_path
+
+    monkeypatch.setattr(
+        "market_helper.cli.main.generate_combined_html_report",
+        fake_generate_combined_html_report,
+    )
+
+    exit_code = main(
+        [
+            "combined-html-report",
+            "--positions-csv",
+            str(tmp_path / "live_ibkr_position_report.csv"),
+            "--performance-history",
+            str(tmp_path / "performance_history.feather"),
+            "--performance-output-dir",
+            str(tmp_path / "flex"),
+            "--performance-report-csv",
+            str(tmp_path / "performance_report_20260410.csv"),
+            "--returns",
+            str(tmp_path / "returns.json"),
+            "--proxy",
+            str(tmp_path / "proxy.json"),
+            "--regime",
+            str(tmp_path / "regime.json"),
+            "--security-reference",
+            str(tmp_path / "security_reference.csv"),
+            "--output",
+            str(tmp_path / "portfolio_combined_report.html"),
+            "--risk-config",
+            str(tmp_path / "report_config.yaml"),
+            "--allocation-policy",
+            str(tmp_path / "allocation_policy.yaml"),
+            "--vol-method",
+            "5y_realized",
+        ]
+    )
+
+    assert exit_code == 0
+    assert str(captured["positions_csv_path"]).endswith("live_ibkr_position_report.csv")
+    assert str(captured["performance_history_path"]).endswith("performance_history.feather")
+    assert str(captured["performance_output_dir"]).endswith("flex")
+    assert str(captured["performance_report_csv_path"]).endswith("performance_report_20260410.csv")
+    assert str(captured["returns_path"]).endswith("returns.json")
+    assert str(captured["proxy_path"]).endswith("proxy.json")
+    assert str(captured["regime_path"]).endswith("regime.json")
+    assert str(captured["security_reference_path"]).endswith("security_reference.csv")
+    assert str(captured["risk_config_path"]).endswith("report_config.yaml")
+    assert str(captured["allocation_policy_path"]).endswith("allocation_policy.yaml")
+    assert captured["vol_method"] == "5y_realized"
+    assert str(captured["output_path"]).endswith("portfolio_combined_report.html")
+
+
 def test_cli_regime_detect_dispatches_to_workflow(monkeypatch, tmp_path) -> None:
     captured: dict[str, object] = {}
 

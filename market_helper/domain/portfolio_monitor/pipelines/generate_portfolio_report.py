@@ -66,6 +66,7 @@ from market_helper.presentation.exporters.security_reference_seed import (
     extract_security_reference_seed,
 )
 from market_helper.presentation.html.portfolio_risk_report import build_risk_html_report
+from market_helper.reporting.combined_html import build_combined_html_report
 from market_helper.presentation.tables.portfolio_report import (
     PositionReportRow,
     build_position_report_rows,
@@ -1133,6 +1134,39 @@ def generate_risk_html_report(
     )
 
 
+def generate_combined_html_report(
+    *,
+    positions_csv_path: str | Path,
+    output_path: str | Path,
+    performance_history_path: str | Path | None = None,
+    performance_output_dir: str | Path | None = None,
+    performance_report_csv_path: str | Path | None = None,
+    returns_path: str | Path | None = None,
+    proxy_path: str | Path | None = None,
+    regime_path: str | Path | None = None,
+    security_reference_path: str | Path | None = None,
+    risk_config_path: str | Path | None = None,
+    allocation_policy_path: str | Path | None = None,
+    vol_method: str = "geomean_1m_3m",
+) -> Path:
+    reference_path = Path(security_reference_path) if security_reference_path is not None else DEFAULT_SECURITY_REFERENCE_PATH
+    sync_security_reference_csv(reference_path=reference_path)
+    return build_combined_html_report(
+        positions_csv_path=positions_csv_path,
+        output_path=output_path,
+        performance_history_path=performance_history_path,
+        performance_output_dir=performance_output_dir,
+        performance_report_csv_path=performance_report_csv_path,
+        returns_path=returns_path,
+        proxy_path=proxy_path,
+        regime_path=regime_path,
+        security_reference_path=reference_path,
+        risk_config_path=risk_config_path,
+        allocation_policy_path=allocation_policy_path,
+        vol_method=vol_method,
+    )
+
+
 def generate_security_reference_sync(
     *,
     output_path: str | Path | None = None,
@@ -1704,6 +1738,7 @@ def _security_enrichment_fields(
 
 __all__ = [
     "build_live_ibkr_position_security_table",
+    "generate_combined_html_report",
     "generate_etf_sector_sync",
     "generate_ibkr_position_report",
     "generate_live_ibkr_position_report",

@@ -16,6 +16,7 @@ from market_helper.data_sources.ibkr.tws import TwsIbAsyncClient
 from market_helper.domain.portfolio_monitor.pipelines.generate_portfolio_report import (
     FlexBackfillBatchError,
     backfill_ibkr_flex_full_years as _backfill_ibkr_flex_full_years,
+    generate_combined_html_report as _generate_combined_html_report,
     generate_etf_sector_sync as _generate_etf_sector_sync,
     generate_ibkr_flex_performance_report as _generate_ibkr_flex_performance_report,
     generate_ibkr_position_report as _generate_ibkr_position_report,
@@ -219,6 +220,37 @@ def generate_risk_html_report(
     )
 
 
+def generate_combined_html_report(
+    *,
+    positions_csv_path: str | Path,
+    output_path: str | Path,
+    performance_history_path: str | Path | None = None,
+    performance_output_dir: str | Path | None = None,
+    performance_report_csv_path: str | Path | None = None,
+    returns_path: str | Path | None = None,
+    proxy_path: str | Path | None = None,
+    regime_path: str | Path | None = None,
+    security_reference_path: str | Path | None = None,
+    risk_config_path: str | Path | None = None,
+    allocation_policy_path: str | Path | None = None,
+    vol_method: str = "geomean_1m_3m",
+) -> Path:
+    return _generate_combined_html_report(
+        positions_csv_path=positions_csv_path,
+        output_path=output_path,
+        performance_history_path=performance_history_path,
+        performance_output_dir=performance_output_dir,
+        performance_report_csv_path=performance_report_csv_path,
+        returns_path=returns_path,
+        proxy_path=proxy_path,
+        regime_path=regime_path,
+        security_reference_path=security_reference_path,
+        risk_config_path=risk_config_path,
+        allocation_policy_path=allocation_policy_path,
+        vol_method=vol_method,
+    )
+
+
 def generate_security_reference_sync(
     *,
     output_path: str | Path | None = None,
@@ -258,6 +290,7 @@ __all__ = [
     "FlexBackfillBatchError",
     "TwsIbAsyncClient",
     "backfill_ibkr_flex_full_years",
+    "generate_combined_html_report",
     "generate_etf_sector_sync",
     "generate_ibkr_flex_performance_report",
     "generate_ibkr_position_report",

@@ -7,6 +7,7 @@ from pathlib import Path
 from typing import Sequence
 
 from market_helper.workflows.generate_report import (
+    generate_combined_html_report,
     generate_etf_sector_sync,
     generate_ibkr_flex_performance_report,
     generate_ibkr_position_report,
@@ -97,6 +98,43 @@ def build_parser() -> argparse.ArgumentParser:
         help="Deprecated compatibility-only: optional policy-only YAML override path.",
     )
     risk_html_report.add_argument(
+        "--vol-method",
+        required=False,
+        default="geomean_1m_3m",
+        choices=["geomean_1m_3m", "5y_realized", "ewma"],
+        help="Volatility method used for contribution views.",
+    )
+
+    combined_html_report = subparsers.add_parser(
+        "combined-html-report",
+        help="Generate a combined HTML report with performance and risk tabs.",
+    )
+    combined_html_report.add_argument("--positions-csv", required=True, help="Path to position CSV.")
+    combined_html_report.add_argument("--output", required=True, help="Path to output HTML.")
+    combined_html_report.add_argument("--performance-history", required=False, help="Optional performance_history.feather path.")
+    combined_html_report.add_argument("--performance-output-dir", required=False, help="Optional performance artifact directory.")
+    combined_html_report.add_argument("--performance-report-csv", required=False, help="Optional dated performance report CSV path.")
+    combined_html_report.add_argument("--returns", required=False, help="Optional returns JSON override.")
+    combined_html_report.add_argument("--proxy", required=False, help="Optional estimate vol proxy JSON.")
+    combined_html_report.add_argument("--regime", required=False, help="Optional regime snapshot JSON path.")
+    combined_html_report.add_argument(
+        "--security-reference",
+        "--mapping-table",
+        dest="security_reference",
+        required=False,
+        help="Optional generated security-reference CSV path. Defaults to data/artifacts/portfolio_monitor/security_reference.csv.",
+    )
+    combined_html_report.add_argument(
+        "--risk-config",
+        required=False,
+        help="Optional unified risk-report YAML config path.",
+    )
+    combined_html_report.add_argument(
+        "--allocation-policy",
+        required=False,
+        help="Deprecated compatibility-only: optional policy-only YAML override path.",
+    )
+    combined_html_report.add_argument(
         "--vol-method",
         required=False,
         default="geomean_1m_3m",
@@ -218,6 +256,22 @@ def main(argv: Sequence[str] | None = None) -> int:
             positions_csv_path=Path(args.positions_csv),
             returns_path=Path(args.returns) if args.returns else None,
             output_path=Path(args.output),
+            proxy_path=Path(args.proxy) if args.proxy else None,
+            regime_path=Path(args.regime) if args.regime else None,
+            security_reference_path=Path(args.security_reference) if args.security_reference else None,
+            risk_config_path=Path(args.risk_config) if args.risk_config else None,
+            allocation_policy_path=Path(args.allocation_policy) if args.allocation_policy else None,
+            vol_method=args.vol_method,
+        )
+        return 0
+    if args.command == "combined-html-report":
+        generate_combined_html_report(
+            positions_csv_path=Path(args.positions_csv),
+            output_path=Path(args.output),
+            performance_history_path=Path(args.performance_history) if args.performance_history else None,
+            performance_output_dir=Path(args.performance_output_dir) if args.performance_output_dir else None,
+            performance_report_csv_path=Path(args.performance_report_csv) if args.performance_report_csv else None,
+            returns_path=Path(args.returns) if args.returns else None,
             proxy_path=Path(args.proxy) if args.proxy else None,
             regime_path=Path(args.regime) if args.regime else None,
             security_reference_path=Path(args.security_reference) if args.security_reference else None,
