@@ -11,8 +11,10 @@ from datetime import date
 from pathlib import Path
 from typing import TYPE_CHECKING
 
+from market_helper.common.progress import ProgressReporter
 from market_helper.data_sources.ibkr.tws import TwsIbAsyncClient
 from market_helper.domain.portfolio_monitor.pipelines.generate_portfolio_report import (
+    FlexBackfillBatchError,
     backfill_ibkr_flex_full_years as _backfill_ibkr_flex_full_years,
     generate_etf_sector_sync as _generate_etf_sector_sync,
     generate_ibkr_flex_performance_report as _generate_ibkr_flex_performance_report,
@@ -44,6 +46,7 @@ def generate_ibkr_flex_performance_report(
     max_attempts: int = 10,
     client: object | None = None,
     yahoo_client: YahooFinanceClient | None = None,
+    progress: ProgressReporter | None = None,
 ) -> Path:
     return _generate_ibkr_flex_performance_report(
         output_dir=output_dir,
@@ -58,6 +61,7 @@ def generate_ibkr_flex_performance_report(
         max_attempts=max_attempts,
         client=client,
         yahoo_client=yahoo_client,
+        progress=progress,
     )
 
 
@@ -71,7 +75,9 @@ def backfill_ibkr_flex_full_years(
     overwrite_existing: bool = False,
     poll_interval_seconds: float = 5.0,
     max_attempts: int = 10,
+    max_inflight_requests: int = 3,
     client: object | None = None,
+    progress: ProgressReporter | None = None,
 ):
     return _backfill_ibkr_flex_full_years(
         output_dir=output_dir,
@@ -82,7 +88,9 @@ def backfill_ibkr_flex_full_years(
         overwrite_existing=overwrite_existing,
         poll_interval_seconds=poll_interval_seconds,
         max_attempts=max_attempts,
+        max_inflight_requests=max_inflight_requests,
         client=client,
+        progress=progress,
     )
 
 
@@ -112,11 +120,13 @@ def rebuild_ibkr_flex_performance_history(
     output_dir: str | Path,
     yahoo_client: YahooFinanceClient | None = None,
     extra_xml_paths: list[str | Path] | None = None,
+    progress: ProgressReporter | None = None,
 ) -> Path:
     return _rebuild_ibkr_flex_performance_history(
         output_dir=output_dir,
         yahoo_client=yahoo_client,
         extra_xml_paths=extra_xml_paths,
+        progress=progress,
     )
 
 
@@ -158,6 +168,7 @@ def generate_live_ibkr_position_report(
     timeout: float = 4.0,
     as_of: str | None = None,
     client: object | None = None,
+    progress: ProgressReporter | None = None,
 ) -> Path:
     live_client = client or TwsIbAsyncClient(
         host=host,
@@ -177,6 +188,7 @@ def generate_live_ibkr_position_report(
         timeout=timeout,
         as_of=as_of,
         client=live_client,
+        progress=progress,
     )
 
 
@@ -191,6 +203,7 @@ def generate_risk_html_report(
     risk_config_path: str | Path | None = None,
     allocation_policy_path: str | Path | None = None,
     vol_method: str = "geomean_1m_3m",
+    progress: ProgressReporter | None = None,
 ) -> Path:
     return _generate_risk_html_report(
         positions_csv_path=positions_csv_path,
@@ -202,6 +215,7 @@ def generate_risk_html_report(
         risk_config_path=risk_config_path,
         allocation_policy_path=allocation_policy_path,
         vol_method=vol_method,
+        progress=progress,
     )
 
 
@@ -218,12 +232,14 @@ def generate_etf_sector_sync(
     output_path: str | Path | None = None,
     api_key: str | None = None,
     client: object | None = None,
+    progress: ProgressReporter | None = None,
 ) -> Path:
     return _generate_etf_sector_sync(
         symbols=symbols,
         output_path=output_path,
         api_key=api_key,
         client=client,
+        progress=progress,
     )
 
 
@@ -239,6 +255,7 @@ def generate_report_mapping_table(
 
 
 __all__ = [
+    "FlexBackfillBatchError",
     "TwsIbAsyncClient",
     "backfill_ibkr_flex_full_years",
     "generate_etf_sector_sync",

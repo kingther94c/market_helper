@@ -8,6 +8,7 @@ from urllib.parse import quote
 
 import pandas as pd
 
+from market_helper.common.progress import ProgressReporter
 from market_helper.data_sources.yahoo_finance import YahooFinanceClient, YahooFinanceTransientError
 
 from .volatility import compute_returns
@@ -200,10 +201,26 @@ def build_internal_id_return_series_from_yahoo(
     return_method: str = DEFAULT_YAHOO_RETURN_METHOD,
     price_field: str = DEFAULT_YAHOO_PRICE_FIELD,
     ignore_transient_failures: bool = True,
+    progress: ProgressReporter | None = None,
 ) -> dict[str, pd.Series]:
     ensured_by_symbol: dict[str, YahooReturnCache] = {}
     built: dict[str, pd.Series] = {}
-    for row in rows:
+    materialized_rows = list(rows)
+    tracked_symbols = sorted(
+        {
+            str(getattr(row, "yahoo_symbol", "") or "").strip()
+            for row in materialized_rows
+            if str(getattr(row, "mapping_status", "") or "") == "mapped"
+            and str(getattr(row, "asset_class", "") or "") != "CASH"
+            and str(getattr(row, "yahoo_symbol", "") or "").strip()
+        }
+    )
+    if progress is not None and tracked_symbols:
+        progress.stage("Yahoo returns", current=0, total=len(tracked_symbols))
+    completed_symbols = 0
+    processed_symbols: set[str] = set()
+
+    for row in materialized_rows:
         mapping_status = str(getattr(row, "mapping_status", "") or "")
         asset_class = str(getattr(row, "asset_class", "") or "")
         internal_id = str(getattr(row, "internal_id", "") or "")
@@ -213,6 +230,8 @@ def build_internal_id_return_series_from_yahoo(
         if not yahoo_symbol:
             raise ValueError(f"Missing yahoo_symbol for mapped security {internal_id}")
         if yahoo_symbol not in ensured_by_symbol:
+            cache_path = yahoo_symbol_cache_path(yahoo_symbol, cache_dir=cache_dir)
+            cached = load_symbol_return_cache(cache_path)
             try:
                 ensured_by_symbol[yahoo_symbol] = ensure_symbol_return_cache(
                     yahoo_symbol,
@@ -224,9 +243,30 @@ def build_internal_id_return_series_from_yahoo(
                     price_field=price_field,
                 )
             except YahooFinanceTransientError:
+                if progress is not None and yahoo_symbol not in processed_symbols:
+                    completed_symbols += 1
+                    processed_symbols.add(yahoo_symbol)
+                    progress.update(
+                        "Yahoo returns",
+                        completed=completed_symbols,
+                        total=len(tracked_symbols),
+                        detail=f"{yahoo_symbol} skipped",
+                    )
                 if ignore_transient_failures:
                     continue
                 raise
+            if progress is not None and yahoo_symbol not in processed_symbols:
+                detail = f"{yahoo_symbol} fetched"
+                if cached is not None and ensured_by_symbol[yahoo_symbol] is cached:
+                    detail = f"{yahoo_symbol} cached"
+                completed_symbols += 1
+                processed_symbols.add(yahoo_symbol)
+                progress.update(
+                    "Yahoo returns",
+                    completed=completed_symbols,
+                    total=len(tracked_symbols),
+                    detail=detail,
+                )
         built[internal_id] = ensured_by_symbol[yahoo_symbol].series.copy()
     return built
 

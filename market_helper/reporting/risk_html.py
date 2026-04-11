@@ -14,6 +14,7 @@ from typing import Any, Iterable, Mapping, Sequence
 import pandas as pd
 import yaml
 
+from market_helper.common.progress import ProgressReporter, resolve_progress_reporter
 from market_helper.data_sources.yahoo_finance import YahooFinanceClient
 from market_helper.domain.portfolio_monitor.services.etf_sector_lookthrough import (
     load_tracked_us_sector_symbols,
@@ -307,13 +308,20 @@ def build_risk_html_report(
     yahoo_client: YahooFinanceClient | None = None,
     vol_method: str = "geomean_1m_3m",
     inter_asset_corr: str = "historical",
+    progress: ProgressReporter | None = None,
 ) -> Path:
+    reporter = resolve_progress_reporter(progress)
+    total_steps = 8
+    current_step = 0
     resolved_yahoo_client = yahoo_client or YahooFinanceClient()
+    reporter.stage("Risk HTML", current=current_step, total=total_steps)
     reference_table = _load_security_reference_table(security_reference_path)
     risk_report_config = _load_risk_report_config(
         risk_config_path=risk_config_path,
         allocation_policy_path=allocation_policy_path,
     )
+    current_step += 1
+    reporter.stage("Risk HTML: config loaded", current=current_step, total=total_steps)
     proxy = _load_proxy(
         proxy_path,
         yahoo_client=resolved_yahoo_client,
@@ -322,29 +330,43 @@ def build_risk_html_report(
         yahoo_symbols=risk_report_config.proxy_yahoo.symbols,
         yahoo_period=risk_report_config.proxy_yahoo.period,
         yahoo_interval=risk_report_config.proxy_yahoo.interval,
+        progress=reporter.child("Proxy"),
     )
     fi_10y_eq_mod_duration = _resolve_fi_10y_eq_mod_duration(
         risk_report_config.fixed_income.fi_10y_eq_mod_duration
     )
+    current_step += 1
+    reporter.stage("Risk HTML: proxy ready", current=current_step, total=total_steps)
     rows = load_position_rows(
         positions_csv_path,
         security_reference_table=reference_table,
         fi_10y_eq_mod_duration=fi_10y_eq_mod_duration,
     )
+    current_step += 1
+    reporter.stage("Risk HTML: positions loaded", current=current_step, total=total_steps)
     funded_aum_usd, funded_aum_sgd = _funded_aum_dual(
         rows,
-        usdsgd_rate=_resolve_usdsgd_rate(yahoo_client=resolved_yahoo_client),
+        usdsgd_rate=_resolve_usdsgd_rate(
+            yahoo_client=resolved_yahoo_client,
+            progress=reporter.child("FX"),
+        ),
     )
     _refresh_us_sector_lookthrough_for_report(
         rows=rows,
         lookthrough_path=risk_report_config.us_sector_lookthrough_path,
+        progress=reporter.child("Sector lookthrough"),
     )
+    current_step += 1
+    reporter.stage("Risk HTML: lookthrough refreshed", current=current_step, total=total_steps)
     included_rows = [row for row in rows if _is_report_included(row)]
     returns = _load_or_build_returns(
         returns_path=returns_path,
         rows=included_rows,
         yahoo_client=resolved_yahoo_client,
+        progress=reporter.child("Returns"),
     )
+    current_step += 1
+    reporter.stage("Risk HTML: returns ready", current=current_step, total=total_steps)
     regime_summary = _load_regime_summary(regime_path)
     allocation_policy = risk_report_config.policy
 
@@ -496,6 +518,8 @@ def build_risk_html_report(
         mapped_positions=sum(1 for row in included_rows if row.mapping_status == "mapped"),
         total_positions=len(included_rows),
     )
+    current_step += 1
+    reporter.stage("Risk HTML: risk metrics computed", current=current_step, total=total_steps)
 
     rendered = render_html(
         risk_rows=risk_rows,
@@ -511,9 +535,13 @@ def build_risk_html_report(
         vol_method=vol_method,
         inter_asset_corr=inter_asset_corr,
     )
+    current_step += 1
+    reporter.stage("Risk HTML: HTML rendered", current=current_step, total=total_steps)
     output = Path(output_path)
     output.parent.mkdir(parents=True, exist_ok=True)
     output.write_text(rendered, encoding="utf-8")
+    current_step += 1
+    reporter.done("Risk HTML", detail=f"wrote {output}")
     return output
 
 
@@ -1267,13 +1295,17 @@ def _load_or_build_returns(
     returns_path: str | Path | None,
     rows: list[RiskInputRow],
     yahoo_client: YahooFinanceClient,
+    progress: ProgressReporter | None = None,
 ) -> dict[str, pd.Series]:
     if returns_path is not None:
+        if progress is not None:
+            progress.done("Yahoo returns", detail="loaded override file")
         return _load_returns(returns_path)
     return build_internal_id_return_series_from_yahoo(
         rows,
         yahoo_client=yahoo_client,
         cache_dir=DEFAULT_YAHOO_RETURNS_CACHE_DIR,
+        progress=progress,
     )
 
 
@@ -2120,16 +2152,20 @@ def _refresh_us_sector_lookthrough_for_report(
     *,
     rows: Sequence[RiskInputRow],
     lookthrough_path: Path,
+    progress: ProgressReporter | None = None,
 ) -> None:
     if lookthrough_path.suffix.lower() != ".json":
         return
     existing_symbols = load_tracked_us_sector_symbols(lookthrough_path)
     symbols = _report_us_etf_lookthrough_symbols(rows, existing_symbols=existing_symbols)
     if not symbols:
+        if progress is not None:
+            progress.done("ETF sector sync", detail="no US ETF refresh needed")
         return
     refresh_us_sector_lookthrough_for_report(
         symbols=symbols,
         output_path=lookthrough_path,
+        progress=progress,
     )
 
 
@@ -2434,8 +2470,11 @@ def _load_proxy(
     yahoo_symbols: Mapping[str, str] | None = None,
     yahoo_period: str = DEFAULT_PROXY_YAHOO_PERIOD,
     yahoo_interval: str = DEFAULT_PROXY_YAHOO_INTERVAL,
+    progress: ProgressReporter | None = None,
 ) -> dict[str, float]:
     resolved_defaults = _merged_proxy_default_levels(default_levels)
+    if progress is not None:
+        progress.spinner("Proxy levels", detail="loading")
     loaded = _load_proxy_payload(path, fallback_payload=fallback_payload)
     _reject_legacy_fixed_income_proxy_keys(loaded, source="proxy")
     proxy, aliases = _parse_proxy_payload(loaded)
@@ -2446,10 +2485,13 @@ def _load_proxy(
         yahoo_symbols=yahoo_symbols,
         yahoo_period=yahoo_period,
         yahoo_interval=yahoo_interval,
+        progress=progress,
     )
     _resolve_proxy_aliases(proxy, aliases)
     proxy.setdefault("FXVOL", DEFAULT_PROXY_FXVOL)
     proxy.setdefault("DEFAULT", proxy.get("VIX", resolved_defaults["VIX"]))
+    if progress is not None:
+        progress.done("Proxy levels", detail="ready")
     return proxy
 
 
@@ -2505,9 +2547,14 @@ def _populate_proxy_defaults_from_yahoo(
     yahoo_symbols: Mapping[str, str] | None = None,
     yahoo_period: str = DEFAULT_PROXY_YAHOO_PERIOD,
     yahoo_interval: str = DEFAULT_PROXY_YAHOO_INTERVAL,
+    progress: ProgressReporter | None = None,
 ) -> dict[str, float]:
     resolved_defaults = _merged_proxy_default_levels(default_levels)
     resolved = dict(proxy)
+    missing_keys = [key for key in resolved_defaults if key not in resolved]
+    completed = 0
+    if progress is not None and missing_keys:
+        progress.stage("Proxy Yahoo", current=0, total=len(missing_keys))
     for key, fallback in resolved_defaults.items():
         if key in resolved:
             continue
@@ -2519,8 +2566,13 @@ def _populate_proxy_defaults_from_yahoo(
                 yahoo_period=yahoo_period,
                 yahoo_interval=yahoo_interval,
             )
+            detail = f"{key} fetched"
         except (RuntimeError, ValueError):
             resolved[key] = fallback
+            detail = f"{key} default"
+        if progress is not None:
+            completed += 1
+            progress.update("Proxy Yahoo", completed=completed, total=len(missing_keys), detail=detail)
     resolved.setdefault("FXVOL", DEFAULT_PROXY_FXVOL)
     resolved.setdefault("DEFAULT", resolved.get("VIX", resolved_defaults["VIX"]))
     return resolved
@@ -2580,27 +2632,43 @@ def _latest_yahoo_history_level(history: Mapping[str, Any]) -> float:
     return float(value)
 
 
-def _resolve_usdsgd_rate(*, yahoo_client: YahooFinanceClient) -> float | None:
+def _resolve_usdsgd_rate(
+    *,
+    yahoo_client: YahooFinanceClient,
+    progress: ProgressReporter | None = None,
+) -> float | None:
     cached = _YAHOO_FX_RATE_CACHE.get(DEFAULT_USDSGD_YAHOO_SYMBOL)
     if cached is not None:
+        if progress is not None:
+            progress.done("USD/SGD", detail="cached")
         return cached
     try:
+        if progress is not None:
+            progress.spinner("USD/SGD", detail="fetching USDSGD=X")
         rate = _fetch_symbol_level_from_yahoo(
             DEFAULT_USDSGD_YAHOO_SYMBOL,
             yahoo_client=yahoo_client,
         )
     except (RuntimeError, ValueError):
         try:
+            if progress is not None:
+                progress.spinner("USD/SGD", detail="fetching SGDUSD=X")
             inverse_rate = _fetch_symbol_level_from_yahoo(
                 DEFAULT_SGDUSD_YAHOO_SYMBOL,
                 yahoo_client=yahoo_client,
             )
         except (RuntimeError, ValueError):
+            if progress is not None:
+                progress.done("USD/SGD", detail="unavailable")
             return None
         if inverse_rate <= 0:
+            if progress is not None:
+                progress.done("USD/SGD", detail="invalid inverse rate")
             return None
         rate = 1.0 / inverse_rate
     _YAHOO_FX_RATE_CACHE[DEFAULT_USDSGD_YAHOO_SYMBOL] = rate
+    if progress is not None:
+        progress.done("USD/SGD", detail=f"{rate:.4f}")
     return rate
 
 
