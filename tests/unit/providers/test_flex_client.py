@@ -198,6 +198,44 @@ def test_flex_web_service_client_fetch_statement_polls_until_ready() -> None:
     assert sleeps == [2.5]
 
 
+def test_flex_web_service_client_fetch_statement_retries_pending_send_request() -> None:
+    responses = iter(
+        [
+            """
+<FlexStatementResponse>
+  <Status>Fail</Status>
+  <ErrorCode>1003</ErrorCode>
+  <ErrorMessage>Statement is not available.</ErrorMessage>
+</FlexStatementResponse>
+""".strip(),
+            """
+<FlexStatementResponse>
+  <Status>Success</Status>
+  <ReferenceCode>ABC123</ReferenceCode>
+</FlexStatementResponse>
+""".strip(),
+            """
+<FlexQueryResponse>
+  <FlexStatements>
+    <FlexStatement />
+  </FlexStatements>
+</FlexQueryResponse>
+""".strip(),
+        ]
+    )
+    sleeps: list[float] = []
+    client = FlexWebServiceClient(
+        token="secret-token",
+        downloader=lambda _url: next(responses),
+        sleep=sleeps.append,
+    )
+
+    payload = client.fetch_statement("1462703", poll_interval_seconds=4.0, max_attempts=3)
+
+    assert "<FlexQueryResponse>" in payload
+    assert sleeps == [4.0]
+
+
 def test_flex_web_service_client_fetch_statement_surfaces_polling_guidance_on_timeout() -> None:
     responses = iter(
         [
