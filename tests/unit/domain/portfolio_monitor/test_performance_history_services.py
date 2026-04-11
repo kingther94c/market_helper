@@ -11,7 +11,10 @@ from market_helper.data_sources.yahoo_finance import YahooFinanceClient
 from market_helper.domain.portfolio_monitor.services.performance_analytics import (
     annualized_return,
     build_twr_index,
+    build_window_metric_row,
+    build_yearly_metric_rows,
     drawdown_series,
+    slice_history_for_window,
 )
 from market_helper.domain.portfolio_monitor.services.performance_history import (
     build_horizon_rows_from_performance_history,
@@ -229,6 +232,49 @@ def test_performance_analytics_default_to_finalized_history() -> None:
     assert annualized_return(history, "USD", include_provisional=True) > 0
 
 
+def test_slice_history_for_window_adds_opening_row_and_handles_trailing_windows() -> None:
+    history = _demo_history_frame()
+
+    ytd = slice_history_for_window(history, window="YTD", include_provisional=True)
+    trailing_1y = slice_history_for_window(history, window="1Y", include_provisional=True)
+    trailing_5y = slice_history_for_window(history, window="5Y", include_provisional=True)
+
+    assert list(ytd["date"].dt.strftime("%Y-%m-%d")) == ["2025-12-31", "2026-01-31", "2026-03-31"]
+    assert len(trailing_1y) >= 3
+    assert len(trailing_5y) == len(history)
+
+
+def test_build_window_metric_row_returns_na_metrics_when_samples_are_insufficient() -> None:
+    history = _demo_history_frame().iloc[-2:].copy()
+
+    metrics = build_window_metric_row(
+        history,
+        window="3Y",
+        primary_currency="USD",
+        secondary_currency="SGD",
+        include_provisional=True,
+    )
+
+    assert metrics.label == "3Y"
+    assert metrics.twr_return is None
+    assert metrics.mwr_return is None
+    assert metrics.secondary_twr_return is None
+
+
+def test_build_yearly_metric_rows_only_returns_complete_years() -> None:
+    history = _demo_history_frame()
+
+    rows = build_yearly_metric_rows(
+        history,
+        primary_currency="USD",
+        secondary_currency="SGD",
+    )
+
+    assert [row.label for row in rows] == ["2024", "2025"]
+    assert rows[0].twr_return is not None
+    assert rows[-1].secondary_twr_return is not None
+
+
 def _write_nav_snapshot_xml(
     path: Path,
     *,
@@ -254,6 +300,33 @@ def _write_nav_snapshot_xml(
 </FlexQueryResponse>
 """.strip(),
         encoding="utf-8",
+    )
+
+
+def _demo_history_frame() -> pd.DataFrame:
+    return pd.DataFrame(
+        {
+            "date": pd.to_datetime(
+                [
+                    "2023-12-31",
+                    "2024-12-31",
+                    "2025-12-31",
+                    "2026-01-31",
+                    "2026-03-31",
+                ]
+            ),
+            "nav_close_usd": [90.0, 100.0, 120.0, 126.0, 132.3],
+            "nav_close_sgd": [117.0, 130.0, 156.0, 163.8, 171.99],
+            "cash_flow_usd": [pd.NA, 0.0, 0.0, 0.0, 0.0],
+            "cash_flow_sgd": [pd.NA, 0.0, 0.0, 0.0, 0.0],
+            "fx_usdsgd_eod": [1.30, 1.30, 1.30, 1.30, 1.30],
+            "twr_return_usd": [pd.NA, 0.1111111111, 0.20, 0.05, 0.05],
+            "twr_return_sgd": [pd.NA, 0.1111111111, 0.20, 0.05, 0.05],
+            "is_final": [True, True, True, True, False],
+            "source_kind": ["full", "full", "full", "latest", "latest"],
+            "source_file": ["demo.xml"] * 5,
+            "source_as_of": pd.to_datetime(["2026-03-31"] * 5),
+        }
     )
 
 

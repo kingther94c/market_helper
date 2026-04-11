@@ -113,11 +113,69 @@ def test_run_report_risk_html_forwards_unified_and_legacy_config_flags(tmp_path:
     )
 
     assert result.returncode == 0
+    assert "combined-html-report" in result.stdout
     assert "--risk-config" in result.stdout
     assert str(risk_config) in result.stdout
     assert "--allocation-policy" in result.stdout
     assert str(legacy_policy) in result.stdout
+    assert "--performance-output-dir" in result.stdout
+    assert "data/artifacts/portfolio_monitor/flex" in result.stdout
     assert "--proxy" not in result.stdout
+
+
+def test_run_report_combined_html_forwards_performance_inputs(tmp_path: Path) -> None:
+    project_root, fake_conda = _prepare_script_project(tmp_path)
+    positions_csv = project_root / "inputs" / "positions.csv"
+    history_path = project_root / "data" / "artifacts" / "portfolio_monitor" / "flex" / "performance_history.feather"
+    report_csv = project_root / "data" / "artifacts" / "portfolio_monitor" / "flex" / "performance_report_20260331.csv"
+    positions_csv.parent.mkdir(parents=True)
+    history_path.parent.mkdir(parents=True)
+
+    positions_csv.write_text("as_of,account\n", encoding="utf-8")
+    history_path.write_text("demo", encoding="utf-8")
+    report_csv.write_text("demo", encoding="utf-8")
+
+    result = _run_script(
+        project_root,
+        fake_conda,
+        "combined-html",
+        "--positions-csv",
+        str(positions_csv),
+        "--performance-history",
+        str(history_path),
+        "--performance-report-csv",
+        str(report_csv),
+        "--output",
+        str(project_root / "outputs" / "combined.html"),
+    )
+
+    assert result.returncode == 0
+    assert "combined-html-report" in result.stdout
+    assert "--performance-history" in result.stdout
+    assert str(history_path) in result.stdout
+    assert "--performance-report-csv" in result.stdout
+    assert str(report_csv) in result.stdout
+
+
+def test_run_report_ibkr_live_html_defaults_to_combined_report(tmp_path: Path) -> None:
+    project_root, fake_conda = _prepare_script_project(tmp_path)
+    local_config = project_root / "configs" / "portfolio_monitor" / "local.env"
+    local_config.parent.mkdir(parents=True)
+    local_config.write_text('DEFAULT_PROD_ACCOUNT_ID="U10001"\n', encoding="utf-8")
+
+    result = _run_script(
+        project_root,
+        fake_conda,
+        "ibkr-live-html",
+        "--output",
+        str(project_root / "outputs" / "combined.html"),
+    )
+
+    assert result.returncode == 0
+    assert "ibkr-live-position-report" in result.stdout
+    assert "combined-html-report" in result.stdout
+    assert "--performance-output-dir" in result.stdout
+    assert "portfolio_combined_report.html" not in result.stdout or "--output" in result.stdout
 
 
 def test_run_report_security_reference_sync_defaults_to_artifacts_cache_path(tmp_path: Path) -> None:

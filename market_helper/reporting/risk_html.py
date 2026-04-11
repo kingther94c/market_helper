@@ -238,6 +238,23 @@ class PortfolioRiskSummary:
 
 
 @dataclass(frozen=True)
+class RiskReportViewModel:
+    as_of: str
+    risk_rows: list[RiskMetricsRow]
+    summary: PortfolioRiskSummary
+    allocation_summary: list[CategorySummaryRow]
+    country_breakdown: list[BreakdownRow]
+    sector_breakdown: list[BreakdownRow]
+    fi_tenor_breakdown: list[BreakdownRow]
+    policy_drift_asset_class: list[PolicyDriftRow]
+    policy_drift_country: list[PolicyDriftRow]
+    policy_drift_sector: list[PolicyDriftRow]
+    regime_summary: RegimeReportSummary | None
+    vol_method: str
+    inter_asset_corr: str
+
+
+@dataclass(frozen=True)
 class RegimeReportSummary:
     as_of: str
     regime: str
@@ -310,6 +327,39 @@ def build_risk_html_report(
     inter_asset_corr: str = "historical",
     progress: ProgressReporter | None = None,
 ) -> Path:
+    view_model = build_risk_report_view_model(
+        positions_csv_path=positions_csv_path,
+        returns_path=returns_path,
+        proxy_path=proxy_path,
+        regime_path=regime_path,
+        security_reference_path=security_reference_path,
+        risk_config_path=risk_config_path,
+        allocation_policy_path=allocation_policy_path,
+        yahoo_client=yahoo_client,
+        vol_method=vol_method,
+        inter_asset_corr=inter_asset_corr,
+        progress=progress,
+    )
+    output = Path(output_path)
+    output.parent.mkdir(parents=True, exist_ok=True)
+    output.write_text(render_html_from_view_model(view_model), encoding="utf-8")
+    return output
+
+
+def build_risk_report_view_model(
+    *,
+    positions_csv_path: str | Path,
+    returns_path: str | Path | None = None,
+    proxy_path: str | Path | None = None,
+    regime_path: str | Path | None = None,
+    security_reference_path: str | Path | None = None,
+    risk_config_path: str | Path | None = None,
+    allocation_policy_path: str | Path | None = None,
+    yahoo_client: YahooFinanceClient | None = None,
+    vol_method: str = "geomean_1m_3m",
+    inter_asset_corr: str = "historical",
+    progress: ProgressReporter | None = None,
+) -> RiskReportViewModel:
     reporter = resolve_progress_reporter(progress)
     total_steps = 8
     current_step = 0
@@ -521,7 +571,12 @@ def build_risk_html_report(
     current_step += 1
     reporter.stage("Risk HTML: risk metrics computed", current=current_step, total=total_steps)
 
-    rendered = render_html(
+    current_step += 1
+    reporter.stage("Risk HTML: HTML rendered", current=current_step, total=total_steps)
+    as_of = "n/a"
+    reporter.done("Risk HTML", detail="view model built")
+    return RiskReportViewModel(
+        as_of=as_of,
         risk_rows=risk_rows,
         summary=summary,
         allocation_summary=allocation_summary,
@@ -535,14 +590,6 @@ def build_risk_html_report(
         vol_method=vol_method,
         inter_asset_corr=inter_asset_corr,
     )
-    current_step += 1
-    reporter.stage("Risk HTML: HTML rendered", current=current_step, total=total_steps)
-    output = Path(output_path)
-    output.parent.mkdir(parents=True, exist_ok=True)
-    output.write_text(rendered, encoding="utf-8")
-    current_step += 1
-    reporter.done("Risk HTML", detail=f"wrote {output}")
-    return output
 
 
 def load_position_rows(
@@ -973,6 +1020,76 @@ def render_html(
     vol_method: str,
     inter_asset_corr: str,
 ) -> str:
+    return render_html_from_view_model(
+        RiskReportViewModel(
+            as_of="n/a",
+            risk_rows=risk_rows,
+            summary=summary,
+            allocation_summary=allocation_summary,
+            country_breakdown=country_breakdown,
+            sector_breakdown=sector_breakdown,
+            fi_tenor_breakdown=fi_tenor_breakdown,
+            policy_drift_asset_class=policy_drift_asset_class,
+            policy_drift_country=policy_drift_country,
+            policy_drift_sector=policy_drift_sector,
+            regime_summary=regime_summary,
+            vol_method=vol_method,
+            inter_asset_corr=inter_asset_corr,
+        )
+    )
+
+
+def render_html_from_view_model(view_model: RiskReportViewModel) -> str:
+    return f"""<!doctype html>
+<html lang='en'>
+<head>
+  <meta charset='utf-8' />
+  <title>Portfolio Risk Report</title>
+  <style>
+    body {{ font-family: -apple-system, BlinkMacSystemFont, Segoe UI, sans-serif; margin: 24px; color: #0f172a; background: #f8fafc; }}
+    .card {{ background: white; border-radius: 12px; box-shadow: 0 1px 3px rgba(15,23,42,0.1); padding: 16px; margin-bottom: 16px; }}
+    h1,h2 {{ margin: 0 0 12px 0; }}
+    table {{ width: 100%; border-collapse: collapse; font-size: 14px; }}
+    th, td {{ border-bottom: 1px solid #e2e8f0; padding: 8px; text-align: left; }}
+    th {{ background: #f1f5f9; }}
+    .num {{ text-align: right; font-variant-numeric: tabular-nums; }}
+    .metrics {{ display: flex; gap: 12px; flex-wrap: wrap; }}
+    .metric {{ background: #f1f5f9; padding: 10px 12px; border-radius: 8px; min-width: 220px; }}
+    .metric span {{ display: block; color: #475569; font-size: 12px; }}
+    .metric strong {{ font-size: 20px; }}
+    .scores {{ display: flex; gap: 12px; flex-wrap: wrap; color: #334155; }}
+    .sparkline {{ width: 120px; height: 28px; }}
+    .chart {{ display: grid; gap: 8px; margin-bottom: 12px; }}
+    .chart-row {{ display: grid; grid-template-columns: 140px 1fr 72px; gap: 10px; align-items: center; }}
+    .chart-track {{ position: relative; height: 14px; border-radius: 999px; background: #e2e8f0; overflow: hidden; }}
+    .chart-midline {{ position: absolute; left: 50%; top: 0; bottom: 0; width: 1px; background: #94a3b8; }}
+    .chart-fill-pos {{ position: absolute; left: 50%; top: 0; bottom: 0; background: #16a34a; }}
+    .chart-fill-neg {{ position: absolute; top: 0; bottom: 0; background: #dc2626; }}
+    .chart-value {{ text-align: right; color: #334155; font-size: 12px; font-variant-numeric: tabular-nums; }}
+    .excluded-row {{ background: #fff7ed; }}
+  </style>
+</head>
+<body>
+  <h1>Portfolio Risk Report</h1>
+  {render_risk_tab(view_model)}
+</body>
+</html>
+"""
+
+
+def render_risk_tab(view_model: RiskReportViewModel) -> str:
+    risk_rows = view_model.risk_rows
+    summary = view_model.summary
+    allocation_summary = view_model.allocation_summary
+    country_breakdown = view_model.country_breakdown
+    sector_breakdown = view_model.sector_breakdown
+    fi_tenor_breakdown = view_model.fi_tenor_breakdown
+    policy_drift_asset_class = view_model.policy_drift_asset_class
+    policy_drift_country = view_model.policy_drift_country
+    policy_drift_sector = view_model.policy_drift_sector
+    regime_summary = view_model.regime_summary
+    vol_method = view_model.vol_method
+    inter_asset_corr = view_model.inter_asset_corr
     position_rows = "\n".join(
         f"<tr class='{'excluded-row' if row.report_scope == 'excluded' else ''}'>"
         f"<td>{html.escape(row.account)}</td>"
@@ -1022,37 +1139,7 @@ def render_html(
             "</div>"
         )
 
-    return f"""<!doctype html>
-<html lang='en'>
-<head>
-  <meta charset='utf-8' />
-  <title>Portfolio Risk Report</title>
-  <style>
-    body {{ font-family: -apple-system, BlinkMacSystemFont, Segoe UI, sans-serif; margin: 24px; color: #0f172a; background: #f8fafc; }}
-    .card {{ background: white; border-radius: 12px; box-shadow: 0 1px 3px rgba(15,23,42,0.1); padding: 16px; margin-bottom: 16px; }}
-    h1,h2 {{ margin: 0 0 12px 0; }}
-    table {{ width: 100%; border-collapse: collapse; font-size: 14px; }}
-    th, td {{ border-bottom: 1px solid #e2e8f0; padding: 8px; text-align: left; }}
-    th {{ background: #f1f5f9; }}
-    .num {{ text-align: right; font-variant-numeric: tabular-nums; }}
-    .metrics {{ display: flex; gap: 12px; flex-wrap: wrap; }}
-    .metric {{ background: #f1f5f9; padding: 10px 12px; border-radius: 8px; min-width: 220px; }}
-    .metric span {{ display: block; color: #475569; font-size: 12px; }}
-    .metric strong {{ font-size: 20px; }}
-    .scores {{ display: flex; gap: 12px; flex-wrap: wrap; color: #334155; }}
-    .sparkline {{ width: 120px; height: 28px; }}
-    .chart {{ display: grid; gap: 8px; margin-bottom: 12px; }}
-    .chart-row {{ display: grid; grid-template-columns: 140px 1fr 72px; gap: 10px; align-items: center; }}
-    .chart-track {{ position: relative; height: 14px; border-radius: 999px; background: #e2e8f0; overflow: hidden; }}
-    .chart-midline {{ position: absolute; left: 50%; top: 0; bottom: 0; width: 1px; background: #94a3b8; }}
-    .chart-fill-pos {{ position: absolute; left: 50%; top: 0; bottom: 0; background: #16a34a; }}
-    .chart-fill-neg {{ position: absolute; top: 0; bottom: 0; background: #dc2626; }}
-    .chart-value {{ text-align: right; color: #334155; font-size: 12px; font-variant-numeric: tabular-nums; }}
-    .excluded-row {{ background: #fff7ed; }}
-  </style>
-</head>
-<body>
-  <h1>Portfolio Risk Report</h1>
+    return f"""
   {regime_block}
 
   <div class='card'>
@@ -1145,8 +1232,6 @@ def render_html(
       <tbody>{position_rows}</tbody>
     </table>
   </div>
-</body>
-</html>
 """
 
 

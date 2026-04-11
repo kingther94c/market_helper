@@ -9,17 +9,25 @@
 - Treat `fi_tenor` as an explicit instrument-semantic field rather than as a derived duration bucket, while keeping `fi_mod_duration` available as a separate analytics/display attribute.
 - Keep funded-AUM calculations aligned with report intent by counting only stock-like and cash exposures, not futures/options notionals.
 - Continue splitting analytics from rendering so generated reference, position CSV, HTML risk report, and any future workbook renderer stay composable entrypoints.
+- Treat the combined portfolio HTML report as the new default static-report surface, with `Performance` and `Risk` tabs sharing reusable rendering primitives rather than duplicating page-specific logic.
 - Keep the new risk utility layer under `market_helper/domain/portfolio_monitor/services/` as the reusable home for realized-vol, proxy-vol, fixed-income-vol, and Yahoo return-cache logic rather than letting that logic drift back into `reporting/risk_html.py`.
+- Keep performance analytics under `market_helper/domain/portfolio_monitor/services/` reusable enough for future UI/workbook renderers, especially window slicing, yearly summaries, TWR/MWR metrics, and plot-frame generation.
 
 ## Near-Term Next Steps
-1. Extend the new `ibkr-flex-performance-report` XML-to-CSV path to pull statements directly from Flex Web Service (query id/token + polling) so performance reporting can run without manual downloads.
+1. Deepen the combined report with richer performance analytics only after the current `Performance + Risk` tab shell remains stable through a few real account runs.
 2. Replace the current heuristic US-ETF discovery used by report-time sector refresh with an explicit `is_etf` / `instrument_kind` semantic field in the security universe or generated reference cache.
 3. Add cached proxy loaders and wire them into the same artifact-driven risk flow now used for dated Yahoo return caches.
 4. Extend the risk layer from summary vol contributions into covariance-consistent marginal/component attribution for securities and bucket rollups.
 5. Improve universe gap handling with a local manual-override layer plus broader look-through/rule coverage for equities and futures, including explicit tracked FI tenor mappings when product semantics differ from modified-duration ranges.
-6. Keep moving reusable risk/report helpers out of `reporting/risk_html.py` as the workbook path becomes clearer, while preserving backward-compatible CLI/report entrypoints.
+6. Keep moving reusable risk/report helpers out of `reporting/risk_html.py` as the workbook/UI path becomes clearer, while preserving backward-compatible CLI/report entrypoints.
 
 ## Recently Completed
+- Added a combined static HTML portfolio report with `Performance` and `Risk` tabs, using `USD` as the primary performance view, `SGD` as auxiliary display, and `TWR` as the headline return basis while preserving `MWR` alongside key metrics.
+- Added reusable performance-report rendering under `market_helper/reporting/performance_html.py`, covering cumulative-performance and drawdown charts plus `MTD / YTD / 1Y / 3Y / 5Y` and historical-year summary tables.
+- Extended `performance_analytics.py` with reusable history-window slicing, yearly summary rows, trailing-window metrics, TWR/MWR calculations, annualized return/vol, Sharpe, and max-drawdown helpers.
+- Refactored `risk_html.py` so the existing risk-only report now builds through reusable view-model and fragment layers, enabling the combined report without breaking the existing `build_risk_html_report(...)` API.
+- Added `combined-html-report` to the CLI/workflow layer and added `combined-html` plus `ibkr-live-combined-html` to `./scripts/run_report.sh`.
+- Switched `./scripts/run_report.sh risk-html` and `./scripts/run_report.sh ibkr-live-html` to generate the combined report by default, while keeping the old names as compatibility-friendly script entrypoints.
 - Added a first-pass IBKR Flex XML performance path (`ibkr-flex-performance-report`) that parses downloaded Flex statements into a dated `performance_report_YYYYMMDD.csv` with MTD/YTD/1M, money/time-weighted, USD/SGD, plus dollar-PnL/return columns; this is the CSV contract for the upcoming HTML layer and policy-portfolio overlays.
 - Consolidated tracked risk-report config under `configs/portfolio_monitor/report_config.yaml`, including canonical `lookthrough`, `proxy`, and policy sections used by the HTML risk flow.
 - Consolidated gitignored local-only settings under `configs/portfolio_monitor/local.env`, including account defaults and `FMP_API_KEY`.

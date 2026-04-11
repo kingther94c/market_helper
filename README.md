@@ -192,7 +192,7 @@ Example:
 ACCOUNT_ENV=dev ./scripts/run_report.sh ibkr-live --client-id 7
 ```
 
-End-to-end live position -> HTML risk report:
+End-to-end live position -> combined HTML report:
 
 ```bash
 ./scripts/run_report.sh ibkr-live-html \
@@ -202,14 +202,29 @@ End-to-end live position -> HTML risk report:
   --account U12345
 ```
 
-- This first writes the live position CSV, then immediately builds the HTML risk report from that CSV.
+- This first writes the live position CSV, then immediately builds the combined `Performance + Risk` HTML report from that CSV.
 - After the HTML is written, the script also tries to open it in your default browser.
 - `--output` controls the final HTML path.
 - `--positions-output` optionally overrides where the intermediate live position CSV is written.
+- `--performance-history`, `--performance-output-dir`, and `--performance-report-csv` can override the default performance artifacts used by the `Performance` tab.
 - If `--proxy` is omitted, the report falls back to the `proxy` block in `configs/portfolio_monitor/report_config.yaml`.
 
 
-Generate an HTML risk report (historical vol + estimate vol + correlation-based portfolio risk):
+Generate the combined HTML portfolio report directly from an existing position CSV:
+
+```bash
+conda run -n py313 python -m market_helper.cli.main combined-html-report \
+  --positions-csv data/artifacts/portfolio_monitor/live_ibkr_position_report.csv \
+  --performance-output-dir data/artifacts/portfolio_monitor/flex \
+  --returns data/processed/returns.json \
+  --output data/artifacts/portfolio_monitor/portfolio_combined_report.html
+```
+
+- The combined report renders `Performance` and `Risk` tabs in one static HTML page.
+- The `Performance` tab uses `performance_history.feather` plus the latest `performance_report_YYYYMMDD.csv` from `--performance-output-dir`, unless overridden explicitly.
+- The `Performance` tab defaults to `USD` headline display, `SGD` auxiliary return display, and `TWR` as the primary return basis while still showing `MWR` in key summary tables.
+
+Generate an HTML risk report only (historical vol + estimate vol + correlation-based portfolio risk):
 
 ```bash
 conda run -n py313 python -m market_helper.cli.main risk-html-report \
@@ -236,11 +251,14 @@ Script wrapper:
   --returns data/processed/returns.json
 ```
 
+- `./scripts/run_report.sh risk-html` now defaults to the combined report for convenience and backward-compatible script usage.
+- Use the explicit CLI command `risk-html-report` if you want to generate the risk-only HTML artifact.
+
 If `--output` is omitted, the script writes to:
 - `data/artifacts/portfolio_monitor/position_report.csv`
 - `data/artifacts/portfolio_monitor/ibkr_position_report.csv`
 - `data/artifacts/portfolio_monitor/live_ibkr_position_report.csv`
-- `data/artifacts/portfolio_monitor/portfolio_risk_report.html`
+- `data/artifacts/portfolio_monitor/portfolio_combined_report.html`
 
 Those files under `data/artifacts/portfolio_monitor/` are generated outputs, not config inputs. The checked-in preview files under `outputs/` are also output artifacts rather than runtime config.
 `data/artifacts/portfolio_monitor/live_ibkr_position_report.csv` is a local generated output and should remain gitignored.

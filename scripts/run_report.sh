@@ -21,8 +21,10 @@ Usage:
   ./scripts/run_report.sh snapshot --positions PATH --prices PATH [--output PATH]
   ./scripts/run_report.sh ibkr-json --ibkr-positions PATH --ibkr-prices PATH [--output PATH] [--as-of ISO8601]
   ./scripts/run_report.sh ibkr-live [--output PATH] [--account ACCOUNT_ID] [--host HOST] [--port PORT] [--client-id ID] [--timeout SECONDS] [--as-of ISO8601]
-  ./scripts/run_report.sh ibkr-live-html [--output PATH] [--positions-output PATH] [--returns PATH] [--proxy PATH] [--regime PATH] [--security-reference PATH] [--risk-config PATH] [--allocation-policy PATH] [--account ACCOUNT_ID] [--host HOST] [--port PORT] [--client-id ID] [--timeout SECONDS] [--as-of ISO8601]
-  ./scripts/run_report.sh risk-html --positions-csv PATH [--returns PATH] [--proxy PATH] [--regime PATH] [--security-reference PATH] [--risk-config PATH] [--allocation-policy PATH] [--output PATH]
+  ./scripts/run_report.sh ibkr-live-html [--output PATH] [--positions-output PATH] [--performance-history PATH] [--performance-output-dir PATH] [--performance-report-csv PATH] [--returns PATH] [--proxy PATH] [--regime PATH] [--security-reference PATH] [--risk-config PATH] [--allocation-policy PATH] [--account ACCOUNT_ID] [--host HOST] [--port PORT] [--client-id ID] [--timeout SECONDS] [--as-of ISO8601]
+  ./scripts/run_report.sh ibkr-live-combined-html [--output PATH] [--positions-output PATH] [--performance-history PATH] [--performance-output-dir PATH] [--performance-report-csv PATH] [--returns PATH] [--proxy PATH] [--regime PATH] [--security-reference PATH] [--risk-config PATH] [--allocation-policy PATH] [--account ACCOUNT_ID] [--host HOST] [--port PORT] [--client-id ID] [--timeout SECONDS] [--as-of ISO8601]
+  ./scripts/run_report.sh risk-html --positions-csv PATH [--performance-history PATH] [--performance-output-dir PATH] [--performance-report-csv PATH] [--returns PATH] [--proxy PATH] [--regime PATH] [--security-reference PATH] [--risk-config PATH] [--allocation-policy PATH] [--output PATH]
+  ./scripts/run_report.sh combined-html --positions-csv PATH [--performance-history PATH] [--performance-output-dir PATH] [--performance-report-csv PATH] [--returns PATH] [--proxy PATH] [--regime PATH] [--security-reference PATH] [--risk-config PATH] [--allocation-policy PATH] [--output PATH]
   ./scripts/run_report.sh security-reference-sync [--output PATH]
   ./scripts/run_report.sh etf-sector-sync --symbol TICKER [--symbol TICKER] [--output PATH] [--api-key KEY]
   ./scripts/run_report.sh mapping-table --workbook PATH [--output PATH]
@@ -31,8 +33,10 @@ Modes:
   snapshot    Generate a report from normalized position/price snapshots.
   ibkr-json   Generate a report from raw IBKR positions/prices payloads.
   ibkr-live   Generate a report from a live local TWS / IB Gateway session via ib_async.
-  ibkr-live-html Generate live IBKR positions first, then build the HTML risk report in one run.
-  risk-html   Generate an HTML risk report from a position CSV plus return/proxy inputs.
+  ibkr-live-html Default HTML path: generate live IBKR positions first, then build the combined performance+risk HTML report.
+  risk-html   Default HTML path: generate the combined performance+risk HTML report from a position CSV.
+  ibkr-live-combined-html Generate live IBKR positions first, then build the combined performance+risk HTML report.
+  combined-html Generate a combined performance+risk HTML report from an existing position CSV.
   security-reference-sync Rebuild the generated security reference from configs/security_universe.csv.
   etf-sector-sync Fetch ETF sector weights from FMP into configs/portfolio_monitor/us_sector_lookthrough.json.
   mapping-table Extract a security-reference CSV seed from a target workbook.
@@ -131,12 +135,25 @@ case "${MODE}" in
         ;;
     ibkr-live-html)
         CLI_COMMAND=""
-        DEFAULT_OUTPUT="${ROOT_DIR}/data/artifacts/portfolio_monitor/portfolio_risk_report.html"
+        DEFAULT_OUTPUT="${ROOT_DIR}/data/artifacts/portfolio_monitor/portfolio_combined_report.html"
         DEFAULT_POSITIONS_OUTPUT="${ROOT_DIR}/data/artifacts/portfolio_monitor/live_ibkr_position_report.csv"
+        DEFAULT_PERFORMANCE_OUTPUT_DIR="${ROOT_DIR}/data/artifacts/portfolio_monitor/flex"
+        ;;
+    ibkr-live-combined-html)
+        CLI_COMMAND=""
+        DEFAULT_OUTPUT="${ROOT_DIR}/data/artifacts/portfolio_monitor/portfolio_combined_report.html"
+        DEFAULT_POSITIONS_OUTPUT="${ROOT_DIR}/data/artifacts/portfolio_monitor/live_ibkr_position_report.csv"
+        DEFAULT_PERFORMANCE_OUTPUT_DIR="${ROOT_DIR}/data/artifacts/portfolio_monitor/flex"
         ;;
     risk-html)
-        CLI_COMMAND="risk-html-report"
-        DEFAULT_OUTPUT="${ROOT_DIR}/data/artifacts/portfolio_monitor/portfolio_risk_report.html"
+        CLI_COMMAND="combined-html-report"
+        DEFAULT_OUTPUT="${ROOT_DIR}/data/artifacts/portfolio_monitor/portfolio_combined_report.html"
+        DEFAULT_PERFORMANCE_OUTPUT_DIR="${ROOT_DIR}/data/artifacts/portfolio_monitor/flex"
+        ;;
+    combined-html)
+        CLI_COMMAND="combined-html-report"
+        DEFAULT_OUTPUT="${ROOT_DIR}/data/artifacts/portfolio_monitor/portfolio_combined_report.html"
+        DEFAULT_PERFORMANCE_OUTPUT_DIR="${ROOT_DIR}/data/artifacts/portfolio_monitor/flex"
         ;;
     security-reference-sync)
         CLI_COMMAND="security-reference-sync"
@@ -168,6 +185,9 @@ CLIENT_ID="1"
 TIMEOUT="4.0"
 AS_OF=""
 POSITIONS_CSV_PATH=""
+PERFORMANCE_HISTORY_PATH=""
+PERFORMANCE_OUTPUT_DIR=""
+PERFORMANCE_REPORT_CSV_PATH=""
 RETURNS_PATH=""
 PROXY_PATH=""
 REGIME_PATH=""
@@ -245,6 +265,21 @@ while [[ $# -gt 0 ]]; do
             RETURNS_PATH="$2"
             shift 2
             ;;
+        --performance-history)
+            require_value "$1" "${2:-}"
+            PERFORMANCE_HISTORY_PATH="$2"
+            shift 2
+            ;;
+        --performance-output-dir)
+            require_value "$1" "${2:-}"
+            PERFORMANCE_OUTPUT_DIR="$2"
+            shift 2
+            ;;
+        --performance-report-csv)
+            require_value "$1" "${2:-}"
+            PERFORMANCE_REPORT_CSV_PATH="$2"
+            shift 2
+            ;;
         --proxy)
             require_value "$1" "${2:-}"
             PROXY_PATH="$2"
@@ -305,9 +340,12 @@ done
 OUTPUT_PATH="${OUTPUT_PATH:-${DEFAULT_OUTPUT}}"
 mkdir -p "$(dirname "${OUTPUT_PATH}")"
 
-if [[ "${MODE}" == "ibkr-live-html" ]]; then
+if [[ "${MODE}" == "ibkr-live-html" || "${MODE}" == "ibkr-live-combined-html" ]]; then
     POSITIONS_OUTPUT_PATH="${POSITIONS_OUTPUT_PATH:-${DEFAULT_POSITIONS_OUTPUT}}"
     mkdir -p "$(dirname "${POSITIONS_OUTPUT_PATH}")"
+    if [[ "${MODE}" == "ibkr-live-combined-html" || "${MODE}" == "ibkr-live-html" ]]; then
+        PERFORMANCE_OUTPUT_DIR="${PERFORMANCE_OUTPUT_DIR:-${DEFAULT_PERFORMANCE_OUTPUT_DIR}}"
+    fi
 
     resolve_live_account
 
@@ -322,22 +360,28 @@ if [[ "${MODE}" == "ibkr-live-html" ]]; then
     [[ -n "${ACCOUNT_ID}" ]] && LIVE_COMMAND+=(--account "${ACCOUNT_ID}")
     [[ -n "${AS_OF}" ]] && LIVE_COMMAND+=(--as-of "${AS_OF}")
 
-    RISK_COMMAND=(
-        "${CONDA_BIN}" run -n "${ENV_NAME}" python -m market_helper.cli.main risk-html-report
-        --positions-csv "${POSITIONS_OUTPUT_PATH}"
-        --output "${OUTPUT_PATH}"
+    REPORT_COMMAND=(
+        "${CONDA_BIN}" run -n "${ENV_NAME}" python -m market_helper.cli.main
     )
-    [[ -n "${RETURNS_PATH}" ]] && { require_file "returns" "${RETURNS_PATH}"; RISK_COMMAND+=(--returns "${RETURNS_PATH}"); }
-    [[ -n "${PROXY_PATH}" ]] && { require_file "proxy" "${PROXY_PATH}"; RISK_COMMAND+=(--proxy "${PROXY_PATH}"); }
-    [[ -n "${REGIME_PATH}" ]] && { require_file "regime" "${REGIME_PATH}"; RISK_COMMAND+=(--regime "${REGIME_PATH}"); }
-    [[ -n "${SECURITY_REFERENCE_PATH}" ]] && { require_file "security reference" "${SECURITY_REFERENCE_PATH}"; RISK_COMMAND+=(--security-reference "${SECURITY_REFERENCE_PATH}"); }
-    [[ -n "${RISK_CONFIG_PATH}" ]] && { require_file "risk config" "${RISK_CONFIG_PATH}"; RISK_COMMAND+=(--risk-config "${RISK_CONFIG_PATH}"); }
-    [[ -n "${ALLOCATION_POLICY_PATH}" ]] && { require_file "allocation policy" "${ALLOCATION_POLICY_PATH}"; RISK_COMMAND+=(--allocation-policy "${ALLOCATION_POLICY_PATH}"); }
+    if [[ "${MODE}" == "ibkr-live-combined-html" || "${MODE}" == "ibkr-live-html" ]]; then
+        REPORT_COMMAND+=(combined-html-report --positions-csv "${POSITIONS_OUTPUT_PATH}" --output "${OUTPUT_PATH}")
+        [[ -n "${PERFORMANCE_HISTORY_PATH}" ]] && { require_file "performance history" "${PERFORMANCE_HISTORY_PATH}"; REPORT_COMMAND+=(--performance-history "${PERFORMANCE_HISTORY_PATH}"); }
+        [[ -n "${PERFORMANCE_OUTPUT_DIR}" ]] && REPORT_COMMAND+=(--performance-output-dir "${PERFORMANCE_OUTPUT_DIR}")
+        [[ -n "${PERFORMANCE_REPORT_CSV_PATH}" ]] && { require_file "performance report csv" "${PERFORMANCE_REPORT_CSV_PATH}"; REPORT_COMMAND+=(--performance-report-csv "${PERFORMANCE_REPORT_CSV_PATH}"); }
+    else
+        REPORT_COMMAND+=(risk-html-report --positions-csv "${POSITIONS_OUTPUT_PATH}" --output "${OUTPUT_PATH}")
+    fi
+    [[ -n "${RETURNS_PATH}" ]] && { require_file "returns" "${RETURNS_PATH}"; REPORT_COMMAND+=(--returns "${RETURNS_PATH}"); }
+    [[ -n "${PROXY_PATH}" ]] && { require_file "proxy" "${PROXY_PATH}"; REPORT_COMMAND+=(--proxy "${PROXY_PATH}"); }
+    [[ -n "${REGIME_PATH}" ]] && { require_file "regime" "${REGIME_PATH}"; REPORT_COMMAND+=(--regime "${REGIME_PATH}"); }
+    [[ -n "${SECURITY_REFERENCE_PATH}" ]] && { require_file "security reference" "${SECURITY_REFERENCE_PATH}"; REPORT_COMMAND+=(--security-reference "${SECURITY_REFERENCE_PATH}"); }
+    [[ -n "${RISK_CONFIG_PATH}" ]] && { require_file "risk config" "${RISK_CONFIG_PATH}"; REPORT_COMMAND+=(--risk-config "${RISK_CONFIG_PATH}"); }
+    [[ -n "${ALLOCATION_POLICY_PATH}" ]] && { require_file "allocation policy" "${ALLOCATION_POLICY_PATH}"; REPORT_COMMAND+=(--allocation-policy "${ALLOCATION_POLICY_PATH}"); }
 
-    echo "Running ibkr-live-html workflow..."
+    echo "Running ${MODE} workflow..."
     "${LIVE_COMMAND[@]}"
     echo "Live positions written to ${POSITIONS_OUTPUT_PATH}"
-    "${RISK_COMMAND[@]}"
+    "${REPORT_COMMAND[@]}"
     echo "Report written to ${OUTPUT_PATH}"
     if open_report_path "${OUTPUT_PATH}"; then
         echo "Opened report in your default browser."
@@ -376,6 +420,35 @@ case "${MODE}" in
         [[ -n "${POSITIONS_CSV_PATH}" ]] || fail "risk-html mode requires --positions-csv"
         require_file "positions csv" "${POSITIONS_CSV_PATH}"
         COMMAND+=(--positions-csv "${POSITIONS_CSV_PATH}")
+        if [[ -n "${PERFORMANCE_HISTORY_PATH}" ]]; then
+            require_file "performance history" "${PERFORMANCE_HISTORY_PATH}"
+            COMMAND+=(--performance-history "${PERFORMANCE_HISTORY_PATH}")
+        elif [[ -n "${PERFORMANCE_OUTPUT_DIR}" ]]; then
+            COMMAND+=(--performance-output-dir "${PERFORMANCE_OUTPUT_DIR}")
+        else
+            COMMAND+=(--performance-output-dir "${DEFAULT_PERFORMANCE_OUTPUT_DIR}")
+        fi
+        [[ -n "${PERFORMANCE_REPORT_CSV_PATH}" ]] && { require_file "performance report csv" "${PERFORMANCE_REPORT_CSV_PATH}"; COMMAND+=(--performance-report-csv "${PERFORMANCE_REPORT_CSV_PATH}"); }
+        [[ -n "${RETURNS_PATH}" ]] && { require_file "returns" "${RETURNS_PATH}"; COMMAND+=(--returns "${RETURNS_PATH}"); }
+        [[ -n "${PROXY_PATH}" ]] && { require_file "proxy" "${PROXY_PATH}"; COMMAND+=(--proxy "${PROXY_PATH}"); }
+        [[ -n "${REGIME_PATH}" ]] && { require_file "regime" "${REGIME_PATH}"; COMMAND+=(--regime "${REGIME_PATH}"); }
+        [[ -n "${SECURITY_REFERENCE_PATH}" ]] && { require_file "security reference" "${SECURITY_REFERENCE_PATH}"; COMMAND+=(--security-reference "${SECURITY_REFERENCE_PATH}"); }
+        [[ -n "${RISK_CONFIG_PATH}" ]] && { require_file "risk config" "${RISK_CONFIG_PATH}"; COMMAND+=(--risk-config "${RISK_CONFIG_PATH}"); }
+        [[ -n "${ALLOCATION_POLICY_PATH}" ]] && { require_file "allocation policy" "${ALLOCATION_POLICY_PATH}"; COMMAND+=(--allocation-policy "${ALLOCATION_POLICY_PATH}"); }
+        ;;
+    combined-html)
+        [[ -n "${POSITIONS_CSV_PATH}" ]] || fail "combined-html mode requires --positions-csv"
+        require_file "positions csv" "${POSITIONS_CSV_PATH}"
+        COMMAND+=(--positions-csv "${POSITIONS_CSV_PATH}")
+        if [[ -n "${PERFORMANCE_HISTORY_PATH}" ]]; then
+            require_file "performance history" "${PERFORMANCE_HISTORY_PATH}"
+            COMMAND+=(--performance-history "${PERFORMANCE_HISTORY_PATH}")
+        elif [[ -n "${PERFORMANCE_OUTPUT_DIR}" ]]; then
+            COMMAND+=(--performance-output-dir "${PERFORMANCE_OUTPUT_DIR}")
+        else
+            COMMAND+=(--performance-output-dir "${DEFAULT_PERFORMANCE_OUTPUT_DIR}")
+        fi
+        [[ -n "${PERFORMANCE_REPORT_CSV_PATH}" ]] && { require_file "performance report csv" "${PERFORMANCE_REPORT_CSV_PATH}"; COMMAND+=(--performance-report-csv "${PERFORMANCE_REPORT_CSV_PATH}"); }
         [[ -n "${RETURNS_PATH}" ]] && { require_file "returns" "${RETURNS_PATH}"; COMMAND+=(--returns "${RETURNS_PATH}"); }
         [[ -n "${PROXY_PATH}" ]] && { require_file "proxy" "${PROXY_PATH}"; COMMAND+=(--proxy "${PROXY_PATH}"); }
         [[ -n "${REGIME_PATH}" ]] && { require_file "regime" "${REGIME_PATH}"; COMMAND+=(--regime "${REGIME_PATH}"); }
