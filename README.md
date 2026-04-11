@@ -37,7 +37,7 @@ conda run -n py313 jupyter notebook
 
 For TWS / IB Gateway work, `market_helper` is `ib_async`-first. Standard live lookup and report flows should use the `market_helper.data_sources.ibkr.tws` adapter rather than `ibapi` directly.
 
-`notebooks/dev_lab/` is a local scratch area and should stay out of version control. A reusable IBKR contract lookup notebook lives at `notebooks/portfolio_monitor/derive_sec_table.ipynb`.
+`notebooks/dev_lab/` is a local scratch area and should stay out of version control. Reusable notebooks live under tracked folders such as `notebooks/examples/` and `notebooks/portfolio_monitor/`; for example, the performance-report walkthrough now lives at `notebooks/examples/perf_report.ipynb`.
 
 ## Project structure
 
@@ -46,7 +46,7 @@ This repository follows a domain-first layout:
 - `configs/{app,portfolio_monitor,regime_detection,integration}/` for runtime config, templates, and tracked reference inputs
 - `data/{raw,interim,processed,cache,artifacts}/` for datasets and generated outputs
 - `outputs/` for previews, samples, and scratch artifacts rather than runtime config
-- `notebooks/{dev_lab,portfolio_monitor,regime_detection,integration}/` for exploration
+- `notebooks/{dev_lab,examples,portfolio_monitor,regime_detection,integration}/` for exploration
 - `market_helper/{data_sources,domain,presentation,cli,common,app}/` for package code
 - `scripts/` for executable workflow entrypoints
 - `tests/` for unit, integration, and e2e coverage
