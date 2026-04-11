@@ -350,8 +350,8 @@ def test_backfill_ibkr_flex_full_years_batches_up_to_three_requests_and_polls_ro
         def send_request(self, query_id: str, *, from_date, to_date, period=None) -> str:
             assert query_id == "1462703"
             assert period is None
-            assert from_date == date(from_date.year, 1, 1)
-            assert to_date == date(from_date.year, 12, 31)
+            assert from_date == portfolio_report_pipeline._next_or_same_weekday(date(from_date.year, 1, 1))
+            assert to_date == portfolio_report_pipeline._previous_or_same_weekday(date(from_date.year, 12, 31))
             events.append(f"send:{from_date.year}")
             reference_code = f"ref-{from_date.year}"
             self.reference_to_year[reference_code] = from_date.year
@@ -636,7 +636,51 @@ def test_refresh_current_year_latest_flex_xml_writes_latest_file(tmp_path: Path,
         "to_date": date(2026, 4, 10),
         "period": None,
         "poll_interval_seconds": 5.0,
-        "max_attempts": 10,
+        "max_attempts": 13,
+    }
+
+
+def test_refresh_current_year_latest_flex_xml_moves_weekend_today_back_to_friday(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(portfolio_report_pipeline, "_current_local_date", lambda: date(2026, 4, 11))
+    captured: dict[str, object] = {}
+
+    class FakeFlexClient:
+        def fetch_statement(
+            self,
+            query_id: str,
+            *,
+            from_date,
+            to_date,
+            period=None,
+            poll_interval_seconds: float,
+            max_attempts: int,
+        ) -> str:
+            captured["from_date"] = from_date
+            captured["to_date"] = to_date
+            return """
+<FlexQueryResponse>
+  <FlexStatements>
+    <FlexStatement accountId="U2935967" fromDate="20260101" toDate="20260410" whenGenerated="20260410;010101">
+      <ChangeInNAV reportDate="2026-04-10" startingValue="100" endingValue="110" depositWithdrawal="0"/>
+      <PerformanceSummary ytdMoneyWeightedUsdPnl="10" ytdMoneyWeightedUsdReturn="0.10" />
+    </FlexStatement>
+  </FlexStatements>
+</FlexQueryResponse>
+""".strip()
+
+    refresh_current_year_latest_flex_xml(
+        output_dir=tmp_path / "outputs",
+        query_id="1462703",
+        token="secret-token",
+        client=FakeFlexClient(),
+    )
+
+    assert captured == {
+        "from_date": date(2026, 1, 1),
+        "to_date": date(2026, 4, 10),
     }
 
 
@@ -731,7 +775,7 @@ def test_generate_ibkr_flex_performance_report_default_live_flow_adds_previous_f
             "to_date": date(2025, 12, 31),
             "period": None,
             "poll_interval_seconds": 5.0,
-            "max_attempts": 10,
+            "max_attempts": 13,
         },
         {
             "query_id": "1462703",
@@ -739,7 +783,7 @@ def test_generate_ibkr_flex_performance_report_default_live_flow_adds_previous_f
             "to_date": date(2026, 4, 10),
             "period": None,
             "poll_interval_seconds": 5.0,
-            "max_attempts": 10,
+            "max_attempts": 13,
         },
     ]
 

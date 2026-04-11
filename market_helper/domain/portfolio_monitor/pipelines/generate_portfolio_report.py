@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from collections import deque
 from dataclasses import dataclass
-from datetime import date
+from datetime import date, datetime, timedelta
 import json
 from pathlib import Path
 import shutil
@@ -295,11 +295,15 @@ def _resolve_flex_xml_path(
 ) -> tuple[Path, Path | None]:
     flex_client = client or FlexWebServiceClient(token=token)
     fetch_statement = getattr(flex_client, "fetch_statement")
+    normalized_from_date, normalized_to_date = _normalize_weekday_request_range(
+        from_date=from_date,
+        to_date=to_date,
+    )
     statement_xml = str(
         fetch_statement(
             query_id,
-            from_date=from_date,
-            to_date=to_date,
+            from_date=normalized_from_date,
+            to_date=normalized_to_date,
             period=period,
             poll_interval_seconds=poll_interval_seconds,
             max_attempts=max_attempts,
@@ -482,8 +486,8 @@ def _backfill_full_year_archives_batch(
                 reference_code = str(
                     send_request(
                         query_id,
-                        from_date=date(pending_fetch.year, 1, 1),
-                        to_date=date(pending_fetch.year, 12, 31),
+                        from_date=_next_or_same_weekday(date(pending_fetch.year, 1, 1)),
+                        to_date=_previous_or_same_weekday(date(pending_fetch.year, 12, 31)),
                     )
                 )
             except Exception as error:
@@ -612,7 +616,7 @@ def refresh_current_year_latest_flex_xml(
         query_id=query_id,
         token=token,
     )
-    resolved_today = today or _current_local_date()
+    resolved_today = _previous_or_same_weekday(today or _current_local_date())
     year = resolved_today.year
     target_path = (
         Path(xml_output_path)
@@ -623,7 +627,7 @@ def refresh_current_year_latest_flex_xml(
     statement_xml = str(
         getattr(flex_client, "fetch_statement")(
             normalized_query_id,
-            from_date=date(year, 1, 1),
+            from_date=_next_or_same_weekday(date(year, 1, 1)),
             to_date=resolved_today,
             poll_interval_seconds=poll_interval_seconds,
             max_attempts=max_attempts,
@@ -653,6 +657,56 @@ def _normalize_live_flex_credentials(*, query_id: str | None, token: str | None)
 
 def _current_local_date() -> date:
     return date.today()
+
+
+def _normalize_weekday_request_range(
+    *,
+    from_date: date | str | None,
+    to_date: date | str | None,
+) -> tuple[date | None, date | None]:
+    if from_date is None and to_date is None:
+        return None, None
+    if from_date is None or to_date is None:
+        return _materialize_flex_date(from_date), _materialize_flex_date(to_date)
+    normalized_from = _materialize_flex_date(from_date)
+    normalized_to = _materialize_flex_date(to_date)
+    if normalized_from is None or normalized_to is None:
+        return normalized_from, normalized_to
+    adjusted_from = _next_or_same_weekday(normalized_from)
+    adjusted_to = _previous_or_same_weekday(normalized_to)
+    if adjusted_from > adjusted_to:
+        raise ValueError("from_date must be on or before to_date after weekday normalization")
+    return adjusted_from, adjusted_to
+
+
+def _materialize_flex_date(raw: date | str | None) -> date | None:
+    if raw is None:
+        return None
+    if isinstance(raw, date):
+        return raw
+    text = str(raw).strip()
+    if not text:
+        return None
+    for fmt in ("%Y%m%d", "%Y-%m-%d", "%Y/%m/%d"):
+        try:
+            return datetime.strptime(text, fmt).date()
+        except ValueError:
+            continue
+    raise ValueError(f"Unsupported Flex date value: {raw}")
+
+
+def _next_or_same_weekday(raw: date) -> date:
+    resolved = raw
+    while resolved.weekday() >= 5:
+        resolved += timedelta(days=1)
+    return resolved
+
+
+def _previous_or_same_weekday(raw: date) -> date:
+    resolved = raw
+    while resolved.weekday() >= 5:
+        resolved -= timedelta(days=1)
+    return resolved
 
 
 def _uses_default_current_ytd_request(
@@ -780,8 +834,8 @@ def _fetch_year_statement_to_path(
     statement_xml = str(
         getattr(flex_client, "fetch_statement")(
             query_id,
-            from_date=date(year, 1, 1),
-            to_date=date(year, 12, 31),
+            from_date=_next_or_same_weekday(date(year, 1, 1)),
+            to_date=_previous_or_same_weekday(date(year, 12, 31)),
             poll_interval_seconds=poll_interval_seconds,
             max_attempts=max_attempts,
         )

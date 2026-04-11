@@ -13,6 +13,7 @@ from typing import TYPE_CHECKING
 
 from market_helper.common.progress import ProgressReporter
 from market_helper.data_sources.ibkr.tws import TwsIbAsyncClient
+from market_helper.providers.flex import DEFAULT_IBKR_FLEX_MAX_ATTEMPTS, DEFAULT_IBKR_FLEX_POLL_INTERVAL_SECONDS
 from market_helper.domain.portfolio_monitor.pipelines.generate_portfolio_report import (
     FlexBackfillBatchError,
     backfill_ibkr_flex_full_years as _backfill_ibkr_flex_full_years,
@@ -42,8 +43,8 @@ def generate_ibkr_flex_performance_report(
     to_date: date | str | None = None,
     period: str | None = None,
     xml_output_path: str | Path | None = None,
-    poll_interval_seconds: float = 5.0,
-    max_attempts: int = 10,
+    poll_interval_seconds: float = DEFAULT_IBKR_FLEX_POLL_INTERVAL_SECONDS,
+    max_attempts: int = DEFAULT_IBKR_FLEX_MAX_ATTEMPTS,
     client: object | None = None,
     yahoo_client: YahooFinanceClient | None = None,
     progress: ProgressReporter | None = None,
@@ -73,8 +74,8 @@ def backfill_ibkr_flex_full_years(
     start_year: int,
     end_year: int,
     overwrite_existing: bool = False,
-    poll_interval_seconds: float = 5.0,
-    max_attempts: int = 10,
+    poll_interval_seconds: float = DEFAULT_IBKR_FLEX_POLL_INTERVAL_SECONDS,
+    max_attempts: int = DEFAULT_IBKR_FLEX_MAX_ATTEMPTS,
     max_inflight_requests: int = 3,
     client: object | None = None,
     progress: ProgressReporter | None = None,
@@ -100,8 +101,8 @@ def refresh_current_year_latest_flex_xml(
     query_id: str,
     token: str,
     xml_output_path: str | Path | None = None,
-    poll_interval_seconds: float = 5.0,
-    max_attempts: int = 10,
+    poll_interval_seconds: float = DEFAULT_IBKR_FLEX_POLL_INTERVAL_SECONDS,
+    max_attempts: int = DEFAULT_IBKR_FLEX_MAX_ATTEMPTS,
     client: object | None = None,
 ):
     return _refresh_current_year_latest_flex_xml(
