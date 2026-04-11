@@ -868,11 +868,6 @@ def _merge_horizon_rows_by_key(
         if fallback_row is None:
             merged.append(row)
             continue
-        if "SimpleNavFallback" in row.source_version and (
-            fallback_row.dollar_pnl is not None or fallback_row.return_pct is not None
-        ):
-            merged.append(fallback_row)
-            continue
         merged.append(
             FlexHorizonPerformanceRow(
                 as_of=row.as_of,
