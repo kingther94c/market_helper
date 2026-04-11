@@ -852,3 +852,38 @@ def test_generate_ibkr_flex_performance_report_fills_usd_rows_from_yahoo_fx(tmp_
     assert mtd_mwr_usd["source_version"] == "MTDYTDPerformanceSummaryTotal+YahooFinanceFX"
     assert float(mtd_mwr_usd["dollar_pnl"]) == pytest.approx(8000.0 / 1.32)
     assert float(mtd_mwr_usd["return_pct"]) == pytest.approx((8000.0 / 1.32) / (100000.0 / 1.31))
+
+
+def test_merge_horizon_rows_keeps_history_values_when_simple_nav_fallback_has_data() -> None:
+    primary = [
+        flex_performance_module.FlexHorizonPerformanceRow(
+            as_of=date(2021, 12, 31),
+            source_version="PerformanceHistoryFeather+SimpleNavFallback",
+            horizon="Y2021",
+            weighting="time_weighted",
+            currency="USD",
+            dollar_pnl=54443.73,
+            return_pct=0.542996856,
+        )
+    ]
+    fallback = [
+        flex_performance_module.FlexHorizonPerformanceRow(
+            as_of=date(2021, 12, 31),
+            source_version="DailyNavRebuilt+HistoricalYear",
+            horizon="Y2021",
+            weighting="time_weighted",
+            currency="USD",
+            dollar_pnl=53433.86,
+            return_pct=0.532924894,
+        )
+    ]
+
+    merged = portfolio_report_pipeline._merge_horizon_rows_by_key(
+        primary=primary,
+        fallback=fallback,
+    )
+
+    assert len(merged) == 1
+    assert merged[0].source_version == "PerformanceHistoryFeather+SimpleNavFallback"
+    assert merged[0].dollar_pnl == pytest.approx(54443.73)
+    assert merged[0].return_pct == pytest.approx(0.542996856)
