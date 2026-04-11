@@ -9,6 +9,8 @@ from typing import Any
 
 import yaml
 
+from market_helper.common.progress import ProgressReporter, resolve_progress_reporter
+
 from .indicators import compute_factor_snapshots
 from .models import FactorSnapshot, RegimeSnapshot
 from .rulebook import RulebookConfig, classify_regimes
@@ -53,10 +55,19 @@ def detect_regimes(
     latest_only: bool = False,
     output_path: str | Path | None = None,
     indicator_output_path: str | Path | None = None,
+    progress: ProgressReporter | None = None,
 ) -> list[RegimeSnapshot]:
     """Run end-to-end deterministic regime detection from local JSON inputs."""
+    reporter = resolve_progress_reporter(progress)
+    total_steps = 5 if indicator_output_path is not None or output_path is not None else 4
+    current_step = 0
+    reporter.stage("Regime detection", current=current_step, total=total_steps)
     cfg = load_service_config(config_path)
+    current_step += 1
+    reporter.stage("Regime detection: config loaded", current=current_step, total=total_steps)
     bundle = load_regime_inputs(proxy_path=proxy_path, returns_path=returns_path)
+    current_step += 1
+    reporter.stage("Regime detection: inputs loaded", current=current_step, total=total_steps)
     # Keep feature construction and rule resolution separate so the same factor
     # snapshots can later power validation notebooks and backtests.
     factors = compute_factor_snapshots(
@@ -71,8 +82,12 @@ def detect_regimes(
         stress_weight_vol=cfg.stress_weight_vol,
         stress_weight_credit=cfg.stress_weight_credit,
     )
+    current_step += 1
+    reporter.stage("Regime detection: factors computed", current=current_step, total=total_steps)
     regimes = classify_regimes(factors, config=cfg.rulebook)
     regimes = _attach_source_info(regimes, bundle.source_info)
+    current_step += 1
+    reporter.stage("Regime detection: regimes classified", current=current_step, total=total_steps)
 
     if latest_only and regimes:
         regimes = [regimes[-1]]
@@ -81,6 +96,11 @@ def detect_regimes(
         _write_json(indicator_output_path, [item.to_dict() for item in factors])
     if output_path is not None:
         _write_json(output_path, [item.to_dict() for item in regimes])
+    if indicator_output_path is not None or output_path is not None:
+        current_step += 1
+        reporter.done("Regime detection", detail="artifacts written")
+    else:
+        reporter.done("Regime detection")
 
     return regimes
 

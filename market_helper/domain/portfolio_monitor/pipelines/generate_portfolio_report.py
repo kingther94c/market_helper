@@ -2,12 +2,14 @@ from __future__ import annotations
 
 """Pipeline entrypoints for portfolio-monitor reporting flows."""
 
+from collections import deque
 from dataclasses import dataclass
 from datetime import date
 import json
 from pathlib import Path
 import shutil
 import tempfile
+import time
 from typing import TYPE_CHECKING
 import warnings
 import xml.etree.ElementTree as ET
@@ -25,6 +27,7 @@ from market_helper.common.models import (
     export_security_universe_proposal_csv,
     sync_security_reference_csv,
 )
+from market_helper.common.progress import ProgressReporter, resolve_progress_reporter
 from market_helper.data_sources.ibkr.adapters import (
     normalize_ibkr_latest_prices,
     normalize_ibkr_positions,
@@ -39,6 +42,7 @@ from market_helper.providers.flex import (
     DEFAULT_IBKR_FLEX_MAX_ATTEMPTS,
     DEFAULT_IBKR_FLEX_POLL_INTERVAL_SECONDS,
     FlexWebServiceClient,
+    FlexWebServicePendingError,
 )
 from market_helper.data_sources.ibkr.tws import (
     TwsIbAsyncClient,
@@ -72,6 +76,7 @@ if TYPE_CHECKING:
     from market_helper.data_sources.yahoo_finance import YahooFinanceClient
 
 DEFAULT_IBKR_FLEX_ARCHIVE_START_YEAR = 2020
+DEFAULT_IBKR_FLEX_BACKFILL_MAX_INFLIGHT_REQUESTS = 3
 
 
 @dataclass(frozen=True)
@@ -86,6 +91,7 @@ class FlexArchiveRecord:
     kind: str
     target_path: Path
     status: str
+    error_message: str | None = None
     source_file: Path | None = None
     xml_from_date: date | None = None
     xml_to_date: date | None = None
@@ -98,6 +104,28 @@ class FlexStatementMetadata:
     period: str
     when_generated: str
     account_id: str
+
+
+@dataclass(frozen=True)
+class _PendingFlexArchiveFetch:
+    year: int
+    target_path: Path
+    success_status: str
+
+
+@dataclass
+class _InflightFlexArchiveFetch:
+    pending: _PendingFlexArchiveFetch
+    reference_code: str
+    attempts: int = 0
+
+
+class FlexBackfillBatchError(RuntimeError):
+    def __init__(self, *, records: list[FlexArchiveRecord], failed_years: list[int]):
+        self.records = list(records)
+        self.failed_years = list(failed_years)
+        years = ", ".join(str(year) for year in failed_years)
+        super().__init__(f"IBKR Flex historical backfill failed for years: {years}")
 
 
 def generate_ibkr_flex_performance_report(
@@ -114,8 +142,13 @@ def generate_ibkr_flex_performance_report(
     max_attempts: int = DEFAULT_IBKR_FLEX_MAX_ATTEMPTS,
     client: object | None = None,
     yahoo_client: YahooFinanceClient | None = None,
+    progress: ProgressReporter | None = None,
 ) -> Path:
     """Convert either a local Flex XML or a live Flex query into a dated CSV."""
+    reporter = resolve_progress_reporter(progress)
+    total_steps = 5
+    current_step = 0
+    reporter.stage("IBKR Flex report", current=current_step, total=total_steps)
     cleanup_path = None
     raw_dir = _flex_raw_archive_dir(output_dir)
     history_path = _performance_history_path(output_dir)
@@ -164,6 +197,8 @@ def generate_ibkr_flex_performance_report(
                 max_attempts=max_attempts,
                 client=flex_client,
             )
+    current_step += 1
+    reporter.stage("IBKR Flex report: XML ready", current=current_step, total=total_steps)
     try:
         resolved_yahoo_client = yahoo_client
         if resolved_yahoo_client is None:
@@ -174,6 +209,8 @@ def generate_ibkr_flex_performance_report(
             resolved_flex_xml_path,
             yahoo_client=resolved_yahoo_client,
         )
+        current_step += 1
+        reporter.stage("IBKR Flex report: XML parsed", current=current_step, total=total_steps)
         history_extra_paths = _history_extra_xml_paths(
             raw_dir=raw_dir,
             resolved_flex_xml_path=resolved_flex_xml_path,
@@ -184,6 +221,8 @@ def generate_ibkr_flex_performance_report(
             yahoo_client=resolved_yahoo_client,
             extra_xml_paths=history_extra_paths,
         )
+        current_step += 1
+        reporter.stage("IBKR Flex report: history rebuilt", current=current_step, total=total_steps)
         history_frame = load_performance_history(rebuilt_history_path)
         history_rows, history_missing_years = build_horizon_rows_from_performance_history(
             history_frame,
@@ -211,7 +250,11 @@ def generate_ibkr_flex_performance_report(
                 cash_flows=dataset.cash_flows,
                 horizon_rows=final_horizon_rows,
             )
-        return export_flex_horizon_report_csv(dataset, output_dir=output_dir)
+        current_step += 1
+        reporter.stage("IBKR Flex report: horizons merged", current=current_step, total=total_steps)
+        output_path = export_flex_horizon_report_csv(dataset, output_dir=output_dir)
+        reporter.done("IBKR Flex report", detail=f"wrote {output_path}")
+        return output_path
     finally:
         if cleanup_path is not None and cleanup_path.exists():
             cleanup_path.unlink()
@@ -222,14 +265,19 @@ def rebuild_ibkr_flex_performance_history(
     output_dir: str | Path,
     yahoo_client: YahooFinanceClient | None = None,
     extra_xml_paths: list[str | Path] | None = None,
+    progress: ProgressReporter | None = None,
 ) -> Path:
     raw_dir = _flex_raw_archive_dir(output_dir)
-    return rebuild_performance_history_feather(
+    reporter = resolve_progress_reporter(progress)
+    reporter.spinner("IBKR Flex history", detail="rebuilding feather history")
+    output_path = rebuild_performance_history_feather(
         raw_dir=raw_dir,
         output_path=_performance_history_path(output_dir),
         yahoo_client=yahoo_client,
         extra_xml_paths=extra_xml_paths,
     )
+    reporter.done("IBKR Flex history", detail=f"wrote {output_path}")
+    return output_path
 
 
 def _resolve_flex_xml_path(
@@ -294,26 +342,259 @@ def backfill_ibkr_flex_full_years(
     overwrite_existing: bool = False,
     poll_interval_seconds: float = DEFAULT_IBKR_FLEX_POLL_INTERVAL_SECONDS,
     max_attempts: int = DEFAULT_IBKR_FLEX_MAX_ATTEMPTS,
+    max_inflight_requests: int = DEFAULT_IBKR_FLEX_BACKFILL_MAX_INFLIGHT_REQUESTS,
     client: object | None = None,
+    progress: ProgressReporter | None = None,
 ) -> list[FlexArchiveRecord]:
+    reporter = resolve_progress_reporter(progress)
     normalized_query_id, normalized_token = _normalize_live_flex_credentials(
         query_id=query_id,
         token=token,
     )
     flex_client = client or FlexWebServiceClient(token=normalized_token)
     raw_dir = _flex_raw_archive_dir(output_dir)
-    return [
-        _ensure_full_year_archive(
+    ordered_years = list(range(start_year, end_year + 1))
+    reporter.stage("Flex backfill", current=0, total=len(ordered_years))
+    records_by_year: dict[int, FlexArchiveRecord] = {}
+    pending_fetches: list[_PendingFlexArchiveFetch] = []
+    completed_years = 0
+
+    for year in ordered_years:
+        preflight_record, pending_fetch = _preflight_full_year_archive(
             raw_dir=raw_dir,
             year=year,
-            query_id=normalized_query_id,
-            flex_client=flex_client,
-            poll_interval_seconds=poll_interval_seconds,
-            max_attempts=max_attempts,
             overwrite_existing=overwrite_existing,
         )
-        for year in range(start_year, end_year + 1)
-    ]
+        if preflight_record is not None:
+            records_by_year[year] = preflight_record
+            completed_years += 1
+            reporter.update(
+                "Flex backfill",
+                completed=completed_years,
+                total=len(ordered_years),
+                detail=f"{year} {preflight_record.status}",
+            )
+            continue
+        if pending_fetch is not None:
+            pending_fetches.append(pending_fetch)
+
+    if pending_fetches:
+        fetched_records = _backfill_full_year_archives_batch(
+            flex_client=flex_client,
+            query_id=normalized_query_id,
+            pending_fetches=pending_fetches,
+            poll_interval_seconds=poll_interval_seconds,
+            max_attempts=max_attempts,
+            max_inflight_requests=max_inflight_requests,
+            progress=reporter.child("Batch polling"),
+        )
+        records_by_year.update({record.year: record for record in fetched_records})
+        for record in fetched_records:
+            completed_years += 1
+            reporter.update(
+                "Flex backfill",
+                completed=completed_years,
+                total=len(ordered_years),
+                detail=f"{record.year} {record.status}",
+            )
+
+    ordered_records = [records_by_year[year] for year in ordered_years]
+    failed_years = [record.year for record in ordered_records if record.status == "failed"]
+    if failed_years:
+        raise FlexBackfillBatchError(records=ordered_records, failed_years=failed_years)
+    reporter.done("Flex backfill", detail=f"{len(ordered_records)} years processed")
+    return ordered_records
+
+
+def _preflight_full_year_archive(
+    *,
+    raw_dir: Path,
+    year: int,
+    overwrite_existing: bool,
+) -> tuple[FlexArchiveRecord | None, _PendingFlexArchiveFetch | None]:
+    target_path = _full_year_archive_path(raw_dir, year)
+    if target_path.exists() and not overwrite_existing:
+        return (
+            FlexArchiveRecord(
+                year=year,
+                kind="full",
+                target_path=target_path,
+                status="skipped",
+            ),
+            None,
+        )
+
+    if target_path.exists() and overwrite_existing:
+        return None, _PendingFlexArchiveFetch(year=year, target_path=target_path, success_status="overwritten")
+
+    promoted_path, promoted_source, promoted_metadata = _promote_existing_full_year_candidate(
+        raw_dir=raw_dir,
+        year=year,
+        target_path=target_path,
+    )
+    if promoted_path is not None:
+        return (
+            FlexArchiveRecord(
+                year=year,
+                kind="full",
+                target_path=promoted_path,
+                status="promoted",
+                source_file=promoted_source,
+                xml_from_date=promoted_metadata.from_date if promoted_metadata is not None else None,
+                xml_to_date=promoted_metadata.to_date if promoted_metadata is not None else None,
+            ),
+            None,
+        )
+
+    return None, _PendingFlexArchiveFetch(year=year, target_path=target_path, success_status="downloaded")
+
+
+def _backfill_full_year_archives_batch(
+    *,
+    flex_client: object,
+    query_id: str,
+    pending_fetches: list[_PendingFlexArchiveFetch],
+    poll_interval_seconds: float,
+    max_attempts: int,
+    max_inflight_requests: int,
+    progress: ProgressReporter | None = None,
+) -> list[FlexArchiveRecord]:
+    if max_attempts < 1:
+        raise ValueError("max_attempts must be >= 1")
+    if poll_interval_seconds < 0:
+        raise ValueError("poll_interval_seconds must be >= 0")
+    if max_inflight_requests < 1:
+        raise ValueError("max_inflight_requests must be >= 1")
+
+    send_request = getattr(flex_client, "send_request", None)
+    get_statement = getattr(flex_client, "get_statement", None)
+    if not callable(send_request) or not callable(get_statement):
+        raise TypeError("Historical Flex backfill batching requires a client with send_request() and get_statement()")
+
+    completed_records: dict[int, FlexArchiveRecord] = {}
+    inflight_requests: list[_InflightFlexArchiveFetch] = []
+    queued_fetches = deque(pending_fetches)
+
+    def top_up_inflight() -> None:
+        while queued_fetches and len(inflight_requests) < max_inflight_requests:
+            pending_fetch = queued_fetches.popleft()
+            try:
+                reference_code = str(
+                    send_request(
+                        query_id,
+                        from_date=date(pending_fetch.year, 1, 1),
+                        to_date=date(pending_fetch.year, 12, 31),
+                    )
+                )
+            except Exception as error:
+                completed_records[pending_fetch.year] = _failed_flex_archive_record(
+                    pending_fetch=pending_fetch,
+                    error_message=str(error),
+                )
+                continue
+            inflight_requests.append(
+                _InflightFlexArchiveFetch(
+                    pending=pending_fetch,
+                    reference_code=reference_code,
+                )
+            )
+
+    top_up_inflight()
+    while inflight_requests:
+        if progress is not None:
+            progress.spinner(
+                "Flex polling",
+                detail=f"inflight={len(inflight_requests)} queued={len(queued_fetches)}",
+            )
+        next_round_requests: list[_InflightFlexArchiveFetch] = []
+        for inflight in inflight_requests:
+            inflight.attempts += 1
+            try:
+                statement_xml = str(get_statement(inflight.reference_code))
+            except FlexWebServicePendingError as error:
+                if progress is not None:
+                    progress.spinner(
+                        "Flex polling",
+                        detail=f"{inflight.pending.year} attempt {inflight.attempts}/{max_attempts}",
+                    )
+                if inflight.attempts >= max_attempts:
+                    completed_records[inflight.pending.year] = _failed_flex_archive_record(
+                        pending_fetch=inflight.pending,
+                        error_message=_batch_polling_timeout_message(
+                            last_error=error,
+                            max_attempts=max_attempts,
+                            poll_interval_seconds=poll_interval_seconds,
+                        ),
+                    )
+                    continue
+                next_round_requests.append(inflight)
+                continue
+            except Exception as error:
+                completed_records[inflight.pending.year] = _failed_flex_archive_record(
+                    pending_fetch=inflight.pending,
+                    error_message=str(error),
+                )
+                continue
+
+            metadata = _parse_statement_metadata(statement_xml)
+            _write_statement_xml(inflight.pending.target_path, statement_xml)
+            completed_records[inflight.pending.year] = FlexArchiveRecord(
+                year=inflight.pending.year,
+                kind="full",
+                target_path=inflight.pending.target_path,
+                status=inflight.pending.success_status,
+                xml_from_date=metadata.from_date,
+                xml_to_date=metadata.to_date,
+            )
+            if progress is not None:
+                progress.spinner(
+                    "Flex polling",
+                    detail=f"{inflight.pending.year} {inflight.pending.success_status}",
+                )
+
+        unresolved_requests_remain = bool(next_round_requests)
+        inflight_requests = next_round_requests
+        top_up_inflight()
+        if unresolved_requests_remain and inflight_requests:
+            _flex_batch_sleep(flex_client, poll_interval_seconds)
+
+    return [completed_records[pending_fetch.year] for pending_fetch in pending_fetches]
+
+
+def _failed_flex_archive_record(
+    *,
+    pending_fetch: _PendingFlexArchiveFetch,
+    error_message: str,
+) -> FlexArchiveRecord:
+    return FlexArchiveRecord(
+        year=pending_fetch.year,
+        kind="full",
+        target_path=pending_fetch.target_path,
+        status="failed",
+        error_message=error_message,
+    )
+
+
+def _batch_polling_timeout_message(
+    *,
+    last_error: FlexWebServicePendingError,
+    max_attempts: int,
+    poll_interval_seconds: float,
+) -> str:
+    total_wait_seconds = poll_interval_seconds * max(max_attempts - 1, 0)
+    return (
+        f"{last_error}. Polling exhausted after {max_attempts} attempts "
+        f"(~{total_wait_seconds:.0f}s wait). Increase poll_interval_seconds/max_attempts "
+        "for large or historical Flex queries."
+    )
+
+
+def _flex_batch_sleep(flex_client: object, seconds: float) -> None:
+    sleeper = getattr(flex_client, "sleep", None)
+    if callable(sleeper):
+        sleeper(seconds)
+        return
+    time.sleep(seconds)
 
 
 def refresh_current_year_latest_flex_xml(
@@ -718,8 +999,13 @@ def generate_live_ibkr_position_report(
     timeout: float = 4.0,
     as_of: str | None = None,
     client: object | None = None,
+    progress: ProgressReporter | None = None,
 ) -> Path:
     """Pull live TWS portfolio data and route it through the same normalization path."""
+    reporter = resolve_progress_reporter(progress)
+    total_steps = 6
+    current_step = 0
+    reporter.stage("IBKR live report", current=current_step, total=total_steps)
     live_client = client or TwsIbAsyncClient(
         host=host,
         port=port,
@@ -729,24 +1015,37 @@ def generate_live_ibkr_position_report(
     )
     connect = getattr(live_client, "connect")
     disconnect = getattr(live_client, "disconnect", None)
+    reporter.spinner("IBKR live report", detail="connecting")
     connect()
     try:
         selected_account_id = _load_live_account_id(live_client, account_id)
+        current_step += 1
+        reporter.stage("IBKR live report: account selected", current=current_step, total=total_steps)
         portfolio_items = _load_live_portfolio_items(live_client, selected_account_id)
+        current_step += 1
+        reporter.stage("IBKR live report: positions fetched", current=current_step, total=total_steps)
         cash_values = _load_live_account_values(live_client, selected_account_id)
+        current_step += 1
+        reporter.stage("IBKR live report: cash fetched", current=current_step, total=total_steps)
         sources, rows, reference_table = _build_live_ibkr_report_rows(
             portfolio_items,
             cash_values,
             as_of=as_of,
         )
+        current_step += 1
+        reporter.stage("IBKR live report: rows normalized", current=current_step, total=total_steps)
         _refresh_live_security_lookups(
             reference_table=reference_table,
             live_client=live_client,
             sources=sources,
+            progress=reporter.child("Contract lookup"),
         )
+        current_step += 1
+        reporter.stage("IBKR live report: contract details refreshed", current=current_step, total=total_steps)
         written_path = export_position_report_csv(rows, output_path)
         _write_generated_security_reference_csv(reference_table)
         _write_proposed_security_universe_csv(reference_table, output_path=written_path)
+        reporter.done("IBKR live report", detail=f"wrote {written_path}")
         return written_path
     finally:
         if callable(disconnect):
@@ -820,6 +1119,7 @@ def generate_risk_html_report(
     risk_config_path: str | Path | None = None,
     allocation_policy_path: str | Path | None = None,
     vol_method: str = "geomean_1m_3m",
+    progress: ProgressReporter | None = None,
 ) -> Path:
     """Render the HTML risk report from a previously generated position CSV."""
     reference_path = Path(security_reference_path) if security_reference_path is not None else DEFAULT_SECURITY_REFERENCE_PATH
@@ -834,6 +1134,7 @@ def generate_risk_html_report(
         risk_config_path=risk_config_path,
         allocation_policy_path=allocation_policy_path,
         vol_method=vol_method,
+        progress=resolve_progress_reporter(progress),
     )
 
 
@@ -850,12 +1151,14 @@ def generate_etf_sector_sync(
     output_path: str | Path | None = None,
     api_key: str | None = None,
     client: object | None = None,
+    progress: ProgressReporter | None = None,
 ) -> Path:
     return sync_us_sector_lookthrough_from_fmp(
         symbols=symbols,
         output_path=output_path,
         api_key=api_key,
         client=client,
+        progress=resolve_progress_reporter(progress),
     )
 
 
@@ -1006,10 +1309,30 @@ def _refresh_live_security_lookups(
     reference_table: SecurityReferenceTable,
     live_client: object,
     sources: list[LiveIbkrRowSource],
+    progress: ProgressReporter | None = None,
 ) -> None:
     if not _supports_live_contract_lookup(live_client):
         return
+    eligible_sources: list[LiveIbkrRowSource] = []
     for source in sources:
+        portfolio_item = source.portfolio_item
+        if portfolio_item is None:
+            continue
+        contract = getattr(portfolio_item, "contract", None)
+        con_id = getattr(contract, "conId", None)
+        if con_id in (None, ""):
+            continue
+        internal_id = reference_table.resolve_internal_id("ibkr", str(con_id))
+        if internal_id is None:
+            continue
+        security = reference_table.get_security(internal_id)
+        if security is None or security.mapping_status == "outside_scope":
+            continue
+        eligible_sources.append(source)
+    completed = 0
+    if progress is not None and eligible_sources:
+        progress.stage("Contract details", current=0, total=len(eligible_sources))
+    for source in eligible_sources:
         portfolio_item = source.portfolio_item
         if portfolio_item is None:
             continue
@@ -1030,6 +1353,14 @@ def _refresh_live_security_lookups(
             portfolio_item=portfolio_item,
             details=details,
         )
+        if progress is not None:
+            completed += 1
+            progress.update(
+                "Contract details",
+                completed=completed,
+                total=len(eligible_sources),
+                detail=f"{internal_id} refreshed",
+            )
 
 
 def _supports_live_contract_lookup(live_client: object) -> bool:

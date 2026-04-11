@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from market_helper.common.progress import ProgressReporter
 from market_helper.domain.regime_detection.services.detection_service import detect_regimes
 
 
@@ -13,6 +14,7 @@ def run_regime_detection(
     config_path: str | Path | None = None,
     latest_only: bool = False,
     indicator_output_path: str | Path | None = None,
+    progress: ProgressReporter | None = None,
 ):
     return detect_regimes(
         returns_path=returns_path,
@@ -21,6 +23,7 @@ def run_regime_detection(
         config_path=config_path,
         latest_only=latest_only,
         indicator_output_path=indicator_output_path,
+        progress=progress,
     )
 
 
