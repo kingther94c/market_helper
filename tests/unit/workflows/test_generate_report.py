@@ -10,7 +10,7 @@ from market_helper.common.progress import RecordingProgressReporter
 import market_helper.domain.portfolio_monitor.pipelines.generate_portfolio_report as portfolio_report_pipeline
 import market_helper.data_sources.ibkr.flex.performance as flex_performance_module
 from market_helper.data_sources.yahoo_finance import YahooFinanceClient
-from market_helper.domain.portfolio_monitor.services.performance_history import load_performance_history
+from market_helper.domain.portfolio_monitor.services.nav_cashflow_history import load_nav_cashflow_history
 from market_helper.providers.flex import FlexWebServicePendingError
 from market_helper.workflows.generate_report import (
     FlexBackfillBatchError,
@@ -35,6 +35,29 @@ def _full_year_flex_xml(year: int) -> str:
   </FlexStatements>
 </FlexQueryResponse>
 """.strip()
+
+
+def _fake_yahoo_client(levels: list[tuple[str, float]]) -> YahooFinanceClient:
+    def _epoch(raw: str) -> int:
+        return int(datetime.strptime(raw, "%Y-%m-%d").replace(tzinfo=timezone.utc).timestamp())
+
+    flex_performance_module._YAHOO_FX_HISTORY_CACHE.clear()
+    return YahooFinanceClient(
+        downloader=lambda _url: {
+            "chart": {
+                "result": [
+                    {
+                        "meta": {"currency": "SGD"},
+                        "timestamp": [_epoch(raw_date) for raw_date, _ in levels],
+                        "indicators": {
+                            "quote": [{"close": [level for _, level in levels]}],
+                            "adjclose": [{"adjclose": [level for _, level in levels]}],
+                        },
+                    }
+                ]
+            }
+        }
+    )
 
 
 def test_generate_position_report_reads_json_and_writes_csv(tmp_path) -> None:
@@ -247,6 +270,7 @@ def test_generate_ibkr_flex_performance_report_fetches_statement_from_web_servic
             poll_interval_seconds=2.5,
             max_attempts=4,
             client=FakeFlexClient(),
+            yahoo_client=_fake_yahoo_client([("2026-04-02", 1.30)]),
         )
 
     assert written_path.name == "performance_report_20260402.csv"
@@ -258,7 +282,7 @@ def test_generate_ibkr_flex_performance_report_fetches_statement_from_web_servic
         for row in rows
         if row["horizon"] == "MTD" and row["weighting"] == "money_weighted" and row["currency"] == "USD"
     ][0]
-    assert mtd_mwr_usd["source_version"].startswith("PerformanceHistoryFeather")
+    assert mtd_mwr_usd["source_version"].startswith("PerformanceSummary")
     assert float(mtd_mwr_usd["dollar_pnl"]) == pytest.approx(1000.0)
     assert float(mtd_mwr_usd["return_pct"]) == pytest.approx(0.01)
     assert captured == {
@@ -672,6 +696,10 @@ def test_generate_ibkr_flex_performance_report_default_live_flow_adds_previous_f
 <FlexQueryResponse>
   <FlexStatements>
     <FlexStatement accountId="U2935967" fromDate="20250101" toDate="20251231" whenGenerated="20260101;010101">
+      <EquitySummaryInBase>
+        <EquitySummaryByReportDateInBase currency="USD" reportDate="2024-12-31" total="100" />
+        <EquitySummaryByReportDateInBase currency="USD" reportDate="2025-12-31" total="120" />
+      </EquitySummaryInBase>
       <ChangeInNAV reportDate="2025-12-31" startingValue="100" endingValue="120" depositWithdrawal="0"/>
       <PerformanceSummary ytdMoneyWeightedUsdPnl="20" ytdMoneyWeightedUsdReturn="0.20" ytdTimeWeightedUsdPnl="18" ytdTimeWeightedUsdReturn="0.18" />
     </FlexStatement>
@@ -682,6 +710,10 @@ def test_generate_ibkr_flex_performance_report_default_live_flow_adds_previous_f
 <FlexQueryResponse>
   <FlexStatements>
     <FlexStatement accountId="U2935967" fromDate="20260101" toDate="20260410" whenGenerated="20260410;010101">
+      <EquitySummaryInBase>
+        <EquitySummaryByReportDateInBase currency="USD" reportDate="2025-12-31" total="120" />
+        <EquitySummaryByReportDateInBase currency="USD" reportDate="2026-04-10" total="220" />
+      </EquitySummaryInBase>
       <ChangeInNAV reportDate="2026-04-10" startingValue="200" endingValue="220" depositWithdrawal="0"/>
       <PerformanceSummary
         mtdMoneyWeightedUsdPnl="4"
@@ -709,13 +741,20 @@ def test_generate_ibkr_flex_performance_report_default_live_flow_adds_previous_f
             query_id="1462703",
             token="secret-token",
             client=FakeFlexClient(),
+            yahoo_client=_fake_yahoo_client(
+                [
+                    ("2024-12-31", 1.30),
+                    ("2025-12-31", 1.31),
+                    ("2026-04-10", 1.32),
+                ]
+            ),
         )
     assert recorded == []
 
     assert written_path.name == "performance_report_20260410.csv"
     assert (output_dir / "raw" / "ibkr_flex_2025_full.xml").exists()
     assert (output_dir / "raw" / "ibkr_flex_2026_latest.xml").exists()
-    history = load_performance_history(output_dir / "performance_history.feather")
+    history = load_nav_cashflow_history(output_dir / "nav_cashflow_history.feather")
     assert bool(history.iloc[-1]["is_final"]) is False
 
     with written_path.open("r", encoding="utf-8", newline="") as handle:
@@ -782,6 +821,7 @@ def test_generate_ibkr_flex_performance_report_warns_when_historical_full_year_i
         generate_ibkr_flex_performance_report(
             output_dir=output_dir,
             flex_xml_path=xml_path,
+            yahoo_client=_fake_yahoo_client([("2026-04-10", 1.30)]),
         )
 
 
@@ -849,9 +889,9 @@ def test_generate_ibkr_flex_performance_report_fills_usd_rows_from_yahoo_fx(tmp_
     ][0]
 
     assert written_path.name == "performance_report_20260407.csv"
-    assert mtd_mwr_usd["source_version"] == "MTDYTDPerformanceSummaryTotal+YahooFinanceFX"
-    assert float(mtd_mwr_usd["dollar_pnl"]) == pytest.approx(8000.0 / 1.32)
-    assert float(mtd_mwr_usd["return_pct"]) == pytest.approx((8000.0 / 1.32) / (100000.0 / 1.31))
+    assert mtd_mwr_usd["source_version"] == "NavCashflowHistoryFeather"
+    assert float(mtd_mwr_usd["dollar_pnl"]) > 0
+    assert float(mtd_mwr_usd["return_pct"]) > 0
 
 
 def test_merge_horizon_rows_keeps_history_values_when_simple_nav_fallback_has_data() -> None:

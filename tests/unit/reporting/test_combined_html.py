@@ -75,7 +75,7 @@ def test_build_combined_html_report_renders_both_tabs(tmp_path: Path) -> None:
     )
     performance_output_dir = tmp_path / "flex"
     performance_output_dir.mkdir()
-    history_path = performance_output_dir / "performance_history.feather"
+    history_path = performance_output_dir / "nav_cashflow_history.feather"
     _demo_history_frame().to_feather(history_path)
     (performance_output_dir / "performance_report_20260331.csv").write_text(
         "\n".join(
@@ -131,13 +131,15 @@ def _demo_history_frame() -> pd.DataFrame:
                     "2026-03-31",
                 ]
             ),
-            "nav_close_usd": [90.0, 100.0, 120.0, 126.0, 132.3],
-            "nav_close_sgd": [117.0, 130.0, 156.0, 163.8, 171.99],
-            "cash_flow_usd": [pd.NA, 0.0, 0.0, 0.0, 0.0],
-            "cash_flow_sgd": [pd.NA, 0.0, 0.0, 0.0, 0.0],
+            "nav_eod_usd": [90.0, 100.0, 120.0, 126.0, 132.3],
+            "nav_eod_sgd": [117.0, 130.0, 156.0, 163.8, 171.99],
+            "cashflow_usd": [0.0, 0.0, 0.0, 0.0, 0.0],
+            "cashflow_sgd": [0.0, 0.0, 0.0, 0.0, 0.0],
             "fx_usdsgd_eod": [1.30, 1.30, 1.30, 1.30, 1.30],
-            "twr_return_usd": [pd.NA, 0.1111111111, 0.20, 0.05, 0.05],
-            "twr_return_sgd": [pd.NA, 0.1111111111, 0.20, 0.05, 0.05],
+            "pnl_amt_usd": [pd.NA, 10.0, 20.0, 6.0, 6.3],
+            "pnl_amt_sgd": [pd.NA, 13.0, 26.0, 7.8, 8.19],
+            "pnl_usd": [pd.NA, 0.1111111111, 0.20, 0.05, 0.05],
+            "pnl_sgd": [pd.NA, 0.1111111111, 0.20, 0.05, 0.05],
             "is_final": [True, True, True, True, False],
             "source_kind": ["full", "full", "full", "latest", "latest"],
             "source_file": ["demo.xml"] * 5,

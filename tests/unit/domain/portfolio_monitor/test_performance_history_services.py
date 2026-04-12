@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import date, datetime, timezone
+from datetime import datetime, timezone
 from pathlib import Path
 
 import pandas as pd
@@ -8,6 +8,11 @@ import pytest
 
 import market_helper.data_sources.ibkr.flex.performance as flex_performance_module
 from market_helper.data_sources.yahoo_finance import YahooFinanceClient
+from market_helper.domain.portfolio_monitor.services.nav_cashflow_history import (
+    build_horizon_rows_from_nav_cashflow_history,
+    load_nav_cashflow_history,
+    rebuild_nav_cashflow_history_feather,
+)
 from market_helper.domain.portfolio_monitor.services.performance_analytics import (
     annualized_return,
     annualized_vol,
@@ -21,17 +26,12 @@ from market_helper.domain.portfolio_monitor.services.performance_analytics impor
     sharpe_ratio,
     slice_history_for_window,
 )
-from market_helper.domain.portfolio_monitor.services.performance_history import (
-    build_horizon_rows_from_performance_history,
-    load_performance_history,
-    rebuild_performance_history_feather,
-)
 
 
-def test_rebuild_performance_history_feather_round_trips_and_marks_latest_tail_provisional(tmp_path: Path) -> None:
+def test_rebuild_nav_cashflow_history_round_trips_and_marks_latest_tail_provisional(tmp_path: Path) -> None:
     raw_dir = tmp_path / "raw"
     raw_dir.mkdir()
-    _write_nav_snapshot_xml(
+    _write_nav_cashflow_xml(
         raw_dir / "ibkr_flex_2025_full.xml",
         from_date="20250101",
         to_date="20251231",
@@ -41,7 +41,7 @@ def test_rebuild_performance_history_feather_round_trips_and_marks_latest_tail_p
             ("2025-12-31", 120.0),
         ],
     )
-    _write_nav_snapshot_xml(
+    _write_nav_cashflow_xml(
         raw_dir / "ibkr_flex_2026_latest.xml",
         from_date="20260101",
         to_date="20260105",
@@ -52,9 +52,9 @@ def test_rebuild_performance_history_feather_round_trips_and_marks_latest_tail_p
         ],
     )
 
-    history_path = rebuild_performance_history_feather(
+    history_path = rebuild_nav_cashflow_history_feather(
         raw_dir=raw_dir,
-        output_path=tmp_path / "performance_history.feather",
+        output_path=tmp_path / "nav_cashflow_history.feather",
         yahoo_client=_fake_yahoo_client(
             [
                 ("2024-12-31", 1.30),
@@ -66,7 +66,7 @@ def test_rebuild_performance_history_feather_round_trips_and_marks_latest_tail_p
         ),
     )
 
-    history = load_performance_history(history_path)
+    history = load_nav_cashflow_history(history_path)
 
     assert history_path.exists()
     assert list(history["date"].dt.strftime("%Y-%m-%d")) == [
@@ -78,13 +78,14 @@ def test_rebuild_performance_history_feather_round_trips_and_marks_latest_tail_p
     ]
     assert bool(history.iloc[-1]["is_final"]) is False
     assert bool(history.iloc[-2]["is_final"]) is True
-    assert history.iloc[-1]["nav_close_sgd"] == pytest.approx(132.0 * 1.34)
+    assert history.iloc[-1]["nav_eod_sgd"] == pytest.approx(132.0 * 1.34)
+    assert history.iloc[-1]["cashflow_usd"] == pytest.approx(0.0)
 
 
-def test_build_horizon_rows_from_performance_history_appends_historical_years(tmp_path: Path) -> None:
+def test_build_horizon_rows_from_nav_cashflow_history_appends_historical_years(tmp_path: Path) -> None:
     raw_dir = tmp_path / "raw"
     raw_dir.mkdir()
-    _write_nav_snapshot_xml(
+    _write_nav_cashflow_xml(
         raw_dir / "ibkr_flex_2025_full.xml",
         from_date="20250101",
         to_date="20251231",
@@ -93,7 +94,7 @@ def test_build_horizon_rows_from_performance_history_appends_historical_years(tm
             ("2025-12-31", 120.0),
         ],
     )
-    _write_nav_snapshot_xml(
+    _write_nav_cashflow_xml(
         raw_dir / "ibkr_flex_2026_latest.xml",
         from_date="20260101",
         to_date="20260105",
@@ -103,21 +104,23 @@ def test_build_horizon_rows_from_performance_history_appends_historical_years(tm
             ("2026-01-05", 132.0),
         ],
     )
-    history_path = rebuild_performance_history_feather(
-        raw_dir=raw_dir,
-        output_path=tmp_path / "performance_history.feather",
-        yahoo_client=_fake_yahoo_client(
-            [
-                ("2024-12-31", 1.30),
-                ("2025-12-31", 1.32),
-                ("2026-01-02", 1.33),
-                ("2026-01-05", 1.34),
-            ]
-        ),
-    )
-    history = load_performance_history(history_path)
 
-    rows, missing_years = build_horizon_rows_from_performance_history(
+    history = load_nav_cashflow_history(
+        rebuild_nav_cashflow_history_feather(
+            raw_dir=raw_dir,
+            output_path=tmp_path / "nav_cashflow_history.feather",
+            yahoo_client=_fake_yahoo_client(
+                [
+                    ("2024-12-31", 1.30),
+                    ("2025-12-31", 1.32),
+                    ("2026-01-02", 1.33),
+                    ("2026-01-05", 1.34),
+                ]
+            ),
+        )
+    )
+
+    rows, missing_years = build_horizon_rows_from_nav_cashflow_history(
         history,
         archive_start_year=2025,
     )
@@ -134,142 +137,126 @@ def test_build_horizon_rows_from_performance_history_appends_historical_years(tm
 
     assert missing_years == []
     assert y2025_twr_usd.return_pct == pytest.approx(0.20)
-    assert y2025_twr_usd.source_version == "PerformanceHistoryFeather+SimpleNavFallback"
+    assert y2025_twr_usd.source_version == "NavCashflowHistoryFeather"
     assert ytd_twr_usd.return_pct == pytest.approx(0.10)
-    assert ytd_twr_usd.source_version == "PerformanceHistoryFeather+SimpleNavFallback+ProvisionalLatest"
+    assert ytd_twr_usd.source_version == "NavCashflowHistoryFeather+ProvisionalLatest"
 
 
-def test_rebuild_performance_history_infers_multicurrency_cash_flows_from_statement_history(tmp_path: Path) -> None:
+def test_rebuild_nav_cashflow_history_aggregates_multicurrency_cashflows_by_settle_date(tmp_path: Path) -> None:
     raw_dir = tmp_path / "raw"
     raw_dir.mkdir()
-    _write_statement_with_cash_report(
-        raw_dir / "ibkr_flex_20260401_010101.xml",
-        from_date="20260101",
-        to_date="20260401",
-        totals=[
-            ("2025-12-31", 100.0),
-            ("2026-04-01", 100.0),
-        ],
-        cash_currency_rows=[
-            ("SGD", 40.0),
-            ("USD", 10.0),
-        ],
-    )
-    _write_statement_with_cash_report(
-        raw_dir / "ibkr_flex_20260402_010101.xml",
+    _write_nav_cashflow_xml(
+        raw_dir / "ibkr_flex_2026_latest.xml",
         from_date="20260101",
         to_date="20260402",
+        currency="SGD",
         totals=[
             ("2025-12-31", 100.0),
-            ("2026-04-01", 100.0),
+            ("2026-04-01", 160.0),
             ("2026-04-02", 166.0),
         ],
-        cash_currency_rows=[
-            ("SGD", 40.0),
-            ("USD", 10.0),
+        cash_transactions=[
+            ("2026-04-01", "SGD", 40.0, "Deposits/Withdrawals"),
+            ("2026-04-01", "USD", 10.0, "Deposits/Withdrawals"),
+            ("2026-04-01", "USD", 999.0, "Broker Interest Received"),
         ],
     )
 
-    history_path = rebuild_performance_history_feather(
-        raw_dir=raw_dir,
-        output_path=tmp_path / "performance_history.feather",
-        yahoo_client=_fake_yahoo_client(
-            [
-                ("2025-12-31", 2.0),
-                ("2026-04-01", 2.0),
-                ("2026-04-02", 2.0),
-            ]
-        ),
+    history = load_nav_cashflow_history(
+        rebuild_nav_cashflow_history_feather(
+            raw_dir=raw_dir,
+            output_path=tmp_path / "nav_cashflow_history.feather",
+            yahoo_client=_fake_yahoo_client(
+                [
+                    ("2025-12-31", 2.0),
+                    ("2026-04-01", 2.0),
+                    ("2026-04-02", 2.0),
+                ]
+            ),
+        )
     )
-    history = load_performance_history(history_path)
 
     flow_row = history.loc[history["date"].eq(pd.Timestamp("2026-04-01"))].iloc[0]
-    assert flow_row["cash_flow_sgd"] == pytest.approx(60.0)
-    assert flow_row["cash_flow_usd"] == pytest.approx(30.0)
-    assert flow_row["summary_cash_flow_sgd"] == pytest.approx(60.0)
-    assert flow_row["summary_cash_flow_usd"] == pytest.approx(30.0)
+    pnl_row = history.loc[history["date"].eq(pd.Timestamp("2026-04-02"))].iloc[0]
 
-    rows, missing_years = build_horizon_rows_from_performance_history(
-        history,
-        archive_start_year=2026,
-    )
-    ytd_twr_usd = next(
-        row
-        for row in rows
-        if row.horizon == "YTD" and row.weighting == "time_weighted" and row.currency == "USD"
-    )
-    ytd_twr_sgd = next(
-        row
-        for row in rows
-        if row.horizon == "YTD" and row.weighting == "time_weighted" and row.currency == "SGD"
-    )
-
-    assert missing_years == []
-    assert ytd_twr_usd.source_version == "PerformanceHistoryFeather+SimpleNavFallback"
-    assert ytd_twr_sgd.source_version == "PerformanceHistoryFeather+SimpleNavFallback"
-    assert ytd_twr_usd.return_pct == pytest.approx(-0.336)
-    assert ytd_twr_sgd.return_pct == pytest.approx(-0.336)
+    assert flow_row["cashflow_sgd"] == pytest.approx(60.0)
+    assert flow_row["cashflow_usd"] == pytest.approx(30.0)
+    assert flow_row["pnl_amt_usd"] == pytest.approx(0.0)
+    assert flow_row["pnl_usd"] == pytest.approx(0.0)
+    assert pnl_row["pnl_amt_usd"] == pytest.approx(3.0)
+    assert pnl_row["pnl_usd"] == pytest.approx(3.0 / 80.0)
 
 
-def test_summary_only_cash_flows_do_not_backfill_daily_twr_returns(tmp_path: Path) -> None:
+def test_cash_transaction_uses_settle_date_before_datetime(tmp_path: Path) -> None:
     raw_dir = tmp_path / "raw"
     raw_dir.mkdir()
-    _write_statement_with_cash_report(
-        raw_dir / "ibkr_flex_20260401_010101.xml",
+    _write_nav_cashflow_xml(
+        raw_dir / "ibkr_flex_2026_latest.xml",
         from_date="20260101",
-        to_date="20260401",
+        to_date="20260403",
         totals=[
-            ("2025-12-31", 100.0),
             ("2026-04-01", 100.0),
+            ("2026-04-02", 100.0),
+            ("2026-04-03", 125.0),
         ],
-        cash_currency_rows=[
-            ("USD", 10.0),
+        cash_transactions=[
+            ("2026-04-03", "USD", 25.0, "Deposits/Withdrawals", "2026-04-02T23:59:00"),
         ],
-        currency="USD",
     )
-    _write_statement_with_cash_report(
-        raw_dir / "ibkr_flex_20260402_010101.xml",
+
+    history = load_nav_cashflow_history(
+        rebuild_nav_cashflow_history_feather(
+            raw_dir=raw_dir,
+            output_path=tmp_path / "nav_cashflow_history.feather",
+            yahoo_client=_fake_yahoo_client(
+                [
+                    ("2026-04-01", 1.3),
+                    ("2026-04-02", 1.3),
+                    ("2026-04-03", 1.3),
+                ]
+            ),
+        )
+    )
+
+    row = history.loc[history["date"].eq(pd.Timestamp("2026-04-03"))].iloc[0]
+    assert row["cashflow_usd"] == pytest.approx(25.0)
+    assert row["pnl_amt_usd"] == pytest.approx(0.0)
+
+
+def test_unsupported_base_currency_raises(tmp_path: Path) -> None:
+    raw_dir = tmp_path / "raw"
+    raw_dir.mkdir()
+    _write_nav_cashflow_xml(
+        raw_dir / "ibkr_flex_2026_latest.xml",
         from_date="20260101",
         to_date="20260402",
-        totals=[
-            ("2025-12-31", 100.0),
-            ("2026-04-01", 100.0),
-            ("2026-04-02", 166.0),
-        ],
-        cash_currency_rows=[
-            ("USD", 10.0),
-        ],
-        currency="USD",
+        currency="EUR",
+        totals=[("2026-04-02", 100.0)],
     )
 
-    history_path = rebuild_performance_history_feather(
-        raw_dir=raw_dir,
-        output_path=tmp_path / "performance_history.feather",
-    )
-    history = load_performance_history(history_path)
-
-    flow_row = history.loc[history["date"].eq(pd.Timestamp("2026-04-01"))].iloc[0]
-    return_row = history.loc[history["date"].eq(pd.Timestamp("2026-04-02"))].iloc[0]
-
-    assert flow_row["cash_flow_usd"] == pytest.approx(10.0)
-    assert flow_row["summary_cash_flow_usd"] == pytest.approx(10.0)
-    assert pd.isna(return_row["twr_return_usd"])
-    assert percent_cumulative_plot_frame(history, "USD", include_provisional=True).empty
+    with pytest.raises(ValueError, match="Unsupported IBKR Flex base currency"):
+        rebuild_nav_cashflow_history_feather(
+            raw_dir=raw_dir,
+            output_path=tmp_path / "nav_cashflow_history.feather",
+            yahoo_client=_fake_yahoo_client([("2026-04-02", 1.3)]),
+        )
 
 
 def test_performance_analytics_default_to_finalized_history() -> None:
     history = pd.DataFrame(
         {
             "date": pd.to_datetime(["2026-01-01", "2026-01-02", "2026-01-03", "2026-01-06"]),
-            "nav_close_usd": [100.0, 110.0, 99.0, 103.95],
-            "nav_close_sgd": [130.0, 143.0, 128.7, 135.135],
-            "cash_flow_usd": [pd.NA, 0.0, 0.0, 0.0],
-            "cash_flow_sgd": [pd.NA, 0.0, 0.0, 0.0],
+            "nav_eod_usd": [100.0, 110.0, 99.0, 103.95],
+            "nav_eod_sgd": [130.0, 143.0, 128.7, 135.135],
+            "cashflow_usd": [0.0, 0.0, 0.0, 0.0],
+            "cashflow_sgd": [0.0, 0.0, 0.0, 0.0],
             "fx_usdsgd_eod": [1.30, 1.30, 1.30, 1.30],
-            "twr_return_usd": [pd.NA, 0.10, -0.10, 0.05],
-            "twr_return_sgd": [pd.NA, 0.10, -0.10, 0.05],
+            "pnl_amt_usd": [pd.NA, 10.0, -11.0, 4.95],
+            "pnl_amt_sgd": [pd.NA, 13.0, -14.3, 6.435],
+            "pnl_usd": [pd.NA, 0.10, -0.10, 0.05],
+            "pnl_sgd": [pd.NA, 0.10, -0.10, 0.05],
             "is_final": [True, True, True, False],
-            "source_kind": ["latest", "latest", "latest", "latest"],
+            "source_kind": ["latest"] * 4,
             "source_file": ["demo.xml"] * 4,
             "source_as_of": pd.to_datetime(["2026-01-06"] * 4),
         }
@@ -281,8 +268,8 @@ def test_performance_analytics_default_to_finalized_history() -> None:
     assert list(index.index.strftime("%Y-%m-%d")) == ["2026-01-02", "2026-01-03"]
     assert index.iloc[-1] == pytest.approx(0.99)
     assert drawdown.min() == pytest.approx(-0.10)
-    assert annualized_return(history, "USD") < 0
-    assert annualized_return(history, "USD", include_provisional=True) > 0
+    assert annualized_return(history, "USD") is None
+    assert annualized_return(history, "USD", include_provisional=True) is None
 
 
 def test_slice_history_for_window_adds_opening_row_and_handles_trailing_windows() -> None:
@@ -332,15 +319,15 @@ def test_annualized_metrics_use_consistent_daily_annualization() -> None:
     history = pd.DataFrame(
         {
             "date": pd.bdate_range("2026-01-01", periods=40),
-            "nav_close_usd": [100.0 * (1.001 ** idx) for idx in range(40)],
-            "nav_close_sgd": [130.0 * (1.001 ** idx) for idx in range(40)],
-            "cash_flow_usd": [pd.NA] + [0.0] * 39,
-            "cash_flow_sgd": [pd.NA] + [0.0] * 39,
-            "summary_cash_flow_usd": [pd.NA] * 40,
-            "summary_cash_flow_sgd": [pd.NA] * 40,
+            "nav_eod_usd": [100.0 * (1.001 ** idx) for idx in range(40)],
+            "nav_eod_sgd": [130.0 * (1.001 ** idx) for idx in range(40)],
+            "cashflow_usd": [0.0] * 40,
+            "cashflow_sgd": [0.0] * 40,
             "fx_usdsgd_eod": [1.30] * 40,
-            "twr_return_usd": [pd.NA] + [0.001] * 39,
-            "twr_return_sgd": [pd.NA] + [0.001] * 39,
+            "pnl_amt_usd": [pd.NA] + [100.0 * (1.001 ** (idx - 1)) * 0.001 for idx in range(1, 40)],
+            "pnl_amt_sgd": [pd.NA] + [130.0 * (1.001 ** (idx - 1)) * 0.001 for idx in range(1, 40)],
+            "pnl_usd": [pd.NA] + [0.001] * 39,
+            "pnl_sgd": [pd.NA] + [0.001] * 39,
             "is_final": [True] * 40,
             "source_kind": ["full"] * 40,
             "source_file": ["demo.xml"] * 40,
@@ -393,20 +380,22 @@ def test_sparse_history_returns_na_for_risk_metrics_and_builds_dollar_plot_frame
 def test_sharpe_matches_annualized_return_divided_by_vol_for_daily_history() -> None:
     returns = [0.01, -0.005] * 20
     nav = [100.0]
+    pnl = [pd.NA]
     for daily_return in returns:
+        pnl.append(nav[-1] * daily_return)
         nav.append(nav[-1] * (1.0 + daily_return))
     history = pd.DataFrame(
         {
             "date": pd.bdate_range("2026-01-01", periods=len(nav)),
-            "nav_close_usd": nav,
-            "nav_close_sgd": [value * 1.3 for value in nav],
-            "cash_flow_usd": [pd.NA] + [0.0] * (len(nav) - 1),
-            "cash_flow_sgd": [pd.NA] + [0.0] * (len(nav) - 1),
-            "summary_cash_flow_usd": [pd.NA] * len(nav),
-            "summary_cash_flow_sgd": [pd.NA] * len(nav),
+            "nav_eod_usd": nav,
+            "nav_eod_sgd": [value * 1.3 for value in nav],
+            "cashflow_usd": [0.0] * len(nav),
+            "cashflow_sgd": [0.0] * len(nav),
             "fx_usdsgd_eod": [1.30] * len(nav),
-            "twr_return_usd": [pd.NA, *returns],
-            "twr_return_sgd": [pd.NA, *returns],
+            "pnl_amt_usd": pnl,
+            "pnl_amt_sgd": [pd.NA if value is pd.NA else float(value) * 1.3 for value in pnl],
+            "pnl_usd": [pd.NA, *returns],
+            "pnl_sgd": [pd.NA, *returns],
             "is_final": [True] * len(nav),
             "source_kind": ["full"] * len(nav),
             "source_file": ["demo.xml"] * len(nav),
@@ -424,26 +413,44 @@ def test_sharpe_matches_annualized_return_divided_by_vol_for_daily_history() -> 
     assert sharpe == pytest.approx(ann_return / ann_vol)
 
 
-def _write_nav_snapshot_xml(
+def _write_nav_cashflow_xml(
     path: Path,
     *,
     from_date: str,
     to_date: str,
     totals: list[tuple[str, float]],
+    cash_transactions: list[tuple[str, str, float, str] | tuple[str, str, float, str, str]] | None = None,
     currency: str = "USD",
 ) -> None:
-    rows = "\n".join(
+    nav_rows = "\n".join(
         f'<EquitySummaryByReportDateInBase currency="{currency}" reportDate="{report_date}" total="{total}" />'
         for report_date, total in totals
     )
+    cash_rows = []
+    for item in cash_transactions or []:
+        settle_date, row_currency, amount, row_type, *extra = item
+        attrs = [
+            f'currency="{row_currency}"',
+            f'amount="{amount}"',
+            f'type="{row_type}"',
+            'description="External Transfer"',
+            f'settleDate="{settle_date}"',
+        ]
+        if extra:
+            attrs.append(f'dateTime="{extra[0]}"')
+        cash_rows.append(f"<CashTransaction {' '.join(attrs)} />")
+    cash_block = "\n".join(cash_rows)
     path.write_text(
         f"""
 <FlexQueryResponse>
   <FlexStatements>
     <FlexStatement accountId="U2935967" fromDate="{from_date}" toDate="{to_date}" whenGenerated="{to_date};010101">
       <EquitySummaryInBase>
-        {rows}
+        {nav_rows}
       </EquitySummaryInBase>
+      <CashTransactions>
+        {cash_block}
+      </CashTransactions>
     </FlexStatement>
   </FlexStatements>
 </FlexQueryResponse>
@@ -453,6 +460,11 @@ def _write_nav_snapshot_xml(
 
 
 def _demo_history_frame() -> pd.DataFrame:
+    returns = [pd.NA, 0.1111111111, 0.20, 0.05, 0.05]
+    nav_usd = [90.0, 100.0, 120.0, 126.0, 132.3]
+    pnl_amt_usd = [pd.NA]
+    for idx in range(1, len(nav_usd)):
+        pnl_amt_usd.append(nav_usd[idx] - nav_usd[idx - 1])
     return pd.DataFrame(
         {
             "date": pd.to_datetime(
@@ -464,63 +476,20 @@ def _demo_history_frame() -> pd.DataFrame:
                     "2026-03-31",
                 ]
             ),
-            "nav_close_usd": [90.0, 100.0, 120.0, 126.0, 132.3],
-            "nav_close_sgd": [117.0, 130.0, 156.0, 163.8, 171.99],
-            "cash_flow_usd": [pd.NA, 0.0, 0.0, 0.0, 0.0],
-            "cash_flow_sgd": [pd.NA, 0.0, 0.0, 0.0, 0.0],
-            "fx_usdsgd_eod": [1.30, 1.30, 1.30, 1.30, 1.30],
-            "twr_return_usd": [pd.NA, 0.1111111111, 0.20, 0.05, 0.05],
-            "twr_return_sgd": [pd.NA, 0.1111111111, 0.20, 0.05, 0.05],
+            "nav_eod_usd": nav_usd,
+            "nav_eod_sgd": [117.0, 130.0, 156.0, 163.8, 171.99],
+            "cashflow_usd": [0.0] * 5,
+            "cashflow_sgd": [0.0] * 5,
+            "fx_usdsgd_eod": [1.30] * 5,
+            "pnl_amt_usd": pnl_amt_usd,
+            "pnl_amt_sgd": [pd.NA if value is pd.NA else float(value) * 1.3 for value in pnl_amt_usd],
+            "pnl_usd": returns,
+            "pnl_sgd": returns,
             "is_final": [True, True, True, True, False],
             "source_kind": ["full", "full", "full", "latest", "latest"],
             "source_file": ["demo.xml"] * 5,
             "source_as_of": pd.to_datetime(["2026-03-31"] * 5),
         }
-    )
-
-
-def _write_statement_with_cash_report(
-    path: Path,
-    *,
-    from_date: str,
-    to_date: str,
-    totals: list[tuple[str, float]],
-    cash_currency_rows: list[tuple[str, float]],
-    currency: str = "SGD",
-) -> None:
-    nav_rows = "\n".join(
-        f'<EquitySummaryByReportDateInBase currency="{currency}" reportDate="{report_date}" total="{total}" />'
-        for report_date, total in totals
-    )
-    cash_rows = "\n".join(
-        (
-            '<CashReportCurrency '
-            f'currency="{row_currency}" '
-            'levelOfDetail="Currency" '
-            f'fromDate="{from_date}" '
-            f'toDate="{to_date}" '
-            f'depositWithdrawals="{amount}" '
-            f'depositWithdrawalsMTD="{amount}" '
-            f'depositWithdrawalsYTD="{amount}" />'
-        )
-        for row_currency, amount in cash_currency_rows
-    )
-    path.write_text(
-        f"""
-<FlexQueryResponse>
-  <FlexStatements>
-    <FlexStatement accountId="U2935967" fromDate="{from_date}" toDate="{to_date}" whenGenerated="{to_date};010101">
-      <EquitySummaryInBase>
-        {nav_rows}
-      </EquitySummaryInBase>
-      <CashReport>
-        {cash_rows}
-      </CashReport>
-    </FlexStatement>
-  </FlexStatements>
-</FlexQueryResponse>
-""".strip(),
-        encoding="utf-8",
     )
 
 

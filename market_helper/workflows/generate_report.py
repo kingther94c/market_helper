@@ -25,7 +25,7 @@ from market_helper.domain.portfolio_monitor.pipelines.generate_portfolio_report 
     generate_report_mapping_table as _generate_report_mapping_table,
     generate_risk_html_report as _generate_risk_html_report,
     generate_security_reference_sync as _generate_security_reference_sync,
-    rebuild_ibkr_flex_performance_history as _rebuild_ibkr_flex_performance_history,
+    rebuild_ibkr_flex_nav_cashflow_history as _rebuild_ibkr_flex_nav_cashflow_history,
     refresh_current_year_latest_flex_xml as _refresh_current_year_latest_flex_xml,
 )
 
@@ -116,14 +116,14 @@ def refresh_current_year_latest_flex_xml(
     )
 
 
-def rebuild_ibkr_flex_performance_history(
+def rebuild_ibkr_flex_nav_cashflow_history(
     *,
     output_dir: str | Path,
     yahoo_client: YahooFinanceClient | None = None,
     extra_xml_paths: list[str | Path] | None = None,
     progress: ProgressReporter | None = None,
 ) -> Path:
-    return _rebuild_ibkr_flex_performance_history(
+    return _rebuild_ibkr_flex_nav_cashflow_history(
         output_dir=output_dir,
         yahoo_client=yahoo_client,
         extra_xml_paths=extra_xml_paths,
@@ -299,6 +299,6 @@ __all__ = [
     "generate_report_mapping_table",
     "generate_risk_html_report",
     "generate_security_reference_sync",
-    "rebuild_ibkr_flex_performance_history",
+    "rebuild_ibkr_flex_nav_cashflow_history",
     "refresh_current_year_latest_flex_xml",
 ]

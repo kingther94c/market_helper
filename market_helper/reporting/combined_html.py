@@ -4,7 +4,7 @@ from pathlib import Path
 
 from market_helper.reporting.performance_html import (
     build_performance_report_view_model,
-    load_performance_history_frame,
+    load_nav_cashflow_history_frame,
     render_performance_assets,
     render_performance_tab,
 )
@@ -47,7 +47,7 @@ def build_combined_html_report(
         allocation_policy_path=allocation_policy_path,
         vol_method=vol_method,
     )
-    history = load_performance_history_frame(history_path)
+    history = load_nav_cashflow_history_frame(history_path)
     usd_perf_view_model = build_performance_report_view_model(
         history,
         report_csv_path=report_csv_path,
@@ -191,7 +191,7 @@ def _resolve_performance_history_path(
         return Path(performance_history_path)
     if performance_output_dir is None:
         raise ValueError("performance_history_path or performance_output_dir is required")
-    return Path(performance_output_dir) / "performance_history.feather"
+    return Path(performance_output_dir) / "nav_cashflow_history.feather"
 
 
 def _resolve_performance_report_csv_path(

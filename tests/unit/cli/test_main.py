@@ -271,7 +271,7 @@ def test_cli_combined_html_report_dispatches_to_workflow(monkeypatch, tmp_path) 
             "--positions-csv",
             str(tmp_path / "live_ibkr_position_report.csv"),
             "--performance-history",
-            str(tmp_path / "performance_history.feather"),
+            str(tmp_path / "nav_cashflow_history.feather"),
             "--performance-output-dir",
             str(tmp_path / "flex"),
             "--performance-report-csv",
@@ -297,7 +297,7 @@ def test_cli_combined_html_report_dispatches_to_workflow(monkeypatch, tmp_path) 
 
     assert exit_code == 0
     assert str(captured["positions_csv_path"]).endswith("live_ibkr_position_report.csv")
-    assert str(captured["performance_history_path"]).endswith("performance_history.feather")
+    assert str(captured["performance_history_path"]).endswith("nav_cashflow_history.feather")
     assert str(captured["performance_output_dir"]).endswith("flex")
     assert str(captured["performance_report_csv_path"]).endswith("performance_report_20260410.csv")
     assert str(captured["returns_path"]).endswith("returns.json")

@@ -16,7 +16,7 @@ from market_helper.domain.portfolio_monitor.services.performance_analytics impor
     build_yearly_metric_rows,
     dollar_cumulative_plot_frame,
     dollar_drawdown_plot_frame,
-    load_performance_history_frame,
+    load_nav_cashflow_history_frame,
     percent_cumulative_plot_frame,
     percent_drawdown_plot_frame,
     sharpe_ratio,
@@ -540,7 +540,7 @@ def _format_metric_value(value: float | str | None, kind: str) -> str:
 __all__ = [
     "PerformanceReportViewModel",
     "build_performance_report_view_model",
-    "load_performance_history_frame",
+    "load_nav_cashflow_history_frame",
     "render_performance_assets",
     "render_performance_tab",
 ]
