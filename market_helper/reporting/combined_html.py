@@ -47,11 +47,18 @@ def build_combined_html_report(
         vol_method=vol_method,
     )
     history = load_performance_history_frame(history_path)
-    perf_view_model = build_performance_report_view_model(
+    usd_perf_view_model = build_performance_report_view_model(
         history,
         report_csv_path=report_csv_path,
         primary_currency="USD",
-        secondary_currency="SGD",
+        secondary_currency=None,
+        primary_basis="TWR",
+    )
+    sgd_perf_view_model = build_performance_report_view_model(
+        history,
+        report_csv_path=report_csv_path,
+        primary_currency="SGD",
+        secondary_currency=None,
         primary_basis="TWR",
     )
     output = Path(output_path)
@@ -59,15 +66,16 @@ def build_combined_html_report(
     output.write_text(
         render_combined_html(
             risk_html=render_risk_tab(risk_view_model),
-            performance_html=render_performance_tab(perf_view_model),
-            as_of=max(risk_view_model.as_of, perf_view_model.as_of),
+            performance_usd_html=render_performance_tab(usd_perf_view_model),
+            performance_sgd_html=render_performance_tab(sgd_perf_view_model),
+            as_of=max(risk_view_model.as_of, usd_perf_view_model.as_of, sgd_perf_view_model.as_of),
         ),
         encoding="utf-8",
     )
     return output
 
 
-def render_combined_html(*, risk_html: str, performance_html: str, as_of: str) -> str:
+def render_combined_html(*, risk_html: str, performance_usd_html: str, performance_sgd_html: str, as_of: str) -> str:
     return f"""<!doctype html>
 <html lang='en'>
 <head>
@@ -114,11 +122,15 @@ def render_combined_html(*, risk_html: str, performance_html: str, as_of: str) -
     <p>As of {as_of}</p>
   </div>
   <div class='tab-nav' role='tablist' aria-label='Combined portfolio report tabs'>
+    <button class='tab-button is-active' data-tab-target='performance-usd-tab' role='tab' aria-selected='true'>Performance Report (USD)</button>
+    <button class='tab-button' data-tab-target='performance-sgd-tab' role='tab' aria-selected='false'>Performance Report (SGD)</button>
     <button class='tab-button' data-tab-target='risk-tab' role='tab' aria-selected='false'>Risk</button>
-    <button class='tab-button is-active' data-tab-target='performance-tab' role='tab' aria-selected='true'>Performance</button>
   </div>
-  <section id='performance-tab' class='tab-panel is-active' role='tabpanel'>
-    {performance_html}
+  <section id='performance-usd-tab' class='tab-panel is-active' role='tabpanel'>
+    {performance_usd_html}
+  </section>
+  <section id='performance-sgd-tab' class='tab-panel' role='tabpanel'>
+    {performance_sgd_html}
   </section>
   <section id='risk-tab' class='tab-panel' role='tabpanel'>
     {risk_html}

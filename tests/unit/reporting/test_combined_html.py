@@ -12,7 +12,7 @@ from market_helper.reporting.performance_html import build_performance_report_vi
 def test_render_performance_tab_contains_plots_and_tables() -> None:
     history = _demo_history_frame()
 
-    view_model = build_performance_report_view_model(history)
+    view_model = build_performance_report_view_model(history, primary_currency="USD", secondary_currency=None)
     rendered = render_performance_tab(view_model)
 
     assert "Performance Overview" in rendered
@@ -21,7 +21,6 @@ def test_render_performance_tab_contains_plots_and_tables() -> None:
     assert "Horizon Metrics" in rendered
     assert "Historical Years" in rendered
     assert "USD" in rendered
-    assert "SGD" in rendered
     assert "3Y" in rendered
     assert "5Y" in rendered
 
@@ -93,13 +92,18 @@ def test_build_combined_html_report_renders_both_tabs(tmp_path: Path) -> None:
     rendered = output_path.read_text(encoding="utf-8")
     assert "Combined Portfolio Report" in rendered
     assert "data-tab-target='risk-tab'" in rendered
-    assert "data-tab-target='performance-tab'" in rendered
+    assert "data-tab-target='performance-usd-tab'" in rendered
+    assert "data-tab-target='performance-sgd-tab'" in rendered
     assert "Portfolio Risk Report" not in rendered
+    assert "Performance Report (USD)" in rendered
+    assert "Performance Report (SGD)" in rendered
     assert "Performance Overview" in rendered
     assert "Portfolio Summary" in rendered
     assert "Historical Years" in rendered
     assert "Goldilocks Expansion" in rendered
     assert "n/a" in rendered
+    assert "Primary view uses <strong>TWR</strong> in USD." in rendered
+    assert "Primary view uses <strong>TWR</strong> in SGD." in rendered
 
 
 def _demo_history_frame() -> pd.DataFrame:
