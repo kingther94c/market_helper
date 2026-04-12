@@ -33,7 +33,7 @@ class PerformanceSummaryCard:
 class PerformanceReportViewModel:
     as_of: str
     primary_currency: str
-    secondary_currency: str
+    secondary_currency: str | None
     primary_basis: str
     summary_cards: list[PerformanceSummaryCard]
     cumulative_plot: pd.DataFrame
@@ -47,7 +47,7 @@ def build_performance_report_view_model(
     *,
     report_csv_path: str | Path | None = None,
     primary_currency: str = "USD",
-    secondary_currency: str = "SGD",
+    secondary_currency: str | None = "SGD",
     primary_basis: str = "TWR",
 ) -> PerformanceReportViewModel:
     frame = history.copy()
@@ -62,21 +62,33 @@ def build_performance_report_view_model(
         PerformanceSummaryCard(
             label="Since inception annualized return",
             primary_value=annualized_return(frame, primary_currency, include_provisional=True),
-            secondary_value=_safe_metric(frame, secondary_currency, annualized_return, include_provisional=True),
+            secondary_value=(
+                _safe_metric(frame, secondary_currency, annualized_return, include_provisional=True)
+                if secondary_currency is not None
+                else None
+            ),
             secondary_label=secondary_currency,
             value_kind="percent",
         ),
         PerformanceSummaryCard(
             label="Since inception annualized vol",
             primary_value=annualized_vol(frame, primary_currency, include_provisional=True),
-            secondary_value=_safe_metric(frame, secondary_currency, annualized_vol, include_provisional=True),
+            secondary_value=(
+                _safe_metric(frame, secondary_currency, annualized_vol, include_provisional=True)
+                if secondary_currency is not None
+                else None
+            ),
             secondary_label=secondary_currency,
             value_kind="percent",
         ),
         PerformanceSummaryCard(
             label="Since inception Sharpe",
             primary_value=sharpe_ratio(frame, primary_currency, include_provisional=True),
-            secondary_value=_safe_metric(frame, secondary_currency, sharpe_ratio, include_provisional=True),
+            secondary_value=(
+                _safe_metric(frame, secondary_currency, sharpe_ratio, include_provisional=True)
+                if secondary_currency is not None
+                else None
+            ),
             secondary_label=secondary_currency,
             value_kind="ratio",
         ),
@@ -131,12 +143,19 @@ def render_performance_tab(view_model: PerformanceReportViewModel) -> str:
         css_class="perf-chart-svg perf-chart-svg-drawdown",
         label=f"{view_model.primary_currency} drawdown",
     )
+    overview_text = (
+        f"Primary view uses <strong>{html.escape(view_model.primary_basis)}</strong> in {html.escape(view_model.primary_currency)}."
+        if view_model.secondary_currency is None
+        else (
+            f"Primary view uses <strong>{html.escape(view_model.primary_basis)}</strong> in {html.escape(view_model.primary_currency)}. "
+            f"Auxiliary returns show {html.escape(view_model.secondary_currency)}."
+        )
+    )
     return (
         "<section class='perf-tab'>"
         "<div class='card'>"
         "<h2>Performance Overview</h2>"
-        f"<p>Primary view uses <strong>{html.escape(view_model.primary_basis)}</strong> in {html.escape(view_model.primary_currency)}. "
-        f"Auxiliary returns show {html.escape(view_model.secondary_currency)}.</p>"
+        f"<p>{overview_text}</p>"
         f"<div class='metrics'>{summary_cards}</div>"
         "</div>"
         "<div class='card'>"
@@ -197,7 +216,7 @@ def _render_summary_card(card: PerformanceSummaryCard) -> str:
     )
 
 
-def _render_metric_rows(rows: list[PerformanceMetricRow], *, secondary_currency: str) -> str:
+def _render_metric_rows(rows: list[PerformanceMetricRow], *, secondary_currency: str | None) -> str:
     if not rows:
         return "<tr><td colspan='8'>No data</td></tr>"
     return "\n".join(
@@ -210,11 +229,19 @@ def _render_metric_rows(rows: list[PerformanceMetricRow], *, secondary_currency:
             f"<td class='num'>{_format_metric_value(row.annualized_vol, 'percent')}</td>"
             f"<td class='num'>{_format_metric_value(row.sharpe_ratio, 'ratio')}</td>"
             f"<td class='num'>{_format_metric_value(row.max_drawdown, 'percent')}</td>"
-            f"<td>{html.escape(secondary_currency)} TWR {_format_metric_value(row.secondary_twr_return, 'percent')} / "
-            f"MWR {_format_metric_value(row.secondary_mwr_return, 'percent')}</td>"
+            f"<td>{_render_secondary_return_cell(row, secondary_currency)}</td>"
             "</tr>"
         )
         for row in rows
+    )
+
+
+def _render_secondary_return_cell(row: PerformanceMetricRow, secondary_currency: str | None) -> str:
+    if secondary_currency is None:
+        return "n/a"
+    return (
+        f"{html.escape(secondary_currency)} TWR {_format_metric_value(row.secondary_twr_return, 'percent')} / "
+        f"MWR {_format_metric_value(row.secondary_mwr_return, 'percent')}"
     )
 
 
