@@ -111,7 +111,7 @@ def build_parser() -> argparse.ArgumentParser:
     )
     combined_html_report.add_argument("--positions-csv", required=True, help="Path to position CSV.")
     combined_html_report.add_argument("--output", required=True, help="Path to output HTML.")
-    combined_html_report.add_argument("--performance-history", required=False, help="Optional performance_history.feather path.")
+    combined_html_report.add_argument("--performance-history", required=False, help="Optional nav_cashflow_history.feather path.")
     combined_html_report.add_argument("--performance-output-dir", required=False, help="Optional performance artifact directory.")
     combined_html_report.add_argument("--performance-report-csv", required=False, help="Optional dated performance report CSV path.")
     combined_html_report.add_argument("--returns", required=False, help="Optional returns JSON override.")

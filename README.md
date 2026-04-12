@@ -221,7 +221,7 @@ conda run -n py313 python -m market_helper.cli.main combined-html-report \
 ```
 
 - The combined report renders `Performance` and `Risk` tabs in one static HTML page.
-- The `Performance` tab uses `performance_history.feather` plus the latest `performance_report_YYYYMMDD.csv` from `--performance-output-dir`, unless overridden explicitly.
+- The `Performance` tab uses `nav_cashflow_history.feather` plus the latest `performance_report_YYYYMMDD.csv` from `--performance-output-dir`, unless overridden explicitly.
 - The `Performance` tab defaults to `USD` headline display, `SGD` auxiliary return display, and `TWR` as the primary return basis while still showing `MWR` in key summary tables.
 
 Generate an HTML risk report only (historical vol + estimate vol + correlation-based portfolio risk):

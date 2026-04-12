@@ -20,8 +20,8 @@ def test_parse_flex_performance_xml_extracts_daily_cash_and_horizon_rows(tmp_pat
       <ChangeInNAV reportDate="2026-04-01" startingValue="100000" endingValue="102000" depositWithdrawal="500"/>
       <ChangeInNAV reportDate="2026-04-02" startingValue="102000" endingValue="101000" depositWithdrawal="-250"/>
       <CashTransactions>
-        <CashTransaction reportDate="2026-04-01" amount="500" type="Deposit" description="Deposit"/>
-        <CashTransaction reportDate="2026-04-02" amount="-250" type="Withdrawal" description="Withdrawal"/>
+        <CashTransaction settleDate="2026-04-01" amount="500" type="Deposits/Withdrawals" description="Deposit"/>
+        <CashTransaction settleDate="2026-04-02" amount="-250" type="Deposits/Withdrawals" description="Withdrawal"/>
       </CashTransactions>
       <PerformanceSummary
         mtdMoneyWeightedUsdPnl="1200"
@@ -379,8 +379,8 @@ def test_parse_flex_performance_xml_aggregates_multicurrency_cash_report_summary
 
     assert mtd_twr_sgd.source_version == "DailyNavRebuilt+CashReportSummary"
     assert mtd_twr_usd.source_version == "DailyNavRebuilt+CashReportSummary+YahooFinanceFX"
-    assert mtd_twr_sgd.return_pct == pytest.approx(-0.336)
-    assert mtd_twr_usd.return_pct == pytest.approx(-0.336)
+    assert mtd_twr_sgd.return_pct == pytest.approx(-0.22146)
+    assert mtd_twr_usd.return_pct == pytest.approx(-0.22146)
 
 
 def test_export_flex_performance_csv_writes_legacy_detail_files(tmp_path) -> None:

@@ -7,7 +7,7 @@ from pathlib import Path
 import pandas as pd
 
 from market_helper.data_sources.ibkr.flex.performance import FlexNavPoint, _calculate_period_irr_return
-from market_helper.domain.portfolio_monitor.services.performance_history import load_performance_history
+from market_helper.domain.portfolio_monitor.services.nav_cashflow_history import load_nav_cashflow_history
 from market_helper.domain.portfolio_monitor.services.volatility import (
     DEFAULT_ANNUALIZATION_FACTOR,
     historical_vol,
@@ -217,8 +217,8 @@ def drawdown_plot_frame(
     )
 
 
-def load_performance_history_frame(path: str | Path) -> pd.DataFrame:
-    return load_performance_history(path)
+def load_nav_cashflow_history_frame(path: str | Path) -> pd.DataFrame:
+    return load_nav_cashflow_history(path)
 
 
 def slice_history_for_window(
@@ -353,7 +353,7 @@ def build_yearly_metric_rows(
             window="YEAR",
             calendar_year=year,
         )
-        if year_frame.empty:
+        if year_frame.empty or pd.Timestamp(year_frame.iloc[0]["date"]).year == year:
             continue
         primary_metrics = _calculate_metrics_from_frame(
             year_frame,
@@ -393,9 +393,6 @@ def _select_history(history: pd.DataFrame, *, include_provisional: bool) -> pd.D
         frame = latest_history(history)
     else:
         frame = finalized_history(history)
-    for column in ("summary_cash_flow_usd", "summary_cash_flow_sgd"):
-        if column not in frame.columns:
-            frame[column] = pd.NA
     return frame.sort_values("date", kind="stable").reset_index(drop=True)
 
 
@@ -436,11 +433,10 @@ def _calculate_metrics_from_frame(
 
     nav_col = _nav_column(currency)
     flow_col = _flow_column(currency)
-    summary_flow_col = _summary_flow_column(currency)
     return_col = _return_column(currency)
     available = history.loc[
         history[nav_col].notna(),
-        ["date", nav_col, flow_col, summary_flow_col, return_col],
+        ["date", nav_col, flow_col, return_col],
     ].copy()
     if len(available) < 2:
         return _empty_metrics()
@@ -468,7 +464,11 @@ def _calculate_metrics_from_frame(
 
     ann_return = _annualized_return_from_returns(daily_returns) if has_daily_coverage else None
     ann_vol = _annualized_vol_from_returns(daily_returns) if has_daily_coverage else None
-    sharpe = None if ann_return is None or ann_vol is None or ann_vol <= 0 else float((ann_return - risk_free_rate_annual) / ann_vol)
+    sharpe = (
+        None
+        if ann_return is None or ann_vol is None or ann_vol <= 1e-12
+        else float((ann_return - risk_free_rate_annual) / ann_vol)
+    )
     drawdown = _max_drawdown_from_returns(daily_returns) if has_daily_coverage else None
 
     return {
@@ -539,8 +539,7 @@ def _dollar_frame_from_history(history: pd.DataFrame, currency: str) -> pd.DataF
 def _mwr_return_from_window(history: pd.DataFrame, currency: str) -> float | None:
     nav_col = _nav_column(currency)
     flow_col = _flow_column(currency)
-    summary_flow_col = _summary_flow_column(currency)
-    available = history.loc[history[nav_col].notna(), ["date", nav_col, flow_col, summary_flow_col]].copy()
+    available = history.loc[history[nav_col].notna(), ["date", nav_col, flow_col]].copy()
     if len(available) < 2:
         return None
     nav_points = [
@@ -548,19 +547,13 @@ def _mwr_return_from_window(history: pd.DataFrame, currency: str) -> float | Non
         for _, row in available.iterrows()
     ]
     flow_schedule: dict[date, float] = {}
-    has_summary_only_flows = False
-    for row_date, flow_amount, summary_amount in zip(
+    for row_date, flow_amount in zip(
         available.iloc[1:]["date"],
         pd.to_numeric(available.iloc[1:][flow_col], errors="coerce"),
-        pd.to_numeric(available.iloc[1:][summary_flow_col], errors="coerce"),
         strict=False,
     ):
         if not pd.isna(flow_amount) and abs(float(flow_amount)) > 1e-12:
             flow_schedule[pd.Timestamp(row_date).date()] = float(flow_amount)
-        if not pd.isna(summary_amount) and abs(float(summary_amount)) > 1e-12:
-            has_summary_only_flows = True
-    if has_summary_only_flows:
-        return None
     return _calculate_period_irr_return(nav_points, flow_schedule)
 
 
@@ -616,25 +609,18 @@ def _nav_column(currency: str) -> str:
     normalized = currency.strip().upper()
     if normalized not in {"USD", "SGD"}:
         raise ValueError(f"Unsupported currency: {currency}")
-    return f"nav_close_{normalized.lower()}"
+    return f"nav_eod_{normalized.lower()}"
 
 
 def _flow_column(currency: str) -> str:
     normalized = currency.strip().upper()
     if normalized not in {"USD", "SGD"}:
         raise ValueError(f"Unsupported currency: {currency}")
-    return f"cash_flow_{normalized.lower()}"
-
-
-def _summary_flow_column(currency: str) -> str:
-    normalized = currency.strip().upper()
-    if normalized not in {"USD", "SGD"}:
-        raise ValueError(f"Unsupported currency: {currency}")
-    return f"summary_cash_flow_{normalized.lower()}"
+    return f"cashflow_{normalized.lower()}"
 
 
 def _return_column(currency: str) -> str:
     normalized = currency.strip().upper()
     if normalized not in {"USD", "SGD"}:
         raise ValueError(f"Unsupported currency: {currency}")
-    return f"twr_return_{normalized.lower()}"
+    return f"pnl_{normalized.lower()}"

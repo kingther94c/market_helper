@@ -278,15 +278,16 @@ def _extract_cash_flow_rows(root: ET.Element) -> list[FlexCashFlowRow]:
     rows: list[FlexCashFlowRow] = []
     for element in root.iter():
         tag = _local_name(element.tag).lower()
-        if tag not in {"cashtransaction", "cashtransactions"}:
+        if tag != "cashtransaction":
             continue
-        parsed_date = _extract_date(element.attrib)
+        transaction_type = str(element.attrib.get("type", "")).strip().lower()
+        if transaction_type != "deposits/withdrawals":
+            continue
+        parsed_date = _extract_cash_transaction_date(element.attrib)
         amount = _extract_float(element.attrib, _AMOUNT_KEYS)
         if parsed_date is None or amount is None:
             continue
         category_value = " ".join(str(element.attrib.get(key, "")) for key in _CATEGORY_KEYS).strip()
-        if not _CASH_CATEGORY_RE.search(category_value):
-            continue
         rows.append(
             FlexCashFlowRow(
                 date=parsed_date,
@@ -296,6 +297,28 @@ def _extract_cash_flow_rows(root: ET.Element) -> list[FlexCashFlowRow]:
             )
         )
     return rows
+
+
+def _extract_cash_transaction_date(attributes: dict[str, str]) -> date | None:
+    for key in ("settleDate", "dateTime"):
+        raw = str(attributes.get(key, "")).strip()
+        if raw == "":
+            continue
+        normalized = raw[:10] if key == "dateTime" else raw
+        parsed = None
+        if len(normalized) == 8 and normalized.isdigit():
+            try:
+                parsed = date(int(normalized[:4]), int(normalized[4:6]), int(normalized[6:8]))
+            except ValueError:
+                parsed = None
+        else:
+            try:
+                parsed = date.fromisoformat(normalized)
+            except ValueError:
+                parsed = None
+        if parsed is not None:
+            return parsed
+    return None
 
 
 def _extract_horizon_rows(

@@ -54,11 +54,11 @@ from market_helper.data_sources.ibkr.tws import (
 from market_helper.domain.portfolio_monitor.services.etf_sector_lookthrough import (
     sync_us_sector_lookthrough_from_fmp,
 )
-from market_helper.domain.portfolio_monitor.services.performance_history import (
-    DEFAULT_PERFORMANCE_HISTORY_FILENAME,
-    build_horizon_rows_from_performance_history,
-    load_performance_history,
-    rebuild_performance_history_feather,
+from market_helper.domain.portfolio_monitor.services.nav_cashflow_history import (
+    DEFAULT_NAV_CASHFLOW_HISTORY_FILENAME,
+    build_horizon_rows_from_nav_cashflow_history,
+    load_nav_cashflow_history,
+    rebuild_nav_cashflow_history_feather,
 )
 from market_helper.presentation.exporters.csv import export_position_report_csv
 from market_helper.presentation.exporters.security_reference_seed import (
@@ -152,7 +152,7 @@ def generate_ibkr_flex_performance_report(
     reporter.stage("IBKR Flex report", current=current_step, total=total_steps)
     cleanup_path = None
     raw_dir = _flex_raw_archive_dir(output_dir)
-    history_path = _performance_history_path(output_dir)
+    history_path = _nav_cashflow_history_path(output_dir)
     if flex_xml_path is not None:
         resolved_flex_xml_path = Path(flex_xml_path)
     else:
@@ -216,7 +216,7 @@ def generate_ibkr_flex_performance_report(
             raw_dir=raw_dir,
             resolved_flex_xml_path=resolved_flex_xml_path,
         )
-        rebuilt_history_path = rebuild_performance_history_feather(
+        rebuilt_history_path = rebuild_nav_cashflow_history_feather(
             raw_dir=raw_dir,
             output_path=history_path,
             yahoo_client=resolved_yahoo_client,
@@ -224,8 +224,8 @@ def generate_ibkr_flex_performance_report(
         )
         current_step += 1
         reporter.stage("IBKR Flex report: history rebuilt", current=current_step, total=total_steps)
-        history_frame = load_performance_history(rebuilt_history_path)
-        history_rows, history_missing_years = build_horizon_rows_from_performance_history(
+        history_frame = load_nav_cashflow_history(rebuilt_history_path)
+        history_rows, history_missing_years = build_horizon_rows_from_nav_cashflow_history(
             history_frame,
             archive_start_year=DEFAULT_IBKR_FLEX_ARCHIVE_START_YEAR,
         )
@@ -261,7 +261,7 @@ def generate_ibkr_flex_performance_report(
             cleanup_path.unlink()
 
 
-def rebuild_ibkr_flex_performance_history(
+def rebuild_ibkr_flex_nav_cashflow_history(
     *,
     output_dir: str | Path,
     yahoo_client: YahooFinanceClient | None = None,
@@ -271,10 +271,15 @@ def rebuild_ibkr_flex_performance_history(
     raw_dir = _flex_raw_archive_dir(output_dir)
     reporter = resolve_progress_reporter(progress)
     reporter.spinner("IBKR Flex history", detail="rebuilding feather history")
-    output_path = rebuild_performance_history_feather(
+    resolved_yahoo_client = yahoo_client
+    if resolved_yahoo_client is None:
+        from market_helper.data_sources.yahoo_finance import YahooFinanceClient as _YahooFinanceClient
+
+        resolved_yahoo_client = _YahooFinanceClient()
+    output_path = rebuild_nav_cashflow_history_feather(
         raw_dir=raw_dir,
-        output_path=_performance_history_path(output_dir),
-        yahoo_client=yahoo_client,
+        output_path=_nav_cashflow_history_path(output_dir),
+        yahoo_client=resolved_yahoo_client,
         extra_xml_paths=extra_xml_paths,
     )
     reporter.done("IBKR Flex history", detail=f"wrote {output_path}")
@@ -665,8 +670,8 @@ def _uses_default_current_ytd_request(
     return from_date is None and to_date is None and str(period or "").strip() == ""
 
 
-def _performance_history_path(output_dir: str | Path) -> Path:
-    return Path(output_dir) / DEFAULT_PERFORMANCE_HISTORY_FILENAME
+def _nav_cashflow_history_path(output_dir: str | Path) -> Path:
+    return Path(output_dir) / DEFAULT_NAV_CASHFLOW_HISTORY_FILENAME
 
 
 def _history_extra_xml_paths(
