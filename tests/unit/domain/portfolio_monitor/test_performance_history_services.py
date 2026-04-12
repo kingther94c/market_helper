@@ -10,6 +10,7 @@ import market_helper.data_sources.ibkr.flex.performance as flex_performance_modu
 from market_helper.data_sources.yahoo_finance import YahooFinanceClient
 from market_helper.domain.portfolio_monitor.services.nav_cashflow_history import (
     build_horizon_rows_from_nav_cashflow_history,
+    extract_classified_deposit_withdrawal_frame,
     load_nav_cashflow_history,
     rebuild_nav_cashflow_history_feather,
 )
@@ -142,7 +143,7 @@ def test_build_horizon_rows_from_nav_cashflow_history_appends_historical_years(t
     assert ytd_twr_usd.source_version == "NavCashflowHistoryFeather+ProvisionalLatest"
 
 
-def test_rebuild_nav_cashflow_history_aggregates_multicurrency_cashflows_by_settle_date(tmp_path: Path) -> None:
+def test_rebuild_nav_cashflow_history_aggregates_multicurrency_cashflows_by_report_date(tmp_path: Path) -> None:
     raw_dir = tmp_path / "raw"
     raw_dir.mkdir()
     _write_nav_cashflow_xml(
@@ -156,8 +157,8 @@ def test_rebuild_nav_cashflow_history_aggregates_multicurrency_cashflows_by_sett
             ("2026-04-02", 166.0),
         ],
         cash_transactions=[
-            ("2026-04-01", "SGD", 40.0, "Deposits/Withdrawals"),
-            ("2026-04-01", "USD", 10.0, "Deposits/Withdrawals"),
+            ("2026-04-01", "SGD", 40.0, "Deposits/Withdrawals", None, "CASH RECEIPTS / ELECTRONIC FUND TRANSFERS"),
+            ("2026-04-01", "USD", -10.0, "Deposits/Withdrawals", None, "DISBURSEMENT"),
             ("2026-04-01", "USD", 999.0, "Broker Interest Received"),
         ],
     )
@@ -179,15 +180,15 @@ def test_rebuild_nav_cashflow_history_aggregates_multicurrency_cashflows_by_sett
     flow_row = history.loc[history["date"].eq(pd.Timestamp("2026-04-01"))].iloc[0]
     pnl_row = history.loc[history["date"].eq(pd.Timestamp("2026-04-02"))].iloc[0]
 
-    assert flow_row["cashflow_sgd"] == pytest.approx(60.0)
-    assert flow_row["cashflow_usd"] == pytest.approx(30.0)
-    assert flow_row["pnl_amt_usd"] == pytest.approx(0.0)
-    assert flow_row["pnl_usd"] == pytest.approx(0.0)
+    assert flow_row["cashflow_sgd"] == pytest.approx(20.0)
+    assert flow_row["cashflow_usd"] == pytest.approx(10.0)
+    assert flow_row["pnl_amt_usd"] == pytest.approx(20.0)
+    assert flow_row["pnl_usd"] == pytest.approx(0.40)
     assert pnl_row["pnl_amt_usd"] == pytest.approx(3.0)
     assert pnl_row["pnl_usd"] == pytest.approx(3.0 / 80.0)
 
 
-def test_cash_transaction_uses_settle_date_before_datetime(tmp_path: Path) -> None:
+def test_cash_transaction_uses_report_date_before_settle_date_and_datetime(tmp_path: Path) -> None:
     raw_dir = tmp_path / "raw"
     raw_dir.mkdir()
     _write_nav_cashflow_xml(
@@ -200,7 +201,7 @@ def test_cash_transaction_uses_settle_date_before_datetime(tmp_path: Path) -> No
             ("2026-04-03", 125.0),
         ],
         cash_transactions=[
-            ("2026-04-03", "USD", 25.0, "Deposits/Withdrawals", "2026-04-02T23:59:00"),
+            ("2026-04-03", "USD", 25.0, "Deposits/Withdrawals", "2026-04-02T23:59:00", "CASH RECEIPTS / ELECTRONIC FUND TRANSFERS", "2026-04-02"),
         ],
     )
 
@@ -218,9 +219,87 @@ def test_cash_transaction_uses_settle_date_before_datetime(tmp_path: Path) -> No
         )
     )
 
-    row = history.loc[history["date"].eq(pd.Timestamp("2026-04-03"))].iloc[0]
+    row = history.loc[history["date"].eq(pd.Timestamp("2026-04-02"))].iloc[0]
     assert row["cashflow_usd"] == pytest.approx(25.0)
-    assert row["pnl_amt_usd"] == pytest.approx(0.0)
+    assert row["pnl_amt_usd"] == pytest.approx(-25.0)
+
+
+def test_deposit_withdrawal_audit_frame_keeps_all_descriptions_and_report_dates(tmp_path: Path) -> None:
+    xml_path = tmp_path / "flex.xml"
+    _write_nav_cashflow_xml(
+        xml_path,
+        from_date="20240601",
+        to_date="20240630",
+        totals=[
+            ("2024-06-10", 249287.45),
+            ("2024-06-11", 4456.73),
+            ("2024-06-12", 4579.08),
+            ("2024-06-14", 20755.89),
+            ("2024-06-18", 20884.94),
+            ("2024-06-19", 265656.40),
+        ],
+        currency="SGD",
+        cash_transactions=[
+            ("2024-06-12", "SGD", 244773.0, "Deposits/Withdrawals", "2024-06-11;092643", "CANCELLATION", "2024-06-12"),
+            ("2024-06-12", "SGD", -244773.0, "Deposits/Withdrawals", "2024-06-11;092643", "DISBURSEMENT INITIATED BY Jinze Chen", "2024-06-11"),
+            ("2024-06-14", "SGD", -244773.0, "Deposits/Withdrawals", "2024-06-11;092643", "DISBURSEMENT INITIATED BY Jinze Chen", "2024-06-12"),
+            ("2024-06-18", "SGD", 244773.0, "Deposits/Withdrawals", "2024-06-18", "CASH RECEIPTS / ELECTRONIC FUND TRANSFERS", "2024-06-19"),
+            ("2024-08-08", "USD", 14279.85, "Deposits/Withdrawals", "2024-08-08;220753", "ADJUSTMENT: DEPOSIT ADVANCE", "2024-08-09"),
+        ],
+    )
+
+    frame = extract_classified_deposit_withdrawal_frame(xml_path)
+    assert set(frame["classification"]) == {"DEPOSITS_WITHDRAWALS"}
+
+    cancellation = frame.loc[frame["description"].eq("CANCELLATION")].iloc[0]
+    advance = frame.loc[frame["description"].eq("ADJUSTMENT: DEPOSIT ADVANCE")].iloc[0]
+    receipt = frame.loc[frame["description"].eq("CASH RECEIPTS / ELECTRONIC FUND TRANSFERS")].iloc[0]
+    initiated = frame.loc[frame["description"].eq("DISBURSEMENT INITIATED BY Jinze Chen")]
+
+    assert pd.Timestamp(cancellation["event_date"]) == pd.Timestamp("2024-06-12")
+    assert pd.Timestamp(receipt["event_date"]) == pd.Timestamp("2024-06-19")
+    assert cancellation["classification"] == "DEPOSITS_WITHDRAWALS"
+    assert advance["classification"] == "DEPOSITS_WITHDRAWALS"
+    assert set(initiated["classification"]) == {"DEPOSITS_WITHDRAWALS"}
+    assert receipt["classification"] == "DEPOSITS_WITHDRAWALS"
+
+
+def test_unknown_deposit_withdrawal_description_is_included_in_history(tmp_path: Path) -> None:
+    raw_dir = tmp_path / "raw"
+    raw_dir.mkdir()
+    _write_nav_cashflow_xml(
+        raw_dir / "ibkr_flex_2026_latest.xml",
+        from_date="20260101",
+        to_date="20260402",
+        currency="USD",
+        totals=[
+            ("2026-04-01", 100.0),
+            ("2026-04-02", 105.0),
+        ],
+        cash_transactions=[
+            ("2026-04-02", "USD", 25.0, "Deposits/Withdrawals", None, "SOMETHING ELSE"),
+        ],
+    )
+
+    frame = extract_classified_deposit_withdrawal_frame(raw_dir / "ibkr_flex_2026_latest.xml")
+    assert frame.iloc[0]["classification"] == "DEPOSITS_WITHDRAWALS"
+
+    history = load_nav_cashflow_history(
+        rebuild_nav_cashflow_history_feather(
+            raw_dir=raw_dir,
+            output_path=tmp_path / "nav_cashflow_history.feather",
+            yahoo_client=_fake_yahoo_client(
+                [
+                    ("2026-04-01", 1.3),
+                    ("2026-04-02", 1.3),
+                ]
+            ),
+        )
+    )
+
+    row = history.loc[history["date"].eq(pd.Timestamp("2026-04-02"))].iloc[0]
+    assert row["cashflow_usd"] == pytest.approx(25.0)
+    assert row["pnl_amt_usd"] == pytest.approx(-20.0)
 
 
 def test_unsupported_base_currency_raises(tmp_path: Path) -> None:
@@ -419,7 +498,12 @@ def _write_nav_cashflow_xml(
     from_date: str,
     to_date: str,
     totals: list[tuple[str, float]],
-    cash_transactions: list[tuple[str, str, float, str] | tuple[str, str, float, str, str]] | None = None,
+    cash_transactions: list[
+        tuple[str, str, float, str]
+        | tuple[str, str, float, str, str | None]
+        | tuple[str, str, float, str, str | None, str]
+        | tuple[str, str, float, str, str | None, str, str]
+    ] | None = None,
     currency: str = "USD",
 ) -> None:
     nav_rows = "\n".join(
@@ -429,15 +513,20 @@ def _write_nav_cashflow_xml(
     cash_rows = []
     for item in cash_transactions or []:
         settle_date, row_currency, amount, row_type, *extra = item
+        date_time = extra[0] if len(extra) >= 1 else None
+        description = extra[1] if len(extra) >= 2 else "External Transfer"
+        report_date = extra[2] if len(extra) >= 3 else None
         attrs = [
             f'currency="{row_currency}"',
             f'amount="{amount}"',
             f'type="{row_type}"',
-            'description="External Transfer"',
+            f'description="{description}"',
             f'settleDate="{settle_date}"',
         ]
-        if extra:
-            attrs.append(f'dateTime="{extra[0]}"')
+        if date_time:
+            attrs.append(f'dateTime="{date_time}"')
+        if report_date:
+            attrs.append(f'reportDate="{report_date}"')
         cash_rows.append(f"<CashTransaction {' '.join(attrs)} />")
     cash_block = "\n".join(cash_rows)
     path.write_text(
