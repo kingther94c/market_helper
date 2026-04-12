@@ -10,10 +10,15 @@ import market_helper.data_sources.ibkr.flex.performance as flex_performance_modu
 from market_helper.data_sources.yahoo_finance import YahooFinanceClient
 from market_helper.domain.portfolio_monitor.services.performance_analytics import (
     annualized_return,
+    annualized_vol,
     build_twr_index,
     build_window_metric_row,
     build_yearly_metric_rows,
+    dollar_cumulative_plot_frame,
+    dollar_drawdown_plot_frame,
     drawdown_series,
+    percent_cumulative_plot_frame,
+    sharpe_ratio,
     slice_history_for_window,
 )
 from market_helper.domain.portfolio_monitor.services.performance_history import (
@@ -181,6 +186,8 @@ def test_rebuild_performance_history_infers_multicurrency_cash_flows_from_statem
     flow_row = history.loc[history["date"].eq(pd.Timestamp("2026-04-01"))].iloc[0]
     assert flow_row["cash_flow_sgd"] == pytest.approx(60.0)
     assert flow_row["cash_flow_usd"] == pytest.approx(30.0)
+    assert flow_row["summary_cash_flow_sgd"] == pytest.approx(60.0)
+    assert flow_row["summary_cash_flow_usd"] == pytest.approx(30.0)
 
     rows, missing_years = build_horizon_rows_from_performance_history(
         history,
@@ -198,10 +205,56 @@ def test_rebuild_performance_history_infers_multicurrency_cash_flows_from_statem
     )
 
     assert missing_years == []
-    assert ytd_twr_usd.source_version == "PerformanceHistoryFeather"
-    assert ytd_twr_sgd.source_version == "PerformanceHistoryFeather"
+    assert ytd_twr_usd.source_version == "PerformanceHistoryFeather+SimpleNavFallback"
+    assert ytd_twr_sgd.source_version == "PerformanceHistoryFeather+SimpleNavFallback"
     assert ytd_twr_usd.return_pct == pytest.approx(-0.336)
     assert ytd_twr_sgd.return_pct == pytest.approx(-0.336)
+
+
+def test_summary_only_cash_flows_do_not_backfill_daily_twr_returns(tmp_path: Path) -> None:
+    raw_dir = tmp_path / "raw"
+    raw_dir.mkdir()
+    _write_statement_with_cash_report(
+        raw_dir / "ibkr_flex_20260401_010101.xml",
+        from_date="20260101",
+        to_date="20260401",
+        totals=[
+            ("2025-12-31", 100.0),
+            ("2026-04-01", 100.0),
+        ],
+        cash_currency_rows=[
+            ("USD", 10.0),
+        ],
+        currency="USD",
+    )
+    _write_statement_with_cash_report(
+        raw_dir / "ibkr_flex_20260402_010101.xml",
+        from_date="20260101",
+        to_date="20260402",
+        totals=[
+            ("2025-12-31", 100.0),
+            ("2026-04-01", 100.0),
+            ("2026-04-02", 166.0),
+        ],
+        cash_currency_rows=[
+            ("USD", 10.0),
+        ],
+        currency="USD",
+    )
+
+    history_path = rebuild_performance_history_feather(
+        raw_dir=raw_dir,
+        output_path=tmp_path / "performance_history.feather",
+    )
+    history = load_performance_history(history_path)
+
+    flow_row = history.loc[history["date"].eq(pd.Timestamp("2026-04-01"))].iloc[0]
+    return_row = history.loc[history["date"].eq(pd.Timestamp("2026-04-02"))].iloc[0]
+
+    assert flow_row["cash_flow_usd"] == pytest.approx(10.0)
+    assert flow_row["summary_cash_flow_usd"] == pytest.approx(10.0)
+    assert pd.isna(return_row["twr_return_usd"])
+    assert percent_cumulative_plot_frame(history, "USD", include_provisional=True).empty
 
 
 def test_performance_analytics_default_to_finalized_history() -> None:
@@ -273,6 +326,102 @@ def test_build_yearly_metric_rows_only_returns_complete_years() -> None:
     assert [row.label for row in rows] == ["2024", "2025"]
     assert rows[0].twr_return is not None
     assert rows[-1].secondary_twr_return is not None
+
+
+def test_annualized_metrics_use_consistent_daily_annualization() -> None:
+    history = pd.DataFrame(
+        {
+            "date": pd.bdate_range("2026-01-01", periods=40),
+            "nav_close_usd": [100.0 * (1.001 ** idx) for idx in range(40)],
+            "nav_close_sgd": [130.0 * (1.001 ** idx) for idx in range(40)],
+            "cash_flow_usd": [pd.NA] + [0.0] * 39,
+            "cash_flow_sgd": [pd.NA] + [0.0] * 39,
+            "summary_cash_flow_usd": [pd.NA] * 40,
+            "summary_cash_flow_sgd": [pd.NA] * 40,
+            "fx_usdsgd_eod": [1.30] * 40,
+            "twr_return_usd": [pd.NA] + [0.001] * 39,
+            "twr_return_sgd": [pd.NA] + [0.001] * 39,
+            "is_final": [True] * 40,
+            "source_kind": ["full"] * 40,
+            "source_file": ["demo.xml"] * 40,
+            "source_as_of": pd.to_datetime(["2026-02-27"] * 40),
+        }
+    )
+
+    ann_return = annualized_return(history, "USD")
+    ann_vol = annualized_vol(history, "USD")
+    sharpe = sharpe_ratio(history, "USD")
+
+    assert ann_return is not None
+    assert ann_vol is not None
+    assert ann_vol == pytest.approx(0.0)
+    assert ann_return == pytest.approx((1.001**252) - 1.0, rel=1e-4)
+    assert sharpe is None
+
+
+def test_sparse_history_returns_na_for_risk_metrics_and_builds_dollar_plot_frames() -> None:
+    history = _demo_history_frame()
+
+    yearly_rows = build_yearly_metric_rows(history, primary_currency="USD")
+    row_1y = build_window_metric_row(
+        history,
+        window="1Y",
+        primary_currency="USD",
+        include_provisional=True,
+    )
+    dollar_cumulative = dollar_cumulative_plot_frame(
+        slice_history_for_window(history, window="YTD", include_provisional=True),
+        "USD",
+        include_provisional=True,
+    )
+    dollar_drawdown = dollar_drawdown_plot_frame(
+        slice_history_for_window(history, window="YTD", include_provisional=True),
+        "USD",
+        include_provisional=True,
+    )
+
+    assert yearly_rows[0].annualized_vol is None
+    assert yearly_rows[0].sharpe_ratio is None
+    assert yearly_rows[0].max_drawdown is None
+    assert row_1y.annualized_vol is None
+    assert row_1y.sharpe_ratio is None
+    assert list(dollar_cumulative.columns) == ["date", "cumulative_pnl", "drawdown"]
+    assert list(dollar_drawdown.columns) == ["date", "drawdown"]
+    assert float(dollar_cumulative.iloc[0]["cumulative_pnl"]) == pytest.approx(0.0)
+
+
+def test_sharpe_matches_annualized_return_divided_by_vol_for_daily_history() -> None:
+    returns = [0.01, -0.005] * 20
+    nav = [100.0]
+    for daily_return in returns:
+        nav.append(nav[-1] * (1.0 + daily_return))
+    history = pd.DataFrame(
+        {
+            "date": pd.bdate_range("2026-01-01", periods=len(nav)),
+            "nav_close_usd": nav,
+            "nav_close_sgd": [value * 1.3 for value in nav],
+            "cash_flow_usd": [pd.NA] + [0.0] * (len(nav) - 1),
+            "cash_flow_sgd": [pd.NA] + [0.0] * (len(nav) - 1),
+            "summary_cash_flow_usd": [pd.NA] * len(nav),
+            "summary_cash_flow_sgd": [pd.NA] * len(nav),
+            "fx_usdsgd_eod": [1.30] * len(nav),
+            "twr_return_usd": [pd.NA, *returns],
+            "twr_return_sgd": [pd.NA, *returns],
+            "is_final": [True] * len(nav),
+            "source_kind": ["full"] * len(nav),
+            "source_file": ["demo.xml"] * len(nav),
+            "source_as_of": pd.to_datetime(["2026-02-27"] * len(nav)),
+        }
+    )
+
+    ann_return = annualized_return(history, "USD")
+    ann_vol = annualized_vol(history, "USD")
+    sharpe = sharpe_ratio(history, "USD")
+
+    assert ann_return is not None
+    assert ann_vol is not None
+    assert sharpe is not None
+    assert sharpe == pytest.approx(ann_return / ann_vol)
 
 
 def _write_nav_snapshot_xml(
