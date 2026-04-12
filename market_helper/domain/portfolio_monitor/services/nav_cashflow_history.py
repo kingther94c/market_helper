@@ -61,6 +61,20 @@ class FlexCashflowEvent:
     amount: float
 
 
+@dataclass(frozen=True)
+class ClassifiedDepositWithdrawal:
+    transaction_type: str
+    description: str
+    currency: str
+    amount: float
+    fx_rate_to_base: float | None
+    settle_date: date | None
+    report_date: date | None
+    date_time: str
+    event_date: date | None
+    classification: str
+
+
 def rebuild_nav_cashflow_history_feather(
     *,
     raw_dir: str | Path,
@@ -94,6 +108,29 @@ def export_nav_cashflow_history_debug_csv(
     output_path: str | Path,
 ) -> Path:
     frame = load_nav_cashflow_history(history_path)
+    target_path = Path(output_path)
+    target_path.parent.mkdir(parents=True, exist_ok=True)
+    frame.to_csv(target_path, index=False)
+    return target_path
+
+
+def extract_classified_deposit_withdrawal_frame(
+    path: str | Path,
+    *,
+    yahoo_client: YahooFinanceClient | None = None,
+) -> pd.DataFrame:
+    root = ET.fromstring(Path(path).read_text(encoding="utf-8"))
+    rows = _classified_dw_frame_from_root(root, yahoo_client=yahoo_client)
+    return rows
+
+
+def export_classified_deposit_withdrawal_debug_csv(
+    *,
+    xml_path: str | Path,
+    output_path: str | Path,
+    yahoo_client: YahooFinanceClient | None = None,
+) -> Path:
+    frame = extract_classified_deposit_withdrawal_frame(xml_path, yahoo_client=yahoo_client)
     target_path = Path(output_path)
     target_path.parent.mkdir(parents=True, exist_ok=True)
     frame.to_csv(target_path, index=False)
@@ -403,21 +440,131 @@ def _build_source_history_frame(
 
 def _extract_cashflow_events(root: ET.Element) -> list[FlexCashflowEvent]:
     events: list[FlexCashflowEvent] = []
+    for row in _extract_classified_deposit_withdrawals(root):
+        if row.event_date is None or row.currency not in _SUPPORTED_CURRENCIES:
+            if row.currency and row.currency not in _SUPPORTED_CURRENCIES:
+                raise ValueError(f"Unsupported IBKR Flex cashflow currency: {row.currency}")
+            continue
+        events.append(FlexCashflowEvent(event_date=row.event_date, currency=row.currency, amount=row.amount))
+    return events
+
+
+def _extract_classified_deposit_withdrawals(root: ET.Element) -> list[ClassifiedDepositWithdrawal]:
+    rows: list[ClassifiedDepositWithdrawal] = []
     for element in root.iter():
         if element.tag.rsplit("}", 1)[-1].lower() != "cashtransaction":
             continue
-        transaction_type = str(element.attrib.get("type", "")).strip().lower()
-        if transaction_type != "deposits/withdrawals":
+        transaction_type = str(element.attrib.get("type", "")).strip()
+        if transaction_type.lower() != "deposits/withdrawals":
             continue
-        event_date = _extract_cashflow_date(element.attrib)
+
+        description = str(element.attrib.get("description", "")).strip()
         currency = str(element.attrib.get("currency", "")).strip().upper()
         amount = _parse_float_or_none(element.attrib.get("amount"))
-        if event_date is None or currency not in _SUPPORTED_CURRENCIES or amount is None:
-            if currency and currency not in _SUPPORTED_CURRENCIES:
-                raise ValueError(f"Unsupported IBKR Flex cashflow currency: {currency}")
+        if amount is None:
             continue
-        events.append(FlexCashflowEvent(event_date=event_date, currency=currency, amount=float(amount)))
-    return events
+
+        rows.append(
+            ClassifiedDepositWithdrawal(
+                transaction_type=transaction_type,
+                description=description,
+                currency=currency,
+                amount=float(amount),
+                fx_rate_to_base=_parse_float_or_none(element.attrib.get("fxRateToBase")),
+                settle_date=_parse_statement_date(str(element.attrib.get("settleDate", "")).strip()),
+                report_date=_parse_statement_date(str(element.attrib.get("reportDate", "")).strip()),
+                date_time=str(element.attrib.get("dateTime", "")).strip(),
+                event_date=_extract_cashflow_date(element.attrib),
+                classification=_classify_deposit_withdrawal_description(description),
+            )
+        )
+    return rows
+
+
+def _classify_deposit_withdrawal_description(description: str) -> str:
+    _ = " ".join(description.strip().upper().split())
+    return "DEPOSITS_WITHDRAWALS"
+
+
+def _classified_dw_frame_from_root(
+    root: ET.Element,
+    *,
+    yahoo_client: YahooFinanceClient | None = None,
+) -> pd.DataFrame:
+    rows = _extract_classified_deposit_withdrawals(root)
+    if not rows:
+        return pd.DataFrame(
+            columns=[
+                "transaction_type",
+                "description",
+                "classification",
+                "currency",
+                "amount",
+                "fx_rate_to_base",
+                "settle_date",
+                "report_date",
+                "date_time",
+                "event_date",
+                "is_external_flow",
+                "amount_usd",
+                "amount_sgd",
+            ]
+        )
+
+    fx_history = _load_usdsgd_history(yahoo_client=yahoo_client) if yahoo_client is not None else None
+    payload: list[dict[str, object]] = []
+    for row in rows:
+        amount_usd = None
+        amount_sgd = None
+        if row.currency in _SUPPORTED_CURRENCIES and row.event_date is not None:
+            if row.currency == "USD":
+                amount_usd = row.amount
+                if fx_history is not None:
+                    rate = _lookup_fx_rate(fx_history, row.event_date)
+                    if rate is not None:
+                        amount_sgd = _convert_currency_amount(
+                            row.amount,
+                            from_currency="USD",
+                            to_currency="SGD",
+                            usdsgd_rate=rate,
+                        )
+            elif row.currency == "SGD":
+                amount_sgd = row.amount
+                if fx_history is not None:
+                    rate = _lookup_fx_rate(fx_history, row.event_date)
+                    if rate is not None:
+                        amount_usd = _convert_currency_amount(
+                            row.amount,
+                            from_currency="SGD",
+                            to_currency="USD",
+                            usdsgd_rate=rate,
+                        )
+
+        payload.append(
+            {
+                "transaction_type": row.transaction_type,
+                "description": row.description,
+                "classification": row.classification,
+                "currency": row.currency,
+                "amount": row.amount,
+                "fx_rate_to_base": row.fx_rate_to_base,
+                "settle_date": row.settle_date,
+                "report_date": row.report_date,
+                "date_time": row.date_time,
+                "event_date": row.event_date,
+                "is_external_flow": True,
+                "amount_usd": amount_usd,
+                "amount_sgd": amount_sgd,
+            }
+        )
+
+    frame = pd.DataFrame(payload)
+    for column in ("settle_date", "report_date", "event_date"):
+        frame[column] = pd.to_datetime(frame[column], errors="coerce")
+    return frame.sort_values(
+        by=["event_date", "settle_date", "report_date", "date_time", "description", "currency", "amount"],
+        kind="stable",
+    ).reset_index(drop=True)
 
 
 def _aggregate_cashflows_by_date(
@@ -446,7 +593,7 @@ def _aggregate_cashflows_by_date(
 
 
 def _extract_cashflow_date(attributes: dict[str, object]) -> date | None:
-    for key in ("settleDate", "dateTime"):
+    for key in ("reportDate", "settleDate", "dateTime"):
         raw = str(attributes.get(key, "")).strip()
         parsed = _parse_statement_date(raw[:10] if key == "dateTime" else raw)
         if parsed is not None:
@@ -577,4 +724,3 @@ def _normalize_history_frame(frame: pd.DataFrame) -> pd.DataFrame:
     normalized["source_priority"] = pd.to_numeric(normalized["source_priority"], errors="coerce").fillna(99).astype(int)
     ordered = [*NAV_CASHFLOW_HISTORY_COLUMNS, "source_priority"]
     return normalized.loc[:, ordered].sort_values("date", kind="stable").reset_index(drop=True)
-
