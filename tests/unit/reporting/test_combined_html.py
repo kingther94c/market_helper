@@ -6,23 +6,32 @@ from pathlib import Path
 import pandas as pd
 
 from market_helper.reporting.combined_html import build_combined_html_report
-from market_helper.reporting.performance_html import build_performance_report_view_model, render_performance_tab
+from market_helper.reporting.performance_html import (
+    build_performance_report_view_model,
+    render_performance_assets,
+    render_performance_tab,
+)
 
 
 def test_render_performance_tab_contains_plots_and_tables() -> None:
     history = _demo_history_frame()
 
     view_model = build_performance_report_view_model(history, primary_currency="USD", secondary_currency=None)
-    rendered = render_performance_tab(view_model)
+    assets = render_performance_assets()
+    rendered = assets + render_performance_tab(view_model)
 
     assert "Performance Overview" in rendered
-    assert "PnL / Cumulative Performance" in rendered
-    assert "Drawdown" in rendered
+    assert "Cumulative Performance And Drawdown" in rendered
     assert "Horizon Metrics" in rendered
     assert "Historical Years" in rendered
     assert "USD" in rendered
-    assert "3Y" in rendered
-    assert "5Y" in rendered
+    assert "Full History" in rendered
+    assert "Plotly.newPlot" in rendered
+    assert "data-perf-group='mode'" in rendered
+    assert "data-perf-group='window'" in rendered
+    assert "Secondary Return" not in rendered
+    assert "__marketHelperInitPerformanceTab" in assets
+    assert ("cdn.plot.ly/plotly" in assets) or ("plotly.js v" in assets)
 
 
 def test_build_combined_html_report_renders_both_tabs(tmp_path: Path) -> None:
@@ -104,6 +113,10 @@ def test_build_combined_html_report_renders_both_tabs(tmp_path: Path) -> None:
     assert "n/a" in rendered
     assert "Primary view uses <strong>TWR</strong> in USD." in rendered
     assert "Primary view uses <strong>TWR</strong> in SGD." in rendered
+    assert "Plotly.newPlot" in rendered
+    assert "data-perf-value='MTD'" in rendered
+    assert "data-perf-value='FULL'" in rendered
+    assert "Secondary Return" not in rendered
 
 
 def _demo_history_frame() -> pd.DataFrame:

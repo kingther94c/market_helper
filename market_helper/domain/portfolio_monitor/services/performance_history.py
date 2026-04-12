@@ -36,6 +36,8 @@ PERFORMANCE_HISTORY_COLUMNS = [
     "nav_close_sgd",
     "cash_flow_usd",
     "cash_flow_sgd",
+    "summary_cash_flow_usd",
+    "summary_cash_flow_sgd",
     "fx_usdsgd_eod",
     "twr_return_usd",
     "twr_return_sgd",
@@ -109,7 +111,7 @@ def build_performance_history_frame(
     extra_xml_paths: Sequence[str | Path] | None = None,
 ) -> pd.DataFrame:
     sources = _discover_history_sources(Path(raw_dir), extra_xml_paths=extra_xml_paths)
-    flow_events_by_currency = _build_flow_events_by_currency(
+    explicit_flow_events_by_currency, summary_flow_events_by_currency = _build_flow_events_by_currency(
         sources,
         yahoo_client=yahoo_client,
     )
@@ -117,7 +119,8 @@ def build_performance_history_frame(
         _build_source_history_frame(
             source,
             yahoo_client=yahoo_client,
-            flow_events_by_currency=flow_events_by_currency,
+            explicit_flow_events_by_currency=explicit_flow_events_by_currency,
+            summary_flow_events_by_currency=summary_flow_events_by_currency,
         )
         for source in sources
     ]
@@ -242,8 +245,12 @@ def _calculate_horizon_metrics(history: pd.DataFrame, *, currency: str) -> dict[
 
     nav_col = f"nav_close_{currency.lower()}"
     flow_col = f"cash_flow_{currency.lower()}"
+    summary_flow_col = f"summary_cash_flow_{currency.lower()}"
     return_col = f"twr_return_{currency.lower()}"
-    available = history.loc[history[nav_col].notna(), ["date", nav_col, flow_col, return_col, "is_final"]].copy()
+    available = history.loc[
+        history[nav_col].notna(),
+        ["date", nav_col, flow_col, summary_flow_col, return_col, "is_final"],
+    ].copy()
     if len(available) < 2:
         return None
 
@@ -260,10 +267,15 @@ def _calculate_horizon_metrics(history: pd.DataFrame, *, currency: str) -> dict[
 
     flow_schedule: dict[date, float] = {}
     cash_flows = pd.to_numeric(available.iloc[1:][flow_col], errors="coerce")
-    for row_date, raw_amount in zip(available.iloc[1:]["date"], cash_flows, strict=False):
-        if pd.isna(raw_amount) or abs(float(raw_amount)) <= 1e-12:
+    summary_cash_flows = pd.to_numeric(available.iloc[1:][summary_flow_col], errors="coerce")
+    for row_date, amount in zip(
+        available.iloc[1:]["date"],
+        cash_flows,
+        strict=False,
+    ):
+        if pd.isna(amount) or abs(float(amount)) <= 1e-12:
             continue
-        flow_schedule[pd.Timestamp(row_date).date()] = float(raw_amount)
+        flow_schedule[pd.Timestamp(row_date).date()] = float(amount)
 
     nav_points = [
         FlexNavPoint(date=pd.Timestamp(row["date"]).date(), nav=float(row[nav_col]))
@@ -281,7 +293,7 @@ def _calculate_horizon_metrics(history: pd.DataFrame, *, currency: str) -> dict[
         ),
         "time_weighted_return": time_weighted_return,
         "uses_provisional_latest": not bool(available.iloc[-1]["is_final"]),
-        "uses_simple_fallback": bool(cash_flows.isna().any()),
+        "uses_simple_fallback": bool(cash_flows.isna().any() or summary_cash_flows.notna().any()),
     }
 
 
@@ -342,7 +354,8 @@ def _build_source_history_frame(
     source: PerformanceHistorySource,
     *,
     yahoo_client: YahooFinanceClient | None,
-    flow_events_by_currency: dict[str, dict[date, float]],
+    explicit_flow_events_by_currency: dict[str, dict[date, float]],
+    summary_flow_events_by_currency: dict[str, dict[date, float]],
 ) -> pd.DataFrame:
     xml_text = source.path.read_text(encoding="utf-8")
     root = ET.fromstring(xml_text)
@@ -363,6 +376,7 @@ def _build_source_history_frame(
         else None
     )
     source_as_of = source.source_as_of or max(point.date for point in base_nav_points)
+    trusted_base_returns = _extract_trusted_daily_returns(dataset.daily_performance)
 
     by_date: dict[date, dict[str, object]] = {}
     nav_dates = sorted({point.date for point in base_nav_points})
@@ -373,6 +387,8 @@ def _build_source_history_frame(
             "nav_close_sgd": math.nan,
             "cash_flow_usd": math.nan,
             "cash_flow_sgd": math.nan,
+            "summary_cash_flow_usd": math.nan,
+            "summary_cash_flow_sgd": math.nan,
             "fx_usdsgd_eod": math.nan,
             "twr_return_usd": math.nan,
             "twr_return_sgd": math.nan,
@@ -383,25 +399,64 @@ def _build_source_history_frame(
             "source_priority": source.priority,
         }
 
-    for currency in _CURRENCIES:
-        nav_points = _convert_points_to_currency(
-            base_nav_points,
-            from_currency=base_currency,
-            to_currency=currency,
-            fx_history=fx_history,
-        )
-        known_flows, has_cash_flow_coverage = _convert_flow_events_to_currency(
-            flow_events_by_currency,
-            to_currency=currency,
-            fx_history=fx_history,
-        )
-        _populate_currency_columns(
-            by_date,
-            currency=currency,
-            nav_points=nav_points,
-            known_flows=known_flows,
-            fill_missing_flows_with_zero=has_cash_flow_coverage,
-        )
+    usd_nav_points = _convert_points_to_currency(
+        base_nav_points,
+        from_currency=base_currency,
+        to_currency="USD",
+        fx_history=fx_history,
+    )
+    if not usd_nav_points:
+        return _empty_history_frame()
+
+    explicit_flows_usd, has_explicit_cash_flow_coverage = _convert_flow_events_to_currency(
+        explicit_flow_events_by_currency,
+        to_currency="USD",
+        fx_history=fx_history,
+    )
+    summary_flows_usd, _ = _convert_flow_events_to_currency(
+        summary_flow_events_by_currency,
+        to_currency="USD",
+        fx_history=fx_history,
+    )
+    _populate_currency_columns(
+        by_date,
+        currency="USD",
+        nav_points=usd_nav_points,
+        explicit_flows=explicit_flows_usd,
+        summary_flows=summary_flows_usd,
+        trusted_daily_returns=trusted_base_returns if base_currency == "USD" else None,
+        allow_nav_return_fallback=not bool(summary_flows_usd),
+        fill_missing_flows_with_zero=has_explicit_cash_flow_coverage,
+    )
+
+    sgd_nav_points = _convert_points_to_currency(
+        usd_nav_points,
+        from_currency="USD",
+        to_currency="SGD",
+        fx_history=fx_history,
+    )
+    explicit_flows_sgd = _convert_known_flows_to_currency(
+        explicit_flows_usd,
+        from_currency="USD",
+        to_currency="SGD",
+        fx_history=fx_history,
+    )
+    summary_flows_sgd = _convert_known_flows_to_currency(
+        summary_flows_usd,
+        from_currency="USD",
+        to_currency="SGD",
+        fx_history=fx_history,
+    )
+    _populate_currency_columns(
+        by_date,
+        currency="SGD",
+        nav_points=sgd_nav_points,
+        explicit_flows=explicit_flows_sgd,
+        summary_flows=summary_flows_sgd,
+        trusted_daily_returns=trusted_base_returns if base_currency == "SGD" else None,
+        allow_nav_return_fallback=not bool(summary_flows_sgd),
+        fill_missing_flows_with_zero=has_explicit_cash_flow_coverage,
+    )
 
     for point_date in nav_dates:
         rate = _lookup_fx_rate(fx_history, point_date) if fx_history is not None else None
@@ -416,13 +471,17 @@ def _populate_currency_columns(
     *,
     currency: str,
     nav_points: list[FlexNavPoint],
-    known_flows: dict[date, float],
+    explicit_flows: dict[date, float],
+    summary_flows: dict[date, float],
+    trusted_daily_returns: dict[date, float] | None = None,
+    allow_nav_return_fallback: bool = True,
     fill_missing_flows_with_zero: bool = False,
 ) -> None:
     if not nav_points:
         return
     nav_col = f"nav_close_{currency.lower()}"
     flow_col = f"cash_flow_{currency.lower()}"
+    summary_flow_col = f"summary_cash_flow_{currency.lower()}"
     return_col = f"twr_return_{currency.lower()}"
 
     sorted_points = sorted(nav_points, key=lambda point: point.date)
@@ -436,6 +495,8 @@ def _populate_currency_columns(
                 "nav_close_sgd": math.nan,
                 "cash_flow_usd": math.nan,
                 "cash_flow_sgd": math.nan,
+                "summary_cash_flow_usd": math.nan,
+                "summary_cash_flow_sgd": math.nan,
                 "fx_usdsgd_eod": math.nan,
                 "twr_return_usd": math.nan,
                 "twr_return_sgd": math.nan,
@@ -450,20 +511,45 @@ def _populate_currency_columns(
         if fill_missing_flows_with_zero:
             target_row[flow_col] = 0.0
 
-        known_flow = known_flows.get(point.date)
-        if point.date in known_flows:
-            target_row[flow_col] = float(known_flow)
+        explicit_flow = explicit_flows.get(point.date)
+        summary_flow = summary_flows.get(point.date)
+        combined_flow = 0.0
+        has_combined_flow = False
+        if point.date in explicit_flows:
+            combined_flow += float(explicit_flow)
+            has_combined_flow = True
+        if point.date in summary_flows:
+            target_row[summary_flow_col] = float(summary_flow)
+            combined_flow += float(summary_flow)
+            has_combined_flow = True
+        if has_combined_flow:
+            target_row[flow_col] = combined_flow
 
         if previous_nav is None or previous_nav == 0:
             previous_nav = float(point.nav)
             continue
 
         current_nav = float(point.nav)
-        if point.date in known_flows:
-            target_row[return_col] = ((current_nav - float(known_flow)) / previous_nav) - 1.0
-        else:
+        if trusted_daily_returns is not None and point.date in trusted_daily_returns:
+            target_row[return_col] = float(trusted_daily_returns[point.date])
+        elif point.date in explicit_flows:
+            target_row[return_col] = ((current_nav - float(explicit_flow)) / previous_nav) - 1.0
+        elif allow_nav_return_fallback:
             target_row[return_col] = (current_nav / previous_nav) - 1.0
         previous_nav = current_nav
+
+
+def _extract_trusted_daily_returns(
+    daily_rows: Sequence[object],
+) -> dict[date, float]:
+    returns: dict[date, float] = {}
+    for row in daily_rows:
+        row_date = getattr(row, "date", None)
+        row_return = getattr(row, "return_pct", None)
+        if row_date is None or row_return is None:
+            continue
+        returns[row_date] = float(row_return)
+    return returns
 
 
 def _convert_points_to_currency(
@@ -526,8 +612,9 @@ def _build_flow_events_by_currency(
     sources: Sequence[PerformanceHistorySource],
     *,
     yahoo_client: YahooFinanceClient | None,
-) -> dict[str, dict[date, float]]:
-    flow_events_by_currency: dict[str, dict[date, float]] = {}
+) -> tuple[dict[str, dict[date, float]], dict[str, dict[date, float]]]:
+    explicit_flow_events_by_currency: dict[str, dict[date, float]] = {}
+    summary_flow_events_by_currency: dict[str, dict[date, float]] = {}
     summary_snapshots: list[CashSummarySnapshot] = []
 
     for source in sources:
@@ -542,7 +629,7 @@ def _build_flow_events_by_currency(
             base_currency=base_currency,
         )
         if explicit_flow_events:
-            _merge_flow_events(flow_events_by_currency, explicit_flow_events)
+            _merge_flow_events(explicit_flow_events_by_currency, explicit_flow_events)
             continue
 
         if source.source_as_of is None:
@@ -562,10 +649,10 @@ def _build_flow_events_by_currency(
         )
 
     _merge_summary_flow_snapshots(
-        flow_events_by_currency,
+        summary_flow_events_by_currency,
         summary_snapshots,
     )
-    return flow_events_by_currency
+    return explicit_flow_events_by_currency, summary_flow_events_by_currency
 
 
 def _extract_explicit_flow_events(
@@ -779,6 +866,8 @@ def _normalize_history_frame(frame: pd.DataFrame) -> pd.DataFrame:
         "nav_close_sgd",
         "cash_flow_usd",
         "cash_flow_sgd",
+        "summary_cash_flow_usd",
+        "summary_cash_flow_sgd",
         "fx_usdsgd_eod",
         "twr_return_usd",
         "twr_return_sgd",

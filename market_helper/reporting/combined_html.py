@@ -5,6 +5,7 @@ from pathlib import Path
 from market_helper.reporting.performance_html import (
     build_performance_report_view_model,
     load_performance_history_frame,
+    render_performance_assets,
     render_performance_tab,
 )
 from market_helper.reporting.risk_html import (
@@ -114,7 +115,21 @@ def render_combined_html(*, risk_html: str, performance_usd_html: str, performan
     .perf-chart-svg polyline {{ fill: none; stroke-width: 3; }}
     .perf-chart-svg-positive polyline {{ stroke: #0f766e; }}
     .perf-chart-svg-drawdown polyline {{ stroke: #b91c1c; }}
+    .perf-card-header p {{ margin: 4px 0 0 0; color: #475569; }}
+    .perf-controls {{ display: grid; gap: 8px; margin: 16px 0 14px 0; }}
+    .perf-control-row {{ display: flex; gap: 8px; flex-wrap: wrap; }}
+    .perf-subtab {{ border: 0; border-radius: 999px; padding: 8px 14px; background: #e2e8f0; color: #0f172a; cursor: pointer; font-weight: 600; }}
+    .perf-subtab.is-active {{ background: #0f172a; color: #f8fafc; }}
+    .perf-plot {{ width: 100%; min-height: 520px; }}
+    @media (max-width: 720px) {{
+      body {{ margin: 16px; }}
+      .tab-nav {{ flex-wrap: wrap; }}
+      .perf-control-row {{ gap: 6px; }}
+      .perf-subtab {{ padding: 8px 12px; }}
+      .perf-plot {{ min-height: 460px; }}
+    }}
   </style>
+  {render_performance_assets()}
 </head>
 <body>
   <div class='page-header'>
@@ -138,6 +153,13 @@ def render_combined_html(*, risk_html: str, performance_usd_html: str, performan
   <script>
     const buttons = document.querySelectorAll('.tab-button');
     const panels = document.querySelectorAll('.tab-panel');
+    const resizeActivePerformancePlots = () => {{
+      const activePanel = document.querySelector('.tab-panel.is-active');
+      if (!activePanel || typeof window.__marketHelperResizePerformancePlots !== 'function') {{
+        return;
+      }}
+      window.requestAnimationFrame(() => window.__marketHelperResizePerformancePlots(activePanel));
+    }};
     buttons.forEach((button) => {{
       button.addEventListener('click', () => {{
         const targetId = button.getAttribute('data-tab-target');
@@ -149,8 +171,11 @@ def render_combined_html(*, risk_html: str, performance_usd_html: str, performan
         button.classList.add('is-active');
         button.setAttribute('aria-selected', 'true');
         document.getElementById(targetId)?.classList.add('is-active');
+        resizeActivePerformancePlots();
       }});
     }});
+    window.addEventListener('load', resizeActivePerformancePlots);
+    window.addEventListener('resize', resizeActivePerformancePlots);
   </script>
 </body>
 </html>

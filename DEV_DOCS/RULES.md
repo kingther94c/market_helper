@@ -1,6 +1,8 @@
 # RULES
 
 - Start each development task by reviewing `DEV_DOCS/RULES.md` and `DEV_DOCS/PLAN.md`.
+- All development, testing, scripts, notebooks, and local runs must use the conda `py313` environment (`Python 3.13`).
+- Do not run project code from `conda base` or any other Python environment unless the rule is explicitly updated.
 - Every PR must update `DEV_DOCS/PLAN.md` to reflect completed work, current status, and next steps.
 - Update the relevant file under `DEV_DOCS/docs/devplans/` whenever scope, architecture, status, or follow-up work changed.
 - Any newly required package must be added to `env.yml` in the same change.
