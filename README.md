@@ -72,6 +72,28 @@ Legacy modules (for example `market_helper.ui.*`) remain as compatibility wrappe
 conda run -n py313 python -m pytest -q tests/unit
 ```
 
+## Live dashboard
+
+A NiceGUI-backed live dashboard is available at `http://127.0.0.1:8080/portfolio`. Launch it with:
+
+```bash
+./scripts/launch_ui.sh
+```
+
+Environment overrides (all optional):
+
+| Variable | Default | Purpose |
+|---|---|---|
+| `PORT` | `8080` | Server port |
+| `HOST` | `127.0.0.1` | Bind address |
+| `ENV_NAME` | `py313` | Conda environment to run in |
+| `AUTO_OPEN` | `1` | Set to `0` to disable browser auto-open |
+| `OPEN_WAIT_SECONDS` | `60` | Seconds to wait for the server to become ready before auto-opening |
+
+The script starts the server in the background and waits for the port to be available before opening the URL in your default browser. The server continues running after the browser opens; press `Ctrl+C` to stop it.
+
+The dashboard module lives at `market_helper/presentation/dashboard/`. The NiceGUI page router is in `app.py`; per-route pages are under `pages/`.
+
 ## ETF sector lookthrough sync
 
 To refresh ETF sector weights in [`configs/portfolio_monitor/us_sector_lookthrough.json`](configs/portfolio_monitor/us_sector_lookthrough.json), put your local secrets in [`configs/portfolio_monitor/local.env`](configs/portfolio_monitor/local.env) and run:
@@ -221,8 +243,9 @@ conda run -n py313 python -m market_helper.cli.main combined-html-report \
 ```
 
 - The combined report renders `Performance` and `Risk` tabs in one static HTML page.
-- The `Performance` tab uses `nav_cashflow_history.feather` plus the latest `performance_report_YYYYMMDD.csv` from `--performance-output-dir`, unless overridden explicitly.
-- The `Performance` tab defaults to `USD` headline display, `SGD` auxiliary return display, and `TWR` as the primary return basis while still showing `MWR` in key summary tables.
+- The `Performance` tab is driven by `nav_cashflow_history.feather` (daily NAV + classified cashflow snapshots built from Flex XML) plus the latest `performance_report_YYYYMMDD.csv` from `--performance-output-dir`, unless overridden explicitly.
+- The `Performance` tab renders separate `USD` and `SGD` currency tabs, each with its own cumulative-return chart, drawdown chart, trailing-window metrics (MTD/YTD/1Y/3Y/5Y, TWR/MWR, Sharpe, max drawdown), and historical-year summary table.
+- `TWR` is the headline return basis; `MWR` is shown alongside key summary metrics.
 
 Generate an HTML risk report only (historical vol + estimate vol + correlation-based portfolio risk):
 

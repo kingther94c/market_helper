@@ -12,16 +12,26 @@
 - Treat the combined portfolio HTML report as the new default static-report surface, with `Performance` and `Risk` tabs sharing reusable rendering primitives rather than duplicating page-specific logic.
 - Keep the new risk utility layer under `market_helper/domain/portfolio_monitor/services/` as the reusable home for realized-vol, proxy-vol, fixed-income-vol, and Yahoo return-cache logic rather than letting that logic drift back into `reporting/risk_html.py`.
 - Keep performance analytics under `market_helper/domain/portfolio_monitor/services/` reusable enough for future UI/workbook renderers, especially window slicing, yearly summaries, TWR/MWR metrics, and plot-frame generation.
+- Treat `nav_cashflow_history.feather` (built by `nav_cashflow_history.py`) as the canonical daily NAV + cashflow store; do not reintroduce `performance_history.feather`.
+- Keep the NiceGUI dashboard (`market_helper/presentation/dashboard/`) as the live interactive surface; keep static HTML reports (`combined_html.py`) as the offline artifact path.
 
 ## Near-Term Next Steps
-1. Deepen the combined report with richer performance analytics only after the current `Performance + Risk` tab shell remains stable through a few real account runs.
-2. Replace the current heuristic US-ETF discovery used by report-time sector refresh with an explicit `is_etf` / `instrument_kind` semantic field in the security universe or generated reference cache.
-3. Add cached proxy loaders and wire them into the same artifact-driven risk flow now used for dated Yahoo return caches.
-4. Extend the risk layer from summary vol contributions into covariance-consistent marginal/component attribution for securities and bucket rollups.
-5. Improve universe gap handling with a local manual-override layer plus broader look-through/rule coverage for equities and futures, including explicit tracked FI tenor mappings when product semantics differ from modified-duration ranges.
-6. Keep moving reusable risk/report helpers out of `reporting/risk_html.py` as the workbook/UI path becomes clearer, while preserving backward-compatible CLI/report entrypoints.
+1. Stabilize `nav_cashflow_history.py` edge cases: zero-NAV PnL guard, month-arithmetic clamping tests, FX forward-fill before history start, and Flex cashflow retry loop duplicate-send fix.
+2. Add per-currency `_safe_metric` failure logging in `performance_html.py` so data issues surface as warnings rather than silent "n/a".
+3. Replace the current heuristic US-ETF discovery used by report-time sector refresh with an explicit `is_etf` / `instrument_kind` semantic field in the security universe or generated reference cache.
+4. Add cached proxy loaders and wire them into the same artifact-driven risk flow now used for dated Yahoo return caches.
+5. Extend the risk layer from summary vol contributions into covariance-consistent marginal/component attribution for securities and bucket rollups.
+6. Improve universe gap handling with a local manual-override layer plus broader look-through/rule coverage for equities and futures, including explicit tracked FI tenor mappings when product semantics differ from modified-duration ranges.
+7. Keep moving reusable risk/report helpers out of `reporting/risk_html.py` as the workbook/UI path becomes clearer, while preserving backward-compatible CLI/report entrypoints.
+8. Deepen the live dashboard with real-time position updates and performance summary, building on the `PortfolioMonitorQueryService` facade.
 
 ## Recently Completed
+- Replaced `performance_history.feather` with `nav_cashflow_history.feather`, a richer daily NAV + classified cashflow store built by `market_helper/domain/portfolio_monitor/services/nav_cashflow_history.py` from Flex XML. Enables accurate MWR, cashflow attribution, and per-currency PnL without relying on the simpler horizon-aggregated performance history.
+- Overhauled `performance_html.py` and `performance_analytics.py`: the Performance tab now renders separate USD and SGD currency tabs, each with a cumulative-return chart, drawdown chart, trailing-window metrics (MTD/YTD/1Y/3Y/5Y covering TWR/MWR, annualized vol, Sharpe, max drawdown), and historical-year summary rows.
+- Fixed Flex cashflow date extraction to use `reportDate` instead of `settleDate`, so cashflows are attributed to the correct accounting period.
+- Added `scripts/launch_ui.sh` to start the NiceGUI dashboard (`market_helper/presentation/dashboard/`) with TCP-readiness probing, server liveness checks, and browser auto-open once the port is up.
+
+
 - Added a combined static HTML portfolio report with `Performance` and `Risk` tabs, using `USD` as the primary performance view, `SGD` as auxiliary display, and `TWR` as the headline return basis while preserving `MWR` alongside key metrics.
 - Added reusable performance-report rendering under `market_helper/reporting/performance_html.py`, covering cumulative-performance and drawdown charts plus `MTD / YTD / 1Y / 3Y / 5Y` and historical-year summary tables.
 - Extended `performance_analytics.py` with reusable history-window slicing, yearly summary rows, trailing-window metrics, TWR/MWR calculations, annualized return/vol, Sharpe, and max-drawdown helpers.

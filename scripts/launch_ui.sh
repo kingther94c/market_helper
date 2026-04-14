@@ -9,7 +9,7 @@ PORT="${PORT:-8080}"
 URL="http://${HOST}:${PORT}/portfolio"
 AUTO_OPEN="${AUTO_OPEN:-1}"
 FALLBACK_OPEN="${FALLBACK_OPEN:-1}"
-OPEN_WAIT_SECONDS="${OPEN_WAIT_SECONDS:-20}"
+OPEN_WAIT_SECONDS="${OPEN_WAIT_SECONDS:-60}"
 CACHE_ROOT="${CACHE_ROOT:-${ROOT_DIR}/.cache}"
 MPLCONFIGDIR="${MPLCONFIGDIR:-${CACHE_ROOT}/matplotlib}"
 XDG_CACHE_HOME="${XDG_CACHE_HOME:-${CACHE_ROOT}/xdg}"
@@ -40,16 +40,34 @@ trap cleanup INT TERM
 
 if [[ "${AUTO_OPEN}" != "0" && "${FALLBACK_OPEN}" != "0" ]]; then
   ATTEMPTS=$(( OPEN_WAIT_SECONDS * 2 ))
-  READY=0
+  TCP_READY=0
+  HTTP_READY=0
+  SERVER_DIED=0
   for ((i=0; i<ATTEMPTS; i++)); do
-    if curl -fsS "${URL}" >/dev/null 2>&1; then
-      READY=1
+    if ! kill -0 "${SERVER_PID}" >/dev/null 2>&1; then
+      SERVER_DIED=1
       break
+    fi
+    if [[ "${TCP_READY}" == "0" ]]; then
+      if (exec 3<>"/dev/tcp/${HOST}/${PORT}") >/dev/null 2>&1; then
+        TCP_READY=1
+      fi
+    fi
+    if [[ "${TCP_READY}" == "1" ]]; then
+      if curl -fsS "${URL}" >/dev/null 2>&1; then
+        HTTP_READY=1
+        break
+      fi
     fi
     sleep 0.5
   done
 
-  if [[ "${READY}" == "1" ]]; then
+  if [[ "${SERVER_DIED}" == "1" ]]; then
+    echo "Error: dashboard server exited before becoming ready (pid ${SERVER_PID})" >&2
+  elif [[ "${TCP_READY}" == "1" ]]; then
+    if [[ "${HTTP_READY}" != "1" ]]; then
+      echo "Note: ${URL} not yet serving after ${OPEN_WAIT_SECONDS}s; opening anyway, browser will retry" >&2
+    fi
     if command -v open >/dev/null 2>&1; then
       open "${URL}" >/dev/null 2>&1 || true
     elif command -v xdg-open >/dev/null 2>&1; then
