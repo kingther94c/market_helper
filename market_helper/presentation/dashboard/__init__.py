@@ -1,4 +1,4 @@
-"""Dashboard presentation package (Streamlit/UI scaffolds)."""
+"""Dashboard presentation package (NiceGUI app shell)."""
 
 from .app import *
 

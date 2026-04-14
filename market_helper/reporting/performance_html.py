@@ -128,7 +128,7 @@ def build_performance_report_view_model(
         secondary_currency=secondary_currency,
         primary_basis=primary_basis,
         summary_cards=summary_cards,
-        chart_specs=_build_chart_specs(frame, primary_currency),
+        chart_specs=build_performance_chart_specs(frame, primary_currency),
         horizon_rows=horizon_rows,
         yearly_rows=yearly_rows,
     )
@@ -275,7 +275,7 @@ def _load_report_rows(report_csv_path: str | Path | None) -> list[dict[str, str]
         return list(csv.DictReader(handle))
 
 
-def _build_chart_specs(history: pd.DataFrame, currency: str) -> dict[str, dict[str, dict[str, object]]]:
+def build_performance_chart_specs(history: pd.DataFrame, currency: str) -> dict[str, dict[str, dict[str, object]]]:
     specs: dict[str, dict[str, dict[str, object]]] = {"percent": {}, "dollar": {}}
     for window in ("MTD", "YTD", "1Y", "FULL"):
         window_history = slice_history_for_window(history, window=window, include_provisional=True)
@@ -539,6 +539,7 @@ def _format_metric_value(value: float | str | None, kind: str) -> str:
 
 __all__ = [
     "PerformanceReportViewModel",
+    "build_performance_chart_specs",
     "build_performance_report_view_model",
     "load_nav_cashflow_history_frame",
     "render_performance_assets",
