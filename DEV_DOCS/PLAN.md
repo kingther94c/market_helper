@@ -111,6 +111,10 @@ Build a broker-agnostic, read-only IBKR integration layer for market monitoring 
 - Expanded TWS provider tests to cover `ib_async` contract construction, `primaryExchange` propagation, and explicit no-match / ambiguous-match lookup failures.
 - Updated README and provider docs so the documented TWS strategy now matches the code: `ib_async` is the default TWS stack and the live notebook is part of the supported local workflow.
 - Unit tests added and expanded across config, domain, providers, portfolio normalization, reporting, workflows, and read-only guard behavior.
+- Hardened volatility pipeline in `reporting/risk_html.py`: `_security_vol` now emits a WARNING whenever it falls back to the proxy-vol branch (ticker, asset class, method, reason logged).
+- Switched historical inter-asset correlation to use per-asset-class proxy tickers (`ACWI/AGG/GLD`) via `_load_asset_class_proxy_returns`; asset classes with no proxy (MACRO, CASH) are forced to 0 corr with others.
+- Exposed `inter_asset_corr` end-to-end (contracts → services → workflows → pipelines → CLI → NiceGUI dashboard toggle) so users can compare portfolio vol under `historical / corr_0 / corr_1`.
+- Added a new forward-looking vol method `_adjusted_proxy_security_vol`: `fwd(asset) = realized_5Y(asset) / realized_5Y(proxy) × simple_proxy_level`. The simple proxy-vol calc (`_proxy_fallback_security_vol`) is preserved as the last-resort fallback. Exposed via the `vol_method="forward_looking"` option in the dashboard, CLI, and risk HTML summary card.
 
 ## In Progress
 - Tightening the live TWS / `ib_async` report path with better account/session ergonomics, broader contract coverage, and richer real-world fixture coverage.

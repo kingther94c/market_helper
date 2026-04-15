@@ -56,6 +56,7 @@ class PortfolioArtifactFormState:
     risk_config_path: str = ""
     allocation_policy_path: str = ""
     vol_method: str = "geomean_1m_3m"
+    inter_asset_corr: str = "historical"
 
 
 @dataclass
@@ -262,6 +263,7 @@ def _build_initial_state(query_service: PortfolioMonitorQueryService) -> Portfol
             risk_config_path=str(inputs.risk_config_path or ""),
             allocation_policy_path=str(inputs.allocation_policy_path or ""),
             vol_method=inputs.vol_method,
+            inter_asset_corr=inputs.inter_asset_corr,
         ),
         live_form=LiveActionFormState(output_path=positions_path),
         flex_form=FlexActionFormState(output_dir=performance_output_dir),
@@ -297,10 +299,15 @@ def _render_toolbar(state: PortfolioPageState) -> None:
         with ui.grid(columns=2).classes("w-full gap-3"):
             ui.input("Positions CSV").bind_value(state.artifact_form, "positions_csv_path").classes("w-full")
             ui.select(
-                options=["geomean_1m_3m", "5y_realized", "ewma"],
+                options=["geomean_1m_3m", "5y_realized", "ewma", "forward_looking"],
                 label="Risk vol method",
                 value=state.artifact_form.vol_method,
             ).bind_value(state.artifact_form, "vol_method")
+            ui.select(
+                options=["historical", "corr_0", "corr_1"],
+                label="Inter-asset corr",
+                value=state.artifact_form.inter_asset_corr,
+            ).bind_value(state.artifact_form, "inter_asset_corr")
             ui.input("Performance output dir").bind_value(state.artifact_form, "performance_output_dir").classes("w-full")
             ui.input("Performance history").bind_value(state.artifact_form, "performance_history_path").classes("w-full")
             ui.input("Performance report CSV").bind_value(state.artifact_form, "performance_report_csv_path").classes("w-full")
@@ -693,6 +700,7 @@ def _artifact_inputs_from_form(form: PortfolioArtifactFormState) -> PortfolioRep
         risk_config_path=_optional_text(form.risk_config_path),
         allocation_policy_path=_optional_text(form.allocation_policy_path),
         vol_method=form.vol_method,
+        inter_asset_corr=form.inter_asset_corr,
     )
 
 
@@ -735,6 +743,7 @@ def _combined_inputs_from_form(state: PortfolioPageState) -> GenerateCombinedRep
         risk_config_path=artifact_inputs.risk_config_path,
         allocation_policy_path=artifact_inputs.allocation_policy_path,
         vol_method=artifact_inputs.vol_method,
+        inter_asset_corr=artifact_inputs.inter_asset_corr,
         output_path=_required_text(state.export_form.output_path, "Combined report output path"),
     )
 

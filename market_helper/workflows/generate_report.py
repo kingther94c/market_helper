@@ -204,6 +204,7 @@ def generate_risk_html_report(
     risk_config_path: str | Path | None = None,
     allocation_policy_path: str | Path | None = None,
     vol_method: str = "geomean_1m_3m",
+    inter_asset_corr: str = "historical",
     progress: ProgressReporter | None = None,
 ) -> Path:
     return _generate_risk_html_report(
@@ -216,6 +217,7 @@ def generate_risk_html_report(
         risk_config_path=risk_config_path,
         allocation_policy_path=allocation_policy_path,
         vol_method=vol_method,
+        inter_asset_corr=inter_asset_corr,
         progress=progress,
     )
 
@@ -234,6 +236,7 @@ def generate_combined_html_report(
     risk_config_path: str | Path | None = None,
     allocation_policy_path: str | Path | None = None,
     vol_method: str = "geomean_1m_3m",
+    inter_asset_corr: str = "historical",
 ) -> Path:
     return _generate_combined_html_report(
         positions_csv_path=positions_csv_path,
@@ -248,6 +251,7 @@ def generate_combined_html_report(
         risk_config_path=risk_config_path,
         allocation_policy_path=allocation_policy_path,
         vol_method=vol_method,
+        inter_asset_corr=inter_asset_corr,
     )
 
 

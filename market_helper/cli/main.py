@@ -101,8 +101,15 @@ def build_parser() -> argparse.ArgumentParser:
         "--vol-method",
         required=False,
         default="geomean_1m_3m",
-        choices=["geomean_1m_3m", "5y_realized", "ewma"],
+        choices=["geomean_1m_3m", "5y_realized", "ewma", "forward_looking"],
         help="Volatility method used for contribution views.",
+    )
+    risk_html_report.add_argument(
+        "--inter-asset-corr",
+        required=False,
+        default="historical",
+        choices=["historical", "corr_0", "corr_1"],
+        help="Inter-asset-class correlation assumption used to aggregate asset-class loadings into portfolio vol.",
     )
 
     combined_html_report = subparsers.add_parser(
@@ -138,8 +145,15 @@ def build_parser() -> argparse.ArgumentParser:
         "--vol-method",
         required=False,
         default="geomean_1m_3m",
-        choices=["geomean_1m_3m", "5y_realized", "ewma"],
+        choices=["geomean_1m_3m", "5y_realized", "ewma", "forward_looking"],
         help="Volatility method used for contribution views.",
+    )
+    combined_html_report.add_argument(
+        "--inter-asset-corr",
+        required=False,
+        default="historical",
+        choices=["historical", "corr_0", "corr_1"],
+        help="Inter-asset-class correlation assumption used to aggregate asset-class loadings into portfolio vol.",
     )
 
     security_reference_sync = subparsers.add_parser(
@@ -262,6 +276,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             risk_config_path=Path(args.risk_config) if args.risk_config else None,
             allocation_policy_path=Path(args.allocation_policy) if args.allocation_policy else None,
             vol_method=args.vol_method,
+            inter_asset_corr=args.inter_asset_corr,
         )
         return 0
     if args.command == "combined-html-report":
@@ -278,6 +293,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             risk_config_path=Path(args.risk_config) if args.risk_config else None,
             allocation_policy_path=Path(args.allocation_policy) if args.allocation_policy else None,
             vol_method=args.vol_method,
+            inter_asset_corr=args.inter_asset_corr,
         )
         return 0
     if args.command == "security-reference-sync":
