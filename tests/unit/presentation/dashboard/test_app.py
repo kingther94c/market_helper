@@ -136,6 +136,7 @@ def _fake_snapshot() -> PortfolioReportSnapshot:
             portfolio_vol_geomean_1m_3m=0.2,
             portfolio_vol_5y_realized=0.18,
             portfolio_vol_ewma=0.22,
+            portfolio_vol_forward_looking=0.24,
             funded_aum_usd=1750.0,
             funded_aum_sgd=2275.0,
             gross_exposure=1750.0,

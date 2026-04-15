@@ -28,6 +28,7 @@ def build_combined_html_report(
     risk_config_path: str | Path | None = None,
     allocation_policy_path: str | Path | None = None,
     vol_method: str = "geomean_1m_3m",
+    inter_asset_corr: str = "historical",
 ) -> Path:
     history_path = _resolve_performance_history_path(
         performance_history_path=performance_history_path,
@@ -46,6 +47,7 @@ def build_combined_html_report(
         risk_config_path=risk_config_path,
         allocation_policy_path=allocation_policy_path,
         vol_method=vol_method,
+        inter_asset_corr=inter_asset_corr,
     )
     history = load_nav_cashflow_history_frame(history_path)
     usd_perf_view_model = build_performance_report_view_model(

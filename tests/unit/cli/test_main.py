@@ -175,6 +175,7 @@ def test_cli_risk_html_report_dispatches_to_workflow(monkeypatch, tmp_path) -> N
         risk_config_path,
         allocation_policy_path,
         vol_method,
+        inter_asset_corr,
     ):
         captured["positions_csv_path"] = positions_csv_path
         captured["returns_path"] = returns_path
@@ -185,6 +186,7 @@ def test_cli_risk_html_report_dispatches_to_workflow(monkeypatch, tmp_path) -> N
         captured["risk_config_path"] = risk_config_path
         captured["allocation_policy_path"] = allocation_policy_path
         captured["vol_method"] = vol_method
+        captured["inter_asset_corr"] = inter_asset_corr
         return output_path
 
     monkeypatch.setattr(
@@ -245,6 +247,7 @@ def test_cli_combined_html_report_dispatches_to_workflow(monkeypatch, tmp_path) 
         risk_config_path,
         allocation_policy_path,
         vol_method,
+        inter_asset_corr,
     ):
         captured["positions_csv_path"] = positions_csv_path
         captured["output_path"] = output_path
@@ -258,6 +261,7 @@ def test_cli_combined_html_report_dispatches_to_workflow(monkeypatch, tmp_path) 
         captured["risk_config_path"] = risk_config_path
         captured["allocation_policy_path"] = allocation_policy_path
         captured["vol_method"] = vol_method
+        captured["inter_asset_corr"] = inter_asset_corr
         return output_path
 
     monkeypatch.setattr(

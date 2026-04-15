@@ -22,6 +22,7 @@ class PortfolioReportInputs:
     risk_config_path: str | Path | None = None
     allocation_policy_path: str | Path | None = None
     vol_method: str = "geomean_1m_3m"
+    inter_asset_corr: str = "historical"
 
 
 @dataclass(frozen=True)

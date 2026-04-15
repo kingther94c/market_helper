@@ -77,6 +77,7 @@ class PortfolioMonitorQueryService:
             risk_config_path=risk_config_path,
             allocation_policy_path=Path(source.allocation_policy_path) if source.allocation_policy_path is not None else None,
             vol_method=source.vol_method,
+            inter_asset_corr=source.inter_asset_corr,
         )
 
     def load_snapshot(self, inputs: PortfolioReportInputs | None = None) -> PortfolioReportSnapshot:
@@ -102,6 +103,7 @@ class PortfolioMonitorQueryService:
             risk_config_path=resolved.risk_config_path,
             allocation_policy_path=resolved.allocation_policy_path,
             vol_method=resolved.vol_method,
+            inter_asset_corr=resolved.inter_asset_corr,
         )
         performance_usd_view_model = build_performance_report_view_model(
             history,
@@ -231,6 +233,7 @@ class PortfolioMonitorActionService:
             risk_config_path=Path(str(resolved.risk_config_path)) if resolved.risk_config_path is not None else None,
             allocation_policy_path=Path(str(resolved.allocation_policy_path)) if resolved.allocation_policy_path is not None else None,
             vol_method=resolved.vol_method,
+            inter_asset_corr=resolved.inter_asset_corr,
         )
         _record_manual_event(sink, kind="done", label="Combined HTML", detail=f"wrote {written}")
         return written

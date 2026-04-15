@@ -5,6 +5,7 @@ from __future__ import annotations
 import csv
 import html
 import json
+import logging
 import math
 import re
 from dataclasses import dataclass
@@ -13,6 +14,8 @@ from typing import Any, Iterable, Mapping, Sequence
 
 import pandas as pd
 import yaml
+
+logger = logging.getLogger(__name__)
 
 from market_helper.common.progress import ProgressReporter, resolve_progress_reporter
 from market_helper.data_sources.yahoo_finance import YahooFinanceClient
@@ -38,8 +41,10 @@ from market_helper.domain.portfolio_monitor.services.volatility import (
 from market_helper.domain.portfolio_monitor.services.yahoo_returns import (
     DEFAULT_YAHOO_RETURNS_CACHE_DIR,
     build_internal_id_return_series_from_yahoo,
+    ensure_symbol_return_cache,
     load_internal_id_return_series_override,
 )
+from market_helper.data_sources.yahoo_finance import YahooFinanceTransientError
 from market_helper.portfolio.security_reference import (
     DEFAULT_SECURITY_REFERENCE_PATH,
     SecurityReference,
@@ -62,6 +67,13 @@ DEFAULT_PROXY_LEVELS = {
     "MOVE": 110.0,
     "OVX": 25.0,
     "GVZ": 25.0,
+}
+ASSET_CLASS_CORR_PROXY_SYMBOLS: dict[str, str | None] = {
+    "EQ": "ACWI",
+    "FI": "AGG",
+    "CM": "GLD",
+    "MACRO": None,
+    "CASH": None,
 }
 DEFAULT_PROXY_YAHOO_SYMBOLS = {
     "VIX": "^VIX",
@@ -229,6 +241,7 @@ class PortfolioRiskSummary:
     portfolio_vol_geomean_1m_3m: float
     portfolio_vol_5y_realized: float
     portfolio_vol_ewma: float
+    portfolio_vol_forward_looking: float
     funded_aum_usd: float
     funded_aum_sgd: float | None
     gross_exposure: float
@@ -430,6 +443,8 @@ def build_risk_report_view_model(
             volatility=risk_report_config.volatility,
             proxy_defaults=risk_report_config.proxy_defaults,
             move_to_yield_vol_factor=risk_report_config.fixed_income.move_to_yield_vol_factor,
+            internal_id=row.internal_id,
+            display_ticker=row.display_ticker,
         )
         if _is_report_included(row)
         else 0.0
@@ -445,6 +460,8 @@ def build_risk_report_view_model(
             volatility=risk_report_config.volatility,
             proxy_defaults=risk_report_config.proxy_defaults,
             move_to_yield_vol_factor=risk_report_config.fixed_income.move_to_yield_vol_factor,
+            internal_id=row.internal_id,
+            display_ticker=row.display_ticker,
         )
         if _is_report_included(row)
         else 0.0
@@ -460,6 +477,8 @@ def build_risk_report_view_model(
             volatility=risk_report_config.volatility,
             proxy_defaults=risk_report_config.proxy_defaults,
             move_to_yield_vol_factor=risk_report_config.fixed_income.move_to_yield_vol_factor,
+            internal_id=row.internal_id,
+            display_ticker=row.display_ticker,
         )
         if _is_report_included(row)
         else 0.0
@@ -470,23 +489,57 @@ def build_risk_report_view_model(
     realized_5y_group_loadings = _build_group_loadings(included_rows, vols_5y_realized)
     ewma_group_loadings = _build_group_loadings(included_rows, vols_ewma)
     group_returns = _build_group_returns(included_rows, returns)
+    asset_class_keys = set(geomean_group_loadings) | set(realized_5y_group_loadings) | set(ewma_group_loadings)
+    proxy_group_returns = _load_asset_class_proxy_returns(
+        asset_classes=asset_class_keys,
+        yahoo_client=resolved_yahoo_client,
+    )
+    proxy_realized_5y_vol = _compute_proxy_realized_5y_vols(
+        proxy_group_returns=proxy_group_returns,
+        methodology=risk_report_config.volatility,
+    )
+    vols_forward_looking = {
+        row.internal_id: _adjusted_proxy_security_vol(
+            returns=returns.get(row.internal_id, []),
+            asset_class=row.asset_class,
+            duration=row.duration,
+            proxy=proxy,
+            volatility=risk_report_config.volatility,
+            proxy_defaults=risk_report_config.proxy_defaults,
+            move_to_yield_vol_factor=risk_report_config.fixed_income.move_to_yield_vol_factor,
+            proxy_5y_realized=proxy_realized_5y_vol.get(row.asset_class),
+            internal_id=row.internal_id,
+            display_ticker=row.display_ticker,
+        )
+        if _is_report_included(row)
+        else 0.0
+        for row in rows
+    }
+    forward_looking_group_loadings = _build_group_loadings(included_rows, vols_forward_looking)
+    asset_class_keys = asset_class_keys | set(forward_looking_group_loadings)
     selected_group_corr = _build_group_correlation(
-        asset_classes=set(geomean_group_loadings) | set(realized_5y_group_loadings) | set(ewma_group_loadings),
+        asset_classes=asset_class_keys,
         group_returns=group_returns,
+        proxy_group_returns=proxy_group_returns,
         mode=inter_asset_corr,
     )
     portfolio_vol_geomean_1m_3m = _portfolio_vol_from_group_loadings(geomean_group_loadings, selected_group_corr)
     portfolio_vol_5y_realized = _portfolio_vol_from_group_loadings(realized_5y_group_loadings, selected_group_corr)
     portfolio_vol_ewma = _portfolio_vol_from_group_loadings(ewma_group_loadings, selected_group_corr)
+    portfolio_vol_forward_looking = _portfolio_vol_from_group_loadings(
+        forward_looking_group_loadings, selected_group_corr
+    )
 
     security_geomean_loadings = _build_security_loadings(included_rows, vols_geomean_1m_3m)
     security_realized_loadings = _build_security_loadings(included_rows, vols_5y_realized)
     security_ewma_loadings = _build_security_loadings(included_rows, vols_ewma)
+    security_forward_looking_loadings = _build_security_loadings(included_rows, vols_forward_looking)
     selected_security_loadings = _select_security_loadings(
         vol_method=vol_method,
         geomean=security_geomean_loadings,
         realized_5y=security_realized_loadings,
         ewma=security_ewma_loadings,
+        forward_looking=security_forward_looking_loadings,
     )
     risk_rows = [
         RiskMetricsRow(
@@ -561,6 +614,7 @@ def build_risk_report_view_model(
         portfolio_vol_geomean_1m_3m=portfolio_vol_geomean_1m_3m,
         portfolio_vol_5y_realized=portfolio_vol_5y_realized,
         portfolio_vol_ewma=portfolio_vol_ewma,
+        portfolio_vol_forward_looking=portfolio_vol_forward_looking,
         funded_aum_usd=funded_aum_usd,
         funded_aum_sgd=funded_aum_sgd,
         gross_exposure=sum(row.display_gross_exposure_usd for row in included_rows),
@@ -1148,6 +1202,7 @@ def render_risk_tab(view_model: RiskReportViewModel) -> str:
       <div class='metric'><span>Portfolio vol (1M/3M geomean, {html.escape(inter_asset_corr)})</span><strong>{summary.portfolio_vol_geomean_1m_3m:.2%}</strong></div>
       <div class='metric'><span>Portfolio vol (5Y realized, {html.escape(inter_asset_corr)})</span><strong>{summary.portfolio_vol_5y_realized:.2%}</strong></div>
       <div class='metric'><span>Portfolio vol (EWMA, {html.escape(inter_asset_corr)})</span><strong>{summary.portfolio_vol_ewma:.2%}</strong></div>
+      <div class='metric'><span>Portfolio vol (forward-looking, {html.escape(inter_asset_corr)})</span><strong>{summary.portfolio_vol_forward_looking:.2%}</strong></div>
       <div class='metric'><span>Funded AUM (USD)</span><strong>{summary.funded_aum_usd:,.0f}</strong></div>
       <div class='metric'><span>Funded AUM (SGD)</span><strong>{_format_optional_amount(summary.funded_aum_sgd)}</strong></div>
       <div class='metric'><span>Gross exposure (FI 10Y eq)</span><strong>{summary.gross_exposure:,.0f}</strong></div>
@@ -1416,6 +1471,8 @@ def _security_vol(
     volatility: VolatilityMethodologyConfig | None = None,
     proxy_defaults: Mapping[str, float] | None = None,
     move_to_yield_vol_factor: float = DEFAULT_MOVE_TO_YIELD_VOL_FACTOR,
+    internal_id: str = "",
+    display_ticker: str = "",
 ) -> float:
     methodology = volatility or VolatilityMethodologyConfig(
         trading_days=TRADING_DAYS,
@@ -1449,6 +1506,16 @@ def _security_vol(
             short_window_days=methodology.short_window_days,
             long_window_days=methodology.long_window_days,
         )
+    reason = "empty_returns" if _coerce_return_series(returns).empty else "all_nan_returns"
+    if str(asset_class).upper() != "CASH":
+        logger.warning(
+            "Vol fallback to proxy: internal_id=%s ticker=%s asset_class=%s method=%s reason=%s",
+            internal_id or "?",
+            display_ticker or "?",
+            asset_class,
+            method,
+            reason,
+        )
     return _proxy_fallback_security_vol(
         asset_class=asset_class,
         duration=duration,
@@ -1457,6 +1524,131 @@ def _security_vol(
         move_to_yield_vol_factor=move_to_yield_vol_factor,
         cash_vol=methodology.cash_vol,
     )
+
+
+def _compute_proxy_realized_5y_vols(
+    *,
+    proxy_group_returns: Mapping[str, pd.Series],
+    methodology: VolatilityMethodologyConfig | None,
+) -> dict[str, float]:
+    """Compute realized 5Y vol for each asset-class correlation proxy ticker.
+
+    Used as the denominator in the forward-looking adjusted-proxy formula
+    ``fwd = realized_5y(asset) / realized_5y(proxy) * proxy_level``.
+    Returns a dict with only positive, finite values.
+    """
+    config = methodology or VolatilityMethodologyConfig(
+        trading_days=TRADING_DAYS,
+        short_window_days=HIST_1M_DAYS,
+        long_window_days=HIST_3M_DAYS,
+        long_term_lookback_years=DEFAULT_LONG_TERM_LOOKBACK_YEARS,
+        cash_vol=DEFAULT_CASH_VOL,
+    )
+    lookback = config.trading_days * config.long_term_lookback_years
+    out: dict[str, float] = {}
+    for asset_class, series in proxy_group_returns.items():
+        coerced = _coerce_return_series(series)
+        if coerced.dropna().empty:
+            continue
+        value = long_term_vol(
+            returns=coerced,
+            lookback=lookback,
+            annualization_factor=config.trading_days,
+            ddof=1,
+        )
+        if value is None or not math.isfinite(value) or value <= 0:
+            continue
+        out[asset_class] = float(value)
+    return out
+
+
+def _adjusted_proxy_security_vol(
+    *,
+    returns: pd.Series | list[float],
+    asset_class: str,
+    duration: float | None,
+    proxy: Mapping[str, float],
+    volatility: VolatilityMethodologyConfig | None = None,
+    proxy_defaults: Mapping[str, float] | None = None,
+    move_to_yield_vol_factor: float = DEFAULT_MOVE_TO_YIELD_VOL_FACTOR,
+    proxy_5y_realized: float | None = None,
+    internal_id: str = "",
+    display_ticker: str = "",
+) -> float:
+    """Forward-looking vol scaled by realized-vol ratio against the asset-class proxy.
+
+    Formula: ``fwd_vol = realized_5Y(asset) / realized_5Y(proxy) * proxy_level(asset_class)``.
+    Falls back to :func:`_proxy_fallback_security_vol` (the simple proxy) when the
+    asset's or proxy's realized 5Y vol is unavailable, emitting a WARNING.
+    MACRO / CASH always use the simple fallback because no correlation proxy
+    ticker is defined for them.
+    """
+    methodology = volatility or VolatilityMethodologyConfig(
+        trading_days=TRADING_DAYS,
+        short_window_days=HIST_1M_DAYS,
+        long_window_days=HIST_3M_DAYS,
+        long_term_lookback_years=DEFAULT_LONG_TERM_LOOKBACK_YEARS,
+        cash_vol=DEFAULT_CASH_VOL,
+    )
+    asset_class_key = str(asset_class).upper()
+    proxy_symbol = ASSET_CLASS_CORR_PROXY_SYMBOLS.get(asset_class_key)
+
+    simple = _proxy_fallback_security_vol(
+        asset_class=asset_class,
+        duration=duration,
+        proxy=proxy,
+        proxy_defaults=proxy_defaults,
+        move_to_yield_vol_factor=move_to_yield_vol_factor,
+        cash_vol=methodology.cash_vol,
+    )
+    # Asset classes without a correlation proxy (MACRO, CASH) have no sensible
+    # ratio — return the simple proxy vol directly, no warning needed.
+    if not proxy_symbol:
+        return simple
+
+    series = _coerce_return_series(returns)
+    if series.dropna().empty:
+        if asset_class_key != "CASH":
+            logger.warning(
+                "Forward-looking vol fallback: internal_id=%s ticker=%s asset_class=%s reason=no_realized_for_ratio",
+                internal_id or "?",
+                display_ticker or "?",
+                asset_class,
+            )
+        return simple
+
+    asset_realized = long_term_vol(
+        returns=series,
+        lookback=methodology.trading_days * methodology.long_term_lookback_years,
+        annualization_factor=methodology.trading_days,
+        ddof=1,
+    )
+    if (
+        asset_realized is None
+        or not math.isfinite(asset_realized)
+        or asset_realized <= 0
+    ):
+        logger.warning(
+            "Forward-looking vol fallback: internal_id=%s ticker=%s asset_class=%s reason=no_realized_for_ratio",
+            internal_id or "?",
+            display_ticker or "?",
+            asset_class,
+        )
+        return simple
+    if (
+        proxy_5y_realized is None
+        or not math.isfinite(proxy_5y_realized)
+        or proxy_5y_realized <= 0
+    ):
+        logger.warning(
+            "Forward-looking vol fallback: internal_id=%s ticker=%s asset_class=%s proxy=%s reason=no_proxy_realized",
+            internal_id or "?",
+            display_ticker or "?",
+            asset_class,
+            proxy_symbol,
+        )
+        return simple
+    return float((asset_realized / proxy_5y_realized) * simple)
 
 
 def _proxy_fallback_security_vol(
@@ -1543,14 +1735,62 @@ def _build_group_returns(
     return series
 
 
+def _load_asset_class_proxy_returns(
+    *,
+    asset_classes: Iterable[str],
+    yahoo_client: YahooFinanceClient,
+    cache_dir: str | Path = DEFAULT_YAHOO_RETURNS_CACHE_DIR,
+    mapping: Mapping[str, str | None] = ASSET_CLASS_CORR_PROXY_SYMBOLS,
+) -> dict[str, pd.Series]:
+    """Fetch Yahoo return series for the per-asset-class correlation proxy tickers.
+
+    Returns a dict keyed by asset class (as provided) for classes whose mapping
+    resolves to a non-empty symbol and for which the cache fetch succeeds.
+    Asset classes with ``None`` mapping (e.g. MACRO, CASH) are intentionally
+    omitted so the correlation builder can treat them as zero-correlated.
+    """
+    resolved: dict[str, pd.Series] = {}
+    for asset_class in asset_classes:
+        symbol = mapping.get(str(asset_class).upper())
+        if not symbol:
+            continue
+        try:
+            cache = ensure_symbol_return_cache(
+                symbol,
+                yahoo_client=yahoo_client,
+                cache_dir=cache_dir,
+            )
+        except YahooFinanceTransientError:
+            logger.warning(
+                "Asset-class corr proxy fetch failed (transient): asset_class=%s symbol=%s",
+                asset_class,
+                symbol,
+            )
+            continue
+        except Exception as exc:  # pragma: no cover - defensive
+            logger.warning(
+                "Asset-class corr proxy fetch failed: asset_class=%s symbol=%s err=%s",
+                asset_class,
+                symbol,
+                exc,
+            )
+            continue
+        if not cache.series.dropna().empty:
+            resolved[asset_class] = cache.series.copy()
+    return resolved
+
+
 def _build_group_correlation(
     *,
     asset_classes: Iterable[str],
     group_returns: Mapping[str, pd.Series],
     mode: str,
+    proxy_group_returns: Mapping[str, pd.Series] | None = None,
+    proxy_mapping: Mapping[str, str | None] = ASSET_CLASS_CORR_PROXY_SYMBOLS,
 ) -> dict[tuple[str, str], float]:
     normalized_mode = mode.strip().lower()
     keys = sorted(set(asset_classes))
+    proxy_group_returns = proxy_group_returns or {}
     corr: dict[tuple[str, str], float] = {}
     for left in keys:
         for right in keys:
@@ -1566,7 +1806,24 @@ def _build_group_correlation(
             if normalized_mode == "corr_0":
                 corr[(left, right)] = 0.0
                 continue
-            corr[(left, right)] = pairwise_corr(group_returns.get(left, []), group_returns.get(right, []))
+            # historical: prefer per-asset-class proxy tickers (e.g. ACWI/AGG/GLD)
+            # so the inter-asset correlation reflects index-level behavior rather
+            # than the current portfolio's idiosyncratic composition. Asset classes
+            # without a proxy mapping (e.g. MACRO) are treated as 0 correlation.
+            left_no_proxy = proxy_mapping.get(left.upper(), "__UNSET__") is None
+            right_no_proxy = proxy_mapping.get(right.upper(), "__UNSET__") is None
+            if left_no_proxy or right_no_proxy:
+                corr[(left, right)] = 0.0
+                continue
+            left_series = proxy_group_returns.get(left)
+            right_series = proxy_group_returns.get(right)
+            if left_series is None or right_series is None:
+                # Proxy fetch unavailable; fall back to position-aggregated returns.
+                corr[(left, right)] = pairwise_corr(
+                    group_returns.get(left, []), group_returns.get(right, [])
+                )
+                continue
+            corr[(left, right)] = pairwise_corr(left_series, right_series)
     return corr
 
 
@@ -1588,12 +1845,15 @@ def _select_security_loadings(
     geomean: Mapping[str, float],
     realized_5y: Mapping[str, float],
     ewma: Mapping[str, float],
+    forward_looking: Mapping[str, float] | None = None,
 ) -> Mapping[str, float]:
     normalized = vol_method.strip().lower()
     if normalized == "5y_realized":
         return realized_5y
     if normalized == "ewma":
         return ewma
+    if normalized == "forward_looking":
+        return forward_looking if forward_looking is not None else geomean
     return geomean
 
 
