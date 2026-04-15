@@ -1,10 +1,14 @@
 from __future__ import annotations
 
 import csv
-from dataclasses import replace
+import datetime
+import logging
+from dataclasses import dataclass, field, replace
 from pathlib import Path
 
 import pandas as pd
+
+logger = logging.getLogger(__name__)
 
 from market_helper.app.paths import PORTFOLIO_ARTIFACTS_DIR
 from market_helper.application.portfolio_monitor.contracts import (
@@ -35,7 +39,48 @@ DEFAULT_COMBINED_REPORT_PATH = PORTFOLIO_ARTIFACTS_DIR / "portfolio_combined_rep
 DEFAULT_PERFORMANCE_OUTPUT_DIR = PORTFOLIO_ARTIFACTS_DIR / "flex"
 
 
+@dataclass
+class _PerformanceCacheEntry:
+    """In-process daily cache for the performance view models.
+
+    Invalidated when the calendar date changes, when the history or CSV
+    path changes, or when the underlying feather file is modified on disk.
+    """
+    date: datetime.date
+    history_path: Path | None
+    report_csv_path: Path | None
+    history_mtime: float | None  # None when file doesn't exist
+    usd_view_model: object  # PerformanceReportViewModel
+    sgd_view_model: object  # PerformanceReportViewModel
+    perf_warnings: list[str] = field(default_factory=list)
+
+    def is_valid_for(
+        self,
+        *,
+        history_path: Path | None,
+        report_csv_path: Path | None,
+    ) -> bool:
+        if self.date != datetime.date.today():
+            return False
+        if self.history_path != history_path or self.report_csv_path != report_csv_path:
+            return False
+        # Invalidate if the feather file has been updated on disk.
+        current_mtime = _file_mtime(history_path)
+        if current_mtime != self.history_mtime:
+            return False
+        return True
+
+
+def _file_mtime(path: Path | None) -> float | None:
+    if path is None or not path.exists():
+        return None
+    return path.stat().st_mtime
+
+
 class PortfolioMonitorQueryService:
+    def __init__(self) -> None:
+        self._perf_cache: _PerformanceCacheEntry | None = None
+
     def resolve_inputs(self, inputs: PortfolioReportInputs | None = None) -> PortfolioReportInputs:
         source = inputs or PortfolioReportInputs()
         output_dir = Path(source.performance_output_dir) if source.performance_output_dir is not None else DEFAULT_PERFORMANCE_OUTPUT_DIR
@@ -93,7 +138,11 @@ class PortfolioMonitorQueryService:
             if resolved.performance_report_csv_path is not None
             else None
         )
-        history = self._load_history_frame(performance_history_path, warnings=warnings)
+        perf_entry = self._load_perf_cached(
+            performance_history_path=performance_history_path,
+            performance_report_csv_path=performance_report_csv_path,
+        )
+        warnings.extend(perf_entry.perf_warnings)
         risk_view_model = build_risk_report_view_model(
             positions_csv_path=positions_path,
             returns_path=resolved.returns_path,
@@ -105,25 +154,9 @@ class PortfolioMonitorQueryService:
             vol_method=resolved.vol_method,
             inter_asset_corr=resolved.inter_asset_corr,
         )
-        performance_usd_view_model = build_performance_report_view_model(
-            history,
-            report_csv_path=performance_report_csv_path,
-            primary_currency="USD",
-            secondary_currency=None,
-            primary_basis="TWR",
-        )
-        performance_sgd_view_model = build_performance_report_view_model(
-            history,
-            report_csv_path=performance_report_csv_path,
-            primary_currency="SGD",
-            secondary_currency=None,
-            primary_basis="TWR",
-        )
+        performance_usd_view_model = perf_entry.usd_view_model
+        performance_sgd_view_model = perf_entry.sgd_view_model
         positions_as_of = _read_positions_as_of(positions_path)
-        if history.empty:
-            warnings.append("Performance history artifact is missing or empty; performance cards and charts show placeholders.")
-        if performance_report_csv_path is None or not performance_report_csv_path.exists():
-            warnings.append("Dated performance report CSV is missing; only history-derived metrics are available.")
         metadata = ArtifactMetadata(
             positions_csv_path=positions_path,
             performance_output_dir=Path(str(resolved.performance_output_dir)) if resolved.performance_output_dir is not None else None,
@@ -137,28 +170,84 @@ class PortfolioMonitorQueryService:
             allocation_policy_path=Path(str(resolved.allocation_policy_path)) if resolved.allocation_policy_path is not None else None,
             positions_as_of=positions_as_of,
         )
+        snapshot_as_of = _resolve_snapshot_as_of(
+            positions_as_of=positions_as_of,
+            performance_as_of=performance_usd_view_model.as_of,
+            risk_as_of=risk_view_model.as_of,
+        )
         return PortfolioReportSnapshot(
-            as_of=_resolve_snapshot_as_of(
-                positions_as_of=positions_as_of,
-                performance_as_of=performance_usd_view_model.as_of,
-                risk_as_of=risk_view_model.as_of,
-            ),
-            risk_view_model=replace(risk_view_model, as_of=_resolve_snapshot_as_of(
-                positions_as_of=positions_as_of,
-                performance_as_of=performance_usd_view_model.as_of,
-                risk_as_of=risk_view_model.as_of,
-            )),
-            performance_usd_view_model=replace(
-                performance_usd_view_model,
-                chart_specs=build_performance_chart_specs(history, "USD"),
-            ),
-            performance_sgd_view_model=replace(
-                performance_sgd_view_model,
-                chart_specs=build_performance_chart_specs(history, "SGD"),
-            ),
+            as_of=snapshot_as_of,
+            risk_view_model=replace(risk_view_model, as_of=snapshot_as_of),
+            performance_usd_view_model=performance_usd_view_model,
+            performance_sgd_view_model=performance_sgd_view_model,
             artifact_metadata=metadata,
             warnings=warnings,
         )
+
+    def _load_perf_cached(
+        self,
+        *,
+        performance_history_path: Path | None,
+        performance_report_csv_path: Path | None,
+    ) -> _PerformanceCacheEntry:
+        """Return a performance cache entry, rebuilding at most once per calendar day.
+
+        Invalidation triggers:
+        - Calendar date change.
+        - Path inputs differ from cached entry.
+        - The feather history file has been modified on disk (mtime changed).
+        """
+        if (
+            self._perf_cache is not None
+            and self._perf_cache.is_valid_for(
+                history_path=performance_history_path,
+                report_csv_path=performance_report_csv_path,
+            )
+        ):
+            logger.debug("Performance cache hit (date=%s)", self._perf_cache.date)
+            return self._perf_cache
+
+        logger.debug(
+            "Performance cache miss — rebuilding (date=%s, history=%s)",
+            datetime.date.today(),
+            performance_history_path,
+        )
+        perf_warnings: list[str] = []
+        history = self._load_history_frame(performance_history_path, warnings=perf_warnings)
+        if performance_report_csv_path is None or not performance_report_csv_path.exists():
+            perf_warnings.append(
+                "Dated performance report CSV is missing; only history-derived metrics are available."
+            )
+        usd_vm = replace(
+            build_performance_report_view_model(
+                history,
+                report_csv_path=performance_report_csv_path,
+                primary_currency="USD",
+                secondary_currency=None,
+                primary_basis="TWR",
+            ),
+            chart_specs=build_performance_chart_specs(history, "USD"),
+        )
+        sgd_vm = replace(
+            build_performance_report_view_model(
+                history,
+                report_csv_path=performance_report_csv_path,
+                primary_currency="SGD",
+                secondary_currency=None,
+                primary_basis="TWR",
+            ),
+            chart_specs=build_performance_chart_specs(history, "SGD"),
+        )
+        self._perf_cache = _PerformanceCacheEntry(
+            date=datetime.date.today(),
+            history_path=performance_history_path,
+            report_csv_path=performance_report_csv_path,
+            history_mtime=_file_mtime(performance_history_path),
+            usd_view_model=usd_vm,
+            sgd_view_model=sgd_vm,
+            perf_warnings=perf_warnings,
+        )
+        return self._perf_cache
 
     def _load_history_frame(self, path: Path | None, *, warnings: list[str]) -> pd.DataFrame:
         if path is None:
