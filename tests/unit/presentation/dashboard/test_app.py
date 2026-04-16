@@ -130,6 +130,7 @@ def _fake_snapshot() -> PortfolioReportSnapshot:
                 eq_country="US",
                 eq_sector="TECHNOLOGY",
                 fi_tenor="",
+                cm_sector="",
             )
         ],
         summary=PortfolioRiskSummary(
@@ -148,6 +149,7 @@ def _fake_snapshot() -> PortfolioReportSnapshot:
         country_breakdown=[BreakdownRow(bucket="US", bucket_label="", parent="EQ", exposure_usd=1750.0, gross_exposure_usd=1750.0, dollar_weight=1.0, risk_contribution_estimated=0.2)],
         sector_breakdown=[BreakdownRow(bucket="TECHNOLOGY", bucket_label="", parent="US_EQ", exposure_usd=1750.0, gross_exposure_usd=1750.0, dollar_weight=1.0, risk_contribution_estimated=0.2)],
         fi_tenor_breakdown=[],
+        cm_sector_breakdown=[],
         policy_drift_asset_class=[PolicyDriftRow(bucket="EQ", scope="PORTFOLIO", current_weight=1.0, policy_weight=0.6, active_weight=0.4, current_risk_contribution=0.2)],
         policy_drift_country=[],
         policy_drift_sector=[],

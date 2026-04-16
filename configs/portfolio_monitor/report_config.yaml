@@ -27,6 +27,10 @@ risk_report:
   fixed_income:
     fi_10y_eq_mod_duration: 8.0
     move_to_yield_vol_factor: 0.0001
+  proxy_vol_blend:
+    CM:
+      OVX: 0.6
+      GVZ: 0.4
   policy:
     portfolio_asset_class_targets:
       EQ: 0.80

@@ -495,6 +495,22 @@ def _render_risk_panel(snapshot: PortfolioReportSnapshot) -> None:
                 rows=[_breakdown_row_to_table_row(row) for row in risk.sector_breakdown],
                 row_key="bucket",
             )
+        with ui.row().classes("w-full gap-4 wrap"):
+            render_risk_chart_block(
+                title="FI Tenor Breakdown",
+                figure=build_breakdown_figure(risk.fi_tenor_breakdown, title="FI Tenor Breakdown"),
+                columns=_breakdown_columns(),
+                rows=[_breakdown_row_to_table_row(row) for row in risk.fi_tenor_breakdown],
+                row_key="bucket",
+            )
+            if risk.cm_sector_breakdown:
+                render_risk_chart_block(
+                    title="CM Sector Breakdown",
+                    figure=build_breakdown_figure(risk.cm_sector_breakdown, title="CM Sector Breakdown"),
+                    columns=_breakdown_columns(),
+                    rows=[_breakdown_row_to_table_row(row) for row in risk.cm_sector_breakdown],
+                    row_key="bucket",
+                )
         with ui.card().classes("w-full pm-card p-4"):
             ui.label("Position Risk Decomposition").classes("text-h6")
             render_table(

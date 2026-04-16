@@ -8,7 +8,7 @@ import json
 import logging
 import math
 import re
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Iterable, Mapping, Sequence
 
@@ -71,10 +71,13 @@ DEFAULT_PROXY_LEVELS = {
 ASSET_CLASS_CORR_PROXY_SYMBOLS: dict[str, str | None] = {
     "EQ": "ACWI",
     "FI": "AGG",
-    "CM": "GLD",
+    "CM": "^SPGSCI",
     "MACRO": None,
     "CASH": None,
 }
+# Default CM vol proxy blend weights (configurable via proxy_vol_blend in report_config.yaml).
+# Each key is a proxy-level name already fetched into the proxy dict (OVX, GVZ, …).
+DEFAULT_CM_VOL_BLEND: dict[str, float] = {"OVX": 0.6, "GVZ": 0.4}
 DEFAULT_PROXY_YAHOO_SYMBOLS = {
     "VIX": "^VIX",
     "MOVE": "^MOVE",
@@ -109,6 +112,13 @@ FI_TENOR_BUCKET_LABELS = {
     "UNASSIGNED": "",
 }
 FI_10Y_EQ_DISPLAY_NOTE = "FI dollar exposures are shown as 10Y-equivalent USD notional."
+CM_SECTOR_LABELS = {
+    "EN": "Energy",
+    "IM": "Industrial Metals",
+    "PM": "Precious Metals",
+    "AG": "Agriculture",
+    "UNASSIGNED": "",
+}
 EQ_COUNTRY_POLICY_REGION_ORDER = ("DM", "EM")
 EQ_COUNTRY_OTHER_BUCKETS = {"OTHER", "OTHERS"}
 US_SECTOR_BUCKETS = {
@@ -178,6 +188,7 @@ class RiskInputRow:
     eq_country: str
     eq_sector: str
     fi_tenor: str
+    cm_sector: str
     yahoo_symbol: str
     currency: str = "USD"
 
@@ -213,6 +224,7 @@ class RiskMetricsRow:
     eq_country: str
     eq_sector: str
     fi_tenor: str
+    cm_sector: str
 
 
 @dataclass(frozen=True)
@@ -259,6 +271,7 @@ class RiskReportViewModel:
     country_breakdown: list[BreakdownRow]
     sector_breakdown: list[BreakdownRow]
     fi_tenor_breakdown: list[BreakdownRow]
+    cm_sector_breakdown: list[BreakdownRow]
     policy_drift_asset_class: list[PolicyDriftRow]
     policy_drift_country: list[PolicyDriftRow]
     policy_drift_sector: list[PolicyDriftRow]
@@ -323,6 +336,7 @@ class RiskReportConfig:
     proxy_yahoo: ProxyYahooConfig
     volatility: VolatilityMethodologyConfig
     fixed_income: FixedIncomeMethodologyConfig
+    proxy_vol_blend: dict[str, dict[str, float]] = field(default_factory=dict)
 
 
 def build_risk_html_report(
@@ -442,6 +456,7 @@ def build_risk_report_view_model(
             method="geomean_1m_3m",
             volatility=risk_report_config.volatility,
             proxy_defaults=risk_report_config.proxy_defaults,
+            proxy_vol_blend=risk_report_config.proxy_vol_blend,
             move_to_yield_vol_factor=risk_report_config.fixed_income.move_to_yield_vol_factor,
             internal_id=row.internal_id,
             display_ticker=row.display_ticker,
@@ -459,6 +474,7 @@ def build_risk_report_view_model(
             method="5y_realized",
             volatility=risk_report_config.volatility,
             proxy_defaults=risk_report_config.proxy_defaults,
+            proxy_vol_blend=risk_report_config.proxy_vol_blend,
             move_to_yield_vol_factor=risk_report_config.fixed_income.move_to_yield_vol_factor,
             internal_id=row.internal_id,
             display_ticker=row.display_ticker,
@@ -476,6 +492,7 @@ def build_risk_report_view_model(
             method="ewma",
             volatility=risk_report_config.volatility,
             proxy_defaults=risk_report_config.proxy_defaults,
+            proxy_vol_blend=risk_report_config.proxy_vol_blend,
             move_to_yield_vol_factor=risk_report_config.fixed_income.move_to_yield_vol_factor,
             internal_id=row.internal_id,
             display_ticker=row.display_ticker,
@@ -506,6 +523,7 @@ def build_risk_report_view_model(
             proxy=proxy,
             volatility=risk_report_config.volatility,
             proxy_defaults=risk_report_config.proxy_defaults,
+            proxy_vol_blend=risk_report_config.proxy_vol_blend,
             move_to_yield_vol_factor=risk_report_config.fixed_income.move_to_yield_vol_factor,
             proxy_5y_realized=proxy_realized_5y_vol.get(row.asset_class),
             internal_id=row.internal_id,
@@ -572,6 +590,7 @@ def build_risk_report_view_model(
             eq_country=row.eq_country,
             eq_sector=row.eq_sector,
             fi_tenor=row.fi_tenor,
+            cm_sector=row.cm_sector,
         )
         for row in rows
     ]
@@ -588,6 +607,7 @@ def build_risk_report_view_model(
         lookthrough_path=risk_report_config.us_sector_lookthrough_path,
     )
     fi_tenor_breakdown = _build_fi_tenor_breakdown(included_rows, selected_security_loadings)
+    cm_sector_breakdown = _build_cm_sector_breakdown(included_rows, selected_security_loadings)
     policy_drift_asset_class = _build_asset_class_policy_drift(
         allocation_summary=allocation_summary,
         asset_class_targets=allocation_policy.portfolio_asset_class_targets,
@@ -637,6 +657,7 @@ def build_risk_report_view_model(
         country_breakdown=country_breakdown,
         sector_breakdown=sector_breakdown,
         fi_tenor_breakdown=fi_tenor_breakdown,
+        cm_sector_breakdown=cm_sector_breakdown,
         policy_drift_asset_class=policy_drift_asset_class,
         policy_drift_country=policy_drift_country,
         policy_drift_sector=policy_drift_sector,
@@ -692,6 +713,7 @@ def load_position_rows(
             eq_sector = security.eq_sector
             dir_exposure = security.dir_exposure or "L"
             fi_tenor = security.fi_tenor
+            cm_sector = security.cm_sector
             yahoo_symbol = security.yahoo_symbol
             canonical_symbol = security.canonical_symbol or symbol
         elif security is not None and security.mapping_status == "outside_scope":
@@ -703,6 +725,7 @@ def load_position_rows(
             eq_sector = ""
             dir_exposure = "L"
             fi_tenor = ""
+            cm_sector = ""
             yahoo_symbol = ""
             canonical_symbol = security.canonical_symbol or symbol
         else:
@@ -714,6 +737,7 @@ def load_position_rows(
             eq_sector = ""
             dir_exposure = "L"
             fi_tenor = ""
+            cm_sector = ""
             yahoo_symbol = ""
             canonical_symbol = symbol
 
@@ -754,6 +778,7 @@ def load_position_rows(
                 "eq_country": eq_country,
                 "eq_sector": eq_sector,
                 "fi_tenor": fi_tenor,
+                "cm_sector": cm_sector,
                 "yahoo_symbol": yahoo_symbol,
                 "currency": str(row.get("currency") or ""),
             }
@@ -806,6 +831,7 @@ def load_position_rows(
                 eq_country=str(row["eq_country"]),
                 eq_sector=str(row["eq_sector"]),
                 fi_tenor=str(row["fi_tenor"]),
+                cm_sector=str(row["cm_sector"]),
                 yahoo_symbol=str(row["yahoo_symbol"]),
                 currency=str(row.get("currency") or "USD"),
             )
@@ -948,19 +974,24 @@ def estimated_asset_class_vol(
     proxy: Mapping[str, float],
     *,
     proxy_defaults: Mapping[str, float] | None = None,
+    proxy_vol_blend: Mapping[str, Mapping[str, float]] | None = None,
     cash_vol: float = DEFAULT_CASH_VOL,
 ) -> float:
     defaults = _merged_proxy_default_levels(proxy_defaults)
     default_vix = defaults["VIX"]
     default_move = defaults["MOVE"]
-    default_gvz = defaults["GVZ"]
     name = asset_class.upper()
     if name == "EQ":
         return proxy.get("VIX", default_vix) / 100.0
     if name == "FI":
         return proxy.get("MOVE", default_move) / 100.0
     if name == "CM":
-        return proxy.get("OVX", proxy.get("GVZ", default_gvz)) / 100.0
+        blend = (proxy_vol_blend or {}).get("CM") or DEFAULT_CM_VOL_BLEND
+        total_weight = sum(blend.values()) or 1.0
+        return sum(
+            (w / total_weight) * proxy.get(k, defaults.get(k, defaults["GVZ"])) / 100.0
+            for k, w in blend.items()
+        )
     if name == "CASH":
         return cash_vol
     if name == "FX":
@@ -1067,6 +1098,7 @@ def render_html(
     country_breakdown: list[BreakdownRow],
     sector_breakdown: list[BreakdownRow],
     fi_tenor_breakdown: list[BreakdownRow],
+    cm_sector_breakdown: list[BreakdownRow] | None = None,
     policy_drift_asset_class: list[PolicyDriftRow],
     policy_drift_country: list[PolicyDriftRow],
     policy_drift_sector: list[PolicyDriftRow],
@@ -1083,6 +1115,7 @@ def render_html(
             country_breakdown=country_breakdown,
             sector_breakdown=sector_breakdown,
             fi_tenor_breakdown=fi_tenor_breakdown,
+            cm_sector_breakdown=cm_sector_breakdown or [],
             policy_drift_asset_class=policy_drift_asset_class,
             policy_drift_country=policy_drift_country,
             policy_drift_sector=policy_drift_sector,
@@ -1165,10 +1198,12 @@ def render_risk_tab(view_model: RiskReportViewModel) -> str:
         "</tr>"
         for row in risk_rows
     )
+    cm_sector_breakdown = view_model.cm_sector_breakdown
     allocation_rows = _render_allocation_summary_rows(allocation_summary)
     country_rows = _render_breakdown_rows(country_breakdown)
     sector_rows = _render_breakdown_rows(sector_breakdown)
     tenor_rows = _render_breakdown_rows(fi_tenor_breakdown, include_bucket_label=True)
+    cm_sector_rows = _render_breakdown_rows(cm_sector_breakdown, include_bucket_label=True)
     policy_asset_rows = _render_policy_drift_rows(policy_drift_asset_class)
     policy_country_rows = _render_policy_drift_rows(policy_drift_country)
     policy_sector_rows = _render_policy_drift_rows(policy_drift_sector)
@@ -1269,6 +1304,14 @@ def render_risk_tab(view_model: RiskReportViewModel) -> str:
     <table>
       <thead><tr><th>Tenor</th><th>Label</th><th>Scope</th><th class='num'>Net 10Y Eq Exposure</th><th class='num'>Gross 10Y Eq Exposure</th><th class='num'>Dollar%</th><th class='num'>Vol Contribution</th></tr></thead>
       <tbody>{tenor_rows}</tbody>
+    </table>
+  </div>
+
+  <div class='card'>
+    <h2>CM Sector Breakdown</h2>
+    <table>
+      <thead><tr><th>Sector</th><th>Label</th><th>Scope</th><th class='num'>Net Exposure</th><th class='num'>Gross Exposure</th><th class='num'>Dollar%</th><th class='num'>Vol Contribution</th></tr></thead>
+      <tbody>{cm_sector_rows}</tbody>
     </table>
   </div>
 
@@ -1470,6 +1513,7 @@ def _security_vol(
     method: str,
     volatility: VolatilityMethodologyConfig | None = None,
     proxy_defaults: Mapping[str, float] | None = None,
+    proxy_vol_blend: Mapping[str, Mapping[str, float]] | None = None,
     move_to_yield_vol_factor: float = DEFAULT_MOVE_TO_YIELD_VOL_FACTOR,
     internal_id: str = "",
     display_ticker: str = "",
@@ -1521,6 +1565,7 @@ def _security_vol(
         duration=duration,
         proxy=proxy,
         proxy_defaults=proxy_defaults,
+        proxy_vol_blend=proxy_vol_blend,
         move_to_yield_vol_factor=move_to_yield_vol_factor,
         cash_vol=methodology.cash_vol,
     )
@@ -1570,6 +1615,7 @@ def _adjusted_proxy_security_vol(
     proxy: Mapping[str, float],
     volatility: VolatilityMethodologyConfig | None = None,
     proxy_defaults: Mapping[str, float] | None = None,
+    proxy_vol_blend: Mapping[str, Mapping[str, float]] | None = None,
     move_to_yield_vol_factor: float = DEFAULT_MOVE_TO_YIELD_VOL_FACTOR,
     proxy_5y_realized: float | None = None,
     internal_id: str = "",
@@ -1598,6 +1644,7 @@ def _adjusted_proxy_security_vol(
         duration=duration,
         proxy=proxy,
         proxy_defaults=proxy_defaults,
+        proxy_vol_blend=proxy_vol_blend,
         move_to_yield_vol_factor=move_to_yield_vol_factor,
         cash_vol=methodology.cash_vol,
     )
@@ -1657,6 +1704,7 @@ def _proxy_fallback_security_vol(
     duration: float | None,
     proxy: Mapping[str, float],
     proxy_defaults: Mapping[str, float] | None = None,
+    proxy_vol_blend: Mapping[str, Mapping[str, float]] | None = None,
     move_to_yield_vol_factor: float = DEFAULT_MOVE_TO_YIELD_VOL_FACTOR,
     cash_vol: float = DEFAULT_CASH_VOL,
 ) -> float:
@@ -1676,6 +1724,7 @@ def _proxy_fallback_security_vol(
         asset_class,
         proxy,
         proxy_defaults=defaults,
+        proxy_vol_blend=proxy_vol_blend,
         cash_vol=cash_vol,
     )
 
@@ -1899,6 +1948,14 @@ def _load_risk_report_config(
         if str(key).strip().upper() not in {"DEFAULTS", "YAHOO"}
     }
 
+    raw_blend = payload.get("proxy_vol_blend", {})
+    if not isinstance(raw_blend, Mapping):
+        raise ValueError("Risk report proxy_vol_blend config must be a mapping")
+    proxy_vol_blend: dict[str, dict[str, float]] = {
+        str(ac).upper(): {str(k): float(v) for k, v in blend.items()}
+        for ac, blend in raw_blend.items()
+        if isinstance(blend, Mapping)
+    }
     return RiskReportConfig(
         eq_country_lookthrough_path=eq_path,
         us_sector_lookthrough_path=us_path,
@@ -1908,6 +1965,7 @@ def _load_risk_report_config(
         proxy_yahoo=_parse_proxy_yahoo_config(proxy_payload.get("yahoo", {})),
         volatility=_parse_volatility_config(volatility_payload),
         fixed_income=_parse_fixed_income_config(fixed_income_payload),
+        proxy_vol_blend=proxy_vol_blend,
     )
 
 
@@ -2232,6 +2290,19 @@ def _build_fi_tenor_breakdown(
             -item.gross_exposure_usd,
             item.bucket,
         ),
+    )
+
+
+def _build_cm_sector_breakdown(
+    rows: list[RiskInputRow],
+    estimated_loadings: Mapping[str, float],
+) -> list[BreakdownRow]:
+    return _build_breakdown(
+        rows=rows,
+        estimated_loadings=estimated_loadings,
+        expander=lambda row: [(row.cm_sector or "UNASSIGNED", 1.0)] if row.asset_class == "CM" else [],
+        parent="CM",
+        bucket_labeler=lambda b: CM_SECTOR_LABELS.get(b, b),
     )
 
 

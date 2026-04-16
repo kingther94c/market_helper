@@ -320,6 +320,7 @@ def test_expand_us_sector_allocations_prefers_lookthrough_over_security_sector()
         eq_country="US",
         eq_sector="Semiconductor",
         fi_tenor="",
+        cm_sector="",
         yahoo_symbol="SOXX",
     )
 
@@ -363,6 +364,7 @@ def test_report_us_etf_lookthrough_symbols_skips_single_name_equities() -> None:
         eq_country="US",
         eq_sector="",
         fi_tenor="",
+        cm_sector="",
         yahoo_symbol="SPY",
     )
     tsla_row = RiskInputRow(
@@ -396,6 +398,7 @@ def test_report_us_etf_lookthrough_symbols_skips_single_name_equities() -> None:
         eq_country="US",
         eq_sector="",
         fi_tenor="",
+        cm_sector="",
         yahoo_symbol="TSLA",
     )
     aapl_row = RiskInputRow(
@@ -429,6 +432,7 @@ def test_report_us_etf_lookthrough_symbols_skips_single_name_equities() -> None:
         eq_country="US",
         eq_sector="",
         fi_tenor="",
+        cm_sector="",
         yahoo_symbol="AAPL",
     )
 

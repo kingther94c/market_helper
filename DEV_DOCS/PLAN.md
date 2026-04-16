@@ -115,6 +115,11 @@ Build a broker-agnostic, read-only IBKR integration layer for market monitoring 
 - Switched historical inter-asset correlation to use per-asset-class proxy tickers (`ACWI/AGG/GLD`) via `_load_asset_class_proxy_returns`; asset classes with no proxy (MACRO, CASH) are forced to 0 corr with others.
 - Exposed `inter_asset_corr` end-to-end (contracts → services → workflows → pipelines → CLI → NiceGUI dashboard toggle) so users can compare portfolio vol under `historical / corr_0 / corr_1`.
 - Added a new forward-looking vol method `_adjusted_proxy_security_vol`: `fwd(asset) = realized_5Y(asset) / realized_5Y(proxy) × simple_proxy_level`. The simple proxy-vol calc (`_proxy_fallback_security_vol`) is preserved as the last-resort fallback. Exposed via the `vol_method="forward_looking"` option in the dashboard, CLI, and risk HTML summary card.
+- Cached intraday performance view models (USD + SGD) in `PortfolioMonitorQueryService._perf_cache` so the slow feather/CSV rebuild only fires once per calendar day (invalidated on date change, path change, or feather mtime change); risk view model still rebuilds per-request since it reads live Yahoo proxy levels.
+- Added CM commodity sub-sectors (`cm_sector` field: EN/IM/PM/AG) to `security_universe.csv`, `SecurityUniverseRow`, and `SecurityReference`; mapped all existing CM universe rows.
+- Switched the CM inter-asset correlation proxy from `GLD` to `^SPGSCI` in `ASSET_CLASS_CORR_PROXY_SYMBOLS`.
+- Replaced the CM vol proxy OVX-or-GVZ chain with a configurable weighted blend (default 60% OVX / 40% GVZ) controlled by `proxy_vol_blend` in `report_config.yaml`; blend is threaded through `RiskReportConfig → _security_vol → estimated_asset_class_vol`.
+- Added a CM Sector Breakdown panel to both the HTML risk report (`render_risk_tab`) and the NiceGUI dashboard (`_render_risk_panel`) following the same pattern as the FI tenor breakdown.
 
 ## In Progress
 - Tightening the live TWS / `ib_async` report path with better account/session ergonomics, broader contract coverage, and richer real-world fixture coverage.
