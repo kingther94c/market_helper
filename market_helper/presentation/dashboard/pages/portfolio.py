@@ -326,6 +326,7 @@ def register_portfolio_page(
         state._refresh_ui = render.refresh  # type: ignore[attr-defined]
         render()
         ui.timer(0.1, lambda: asyncio.create_task(initialize_page()), once=True)
+        ui.timer(0.5, lambda: render.refresh() if state.active_job is not None else None)
 
     _REGISTERED = True
 
@@ -1004,7 +1005,7 @@ def _render_action_console(state: PortfolioPageState) -> None:
                     subtitle="Refresh the tracked position CSV from a local TWS / IB Gateway session.",
                     status=state.action_statuses["live"].status,
                     message=state.action_statuses["live"].message,
-                    progress_summary=state.action_statuses["live"].progress_summary,
+                    progress_summary=_action_progress_summary(state, "live"),
                     last_output_path=state.action_statuses["live"].last_output_path,
                     body=lambda: _render_live_action_body(state, run_action),
                 )
@@ -1013,7 +1014,7 @@ def _render_action_console(state: PortfolioPageState) -> None:
                     subtitle="Rebuild flex-based performance artifacts from local XML or live Flex credentials.",
                     status=state.action_statuses["flex"].status,
                     message=state.action_statuses["flex"].message,
-                    progress_summary=state.action_statuses["flex"].progress_summary,
+                    progress_summary=_action_progress_summary(state, "flex"),
                     last_output_path=state.action_statuses["flex"].last_output_path,
                     body=lambda: _render_flex_action_body(state, run_action),
                 )
@@ -1022,7 +1023,7 @@ def _render_action_console(state: PortfolioPageState) -> None:
                     subtitle="Regenerate the compatibility combined HTML report from the current artifact form.",
                     status=state.action_statuses["combined"].status,
                     message=state.action_statuses["combined"].message,
-                    progress_summary=state.action_statuses["combined"].progress_summary,
+                    progress_summary=_action_progress_summary(state, "combined"),
                     last_output_path=state.action_statuses["combined"].last_output_path,
                     body=lambda: _render_export_action_body(state, run_action),
                 )
@@ -1243,6 +1244,12 @@ def _set_action_error(state: PortfolioPageState, action_name: str, message: str)
     status.progress_summary = _summarize_progress(state)
 
 
+def _action_progress_summary(state: PortfolioPageState, action_name: str) -> str:
+    if state.active_job == action_name and state.progress_sink.events:
+        return _summarize_progress(state)
+    return state.action_statuses[action_name].progress_summary
+
+
 def _summarize_progress(state: PortfolioPageState) -> str:
     if not state.progress_sink.events:
         return "No progress events"
@@ -1356,9 +1363,9 @@ def _update_perf_window(state: PortfolioPageState, currency: str, value: str) ->
 
 def _format_progress_event(event: Any) -> str:
     if event.completed is not None and event.total is not None:
-        return f"{event.completed}/{event.total}"
+        return f"{event.completed} / {event.total}"
     if event.current is not None and event.total is not None:
-        return f"{event.current}/{event.total}"
+        return f"{event.current} / {event.total}"
     return ""
 
 

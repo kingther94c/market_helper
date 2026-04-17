@@ -1,13 +1,20 @@
 from __future__ import annotations
 
-from market_helper.application.portfolio_monitor import GenerateCombinedReportInputs, PortfolioReportInputs
+from market_helper.application.portfolio_monitor import (
+    GenerateCombinedReportInputs,
+    InMemoryUiProgressSink,
+    PortfolioReportInputs,
+    UiProgressEvent,
+)
 from market_helper.presentation.dashboard.pages.portfolio import (
+    ActionStatusState,
     ExportActionFormState,
     FlexActionFormState,
     LiveActionFormState,
     PortfolioArtifactFormState,
     PortfolioPageState,
     ReferenceActionFormState,
+    _action_progress_summary,
     _build_initial_state,
     _artifact_inputs_from_form,
     _combined_inputs_from_form,
@@ -163,3 +170,26 @@ def test_build_initial_state_prefills_flex_credentials_from_local_env(tmp_path, 
 
     assert state.flex_form.query_id == "demo-query"
     assert state.flex_form.token == "demo-token"
+
+
+def test_action_progress_summary_uses_live_x_of_total_while_action_runs() -> None:
+    sink = InMemoryUiProgressSink()
+    sink.record(UiProgressEvent(kind="stage", label="IBKR Flex report", current=2, total=5))
+    state = PortfolioPageState(
+        artifact_form=PortfolioArtifactFormState(),
+        live_form=LiveActionFormState(),
+        flex_form=FlexActionFormState(),
+        export_form=ExportActionFormState(),
+        reference_form=ReferenceActionFormState(),
+        active_job="flex",
+        progress_sink=sink,
+        action_statuses={
+            "live": ActionStatusState(),
+            "flex": ActionStatusState(status="running", progress_summary="Starting..."),
+            "combined": ActionStatusState(),
+            "security-reference": ActionStatusState(),
+            "etf": ActionStatusState(),
+        },
+    )
+
+    assert _action_progress_summary(state, "flex") == "IBKR Flex report: 2 / 5"
