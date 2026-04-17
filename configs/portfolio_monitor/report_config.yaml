@@ -24,6 +24,14 @@ risk_report:
     long_window_days: 63
     long_term_lookback_years: 5
     cash_vol: 0.01
+  # Maps dashboard toggle labels to internal vol-method keys. Order
+  # in this mapping defines the toggle option order.
+  vol_method_labels:
+    Long-Term: 5y_realized
+    Fast: geomean_1m_3m
+    Forward-Looking: forward_looking
+  fx_excluded_asset_classes:
+    - FX
   fixed_income:
     fi_10y_eq_mod_duration: 8.0
     move_to_yield_vol_factor: 0.0001

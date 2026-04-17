@@ -141,6 +141,40 @@ def write_symbol_return_cache(
     return destination
 
 
+_SESSION_CACHE: dict[tuple, tuple[str, YahooReturnCache]] = {}
+
+
+def _session_cache_key(
+    *,
+    symbol: str,
+    cache_dir: str | Path,
+    period: str,
+    interval: str,
+    return_method: str,
+    price_field: str,
+) -> tuple:
+    return (
+        str(symbol),
+        str(Path(cache_dir)),
+        str(period),
+        str(interval),
+        str(return_method),
+        str(price_field),
+    )
+
+
+def _today_iso(now: pd.Timestamp | None = None) -> str:
+    reference = pd.Timestamp.utcnow() if now is None else pd.Timestamp(now)
+    if reference.tzinfo is not None:
+        reference = reference.tz_localize(None)
+    return reference.normalize().date().isoformat()
+
+
+def clear_session_yahoo_cache() -> None:
+    """Drop the in-process Yahoo return cache (useful for tests or forced refresh)."""
+    _SESSION_CACHE.clear()
+
+
 def ensure_symbol_return_cache(
     symbol: str,
     *,
@@ -153,6 +187,20 @@ def ensure_symbol_return_cache(
     force_refresh: bool = False,
     now: pd.Timestamp | None = None,
 ) -> YahooReturnCache:
+    session_key = _session_cache_key(
+        symbol=symbol,
+        cache_dir=cache_dir,
+        period=period,
+        interval=interval,
+        return_method=return_method,
+        price_field=price_field,
+    )
+    today = _today_iso(now)
+    if not force_refresh:
+        hit = _SESSION_CACHE.get(session_key)
+        if hit is not None and hit[0] == today:
+            return hit[1]
+
     cache_path = yahoo_symbol_cache_path(symbol, cache_dir=cache_dir)
     cached = load_symbol_return_cache(cache_path)
     if (
@@ -167,12 +215,14 @@ def ensure_symbol_return_cache(
             now=now,
         )
     ):
+        _SESSION_CACHE[session_key] = (today, cached)
         return cached
 
     try:
         history = yahoo_client.fetch_price_history(symbol, period=period, interval=interval)
     except YahooFinanceTransientError:
         if cached is not None and not cached.series.empty:
+            _SESSION_CACHE[session_key] = (today, cached)
             return cached
         raise
     series = price_history_to_return_series(history, return_method=return_method, price_field=price_field)
@@ -188,6 +238,7 @@ def ensure_symbol_return_cache(
         series=series,
     )
     write_symbol_return_cache(cache, path=cache_path)
+    _SESSION_CACHE[session_key] = (today, cache)
     return cache
 
 
@@ -341,6 +392,7 @@ __all__ = [
     "DEFAULT_YAHOO_RETURNS_CACHE_DIR",
     "YahooReturnCache",
     "build_internal_id_return_series_from_yahoo",
+    "clear_session_yahoo_cache",
     "ensure_symbol_return_cache",
     "load_internal_id_return_series_override",
     "load_symbol_return_cache",

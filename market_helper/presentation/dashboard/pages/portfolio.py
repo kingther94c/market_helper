@@ -35,7 +35,13 @@ from market_helper.presentation.dashboard.formatters import (
     format_text,
 )
 from market_helper.reporting.performance_html import PerformanceMetricRow, PerformanceReportViewModel
-from market_helper.reporting.risk_html import BreakdownRow, PolicyDriftRow, RiskMetricsRow
+from market_helper.reporting.risk_html import (
+    BreakdownRow,
+    DEFAULT_VOL_METHOD_LABELS,
+    PolicyDriftRow,
+    RiskMetricsRow,
+    resolve_vol_method_key,
+)
 
 
 _REGISTERED = False
@@ -55,7 +61,7 @@ class PortfolioArtifactFormState:
     security_reference_path: str = ""
     risk_config_path: str = ""
     allocation_policy_path: str = ""
-    vol_method: str = "geomean_1m_3m"
+    vol_method: str = "Fast"
     inter_asset_corr: str = "historical"
 
 
@@ -299,8 +305,8 @@ def _render_toolbar(state: PortfolioPageState) -> None:
         with ui.grid(columns=2).classes("w-full gap-3"):
             ui.input("Positions CSV").bind_value(state.artifact_form, "positions_csv_path").classes("w-full")
             ui.select(
-                options=["geomean_1m_3m", "5y_realized", "ewma", "forward_looking"],
-                label="Risk vol method",
+                options=list(DEFAULT_VOL_METHOD_LABELS.keys()),
+                label="Vol Method",
                 value=state.artifact_form.vol_method,
             ).bind_value(state.artifact_form, "vol_method")
             ui.select(
