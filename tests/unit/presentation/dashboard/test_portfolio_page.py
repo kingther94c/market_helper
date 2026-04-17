@@ -134,3 +134,32 @@ def test_build_initial_state_uses_missing_positions_status_when_default_artifact
     state = _build_initial_state(QueryService())
 
     assert state.status_message == "Positions CSV not found. Run Live Refresh or enter a valid artifact path."
+
+
+def test_build_initial_state_prefills_flex_credentials_from_local_env(tmp_path, monkeypatch) -> None:
+    local_env = tmp_path / "local.env"
+    local_env.write_text(
+        "\n".join(
+            [
+                'IBKR_FLEX_QUERY_ID="demo-query"',
+                'IBKR_FLEX_TOKEN="demo-token"',
+            ]
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(
+        "market_helper.presentation.dashboard.pages.portfolio.DEFAULT_CANONICAL_LOCAL_ENV_PATH",
+        local_env,
+    )
+
+    class QueryService:
+        def resolve_inputs(self, inputs: PortfolioReportInputs | None = None) -> PortfolioReportInputs:
+            return PortfolioReportInputs(
+                positions_csv_path="data/positions.csv",
+                performance_output_dir="data/flex",
+            )
+
+    state = _build_initial_state(QueryService())
+
+    assert state.flex_form.query_id == "demo-query"
+    assert state.flex_form.token == "demo-token"
