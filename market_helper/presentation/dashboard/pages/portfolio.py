@@ -1,7 +1,9 @@
 from __future__ import annotations
 
 import asyncio
+import csv
 from dataclasses import dataclass, field
+from functools import lru_cache
 from pathlib import Path
 from typing import Any
 
@@ -560,11 +562,77 @@ def _render_risk_fixed_income(risk) -> None:
 
 def _render_risk_commodity(risk) -> None:
     cm_rows = [r for r in risk.risk_rows if r.asset_class == "CM"]
+    sector_map = _load_cm_sector_map()
+    sector_rows: dict[str, dict[str, float]] = {}
+    total_exposure = sum(r.exposure_usd for r in cm_rows)
+    total_risk = sum(r.risk_contribution_estimated for r in cm_rows)
+    for row in cm_rows:
+        code = sector_map.get(row.canonical_symbol.upper(), "")
+        bucket = _CM_SECTOR_LABELS.get(code, "Unmapped") if code else "Unmapped"
+        agg = sector_rows.setdefault(
+            bucket, {"exposure_usd": 0.0, "gross_exposure_usd": 0.0, "risk_contribution_estimated": 0.0}
+        )
+        agg["exposure_usd"] += row.exposure_usd
+        agg["gross_exposure_usd"] += row.gross_exposure_usd
+        agg["risk_contribution_estimated"] += row.risk_contribution_estimated
     with ui.column().classes("w-full gap-4"):
         with ui.card().classes("w-full pm-card p-4"):
-            ui.label("Commodity Sector Table").classes("text-h6")
-            ui.label("Sector tagging (cm_sector) propagation pending — table shows raw holdings.").classes("pm-muted text-caption")
+            ui.label("Commodity Sector Summary").classes("text-h6")
+            if not sector_rows:
+                ui.label("No commodity positions.").classes("pm-muted")
+            else:
+                render_table(
+                    columns=[
+                        {"name": "bucket", "label": "Sector", "field": "bucket"},
+                        {"name": "exposure_usd", "label": "Net Exposure ($)", "field": "exposure_usd"},
+                        {"name": "gross_exposure_usd", "label": "Gross Exposure ($)", "field": "gross_exposure_usd"},
+                        {"name": "within_cm_weight", "label": "Within-CM Weight %", "field": "within_cm_weight"},
+                        {"name": "risk_contribution_estimated", "label": "Vol Contribution %", "field": "risk_contribution_estimated"},
+                    ],
+                    rows=[
+                        {
+                            "bucket": bucket,
+                            "exposure_usd": format_amount(agg["exposure_usd"]),
+                            "gross_exposure_usd": format_amount(agg["gross_exposure_usd"]),
+                            "within_cm_weight": format_percent(
+                                agg["exposure_usd"] / total_exposure if total_exposure else 0.0
+                            ),
+                            "risk_contribution_estimated": format_percent(agg["risk_contribution_estimated"]),
+                        }
+                        for bucket, agg in sorted(sector_rows.items(), key=lambda kv: -kv[1]["exposure_usd"])
+                    ],
+                    row_key="bucket",
+                )
+            ui.label(
+                "Cross-sector correlation heatmap pending — requires return-series plumbing through the view model."
+            ).classes("pm-muted text-caption")
         _render_position_subtable("Commodity Holdings", cm_rows)
+
+
+_CM_SECTOR_LABELS: dict[str, str] = {
+    "PM": "Precious Metals",
+    "IM": "Industrial Metals",
+    "EN": "Energy",
+    "AG": "Agriculture",
+}
+
+
+@lru_cache(maxsize=1)
+def _load_cm_sector_map() -> dict[str, str]:
+    path = Path(__file__).resolve().parents[4] / "configs" / "security_universe.csv"
+    if not path.exists():
+        return {}
+    mapping: dict[str, str] = {}
+    with path.open("r", encoding="utf-8", newline="") as handle:
+        reader = csv.DictReader(handle)
+        for row in reader:
+            if (row.get("asset_class") or "").strip().upper() != "CM":
+                continue
+            symbol = (row.get("ibkr_symbol") or "").strip().upper()
+            sector = (row.get("cm_sector") or "").strip().upper()
+            if symbol and sector:
+                mapping[symbol] = sector
+    return mapping
 
 
 def _render_risk_fx(risk) -> None:
