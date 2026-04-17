@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import csv
+import os
 from dataclasses import dataclass, field
 from functools import lru_cache
 from pathlib import Path
@@ -49,6 +50,11 @@ from market_helper.reporting.risk_html import (
 _REGISTERED = False
 _QUERY_SERVICE: PortfolioMonitorQueryService = PortfolioMonitorQueryService()
 _ACTION_SERVICE: PortfolioMonitorActionService = PortfolioMonitorActionService()
+DEFAULT_CANONICAL_LOCAL_ENV_PATH = (
+    Path(__file__).resolve().parents[4] / "configs" / "portfolio_monitor" / "local.env"
+)
+DEFAULT_IBKR_FLEX_QUERY_ID_ENV_VAR = "IBKR_FLEX_QUERY_ID"
+DEFAULT_IBKR_FLEX_TOKEN_ENV_VAR = "IBKR_FLEX_TOKEN"
 
 
 @dataclass
@@ -158,6 +164,38 @@ def _initial_dashboard_status(positions_csv_path: str) -> str:
     if _positions_csv_ready_for_autoload(positions_csv_path):
         return "Ready. Click Refresh Snapshot to load the current artifacts."
     return "Positions CSV not found. Run Live Refresh or enter a valid artifact path."
+
+
+def _resolve_local_env_value(key: str) -> str:
+    normalized_key = str(key).strip()
+    if not normalized_key:
+        return ""
+    from_process_env = str(os.environ.get(normalized_key, "")).strip()
+    if from_process_env:
+        return from_process_env
+    return _read_env_file_value(DEFAULT_CANONICAL_LOCAL_ENV_PATH, normalized_key)
+
+
+def _read_env_file_value(path: Path, key: str) -> str:
+    if not path.exists():
+        return ""
+
+    for raw_line in path.read_text(encoding="utf-8").splitlines():
+        line = raw_line.strip()
+        if not line or line.startswith("#"):
+            continue
+        if line.startswith("export "):
+            line = line[len("export ") :].strip()
+        if "=" not in line:
+            continue
+        raw_key, raw_value = line.split("=", 1)
+        if raw_key.strip() != key:
+            continue
+        value = raw_value.strip()
+        if len(value) >= 2 and value[0] == value[-1] and value[0] in {"\"", "'"}:
+            value = value[1:-1]
+        return value.strip()
+    return ""
 
 
 def register_portfolio_page(
@@ -272,12 +310,10 @@ def register_portfolio_page(
                 else:
                     raise ValueError(f"Unsupported action: {action_name}")
                 state.status_message = state.action_statuses[action_name].message
-                ui.notify(state.status_message, type="positive")
                 await load_snapshot()
             except Exception as exc:
                 _set_action_error(state, action_name, str(exc))
                 state.status_message = f"Action failed: {exc}"
-                ui.notify(state.status_message, type="negative")
                 render.refresh()
             finally:
                 state.active_job = None
@@ -296,6 +332,8 @@ def _build_initial_state(query_service: PortfolioMonitorQueryService) -> Portfol
     inputs = query_service.resolve_inputs()
     positions_path = str(inputs.positions_csv_path or "")
     performance_output_dir = str(inputs.performance_output_dir or "")
+    flex_query_id = _resolve_local_env_value(DEFAULT_IBKR_FLEX_QUERY_ID_ENV_VAR)
+    flex_token = _resolve_local_env_value(DEFAULT_IBKR_FLEX_TOKEN_ENV_VAR)
     return PortfolioPageState(
         artifact_form=PortfolioArtifactFormState(
             positions_csv_path=positions_path,
@@ -312,7 +350,11 @@ def _build_initial_state(query_service: PortfolioMonitorQueryService) -> Portfol
             inter_asset_corr=inputs.inter_asset_corr,
         ),
         live_form=LiveActionFormState(output_path=positions_path),
-        flex_form=FlexActionFormState(output_dir=performance_output_dir),
+        flex_form=FlexActionFormState(
+            output_dir=performance_output_dir,
+            query_id=flex_query_id,
+            token=flex_token,
+        ),
         export_form=ExportActionFormState(output_path=str(Path(performance_output_dir).parent / "portfolio_combined_report.html")),
         reference_form=ReferenceActionFormState(security_reference_output_path=str(inputs.security_reference_path or "")),
         status_message=_initial_dashboard_status(positions_path),
