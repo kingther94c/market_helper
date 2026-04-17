@@ -32,6 +32,14 @@ risk_report:
     Forward-Looking: forward_looking
   fx_excluded_asset_classes:
     - FX
+  # Commodity dashboard: proxy ETF per sector for the cross-sector
+  # correlation heatmap. Keys match cm_sector codes in security_universe.csv.
+  commodity_sector_proxies:
+    PM: GLD
+    IM: DBB
+    EN: USO
+    AG: DBA
+  commodity_sector_correlation_lookback_days: 1260
   fixed_income:
     fi_10y_eq_mod_duration: 8.0
     move_to_yield_vol_factor: 0.0001
