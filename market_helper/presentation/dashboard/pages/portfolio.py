@@ -130,6 +130,7 @@ class PortfolioPageState:
     load_error: str | None = None
     active_job: str | None = None
     status_message: str = "Ready"
+    snapshot_mode: bool = False
     selected_perf_mode: dict[str, str] = field(default_factory=lambda: {"USD": "percent", "SGD": "percent"})
     selected_perf_window: dict[str, str] = field(default_factory=lambda: {"USD": "MTD", "SGD": "MTD"})
     progress_sink: InMemoryUiProgressSink = field(default_factory=InMemoryUiProgressSink)
@@ -213,8 +214,9 @@ def register_portfolio_page(
         return
 
     @ui.page("/portfolio")
-    async def portfolio_page() -> None:
+    async def portfolio_page(snapshot: str | None = None) -> None:  # noqa: ARG001
         state = _build_initial_state(_QUERY_SERVICE)
+        state.snapshot_mode = str(snapshot or "").strip() in {"1", "true", "yes"}
 
         @ui.refreshable
         def render() -> None:
@@ -365,11 +367,16 @@ def _render_portfolio_page(state: PortfolioPageState) -> None:
     add_dashboard_styles()
     with ui.column().classes("w-full max-w-[1600px] mx-auto p-4 pm-shell"):
         _render_header(state)
-        _render_toolbar(state)
+        if not state.snapshot_mode:
+            _render_toolbar(state)
         _render_feedback(state)
         _render_main_tabs(state)
-        _render_action_console(state)
-        _render_logs(state)
+        if not state.snapshot_mode:
+            _render_action_console(state)
+            _render_logs(state)
+        if state.snapshot_mode and state.snapshot is not None:
+            as_of = getattr(state.snapshot, "as_of", "")
+            ui.html(f'<div id="snapshot-ready" data-as-of="{as_of}"></div>')
 
 
 def _render_header(state: PortfolioPageState) -> None:
