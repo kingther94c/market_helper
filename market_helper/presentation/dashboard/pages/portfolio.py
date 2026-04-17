@@ -780,10 +780,97 @@ def _render_risk_commodity(risk) -> None:
                     ],
                     row_key="bucket",
                 )
-            ui.label(
-                "Cross-sector correlation heatmap pending — requires return-series plumbing through the view model."
-            ).classes("pm-muted text-caption")
+        _render_commodity_correlation_heatmap()
         _render_position_subtable("Commodity Holdings", cm_rows)
+
+
+def _render_commodity_correlation_heatmap() -> None:
+    proxies = _load_commodity_sector_proxies()
+    if not proxies:
+        return
+    matrix = _compute_commodity_sector_correlation(proxies)
+    if matrix is None:
+        with ui.card().classes("w-full pm-card p-4"):
+            ui.label("Commodity Sector Correlation").classes("text-h6")
+            ui.label("Proxy return data unavailable — heatmap skipped.").classes("pm-muted")
+        return
+    labels, corr = matrix
+    display_labels = [_CM_SECTOR_LABELS.get(code, code) for code in labels]
+    figure = {
+        "data": [
+            {
+                "type": "heatmap",
+                "z": corr,
+                "x": display_labels,
+                "y": display_labels,
+                "zmin": -1,
+                "zmax": 1,
+                "colorscale": "RdBu",
+                "reversescale": True,
+                "hovertemplate": "%{x} vs %{y}<br>corr=%{z:.2f}<extra></extra>",
+            }
+        ],
+        "layout": {
+            "template": "plotly_white",
+            "height": 360,
+            "margin": {"l": 100, "r": 40, "t": 24, "b": 80},
+            "xaxis": {"tickangle": -20},
+        },
+        "config": {"displayModeBar": False, "responsive": True},
+    }
+    with ui.card().classes("w-full pm-card p-4"):
+        ui.label("Commodity Sector Correlation").classes("text-h6")
+        ui.plotly(figure).classes("w-full h-[380px]")
+
+
+@lru_cache(maxsize=1)
+def _load_commodity_sector_proxies() -> tuple[tuple[str, str], ...]:
+    import yaml
+
+    path = (
+        Path(__file__).resolve().parents[4]
+        / "configs"
+        / "portfolio_monitor"
+        / "report_config.yaml"
+    )
+    if not path.exists():
+        return ()
+    with path.open("r", encoding="utf-8") as handle:
+        data = yaml.safe_load(handle) or {}
+    proxies = (data.get("risk_report") or {}).get("commodity_sector_proxies") or {}
+    return tuple((str(code).upper(), str(symbol)) for code, symbol in proxies.items() if symbol)
+
+
+def _compute_commodity_sector_correlation(
+    proxies: tuple[tuple[str, str], ...],
+) -> tuple[list[str], list[list[float]]] | None:
+    from market_helper.data_sources.yahoo import YahooFinanceClient
+    from market_helper.domain.portfolio_monitor.services.yahoo_returns import (
+        ensure_symbol_return_cache,
+    )
+    from market_helper.reporting.risk_html import pairwise_corr
+
+    client = YahooFinanceClient()
+    series_by_code: dict[str, list[float]] = {}
+    for code, symbol in proxies:
+        try:
+            cache = ensure_symbol_return_cache(symbol, yahoo_client=client, period="5y")
+        except Exception:
+            continue
+        if cache.series is None or cache.series.empty:
+            continue
+        series_by_code[code] = cache.series.tolist()
+    if len(series_by_code) < 2:
+        return None
+    labels = [code for code, _ in proxies if code in series_by_code]
+    corr = [
+        [
+            1.0 if a == b else pairwise_corr(series_by_code[a], series_by_code[b])
+            for b in labels
+        ]
+        for a in labels
+    ]
+    return labels, corr
 
 
 _CM_SECTOR_LABELS: dict[str, str] = {
