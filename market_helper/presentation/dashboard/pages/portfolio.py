@@ -138,6 +138,22 @@ class PortfolioPageState:
     )
 
 
+def _normalize_vol_method_label(value: str) -> str:
+    normalized = str(value).strip()
+    if normalized in DEFAULT_VOL_METHOD_LABELS:
+        return normalized
+    resolved_key = resolve_vol_method_key(normalized, DEFAULT_VOL_METHOD_LABELS)
+    for label, key in DEFAULT_VOL_METHOD_LABELS.items():
+        if key == resolved_key:
+            return label
+    return next(iter(DEFAULT_VOL_METHOD_LABELS))
+
+
+def _positions_csv_ready_for_autoload(value: str) -> bool:
+    normalized = value.strip()
+    return bool(normalized) and Path(normalized).exists()
+
+
 def register_portfolio_page(
     *,
     query_service: PortfolioMonitorQueryService | None = None,
@@ -180,6 +196,16 @@ def register_portfolio_page(
             finally:
                 state.is_loading = False
                 render.refresh()
+
+        async def initialize_page() -> None:
+            if not _positions_csv_ready_for_autoload(state.artifact_form.positions_csv_path):
+                state.snapshot = None
+                state.warnings = []
+                state.load_error = None
+                state.status_message = "Positions CSV not found. Run Live Refresh or enter a valid artifact path."
+                render.refresh()
+                return
+            await load_snapshot()
 
         async def run_action(action_name: str) -> None:
             if state.active_job is not None:
@@ -249,7 +275,7 @@ def register_portfolio_page(
         state._run_action = run_action  # type: ignore[attr-defined]
         state._refresh_ui = render.refresh  # type: ignore[attr-defined]
         render()
-        ui.timer(0.1, lambda: asyncio.create_task(load_snapshot()), once=True)
+        ui.timer(0.1, lambda: asyncio.create_task(initialize_page()), once=True)
 
     _REGISTERED = True
 
@@ -270,7 +296,7 @@ def _build_initial_state(query_service: PortfolioMonitorQueryService) -> Portfol
             security_reference_path=str(inputs.security_reference_path or ""),
             risk_config_path=str(inputs.risk_config_path or ""),
             allocation_policy_path=str(inputs.allocation_policy_path or ""),
-            vol_method=inputs.vol_method,
+            vol_method=_normalize_vol_method_label(inputs.vol_method),
             inter_asset_corr=inputs.inter_asset_corr,
         ),
         live_form=LiveActionFormState(output_path=positions_path),

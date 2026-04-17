@@ -8,11 +8,13 @@ from market_helper.presentation.dashboard.pages.portfolio import (
     PortfolioArtifactFormState,
     PortfolioPageState,
     ReferenceActionFormState,
+    _build_initial_state,
     _artifact_inputs_from_form,
     _combined_inputs_from_form,
     _etf_inputs_from_form,
     _flex_inputs_from_form,
     _live_inputs_from_form,
+    _positions_csv_ready_for_autoload,
 )
 
 
@@ -85,3 +87,26 @@ def test_combined_export_form_reuses_artifact_form_inputs() -> None:
     assert combined.performance_output_dir == "data/flex"
     assert combined.output_path == "outputs/combined.html"
     assert combined.vol_method == "5y_realized"
+
+
+def test_build_initial_state_normalizes_internal_vol_method_key_for_select() -> None:
+    class QueryService:
+        def resolve_inputs(self, inputs: PortfolioReportInputs | None = None) -> PortfolioReportInputs:
+            return PortfolioReportInputs(
+                positions_csv_path="data/positions.csv",
+                performance_output_dir="data/flex",
+                vol_method="geomean_1m_3m",
+            )
+
+    state = _build_initial_state(QueryService())
+
+    assert state.artifact_form.vol_method == "Fast"
+
+
+def test_positions_csv_ready_for_autoload_requires_existing_file(tmp_path) -> None:
+    existing = tmp_path / "positions.csv"
+    existing.write_text("as_of\n", encoding="utf-8")
+
+    assert _positions_csv_ready_for_autoload(str(existing)) is True
+    assert _positions_csv_ready_for_autoload(str(tmp_path / "missing.csv")) is False
+    assert _positions_csv_ready_for_autoload("") is False
