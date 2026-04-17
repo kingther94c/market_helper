@@ -435,13 +435,38 @@ def _render_performance_panel(state: PortfolioPageState, view_model: Performance
 def _render_risk_panel(snapshot: PortfolioReportSnapshot) -> None:
     risk = snapshot.risk_view_model
     with ui.column().classes("w-full gap-4"):
+        risk_tabs = ui.tabs().classes("w-full")
+        with risk_tabs:
+            tab_overview = ui.tab("Main Overview")
+            tab_eq = ui.tab("Equity")
+            tab_fi = ui.tab("Fixed Income")
+            tab_cm = ui.tab("Commodity")
+            tab_fx = ui.tab("FX")
+            tab_macro = ui.tab("Macro")
+        with ui.tab_panels(risk_tabs, value=tab_overview).classes("w-full"):
+            with ui.tab_panel(tab_overview):
+                _render_risk_overview(risk)
+            with ui.tab_panel(tab_eq):
+                _render_risk_equity(risk)
+            with ui.tab_panel(tab_fi):
+                _render_risk_fixed_income(risk)
+            with ui.tab_panel(tab_cm):
+                _render_risk_commodity(risk)
+            with ui.tab_panel(tab_fx):
+                _render_risk_fx(risk)
+            with ui.tab_panel(tab_macro):
+                _render_risk_macro(risk)
+
+
+def _render_risk_overview(risk) -> None:
+    with ui.column().classes("w-full gap-4"):
         with ui.card().classes("w-full pm-card p-4"):
             ui.label("Portfolio Summary").classes("text-h6")
             with ui.row().classes("w-full gap-4 wrap"):
                 for label, value in [
-                    ("Vol 1M/3M", format_percent(risk.summary.portfolio_vol_geomean_1m_3m)),
-                    ("Vol 5Y", format_percent(risk.summary.portfolio_vol_5y_realized)),
-                    ("Vol EWMA", format_percent(risk.summary.portfolio_vol_ewma)),
+                    ("Vol Long-Term (5Y)", format_percent(risk.summary.portfolio_vol_5y_realized)),
+                    ("Vol Fast (1M/3M)", format_percent(risk.summary.portfolio_vol_geomean_1m_3m)),
+                    ("Vol Forward-Looking", format_percent(risk.summary.portfolio_vol_forward_looking)),
                     ("Funded AUM USD", format_amount(risk.summary.funded_aum_usd, decimals=0)),
                     ("Funded AUM SGD", format_amount(risk.summary.funded_aum_sgd, decimals=0)),
                     ("Gross Exposure", format_amount(risk.summary.gross_exposure, decimals=0)),
@@ -449,80 +474,144 @@ def _render_risk_panel(snapshot: PortfolioReportSnapshot) -> None:
                     ("Mapping Coverage", f"{risk.summary.mapped_positions}/{risk.summary.total_positions}"),
                 ]:
                     render_status_card(title=label, value=value)
-        with ui.row().classes("w-full gap-4 wrap"):
-            with ui.card().classes("grow basis-[520px] pm-card p-4"):
-                ui.label("Asset Class Summary").classes("text-h6")
-                render_table(
-                    columns=[
-                        {"name": "asset_class", "label": "Asset Class", "field": "asset_class"},
-                        {"name": "exposure_usd", "label": "Net Exposure", "field": "exposure_usd"},
-                        {"name": "gross_exposure_usd", "label": "Gross Exposure", "field": "gross_exposure_usd"},
-                        {"name": "dollar_weight", "label": "Dollar%", "field": "dollar_weight"},
-                        {"name": "risk_contribution_estimated", "label": "Vol Contribution", "field": "risk_contribution_estimated"},
-                    ],
-                    rows=[
-                        {
-                            "asset_class": row.asset_class,
-                            "exposure_usd": format_amount(row.exposure_usd),
-                            "gross_exposure_usd": format_amount(row.gross_exposure_usd),
-                            "dollar_weight": format_percent(row.dollar_weight),
-                            "risk_contribution_estimated": format_percent(row.risk_contribution_estimated),
-                        }
-                        for row in risk.allocation_summary
-                    ],
-                    row_key="asset_class",
-                )
-            render_risk_chart_block(
-                title="Policy Drift - Asset Class",
-                figure=build_policy_drift_figure(risk.policy_drift_asset_class),
+            ui.label("FX excluded from portfolio vol aggregation.").classes("pm-muted text-caption mt-2")
+        with ui.card().classes("w-full pm-card p-4"):
+            ui.label("Asset Class Summary").classes("text-h6")
+            render_table(
                 columns=[
-                    {"name": "bucket", "label": "Bucket", "field": "bucket"},
-                    {"name": "scope", "label": "Scope", "field": "scope"},
-                    {"name": "current_weight", "label": "Current", "field": "current_weight"},
-                    {"name": "policy_weight", "label": "Policy", "field": "policy_weight"},
-                    {"name": "active_weight", "label": "Active", "field": "active_weight"},
-                    {"name": "current_risk_contribution", "label": "Vol Contribution", "field": "current_risk_contribution"},
+                    {"name": "asset_class", "label": "Asset Class", "field": "asset_class"},
+                    {"name": "exposure_usd", "label": "Net Exposure ($)", "field": "exposure_usd"},
+                    {"name": "gross_exposure_usd", "label": "Gross Exposure ($)", "field": "gross_exposure_usd"},
+                    {"name": "dollar_weight", "label": "Portfolio Allocation %", "field": "dollar_weight"},
+                    {"name": "risk_contribution_estimated", "label": "Vol Contribution %", "field": "risk_contribution_estimated"},
                 ],
-                rows=[_policy_drift_row_to_table_row(row) for row in risk.policy_drift_asset_class],
-                row_key="bucket",
+                rows=[
+                    {
+                        "asset_class": row.asset_class,
+                        "exposure_usd": format_amount(row.exposure_usd),
+                        "gross_exposure_usd": format_amount(row.gross_exposure_usd),
+                        "dollar_weight": format_percent(row.dollar_weight),
+                        "risk_contribution_estimated": format_percent(row.risk_contribution_estimated),
+                    }
+                    for row in risk.allocation_summary
+                ],
+                row_key="asset_class",
             )
+        render_risk_chart_block(
+            title="Portfolio Drift - Asset Class",
+            figure=build_policy_drift_figure(risk.policy_drift_asset_class),
+            columns=[
+                {"name": "bucket", "label": "Bucket", "field": "bucket"},
+                {"name": "scope", "label": "Scope", "field": "scope"},
+                {"name": "current_weight", "label": "Current %", "field": "current_weight"},
+                {"name": "policy_weight", "label": "Policy %", "field": "policy_weight"},
+                {"name": "active_weight", "label": "Active %", "field": "active_weight"},
+            ],
+            rows=[_policy_drift_row_to_table_row(row, include_risk=False) for row in risk.policy_drift_asset_class],
+            row_key="bucket",
+        )
+
+
+def _render_risk_equity(risk) -> None:
+    eq_rows = [r for r in risk.risk_rows if r.asset_class == "EQ"]
+    with ui.column().classes("w-full gap-4"):
         with ui.row().classes("w-full gap-4 wrap"):
             render_risk_chart_block(
-                title="EQ Country Breakdown",
-                figure=build_breakdown_figure(risk.country_breakdown, title="EQ Country Breakdown"),
+                title="Equity Country Allocation",
+                figure=build_breakdown_figure(risk.country_breakdown, title="Equity Country Allocation"),
                 columns=_breakdown_columns(),
                 rows=[_breakdown_row_to_table_row(row) for row in risk.country_breakdown],
                 row_key="bucket",
             )
             render_risk_chart_block(
-                title="US Sector Breakdown",
-                figure=build_breakdown_figure(risk.sector_breakdown, title="US Sector Breakdown"),
+                title="US Sector View (vs SPY)",
+                figure=build_breakdown_figure(risk.sector_breakdown, title="US Sector View"),
                 columns=_breakdown_columns(),
                 rows=[_breakdown_row_to_table_row(row) for row in risk.sector_breakdown],
                 row_key="bucket",
             )
+        _render_position_subtable("Equity Holdings", eq_rows)
+
+
+def _render_risk_fixed_income(risk) -> None:
+    fi_rows = [r for r in risk.risk_rows if r.asset_class == "FI"]
+    total_fi_exposure = sum(r.exposure_usd for r in fi_rows)
+    weighted_duration = (
+        sum((r.duration or 0.0) * r.exposure_usd for r in fi_rows) / total_fi_exposure
+        if total_fi_exposure
+        else 0.0
+    )
+    with ui.column().classes("w-full gap-4"):
         with ui.card().classes("w-full pm-card p-4"):
-            ui.label("Position Risk Decomposition").classes("text-h6")
+            ui.label("Fixed Income Summary").classes("text-h6")
+            with ui.row().classes("w-full gap-4 wrap"):
+                render_status_card(title="Total FI Net Exposure", value=format_amount(total_fi_exposure, decimals=0))
+                render_status_card(title="Weighted Avg Duration", value=format_ratio(weighted_duration))
+                render_status_card(title="Position Count", value=str(len(fi_rows)))
+        with ui.card().classes("w-full pm-card p-4"):
+            ui.label("Tenor Bucket Allocation").classes("text-h6")
             render_table(
-                columns=[
-                    {"name": "account", "label": "Account", "field": "account"},
-                    {"name": "display_ticker", "label": "Ticker", "field": "display_ticker"},
-                    {"name": "display_name", "label": "Name", "field": "display_name"},
-                    {"name": "asset_class", "label": "Asset Class", "field": "asset_class"},
-                    {"name": "instrument_type", "label": "Type", "field": "instrument_type"},
-                    {"name": "gross_exposure_usd", "label": "Gross Exposure", "field": "gross_exposure_usd"},
-                    {"name": "exposure_usd", "label": "Net Exposure", "field": "exposure_usd"},
-                    {"name": "dollar_weight", "label": "Dollar%", "field": "dollar_weight"},
-                    {"name": "vol_geomean_1m_3m", "label": "Vol 1M/3M", "field": "vol_geomean_1m_3m"},
-                    {"name": "vol_5y_realized", "label": "Vol 5Y", "field": "vol_5y_realized"},
-                    {"name": "vol_ewma", "label": "Vol EWMA", "field": "vol_ewma"},
-                    {"name": "risk_contribution_estimated", "label": "Vol Contribution", "field": "risk_contribution_estimated"},
-                    {"name": "mapping_status", "label": "Mapping", "field": "mapping_status"},
-                    {"name": "report_scope", "label": "Scope", "field": "report_scope"},
-                ],
-                rows=[_risk_row_to_table_row(row) for row in risk.risk_rows],
-                row_key="internal_id",
+                columns=_breakdown_columns(),
+                rows=[_breakdown_row_to_table_row(row) for row in risk.fi_tenor_breakdown],
+                row_key="bucket",
             )
+        _render_position_subtable("FI Instruments", fi_rows)
+
+
+def _render_risk_commodity(risk) -> None:
+    cm_rows = [r for r in risk.risk_rows if r.asset_class == "CM"]
+    with ui.column().classes("w-full gap-4"):
+        with ui.card().classes("w-full pm-card p-4"):
+            ui.label("Commodity Sector Table").classes("text-h6")
+            ui.label("Sector tagging (cm_sector) propagation pending — table shows raw holdings.").classes("pm-muted text-caption")
+        _render_position_subtable("Commodity Holdings", cm_rows)
+
+
+def _render_risk_fx(risk) -> None:
+    fx_rows = [r for r in risk.risk_rows if r.asset_class == "FX"]
+    with ui.column().classes("w-full gap-4"):
+        with ui.card().classes("w-full pm-card p-4"):
+            ui.label("FX Allocation").classes("text-h6")
+            ui.label("Vol Contribution % omitted in MVP (FX vol unstable).").classes("pm-muted text-caption")
+        _render_position_subtable("FX Positions", fx_rows, include_vol_contribution=False)
+
+
+def _render_risk_macro(risk) -> None:
+    macro_rows = [r for r in risk.risk_rows if r.asset_class == "MACRO"]
+    with ui.column().classes("w-full gap-4"):
+        _render_position_subtable("Macro Instruments", macro_rows)
+
+
+def _render_position_subtable(
+    title: str,
+    rows: list[RiskMetricsRow],
+    *,
+    include_vol_contribution: bool = True,
+) -> None:
+    with ui.card().classes("w-full pm-card p-4"):
+        ui.label(title).classes("text-h6")
+        if not rows:
+            ui.label("No positions in this asset class.").classes("pm-muted")
+            return
+        columns = [
+            {"name": "account", "label": "Account", "field": "account"},
+            {"name": "display_ticker", "label": "Ticker", "field": "display_ticker"},
+            {"name": "display_name", "label": "Name", "field": "display_name"},
+            {"name": "instrument_type", "label": "Type", "field": "instrument_type"},
+            {"name": "gross_exposure_usd", "label": "Gross Exposure ($)", "field": "gross_exposure_usd"},
+            {"name": "exposure_usd", "label": "Net Exposure ($)", "field": "exposure_usd"},
+            {"name": "dollar_weight", "label": "Portfolio Allocation %", "field": "dollar_weight"},
+            {"name": "vol_5y_realized", "label": "Vol Long-Term", "field": "vol_5y_realized"},
+            {"name": "vol_geomean_1m_3m", "label": "Vol Fast", "field": "vol_geomean_1m_3m"},
+        ]
+        if include_vol_contribution:
+            columns.append({"name": "risk_contribution_estimated", "label": "Vol Contribution %", "field": "risk_contribution_estimated"})
+        columns.append({"name": "mapping_status", "label": "Mapping", "field": "mapping_status"})
+        render_table(
+            columns=columns,
+            rows=[_risk_row_to_table_row(row) for row in rows],
+            row_key="internal_id",
+        )
 
 
 def _render_artifact_metadata(state: PortfolioPageState) -> None:
@@ -851,15 +940,17 @@ def _performance_metric_row_to_table_row(row: PerformanceMetricRow) -> dict[str,
     }
 
 
-def _policy_drift_row_to_table_row(row: PolicyDriftRow) -> dict[str, str]:
-    return {
+def _policy_drift_row_to_table_row(row: PolicyDriftRow, *, include_risk: bool = True) -> dict[str, str]:
+    out = {
         "bucket": row.bucket,
         "scope": row.scope,
         "current_weight": format_percent(row.current_weight),
         "policy_weight": format_percent(row.policy_weight),
         "active_weight": format_percent(row.active_weight),
-        "current_risk_contribution": format_percent(row.current_risk_contribution),
     }
+    if include_risk:
+        out["current_risk_contribution"] = format_percent(row.current_risk_contribution)
+    return out
 
 
 def _risk_row_to_table_row(row: RiskMetricsRow) -> dict[str, str]:
