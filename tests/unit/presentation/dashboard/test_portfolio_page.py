@@ -13,6 +13,7 @@ from market_helper.presentation.dashboard.pages.portfolio import (
     _combined_inputs_from_form,
     _etf_inputs_from_form,
     _flex_inputs_from_form,
+    _initial_dashboard_status,
     _live_inputs_from_form,
     _positions_csv_ready_for_autoload,
 )
@@ -110,3 +111,26 @@ def test_positions_csv_ready_for_autoload_requires_existing_file(tmp_path) -> No
     assert _positions_csv_ready_for_autoload(str(existing)) is True
     assert _positions_csv_ready_for_autoload(str(tmp_path / "missing.csv")) is False
     assert _positions_csv_ready_for_autoload("") is False
+
+
+def test_initial_dashboard_status_reflects_local_artifact_readiness(tmp_path) -> None:
+    existing = tmp_path / "positions.csv"
+    existing.write_text("as_of\n", encoding="utf-8")
+
+    assert _initial_dashboard_status(str(existing)) == "Ready. Click Refresh Snapshot to load the current artifacts."
+    assert _initial_dashboard_status(str(tmp_path / "missing.csv")) == (
+        "Positions CSV not found. Run Live Refresh or enter a valid artifact path."
+    )
+
+
+def test_build_initial_state_uses_missing_positions_status_when_default_artifact_absent() -> None:
+    class QueryService:
+        def resolve_inputs(self, inputs: PortfolioReportInputs | None = None) -> PortfolioReportInputs:
+            return PortfolioReportInputs(
+                positions_csv_path="data/missing.csv",
+                performance_output_dir="data/flex",
+            )
+
+    state = _build_initial_state(QueryService())
+
+    assert state.status_message == "Positions CSV not found. Run Live Refresh or enter a valid artifact path."
