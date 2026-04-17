@@ -128,7 +128,7 @@ def _fake_snapshot() -> PortfolioReportSnapshot:
                 report_scope="included",
                 dir_exposure="L",
                 eq_country="US",
-                eq_sector="TECHNOLOGY",
+                eq_sector_proxy="",
                 fi_tenor="",
             )
         ],

@@ -1,95 +1,119 @@
 {
   "api_usage": {
-    "count": 19,
-    "date": "2026-04-08"
+    "count": 0,
+    "date": "2026-04-17"
   },
-  "daily_call_limit": 250,
-  "provider": "fmp",
+  "daily_call_limit": 20,
+  "provider": "alpha_vantage",
   "schema_version": 1,
   "symbols": {
     "QQQ": {
-      "error_message": "Network error while requesting https://financialmodelingprep.com/stable/etf/sector-weightings?symbol=QQQ&apikey=xsQIBKysEE4qcdg5hXoidwg8NHosQBf1: [Errno 8] nodename nor servname provided, or not known",
+      "error_message": "",
       "sectors": [
         {
           "sector": "Technology",
-          "weight": 0.6
-        },
-        {
-          "sector": "Consumer Discretionary",
-          "weight": 0.18
+          "weight": 0.494
         },
         {
           "sector": "Communication Services",
-          "weight": 0.15
+          "weight": 0.161
         },
         {
-          "sector": "Health Care",
-          "weight": 0.04
-        },
-        {
-          "sector": "Industrials",
-          "weight": 0.02
+          "sector": "Consumer Discretionary",
+          "weight": 0.114
         },
         {
           "sector": "Consumer Staples",
-          "weight": 0.01
+          "weight": 0.081
+        },
+        {
+          "sector": "Health Care",
+          "weight": 0.049
+        },
+        {
+          "sector": "Industrials",
+          "weight": 0.036
+        },
+        {
+          "sector": "Utilities",
+          "weight": 0.015
+        },
+        {
+          "sector": "Materials",
+          "weight": 0.013
+        },
+        {
+          "sector": "Energy",
+          "weight": 0.007
+        },
+        {
+          "sector": "Financials",
+          "weight": 0.002
         }
       ],
-      "status": "error",
-      "updated_at": "2026-04-08"
+      "status": "ok",
+      "updated_at": "2026-04-16"
     },
     "SOXL": {
-      "error_message": "Network error while requesting https://financialmodelingprep.com/stable/etf/sector-weightings?symbol=SOXL&apikey=xsQIBKysEE4qcdg5hXoidwg8NHosQBf1: [Errno 8] nodename nor servname provided, or not known",
+      "error_message": "",
       "sectors": [
         {
           "sector": "Technology",
-          "weight": 1.0
+          "weight": 0.527
+        },
+        {
+          "sector": "Communication Services",
+          "weight": 0.021
         }
       ],
-      "status": "error",
-      "updated_at": "2026-04-08"
+      "status": "ok",
+      "updated_at": "2026-04-16"
     },
     "SOXX": {
-      "error_message": "Network error while requesting https://financialmodelingprep.com/stable/etf/sector-weightings?symbol=SOXX&apikey=xsQIBKysEE4qcdg5hXoidwg8NHosQBf1: [Errno 8] nodename nor servname provided, or not known",
+      "error_message": "",
       "sectors": [
         {
           "sector": "Technology",
-          "weight": 1.0
+          "weight": 0.862
+        },
+        {
+          "sector": "Communication Services",
+          "weight": 0.034
         }
       ],
-      "status": "error",
-      "updated_at": "2026-04-08"
+      "status": "ok",
+      "updated_at": "2026-04-16"
     },
     "SPY": {
-      "error_message": "Network error while requesting https://financialmodelingprep.com/stable/etf/sector-weightings?symbol=SPY&apikey=xsQIBKysEE4qcdg5hXoidwg8NHosQBf1: [Errno 8] nodename nor servname provided, or not known",
+      "error_message": "",
       "sectors": [
         {
           "sector": "Technology",
-          "weight": 0.31
+          "weight": 0.33
         },
         {
           "sector": "Financials",
-          "weight": 0.14
+          "weight": 0.107
         },
         {
-          "sector": "Health Care",
-          "weight": 0.12
+          "sector": "Communication Services",
+          "weight": 0.103
         },
         {
           "sector": "Consumer Discretionary",
           "weight": 0.1
         },
         {
-          "sector": "Communication Services",
-          "weight": 0.09
+          "sector": "Health Care",
+          "weight": 0.093
         },
         {
           "sector": "Industrials",
-          "weight": 0.08
+          "weight": 0.091
         },
         {
           "sector": "Consumer Staples",
-          "weight": 0.06
+          "weight": 0.051
         },
         {
           "sector": "Energy",
@@ -97,22 +121,18 @@
         },
         {
           "sector": "Utilities",
-          "weight": 0.03
-        },
-        {
-          "sector": "Real Estate",
-          "weight": 0.02
+          "weight": 0.025
         },
         {
           "sector": "Materials",
-          "weight": 0.01
+          "weight": 0.019
         }
       ],
-      "status": "error",
-      "updated_at": "2026-04-08"
+      "status": "ok",
+      "updated_at": "2026-04-16"
     },
     "SPYL": {
-      "error_message": "Network error while requesting https://financialmodelingprep.com/stable/etf/sector-weightings?symbol=SPYL&apikey=xsQIBKysEE4qcdg5hXoidwg8NHosQBf1: [Errno 8] nodename nor servname provided, or not known",
+      "error_message": "Alpha Vantage ETF profile for SPYL did not include sectors",
       "sectors": [
         {
           "sector": "Technology",
@@ -160,10 +180,10 @@
         }
       ],
       "status": "error",
-      "updated_at": "2026-04-08"
+      "updated_at": "2026-04-16"
     },
     "SQQQ": {
-      "error_message": "Network error while requesting https://financialmodelingprep.com/stable/etf/sector-weightings?symbol=SQQQ&apikey=xsQIBKysEE4qcdg5hXoidwg8NHosQBf1: [Errno 8] nodename nor servname provided, or not known",
+      "error_message": "Alpha Vantage returned no ETF sector rows for SQQQ",
       "sectors": [
         {
           "sector": "Technology",
@@ -191,180 +211,196 @@
         }
       ],
       "status": "error",
-      "updated_at": "2026-04-08"
+      "updated_at": "2026-04-16"
     },
     "TQQQ": {
-      "error_message": "Network error while requesting https://financialmodelingprep.com/stable/etf/sector-weightings?symbol=TQQQ&apikey=xsQIBKysEE4qcdg5hXoidwg8NHosQBf1: [Errno 8] nodename nor servname provided, or not known",
+      "error_message": "",
       "sectors": [
         {
           "sector": "Technology",
-          "weight": 0.6
-        },
-        {
-          "sector": "Consumer Discretionary",
-          "weight": 0.18
+          "weight": 0.291
         },
         {
           "sector": "Communication Services",
-          "weight": 0.15
+          "weight": 0.094
         },
         {
-          "sector": "Health Care",
-          "weight": 0.04
-        },
-        {
-          "sector": "Industrials",
-          "weight": 0.02
+          "sector": "Consumer Discretionary",
+          "weight": 0.067
         },
         {
           "sector": "Consumer Staples",
-          "weight": 0.01
-        }
-      ],
-      "status": "error",
-      "updated_at": "2026-04-08"
-    },
-    "VOO": {
-      "error_message": "Network error while requesting https://financialmodelingprep.com/stable/etf/sector-weightings?symbol=VOO&apikey=xsQIBKysEE4qcdg5hXoidwg8NHosQBf1: [Errno 8] nodename nor servname provided, or not known",
-      "sectors": [
+          "weight": 0.048
+        },
         {
-          "sector": "Technology",
-          "weight": 0.31
+          "sector": "Health Care",
+          "weight": 0.029
+        },
+        {
+          "sector": "Industrials",
+          "weight": 0.021
+        },
+        {
+          "sector": "Utilities",
+          "weight": 0.009
+        },
+        {
+          "sector": "Materials",
+          "weight": 0.008
+        },
+        {
+          "sector": "Energy",
+          "weight": 0.004
         },
         {
           "sector": "Financials",
-          "weight": 0.14
+          "weight": 0.001
+        }
+      ],
+      "status": "ok",
+      "updated_at": "2026-04-16"
+    },
+    "VOO": {
+      "error_message": "",
+      "sectors": [
+        {
+          "sector": "Technology",
+          "weight": 0.322
         },
         {
-          "sector": "Health Care",
-          "weight": 0.12
+          "sector": "Financials",
+          "weight": 0.106
+        },
+        {
+          "sector": "Communication Services",
+          "weight": 0.105
         },
         {
           "sector": "Consumer Discretionary",
           "weight": 0.1
         },
         {
-          "sector": "Communication Services",
-          "weight": 0.09
+          "sector": "Health Care",
+          "weight": 0.098
         },
         {
           "sector": "Industrials",
-          "weight": 0.08
+          "weight": 0.092
         },
         {
           "sector": "Consumer Staples",
-          "weight": 0.06
+          "weight": 0.054
         },
         {
           "sector": "Energy",
-          "weight": 0.04
+          "weight": 0.035
         },
         {
           "sector": "Utilities",
-          "weight": 0.03
-        },
-        {
-          "sector": "Real Estate",
-          "weight": 0.02
+          "weight": 0.025
         },
         {
           "sector": "Materials",
-          "weight": 0.01
+          "weight": 0.021
         }
       ],
-      "status": "error",
-      "updated_at": "2026-04-08"
+      "status": "ok",
+      "updated_at": "2026-04-16"
     },
     "XLB": {
-      "error_message": "Network error while requesting https://financialmodelingprep.com/stable/etf/sector-weightings?symbol=XLB&apikey=xsQIBKysEE4qcdg5hXoidwg8NHosQBf1: [Errno 8] nodename nor servname provided, or not known",
+      "error_message": "",
       "sectors": [
         {
           "sector": "Materials",
-          "weight": 1.0
+          "weight": 0.949
         }
       ],
-      "status": "error",
-      "updated_at": "2026-04-08"
+      "status": "ok",
+      "updated_at": "2026-04-16"
     },
     "XLC": {
-      "error_message": "Network error while requesting https://financialmodelingprep.com/stable/etf/sector-weightings?symbol=XLC&apikey=xsQIBKysEE4qcdg5hXoidwg8NHosQBf1: [Errno 8] nodename nor servname provided, or not known",
+      "error_message": "",
       "sectors": [
         {
           "sector": "Communication Services",
-          "weight": 1.0
+          "weight": 0.996
         }
       ],
-      "status": "error",
-      "updated_at": "2026-04-08"
+      "status": "ok",
+      "updated_at": "2026-04-16"
     },
     "XLE": {
-      "error_message": "Network error while requesting https://financialmodelingprep.com/stable/etf/sector-weightings?symbol=XLE&apikey=xsQIBKysEE4qcdg5hXoidwg8NHosQBf1: [Errno 8] nodename nor servname provided, or not known",
+      "error_message": "",
       "sectors": [
         {
           "sector": "Energy",
-          "weight": 1.0
+          "weight": 0.997
         }
       ],
-      "status": "error",
-      "updated_at": "2026-04-08"
+      "status": "ok",
+      "updated_at": "2026-04-16"
     },
     "XLF": {
-      "error_message": "Network error while requesting https://financialmodelingprep.com/stable/etf/sector-weightings?symbol=XLF&apikey=xsQIBKysEE4qcdg5hXoidwg8NHosQBf1: [Errno 8] nodename nor servname provided, or not known",
+      "error_message": "",
       "sectors": [
         {
           "sector": "Financials",
-          "weight": 1.0
+          "weight": 0.858
+        },
+        {
+          "sector": "Consumer Discretionary",
+          "weight": 0.017
         }
       ],
-      "status": "error",
-      "updated_at": "2026-04-08"
+      "status": "ok",
+      "updated_at": "2026-04-16"
     },
     "XLI": {
-      "error_message": "Network error while requesting https://financialmodelingprep.com/stable/etf/sector-weightings?symbol=XLI&apikey=xsQIBKysEE4qcdg5hXoidwg8NHosQBf1: [Errno 8] nodename nor servname provided, or not known",
+      "error_message": "",
       "sectors": [
         {
           "sector": "Industrials",
-          "weight": 1.0
+          "weight": 0.997
         }
       ],
-      "status": "error",
-      "updated_at": "2026-04-08"
+      "status": "ok",
+      "updated_at": "2026-04-16"
     },
     "XLK": {
-      "error_message": "Network error while requesting https://financialmodelingprep.com/stable/etf/sector-weightings?symbol=XLK&apikey=xsQIBKysEE4qcdg5hXoidwg8NHosQBf1: [Errno 8] nodename nor servname provided, or not known",
+      "error_message": "",
       "sectors": [
         {
           "sector": "Technology",
-          "weight": 1.0
+          "weight": 0.988
         }
       ],
-      "status": "error",
-      "updated_at": "2026-04-08"
+      "status": "ok",
+      "updated_at": "2026-04-16"
     },
     "XLP": {
-      "error_message": "Network error while requesting https://financialmodelingprep.com/stable/etf/sector-weightings?symbol=XLP&apikey=xsQIBKysEE4qcdg5hXoidwg8NHosQBf1: [Errno 8] nodename nor servname provided, or not known",
+      "error_message": "",
       "sectors": [
         {
           "sector": "Consumer Staples",
-          "weight": 1.0
+          "weight": 0.99
         }
       ],
-      "status": "error",
-      "updated_at": "2026-04-08"
+      "status": "ok",
+      "updated_at": "2026-04-16"
     },
     "XLRE": {
-      "error_message": "Network error while requesting https://financialmodelingprep.com/stable/etf/sector-weightings?symbol=XLRE&apikey=xsQIBKysEE4qcdg5hXoidwg8NHosQBf1: [Errno 8] nodename nor servname provided, or not known",
+      "error_message": "",
       "sectors": [
         {
           "sector": "Real Estate",
-          "weight": 1.0
+          "weight": 0.993
         }
       ],
-      "status": "error",
-      "updated_at": "2026-04-08"
+      "status": "ok",
+      "updated_at": "2026-04-16"
     },
     "XLU": {
-      "error_message": "Network error while requesting https://financialmodelingprep.com/stable/etf/sector-weightings?symbol=XLU&apikey=xsQIBKysEE4qcdg5hXoidwg8NHosQBf1: [Errno 8] nodename nor servname provided, or not known",
+      "error_message": "Alpha Vantage ETF profile request failed for XLU: We have detected your API key as CT1IP99LO086RPDB and our standard API rate limit is 25 requests per day. Please subscribe to any of the premium plans at https://www.alphavantage.co/premium/ to instantly remove all daily rate limits.",
       "sectors": [
         {
           "sector": "Utilities",
@@ -372,10 +408,10 @@
         }
       ],
       "status": "error",
-      "updated_at": "2026-04-08"
+      "updated_at": "2026-04-16"
     },
     "XLV": {
-      "error_message": "Network error while requesting https://financialmodelingprep.com/stable/etf/sector-weightings?symbol=XLV&apikey=xsQIBKysEE4qcdg5hXoidwg8NHosQBf1: [Errno 8] nodename nor servname provided, or not known",
+      "error_message": "Alpha Vantage ETF profile request failed for XLV: We have detected your API key as CT1IP99LO086RPDB and our standard API rate limit is 25 requests per day. Please subscribe to any of the premium plans at https://www.alphavantage.co/premium/ to instantly remove all daily rate limits.",
       "sectors": [
         {
           "sector": "Health Care",
@@ -383,10 +419,10 @@
         }
       ],
       "status": "error",
-      "updated_at": "2026-04-08"
+      "updated_at": "2026-04-16"
     },
     "XLY": {
-      "error_message": "Network error while requesting https://financialmodelingprep.com/stable/etf/sector-weightings?symbol=XLY&apikey=xsQIBKysEE4qcdg5hXoidwg8NHosQBf1: [Errno 8] nodename nor servname provided, or not known",
+      "error_message": "Alpha Vantage ETF profile request failed for XLY: We have detected your API key as CT1IP99LO086RPDB and our standard API rate limit is 25 requests per day. Please subscribe to any of the premium plans at https://www.alphavantage.co/premium/ to instantly remove all daily rate limits.",
       "sectors": [
         {
           "sector": "Consumer Discretionary",
@@ -394,7 +430,7 @@
         }
       ],
       "status": "error",
-      "updated_at": "2026-04-08"
+      "updated_at": "2026-04-16"
     }
   }
 }

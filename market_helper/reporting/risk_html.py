@@ -176,7 +176,7 @@ class RiskInputRow:
     mapping_status: str
     dir_exposure: str
     eq_country: str
-    eq_sector: str
+    eq_sector_proxy: str
     fi_tenor: str
     yahoo_symbol: str
     currency: str = "USD"
@@ -211,7 +211,7 @@ class RiskMetricsRow:
     report_scope: str
     dir_exposure: str
     eq_country: str
-    eq_sector: str
+    eq_sector_proxy: str
     fi_tenor: str
 
 
@@ -570,7 +570,7 @@ def build_risk_report_view_model(
             report_scope=_report_scope_label(row),
             dir_exposure=row.dir_exposure,
             eq_country=row.eq_country,
-            eq_sector=row.eq_sector,
+            eq_sector_proxy=row.eq_sector_proxy,
             fi_tenor=row.fi_tenor,
         )
         for row in rows
@@ -689,7 +689,7 @@ def load_position_rows(
             display_name = security.display_name or infer_display_name(symbol, local_symbol, instrument_type)
             duration = security.mod_duration
             eq_country = security.eq_country
-            eq_sector = security.eq_sector
+            eq_sector_proxy = security.eq_sector_proxy
             dir_exposure = security.dir_exposure or "L"
             fi_tenor = security.fi_tenor
             yahoo_symbol = security.yahoo_symbol
@@ -700,7 +700,7 @@ def load_position_rows(
             display_name = security.display_name or infer_display_name(symbol, local_symbol, instrument_type)
             duration = None
             eq_country = ""
-            eq_sector = ""
+            eq_sector_proxy = ""
             dir_exposure = "L"
             fi_tenor = ""
             yahoo_symbol = ""
@@ -711,7 +711,7 @@ def load_position_rows(
             display_name = infer_display_name(symbol, local_symbol, instrument_type)
             duration = None
             eq_country = ""
-            eq_sector = ""
+            eq_sector_proxy = ""
             dir_exposure = "L"
             fi_tenor = ""
             yahoo_symbol = ""
@@ -752,7 +752,7 @@ def load_position_rows(
                 "mapping_status": mapping_status,
                 "dir_exposure": dir_exposure,
                 "eq_country": eq_country,
-                "eq_sector": eq_sector,
+                "eq_sector_proxy": eq_sector_proxy,
                 "fi_tenor": fi_tenor,
                 "yahoo_symbol": yahoo_symbol,
                 "currency": str(row.get("currency") or ""),
@@ -804,7 +804,7 @@ def load_position_rows(
                 mapping_status=str(row["mapping_status"]),
                 dir_exposure=str(row["dir_exposure"]),
                 eq_country=str(row["eq_country"]),
-                eq_sector=str(row["eq_sector"]),
+                eq_sector_proxy=str(row["eq_sector_proxy"]),
                 fi_tenor=str(row["fi_tenor"]),
                 yahoo_symbol=str(row["yahoo_symbol"]),
                 currency=str(row.get("currency") or "USD"),
@@ -2463,12 +2463,28 @@ def _expand_us_sector_allocations(
 ) -> list[tuple[str, float]]:
     if row.asset_class != "EQ":
         return []
+
+    def _with_unclassified(sectors: list[tuple[str, float]]) -> list[tuple[str, float]]:
+        total = round(sum(w for _, w in sectors), 6)
+        remainder = round(1.0 - total, 6)
+        if remainder > 1e-6:
+            return list(sectors) + [("UNCLASSIFIED", remainder)]
+        return list(sectors)
+
+    # Direct lookthrough by own symbol — works for known ETFs even when eq_country is unknown.
     normalized_symbol = str(row.canonical_symbol or row.symbol).upper()
     if normalized_symbol in lookthrough:
-        return lookthrough[normalized_symbol]
-    if row.eq_sector and row.eq_country == "US":
-        return [(row.eq_sector, 1.0)]
-    return []
+        return _with_unclassified(lookthrough[normalized_symbol])
+
+    # Proxy / UNCLASSIFIED logic only applies to US EQ.
+    if row.eq_country != "US":
+        return []
+    proxy = str(row.eq_sector_proxy or "").strip().upper()
+    if proxy == "NONE":
+        return [("UNCLASSIFIED", 1.0)]
+    if proxy and proxy in lookthrough:
+        return _with_unclassified(lookthrough[proxy])
+    return [("UNCLASSIFIED", 1.0)]
 
 
 def _load_weight_table(
@@ -2519,45 +2535,18 @@ def _report_us_etf_lookthrough_symbols(
     *,
     existing_symbols: set[str],
 ) -> list[str]:
-    symbols: list[str] = []
-    seen: set[str] = set()
+    to_sync: set[str] = set()
     for row in rows:
-        if not _looks_like_us_etf_candidate(row, existing_symbols=existing_symbols):
+        if row.mapping_status != "mapped" or row.asset_class != "EQ" or row.eq_country != "US":
             continue
-        symbol = str(row.canonical_symbol or row.symbol).strip().upper()
-        if not symbol or symbol in seen:
-            continue
-        seen.add(symbol)
-        symbols.append(symbol)
-    return symbols
-
-
-def _looks_like_us_etf_candidate(
-    row: RiskInputRow,
-    *,
-    existing_symbols: set[str],
-) -> bool:
-    if row.mapping_status != "mapped" or row.asset_class != "EQ" or row.eq_country != "US":
-        return False
-    symbol = str(row.canonical_symbol or row.symbol).strip().upper()
-    if not symbol:
-        return False
-    if symbol in existing_symbols:
-        return True
-    if row.exchange.upper() == "LSEETF":
-        return True
-
-    display_name = str(row.display_name or "").strip()
-    eq_sector = str(row.eq_sector or "").strip()
-    if not display_name or display_name.upper() == symbol:
-        return False
-    if not eq_sector:
-        return not _looks_like_company_name(display_name)
-    if eq_sector.upper() not in US_SECTOR_BUCKETS:
-        return True
-    if display_name.upper() == eq_sector.upper():
-        return True
-    return False
+        proxy = str(row.eq_sector_proxy or "").strip().upper()
+        if proxy and proxy != "NONE":
+            to_sync.add(proxy)
+        else:
+            own_symbol = str(row.canonical_symbol or row.symbol).strip().upper()
+            if own_symbol and own_symbol in existing_symbols:
+                to_sync.add(own_symbol)
+    return sorted(to_sync)
 
 
 def _looks_like_company_name(display_name: str) -> bool:
