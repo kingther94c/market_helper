@@ -135,8 +135,8 @@ def test_generate_etf_sector_sync_updates_json_lookthrough_store(tmp_path: Path)
         json.dumps(
             {
                 "schema_version": 1,
-                "provider": "fmp",
-                "daily_call_limit": 250,
+                "provider": "alpha_vantage",
+                "daily_call_limit": 20,
                 "api_usage": {"date": "", "count": 0},
                 "symbols": {
                     "SPY": {
@@ -154,11 +154,11 @@ def test_generate_etf_sector_sync_updates_json_lookthrough_store(tmp_path: Path)
     class FakeClient:
         def fetch_etf_sector_weightings(self, symbol: str):
             assert symbol == "SOXX"
-            from market_helper.data_sources.fmp import FmpEtfSectorWeight
+            from market_helper.data_sources.alpha_vantage import AlphaVantageEtfSectorWeight
 
             return [
-                FmpEtfSectorWeight(symbol="SOXX", sector="Technology", weight=0.8),
-                FmpEtfSectorWeight(symbol="SOXX", sector="Financial Services", weight=0.2),
+                AlphaVantageEtfSectorWeight(symbol="SOXX", sector="Technology", weight=0.8),
+                AlphaVantageEtfSectorWeight(symbol="SOXX", sector="Financial Services", weight=0.2),
             ]
 
     written_path = generate_etf_sector_sync(
@@ -184,8 +184,8 @@ def test_generate_etf_sector_sync_reports_progress(tmp_path: Path) -> None:
         json.dumps(
             {
                 "schema_version": 1,
-                "provider": "fmp",
-                "daily_call_limit": 250,
+                "provider": "alpha_vantage",
+                "daily_call_limit": 20,
                 "api_usage": {"date": "", "count": 0},
                 "symbols": {},
             }
@@ -196,9 +196,9 @@ def test_generate_etf_sector_sync_reports_progress(tmp_path: Path) -> None:
 
     class FakeClient:
         def fetch_etf_sector_weightings(self, symbol: str):
-            from market_helper.data_sources.fmp import FmpEtfSectorWeight
+            from market_helper.data_sources.alpha_vantage import AlphaVantageEtfSectorWeight
 
-            return [FmpEtfSectorWeight(symbol=symbol, sector="Technology", weight=1.0)]
+            return [AlphaVantageEtfSectorWeight(symbol=symbol, sector="Technology", weight=1.0)]
 
     generate_etf_sector_sync(
         symbols=["SOXX", "QQQ"],

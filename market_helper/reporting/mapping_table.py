@@ -193,7 +193,7 @@ def _extract_security_reference_row(
         ibkr_exchange=primary_exchange,
         yahoo_symbol=price_symbol if _provider_from_formula(_cell_formula(row, "M")) == "yahoo_finance" else "",
         eq_country="US" if venue == "US" else "",
-        eq_sector="",
+        eq_sector_proxy="",
         dir_exposure="L",
         mod_duration=_optional_float(_cell_value(row, "P")),
         fi_tenor=_fi_tenor_for_instrument(

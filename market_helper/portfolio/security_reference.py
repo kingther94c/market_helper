@@ -29,7 +29,7 @@ SECURITY_UNIVERSE_HEADERS = [
     "ibkr_exchange",
     "yahoo_symbol",
     "eq_country",
-    "eq_sector",
+    "eq_sector_proxy",
     "dir_exposure",
     "fi_mod_duration",
     "fi_tenor",
@@ -58,7 +58,7 @@ SECURITY_REFERENCE_HEADERS = [
     "ibkr_conid",
     "yahoo_symbol",
     "eq_country",
-    "eq_sector",
+    "eq_sector_proxy",
     "dir_exposure",
     "fi_mod_duration",
     "fi_tenor",
@@ -110,7 +110,7 @@ class SecurityUniverseRow:
     ibkr_exchange: str
     yahoo_symbol: str = ""
     eq_country: str = ""
-    eq_sector: str = ""
+    eq_sector_proxy: str = ""
     dir_exposure: str = "L"
     fi_mod_duration: float | None = None
     fi_tenor: str = ""
@@ -131,7 +131,7 @@ class SecurityUniverseRow:
         object.__setattr__(self, "ibkr_exchange", _clean_optional_str(self.ibkr_exchange).upper())
         object.__setattr__(self, "yahoo_symbol", _clean_optional_str(self.yahoo_symbol))
         object.__setattr__(self, "eq_country", _clean_optional_str(self.eq_country).upper())
-        object.__setattr__(self, "eq_sector", _clean_optional_str(self.eq_sector))
+        object.__setattr__(self, "eq_sector_proxy", _clean_optional_str(self.eq_sector_proxy))
         object.__setattr__(self, "dir_exposure", dir_exposure)
         object.__setattr__(self, "fi_tenor", fi_tenor)
 
@@ -165,7 +165,7 @@ class SecurityUniverseRow:
             "ibkr_exchange": self.ibkr_exchange,
             "yahoo_symbol": self.yahoo_symbol,
             "eq_country": self.eq_country,
-            "eq_sector": self.eq_sector,
+            "eq_sector_proxy": self.eq_sector_proxy,
             "dir_exposure": self.dir_exposure,
             "fi_mod_duration": _stringify_optional_float(self.fi_mod_duration),
             "fi_tenor": self.fi_tenor,
@@ -201,7 +201,7 @@ class SecurityUniverseRow:
             ibkr_conid=prior.ibkr_conid if prior is not None else "",
             yahoo_symbol=self.yahoo_symbol,
             eq_country=self.eq_country,
-            eq_sector=self.eq_sector,
+            eq_sector_proxy=self.eq_sector_proxy,
             dir_exposure=self.dir_exposure,
             mod_duration=self.fi_mod_duration,
             fi_tenor=self.fi_tenor,
@@ -236,7 +236,7 @@ class SecurityReference:
     ibkr_conid: str = ""
     yahoo_symbol: str = ""
     eq_country: str = ""
-    eq_sector: str = ""
+    eq_sector_proxy: str = ""
     dir_exposure: str = "L"
     mod_duration: float | None = None
     fi_tenor: str = ""
@@ -276,7 +276,7 @@ class SecurityReference:
         object.__setattr__(self, "ibkr_conid", _clean_optional_str(self.ibkr_conid))
         object.__setattr__(self, "yahoo_symbol", _clean_optional_str(self.yahoo_symbol))
         object.__setattr__(self, "eq_country", _clean_optional_str(self.eq_country).upper())
-        object.__setattr__(self, "eq_sector", _clean_optional_str(self.eq_sector))
+        object.__setattr__(self, "eq_sector_proxy", _clean_optional_str(self.eq_sector_proxy))
         object.__setattr__(self, "dir_exposure", dir_exposure)
         object.__setattr__(self, "fi_tenor", fi_tenor)
         object.__setattr__(self, "lookup_status", _clean_optional_str(self.lookup_status).lower())
@@ -364,7 +364,7 @@ class SecurityReference:
             "ibkr_conid": self.ibkr_conid,
             "yahoo_symbol": self.yahoo_symbol,
             "eq_country": self.eq_country,
-            "eq_sector": self.eq_sector,
+            "eq_sector_proxy": self.eq_sector_proxy,
             "dir_exposure": self.dir_exposure,
             "fi_mod_duration": _stringify_optional_float(self.mod_duration),
             "fi_tenor": self.fi_tenor,
@@ -383,7 +383,7 @@ class SecurityReference:
             "ibkr_exchange": self.exchange or self.primary_exchange or self.ibkr_exchange,
             "yahoo_symbol": self.yahoo_symbol,
             "eq_country": self.eq_country,
-            "eq_sector": self.eq_sector,
+            "eq_sector_proxy": self.eq_sector_proxy,
             "dir_exposure": self.dir_exposure or "L",
             "fi_mod_duration": _stringify_optional_float(self.mod_duration),
             "fi_tenor": self.fi_tenor,
@@ -413,7 +413,7 @@ class SecurityReference:
             ibkr_conid=str(row.get("ibkr_conid") or ""),
             yahoo_symbol=str(row.get("yahoo_symbol") or ""),
             eq_country=str(row.get("eq_country") or ""),
-            eq_sector=str(row.get("eq_sector") or ""),
+            eq_sector_proxy=str(row.get("eq_sector_proxy") or ""),
             dir_exposure=str(row.get("dir_exposure") or "L"),
             mod_duration=_parse_optional_float(row.get("fi_mod_duration")),
             fi_tenor=str(row.get("fi_tenor") or ""),
@@ -508,7 +508,7 @@ class SecurityUniverseTable:
                     ibkr_exchange=str(row.get("ibkr_exchange") or ""),
                     yahoo_symbol=str(row.get("yahoo_symbol") or ""),
                     eq_country=str(row.get("eq_country") or ""),
-                    eq_sector=str(row.get("eq_sector") or ""),
+                    eq_sector_proxy=str(row.get("eq_sector_proxy") or ""),
                     dir_exposure=str(row.get("dir_exposure") or "L"),
                     fi_mod_duration=_parse_optional_float(row.get("fi_mod_duration")),
                     fi_tenor=str(row.get("fi_tenor") or ""),
@@ -550,6 +550,15 @@ class SecurityReferenceTable:
                     if not any((value or "").strip() for value in row.values()):
                         continue
                     table.upsert_security(SecurityReference.from_legacy_curated_row(row))
+                return table
+
+            if _is_prev_reference_schema(fieldnames):
+                # Previous schema had eq_sector instead of eq_sector_proxy.
+                # Migrate by loading cached lookup data, eq_sector_proxy defaults to "".
+                for row in reader:
+                    if not any((value or "").strip() for value in row.values()):
+                        continue
+                    table.upsert_security(SecurityReference.from_curated_row(row))
                 return table
 
             missing = [column for column in SECURITY_REFERENCE_HEADERS if column not in fieldnames]
@@ -1083,8 +1092,21 @@ def _infer_asset_class_from_security(security: SecurityReference) -> str:
     return "EQ"
 
 
+_PREV_SECURITY_REFERENCE_HEADERS = [
+    h if h != "eq_sector_proxy" else "eq_sector" for h in SECURITY_REFERENCE_HEADERS
+]
+
+
 def _is_new_reference_schema(fieldnames: list[str]) -> bool:
     return all(column in fieldnames for column in SECURITY_REFERENCE_HEADERS)
+
+
+def _is_prev_reference_schema(fieldnames: list[str]) -> bool:
+    """Matches the pre-eq_sector_proxy schema that used eq_sector instead."""
+    return (
+        all(column in fieldnames for column in _PREV_SECURITY_REFERENCE_HEADERS)
+        and "eq_sector_proxy" not in fieldnames
+    )
 
 
 def _is_legacy_reference_schema(fieldnames: list[str]) -> bool:

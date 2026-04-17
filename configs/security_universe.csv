@@ -1,26 +1,26 @@
-asset_class,ibkr_symbol,display_name,ibkr_exchange,yahoo_symbol,eq_country,eq_sector,dir_exposure,fi_mod_duration,fi_tenor
+asset_class,ibkr_symbol,display_name,ibkr_exchange,yahoo_symbol,eq_country,eq_sector_proxy,dir_exposure,fi_mod_duration,fi_tenor
 EQ,SPY,US,SMART,SPY,US,,L,,
 EQ,VOO,US,SMART,VOO,US,,L,,
-EQ,SPYL,US,LSEETF,SPYL.L,US,,L,,
-EQ,SOXX,US Semiconductor,SMART,SOXX,US,Semiconductor,L,,
-EQ,QQQ,NASDAQ 100,SMART,QQQ,US,NASDAQ 100,L,,
-EQ,SOXL,Semiconductor 3x,SMART,SOXL,US,Semiconductor,L,,
-EQ,TQQQ,NASDAQ 100 3x,SMART,TQQQ,US,NASDAQ 100,L,,
-EQ,SQQQ,NASDAQ 100 -3x,SMART,SQQQ,US,NASDAQ 100,S,,
-EQ,VXM,VIX Mini,CFE,^VIX,,Volatility,S,,
-EQ,VIX,VIX,CFE,^VIX,,Volatility,S,,
-EQ,XLK,Technology,SMART,XLK,US,Technology,L,,
-EQ,XLF,Financials,SMART,XLF,US,Financials,L,,
-EQ,XLV,Health Care,SMART,XLV,US,Health Care,L,,
-EQ,XLY,Consumer Discretionary,SMART,XLY,US,Consumer Discretionary,L,,
-EQ,XLP,Consumer Staples,SMART,XLP,US,Consumer Staples,L,,
-EQ,XLE,Energy,SMART,XLE,US,Energy,L,,
-EQ,XLI,Industrials,SMART,XLI,US,Industrials,L,,
-EQ,XLB,Materials,SMART,XLB,US,Materials,L,,
-EQ,XLU,Utilities,SMART,XLU,US,Utilities,L,,
-EQ,XLRE,Real Estate,SMART,XLRE,US,Real Estate,L,,
-EQ,XLC,Communication Services,SMART,XLC,US,Communication Services,L,,
-EQ,TSLA,TSLA,SMART,TSLA,US,,L,,
+EQ,SPYL,US,LSEETF,SPYL.L,US,SPY,L,,
+EQ,SOXX,US Semiconductor,SMART,SOXX,US,,L,,
+EQ,QQQ,NASDAQ 100,SMART,QQQ,US,,L,,
+EQ,SOXL,Semiconductor 3x,SMART,SOXL,US,,L,,
+EQ,TQQQ,NASDAQ 100 3x,SMART,TQQQ,US,QQQ,L,,
+EQ,SQQQ,NASDAQ 100 -3x,SMART,SQQQ,US,QQQ,S,,
+EQ,VXM,VIX Mini,CFE,^VIX,,SPY,S,,
+EQ,VIX,VIX,CFE,^VIX,,SPY,S,,
+EQ,XLK,Technology,SMART,XLK,US,,L,,
+EQ,XLF,Financials,SMART,XLF,US,,L,,
+EQ,XLV,Health Care,SMART,XLV,US,,L,,
+EQ,XLY,Consumer Discretionary,SMART,XLY,US,,L,,
+EQ,XLP,Consumer Staples,SMART,XLP,US,,L,,
+EQ,XLE,Energy,SMART,XLE,US,,L,,
+EQ,XLI,Industrials,SMART,XLI,US,,L,,
+EQ,XLB,Materials,SMART,XLB,US,,L,,
+EQ,XLU,Utilities,SMART,XLU,US,,L,,
+EQ,XLRE,Real Estate,SMART,XLRE,US,,L,,
+EQ,XLC,Communication Services,SMART,XLC,US,,L,,
+EQ,TSLA,TSLA,SMART,TSLA,US,XLK,L,,
 EQ,IEUR,EU,SMART,IEUR,EU,,L,,
 EQ,VEA,DM,SMART,VEA,DM,,L,,
 EQ,XMME,EM,LSEETF,XMME.L,EM,,L,,
@@ -33,9 +33,15 @@ EQ,XMBD,Brazil,LSEETF,XMBD.L,BR,,L,,
 CASH,SGD,Cash,MANUAL,,,,L,,
 CASH,BOXX,Cash,SMART,BOXX,,,L,,
 FI,LQD,CR,SMART,LQD,,,L,8.379,7-10Y
-FI,ZN,10Y TF,CBOT,ZN=F,,,L,7.627,7-10Y
-FI,ZF,5Y TF,CBOT,ZF=F,,,L,4.333,3-5Y
-FI,ZT,2Y TF,CBOT,ZT=F,,,L,1.879,1-3Y
+FI,ZN,10Y US,CBOT,ZN=F,,,L,7.668,7-10Y
+FI,ZF,5Y US,CBOT,ZF=F,,,L,4.341,3-5Y
+FI,ZT,2Y US,CBOT,ZT=F,,,L,1.881,1-3Y
+FI,BTP,10Y Italy,EUREX,BTP10.MI,,,L,7.734,7-10Y
+FI,BTS,2Y Italy,EUREX,,,,L,1.892,1-3Y
+FI,OAT,10Y France,EUREX,,,,L,7.751,7-10Y
+FI,R,10Y UK,ICEEU,,,,L,8.17,7-10Y
+FI,XT,10Y AU,SNFE,,,,L,1,7-10Y
+FI,YT,3Y AU,SNFE,,,,L,1,1-3Y
 CM,GLD,Gold,SMART,GLD,,,L,,
 CM,GDX,Gold Miners,SMART,GDX,,,L,,
 CM,SLV,Silver,SMART,SLV,,,L,,

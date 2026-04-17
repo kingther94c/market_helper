@@ -195,7 +195,7 @@ def test_build_security_reference_table_does_not_fall_back_to_legacy_cache_when_
     universe_path.write_text(
         "\n".join(
             [
-                "asset_class,ibkr_symbol,display_name,ibkr_exchange,yahoo_symbol,eq_country,eq_sector,dir_exposure,fi_mod_duration,fi_tenor",
+                "asset_class,ibkr_symbol,display_name,ibkr_exchange,yahoo_symbol,eq_country,eq_sector_proxy,dir_exposure,fi_mod_duration,fi_tenor",
                 "EQ,SPY,US,SMART,SPY,US,,L,,",
             ]
         ),

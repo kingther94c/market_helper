@@ -52,7 +52,7 @@ from market_helper.data_sources.ibkr.tws import (
     portfolio_items_to_ibkr_price_rows,
 )
 from market_helper.domain.portfolio_monitor.services.etf_sector_lookthrough import (
-    sync_us_sector_lookthrough_from_fmp,
+    sync_us_sector_lookthrough,
 )
 from market_helper.domain.portfolio_monitor.services.nav_cashflow_history import (
     DEFAULT_NAV_CASHFLOW_HISTORY_FILENAME,
@@ -1191,7 +1191,7 @@ def generate_etf_sector_sync(
     client: object | None = None,
     progress: ProgressReporter | None = None,
 ) -> Path:
-    return sync_us_sector_lookthrough_from_fmp(
+    return sync_us_sector_lookthrough(
         symbols=symbols,
         output_path=output_path,
         api_key=api_key,
@@ -1707,7 +1707,7 @@ def _security_enrichment_fields(
             "security_ibkr_conid": "",
             "security_yahoo_symbol": "",
             "security_eq_country": "",
-            "security_eq_sector": "",
+            "security_eq_sector_proxy": "",
             "security_dir_exposure": "",
             "security_mod_duration": None,
             "security_fi_tenor": "",
@@ -1735,7 +1735,7 @@ def _security_enrichment_fields(
         "security_ibkr_conid": security.ibkr_conid,
         "security_yahoo_symbol": security.yahoo_symbol,
         "security_eq_country": security.eq_country,
-        "security_eq_sector": security.eq_sector,
+        "security_eq_sector_proxy": security.eq_sector_proxy,
         "security_dir_exposure": security.dir_exposure,
         "security_mod_duration": security.mod_duration,
         "security_fi_tenor": security.fi_tenor,

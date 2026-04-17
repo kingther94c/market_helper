@@ -7,7 +7,7 @@ from pathlib import Path
 from typing import Any, Iterable, Mapping, Sequence
 
 from market_helper.common.progress import ProgressReporter
-from market_helper.data_sources.fmp import FmpClient, FmpEtfSectorWeight
+from market_helper.data_sources.alpha_vantage import AlphaVantageClient, AlphaVantageEtfSectorWeight
 
 
 DEFAULT_US_SECTOR_LOOKTHROUGH_PATH = (
@@ -16,13 +16,13 @@ DEFAULT_US_SECTOR_LOOKTHROUGH_PATH = (
 DEFAULT_CANONICAL_LOCAL_ENV_PATH = (
     Path(__file__).resolve().parents[4] / "configs" / "portfolio_monitor" / "local.env"
 )
-DEFAULT_FMP_API_KEY_ENV_VAR = "FMP_API_KEY"
+DEFAULT_ALPHA_VANTAGE_API_KEY_ENV_VAR = "ALPHA_VANTAGE_API_KEY"
 DEFAULT_LOOKTHROUGH_SCHEMA_VERSION = 1
 DEFAULT_LOOKTHROUGH_INITIAL_UPDATED_AT = "2000-01-01"
 DEFAULT_LOOKTHROUGH_MAX_AGE_DAYS = 30
-DEFAULT_FMP_DAILY_CALL_LIMIT = 250
+DEFAULT_AV_DAILY_CALL_LIMIT = 20
 
-FMP_SECTOR_TO_INTERNAL_BUCKET = {
+AV_SECTOR_TO_INTERNAL_BUCKET = {
     "basic materials": "Materials",
     "communication services": "Communication Services",
     "consumer cyclical": "Consumer Discretionary",
@@ -38,6 +38,7 @@ FMP_SECTOR_TO_INTERNAL_BUCKET = {
     "industrials": "Industrials",
     "materials": "Materials",
     "real estate": "Real Estate",
+    "information technology": "Technology",
     "semiconductor": "Technology",
     "semiconductors": "Technology",
     "technology": "Technology",
@@ -45,16 +46,16 @@ FMP_SECTOR_TO_INTERNAL_BUCKET = {
 }
 
 
-def sync_us_sector_lookthrough_from_fmp(
+def sync_us_sector_lookthrough(
     *,
     symbols: Sequence[str],
     output_path: str | Path | None = None,
     api_key: str | None = None,
-    client: FmpClient | None = None,
+    client: AlphaVantageClient | None = None,
     force_refresh: bool = True,
     today: date | None = None,
     max_age_days: int = DEFAULT_LOOKTHROUGH_MAX_AGE_DAYS,
-    daily_call_limit: int = DEFAULT_FMP_DAILY_CALL_LIMIT,
+    daily_call_limit: int = DEFAULT_AV_DAILY_CALL_LIMIT,
     progress: ProgressReporter | None = None,
 ) -> Path:
     normalized_symbols = _normalize_symbols(symbols)
@@ -67,9 +68,9 @@ def sync_us_sector_lookthrough_from_fmp(
     store = _load_store(destination, daily_call_limit=daily_call_limit)
     _ensure_symbols_tracked(store, normalized_symbols)
 
-    resolved_api_key = _resolve_fmp_api_key(api_key)
+    resolved_api_key = _resolve_alpha_vantage_api_key(api_key)
     if resolved_api_key or client is not None:
-        resolved_client = client or FmpClient(api_key=resolved_api_key)
+        resolved_client = client or AlphaVantageClient(api_key=resolved_api_key)
         _refresh_store(
             store,
             client=resolved_client,
@@ -90,13 +91,13 @@ def refresh_us_sector_lookthrough_for_report(
     symbols: Sequence[str],
     output_path: str | Path | None = None,
     api_key: str | None = None,
-    client: FmpClient | None = None,
+    client: AlphaVantageClient | None = None,
     today: date | None = None,
     max_age_days: int = DEFAULT_LOOKTHROUGH_MAX_AGE_DAYS,
-    daily_call_limit: int = DEFAULT_FMP_DAILY_CALL_LIMIT,
+    daily_call_limit: int = DEFAULT_AV_DAILY_CALL_LIMIT,
     progress: ProgressReporter | None = None,
 ) -> Path:
-    return sync_us_sector_lookthrough_from_fmp(
+    return sync_us_sector_lookthrough(
         symbols=symbols,
         output_path=output_path,
         api_key=api_key,
@@ -134,14 +135,14 @@ def load_tracked_us_sector_symbols(path: str | Path) -> set[str]:
     return set(_store_symbols(store))
 
 
-def _resolve_fmp_api_key(api_key: str | None) -> str:
+def _resolve_alpha_vantage_api_key(api_key: str | None) -> str:
     direct = str(api_key or "").strip()
     if direct:
         return direct
-    from_process_env = str(os.environ.get(DEFAULT_FMP_API_KEY_ENV_VAR, "")).strip()
+    from_process_env = str(os.environ.get(DEFAULT_ALPHA_VANTAGE_API_KEY_ENV_VAR, "")).strip()
     if from_process_env:
         return from_process_env
-    return _read_local_env_value(DEFAULT_FMP_API_KEY_ENV_VAR)
+    return _read_local_env_value(DEFAULT_ALPHA_VANTAGE_API_KEY_ENV_VAR)
 
 
 def _normalize_symbols(symbols: Sequence[str]) -> list[str]:
@@ -160,7 +161,7 @@ def _normalize_symbols(symbols: Sequence[str]) -> list[str]:
 def _refresh_store(
     store: dict[str, Any],
     *,
-    client: FmpClient,
+    client: AlphaVantageClient,
     requested_symbols: Sequence[str],
     force_refresh: bool,
     today: date,
@@ -202,14 +203,13 @@ def _refresh_store(
             continue
         entry = _store_symbols(store)[symbol]
         try:
-            normalized_rows = _normalize_fmp_rows(
+            normalized_rows = _normalize_av_rows(
                 client.fetch_etf_sector_weightings(symbol),
                 symbol=symbol,
             )
         except Exception as exc:
             entry["status"] = "error"
             entry["error_message"] = str(exc)
-            entry["updated_at"] = today.isoformat()
         else:
             entry["status"] = "ok"
             entry["error_message"] = ""
@@ -254,8 +254,8 @@ def _stale_symbols(
     return [symbol for _, symbol in stale]
 
 
-def _normalize_fmp_rows(
-    rows: Iterable[FmpEtfSectorWeight],
+def _normalize_av_rows(
+    rows: Iterable[AlphaVantageEtfSectorWeight],
     *,
     symbol: str,
 ) -> list[dict[str, object]]:
@@ -265,7 +265,7 @@ def _normalize_fmp_rows(
         bucket_weights[bucket] = bucket_weights.get(bucket, 0.0) + float(row.weight)
 
     if not bucket_weights:
-        raise ValueError(f"FMP returned no usable sector rows for {symbol}")
+        raise ValueError(f"Alpha Vantage returned no usable sector rows for {symbol}")
 
     return [
         {
@@ -283,7 +283,7 @@ def _normalize_sector_name(raw_sector: str) -> str:
     cleaned = str(raw_sector).strip()
     if not cleaned:
         raise ValueError("Sector name cannot be blank")
-    normalized = FMP_SECTOR_TO_INTERNAL_BUCKET.get(cleaned.lower())
+    normalized = AV_SECTOR_TO_INTERNAL_BUCKET.get(cleaned.lower())
     if normalized is not None:
         return normalized
     return cleaned
@@ -299,7 +299,7 @@ def _coerce_weight(raw_value: object) -> float:
     return float(raw_value)
 
 
-def _load_store(path: Path, *, daily_call_limit: int = DEFAULT_FMP_DAILY_CALL_LIMIT) -> dict[str, Any]:
+def _load_store(path: Path, *, daily_call_limit: int = DEFAULT_AV_DAILY_CALL_LIMIT) -> dict[str, Any]:
     if path.exists():
         loaded = json.loads(path.read_text(encoding="utf-8")) or {}
         if not isinstance(loaded, dict):
@@ -311,7 +311,7 @@ def _load_store(path: Path, *, daily_call_limit: int = DEFAULT_FMP_DAILY_CALL_LI
 def _default_store(*, daily_call_limit: int) -> dict[str, Any]:
     return {
         "schema_version": DEFAULT_LOOKTHROUGH_SCHEMA_VERSION,
-        "provider": "fmp",
+        "provider": "alpha_vantage",
         "daily_call_limit": int(daily_call_limit),
         "api_usage": {
             "date": "",
@@ -324,7 +324,7 @@ def _default_store(*, daily_call_limit: int) -> dict[str, Any]:
 def _normalize_store(payload: Mapping[str, Any], *, daily_call_limit: int) -> dict[str, Any]:
     store = _default_store(daily_call_limit=daily_call_limit)
     store["schema_version"] = int(payload.get("schema_version", DEFAULT_LOOKTHROUGH_SCHEMA_VERSION))
-    store["provider"] = str(payload.get("provider") or "fmp")
+    store["provider"] = str(payload.get("provider") or "alpha_vantage")
     store["daily_call_limit"] = int(payload.get("daily_call_limit", daily_call_limit))
     store["api_usage"] = _normalize_api_usage_payload(payload.get("api_usage"))
 
@@ -343,7 +343,10 @@ def _normalize_store(payload: Mapping[str, Any], *, daily_call_limit: int) -> di
             for row in sectors:
                 if not isinstance(row, Mapping):
                     continue
-                sector = str(row.get("sector") or "").strip()
+                raw_sector = str(row.get("sector") or "").strip()
+                if not raw_sector:
+                    continue
+                sector = AV_SECTOR_TO_INTERNAL_BUCKET.get(raw_sector.lower(), raw_sector)
                 weight = _coerce_weight(row.get("weight"))
                 if not sector or weight <= 0:
                     continue

@@ -168,7 +168,7 @@ def build_parser() -> argparse.ArgumentParser:
 
     etf_sector_sync = subparsers.add_parser(
         "etf-sector-sync",
-        help="Fetch ETF sector weights from FMP and merge them into us_sector_lookthrough.json.",
+        help="Fetch ETF sector weights from Alpha Vantage and merge them into us_sector_lookthrough.json.",
     )
     etf_sector_sync.add_argument(
         "--symbol",
@@ -184,7 +184,7 @@ def build_parser() -> argparse.ArgumentParser:
     etf_sector_sync.add_argument(
         "--api-key",
         required=False,
-        help="Optional FMP API key. Falls back to FMP_API_KEY or configs/portfolio_monitor/local.env.",
+        help="Optional Alpha Vantage API key. Falls back to ALPHA_VANTAGE_API_KEY or configs/portfolio_monitor/local.env.",
     )
 
     regime_detect = subparsers.add_parser(

@@ -318,7 +318,7 @@ def test_expand_us_sector_allocations_prefers_lookthrough_over_security_sector()
         mapping_status="mapped",
         dir_exposure="L",
         eq_country="US",
-        eq_sector="Semiconductor",
+        eq_sector_proxy="",
         fi_tenor="",
         yahoo_symbol="SOXX",
     )
@@ -331,113 +331,56 @@ def test_expand_us_sector_allocations_prefers_lookthrough_over_security_sector()
     assert allocations == [("Technology", 1.0)]
 
 
-def test_report_us_etf_lookthrough_symbols_skips_single_name_equities() -> None:
-    spy_row = RiskInputRow(
-        internal_id="STK:SPY:ARCA",
-        symbol="SPY",
-        canonical_symbol="SPY",
-        account="U1",
-        market_value=1000.0,
-        weight=0.5,
-        asset_class="EQ",
-        category="EQ",
-        display_ticker="SPY",
-        display_name="US",
-        instrument_type="EQ",
-        quantity=1.0,
-        latest_price=1000.0,
-        multiplier=1.0,
-        exposure_usd=1000.0,
-        gross_exposure_usd=1000.0,
-        signed_exposure_usd=1000.0,
-        dollar_weight=0.5,
-        display_exposure_usd=1000.0,
-        display_gross_exposure_usd=1000.0,
-        display_dollar_weight=0.5,
-        duration=None,
-        expected_vol=None,
-        local_symbol="SPY",
-        exchange="ARCA",
-        mapping_status="mapped",
-        dir_exposure="L",
-        eq_country="US",
-        eq_sector="",
-        fi_tenor="",
-        yahoo_symbol="SPY",
-    )
-    tsla_row = RiskInputRow(
-        internal_id="STK:TSLA:SMART",
-        symbol="TSLA",
-        canonical_symbol="TSLA",
-        account="U1",
-        market_value=1000.0,
-        weight=0.5,
-        asset_class="EQ",
-        category="EQ",
-        display_ticker="TSLA",
-        display_name="TSLA",
-        instrument_type="EQ",
-        quantity=1.0,
-        latest_price=1000.0,
-        multiplier=1.0,
-        exposure_usd=1000.0,
-        gross_exposure_usd=1000.0,
-        signed_exposure_usd=1000.0,
-        dollar_weight=0.5,
-        display_exposure_usd=1000.0,
-        display_gross_exposure_usd=1000.0,
-        display_dollar_weight=0.5,
-        duration=None,
-        expected_vol=None,
-        local_symbol="TSLA",
-        exchange="SMART",
-        mapping_status="mapped",
-        dir_exposure="L",
-        eq_country="US",
-        eq_sector="",
-        fi_tenor="",
-        yahoo_symbol="TSLA",
-    )
-    aapl_row = RiskInputRow(
-        internal_id="STK:AAPL:SMART",
-        symbol="AAPL",
-        canonical_symbol="AAPL",
-        account="U1",
-        market_value=1000.0,
-        weight=0.5,
-        asset_class="EQ",
-        category="EQ",
-        display_ticker="AAPL",
-        display_name="Apple Inc",
-        instrument_type="EQ",
-        quantity=1.0,
-        latest_price=1000.0,
-        multiplier=1.0,
-        exposure_usd=1000.0,
-        gross_exposure_usd=1000.0,
-        signed_exposure_usd=1000.0,
-        dollar_weight=0.5,
-        display_exposure_usd=1000.0,
-        display_gross_exposure_usd=1000.0,
-        display_dollar_weight=0.5,
-        duration=None,
-        expected_vol=None,
-        local_symbol="AAPL",
-        exchange="SMART",
-        mapping_status="mapped",
-        dir_exposure="L",
-        eq_country="US",
-        eq_sector="",
-        fi_tenor="",
-        yahoo_symbol="AAPL",
-    )
+def test_report_us_etf_lookthrough_symbols_uses_proxy_and_existing() -> None:
+    def _make_row(symbol: str, *, proxy: str, in_existing: bool = False) -> RiskInputRow:
+        return RiskInputRow(
+            internal_id=f"STK:{symbol}:SMART",
+            symbol=symbol,
+            canonical_symbol=symbol,
+            account="U1",
+            market_value=1000.0,
+            weight=0.5,
+            asset_class="EQ",
+            category="EQ",
+            display_ticker=symbol,
+            display_name=symbol,
+            instrument_type="EQ",
+            quantity=1.0,
+            latest_price=1000.0,
+            multiplier=1.0,
+            exposure_usd=1000.0,
+            gross_exposure_usd=1000.0,
+            signed_exposure_usd=1000.0,
+            dollar_weight=0.5,
+            display_exposure_usd=1000.0,
+            display_gross_exposure_usd=1000.0,
+            display_dollar_weight=0.5,
+            duration=None,
+            expected_vol=None,
+            local_symbol=symbol,
+            exchange="SMART",
+            mapping_status="mapped",
+            dir_exposure="L",
+            eq_country="US",
+            eq_sector_proxy=proxy,
+            fi_tenor="",
+            yahoo_symbol=symbol,
+        )
+
+    existing = {"SPY"}
+    rows = [
+        _make_row("SPY", proxy=""),       # no proxy, but SPY in existing → include SPY
+        _make_row("TSLA", proxy="XLK"),   # proxy=XLK → include XLK
+        _make_row("AAPL", proxy=""),      # no proxy, AAPL not in existing → skip
+        _make_row("VIX", proxy="NONE"),   # explicit NONE → skip
+    ]
 
     symbols = risk_html_module._report_us_etf_lookthrough_symbols(
-        [spy_row, tsla_row, aapl_row],
-        existing_symbols=set(),
+        rows,
+        existing_symbols=existing,
     )
 
-    assert symbols == ["SPY"]
+    assert symbols == ["SPY", "XLK"]
 
 
 def test_build_risk_html_report_renders_summary_and_tables(tmp_path: Path) -> None:
@@ -509,7 +452,7 @@ def test_build_risk_html_report_renders_summary_and_tables(tmp_path: Path) -> No
     assert "Regime Snapshot" in rendered
     assert "Goldilocks Expansion" in rendered
     assert "SPY" in rendered
-    assert "10Y TF" in rendered
+    assert "10Y US" in rendered
     assert "3M Trend" in rendered
     assert "class='sparkline'" in rendered
     assert "<tr><td>FI</td><td>FI</td>" not in rendered
