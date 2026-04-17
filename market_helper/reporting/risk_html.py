@@ -313,6 +313,20 @@ class PolicyDriftRow:
     current_risk_contribution: float
 
 
+SUPPORTED_VOL_METHOD_KEYS: tuple[str, ...] = (
+    "geomean_1m_3m",
+    "5y_realized",
+    "ewma",
+    "forward_looking",
+)
+DEFAULT_VOL_METHOD_LABELS: dict[str, str] = {
+    "Long-Term": "5y_realized",
+    "Fast": "geomean_1m_3m",
+    "Forward-Looking": "forward_looking",
+}
+DEFAULT_FX_EXCLUDED_ASSET_CLASSES: tuple[str, ...] = ("FX",)
+
+
 @dataclass(frozen=True)
 class RiskReportConfig:
     eq_country_lookthrough_path: Path
@@ -323,6 +337,27 @@ class RiskReportConfig:
     proxy_yahoo: ProxyYahooConfig
     volatility: VolatilityMethodologyConfig
     fixed_income: FixedIncomeMethodologyConfig
+    vol_method_labels: dict[str, str]
+    fx_excluded_asset_classes: tuple[str, ...]
+
+
+def resolve_vol_method_key(
+    value: str, labels: Mapping[str, str] | None = None
+) -> str:
+    """Accept either a dashboard label ('Long-Term') or internal key ('5y_realized') and return the internal key."""
+    mapping = dict(labels) if labels else DEFAULT_VOL_METHOD_LABELS
+    normalized = str(value).strip()
+    if normalized in mapping:
+        return mapping[normalized]
+    lowered = normalized.lower()
+    if lowered in {k.lower() for k in SUPPORTED_VOL_METHOD_KEYS}:
+        for key in SUPPORTED_VOL_METHOD_KEYS:
+            if key.lower() == lowered:
+                return key
+    raise ValueError(
+        f"Unknown vol method '{value}'. Known labels: {sorted(mapping.keys())}; "
+        f"known keys: {list(SUPPORTED_VOL_METHOD_KEYS)}"
+    )
 
 
 def build_risk_html_report(
@@ -383,6 +418,8 @@ def build_risk_report_view_model(
         risk_config_path=risk_config_path,
         allocation_policy_path=allocation_policy_path,
     )
+    # Accept either configured label ("Long-Term") or internal key ("5y_realized").
+    vol_method = resolve_vol_method_key(vol_method, risk_report_config.vol_method_labels)
     current_step += 1
     reporter.stage("Risk HTML: config loaded", current=current_step, total=total_steps)
     proxy = _load_proxy(
@@ -1899,6 +1936,27 @@ def _load_risk_report_config(
         if str(key).strip().upper() not in {"DEFAULTS", "YAHOO"}
     }
 
+    labels_payload = payload.get("vol_method_labels", {}) or {}
+    if not isinstance(labels_payload, Mapping):
+        raise ValueError("Risk report vol_method_labels config must be a mapping")
+    vol_method_labels: dict[str, str] = {}
+    for raw_label, raw_key in labels_payload.items():
+        label = str(raw_label).strip()
+        key = str(raw_key).strip()
+        if key not in SUPPORTED_VOL_METHOD_KEYS:
+            raise ValueError(
+                f"Unsupported vol method key in vol_method_labels['{label}']: {key}. "
+                f"Valid keys: {list(SUPPORTED_VOL_METHOD_KEYS)}"
+            )
+        vol_method_labels[label] = key
+    if not vol_method_labels:
+        vol_method_labels = dict(DEFAULT_VOL_METHOD_LABELS)
+
+    fx_excluded_payload = payload.get("fx_excluded_asset_classes", [])
+    if not isinstance(fx_excluded_payload, (list, tuple)):
+        raise ValueError("fx_excluded_asset_classes must be a list")
+    fx_excluded = tuple(str(x).strip().upper() for x in fx_excluded_payload) or DEFAULT_FX_EXCLUDED_ASSET_CLASSES
+
     return RiskReportConfig(
         eq_country_lookthrough_path=eq_path,
         us_sector_lookthrough_path=us_path,
@@ -1908,6 +1966,8 @@ def _load_risk_report_config(
         proxy_yahoo=_parse_proxy_yahoo_config(proxy_payload.get("yahoo", {})),
         volatility=_parse_volatility_config(volatility_payload),
         fixed_income=_parse_fixed_income_config(fixed_income_payload),
+        vol_method_labels=vol_method_labels,
+        fx_excluded_asset_classes=fx_excluded,
     )
 
 
