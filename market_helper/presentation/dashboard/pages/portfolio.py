@@ -154,6 +154,12 @@ def _positions_csv_ready_for_autoload(value: str) -> bool:
     return bool(normalized) and Path(normalized).exists()
 
 
+def _initial_dashboard_status(positions_csv_path: str) -> str:
+    if _positions_csv_ready_for_autoload(positions_csv_path):
+        return "Ready. Click Refresh Snapshot to load the current artifacts."
+    return "Positions CSV not found. Run Live Refresh or enter a valid artifact path."
+
+
 def register_portfolio_page(
     *,
     query_service: PortfolioMonitorQueryService | None = None,
@@ -177,6 +183,14 @@ def register_portfolio_page(
             _render_portfolio_page(state)
 
         async def load_snapshot() -> None:
+            if not _positions_csv_ready_for_autoload(state.artifact_form.positions_csv_path):
+                state.snapshot = None
+                state.warnings = []
+                state.load_error = None
+                state.is_loading = False
+                state.status_message = _initial_dashboard_status(state.artifact_form.positions_csv_path)
+                render.refresh()
+                return
             state.is_loading = True
             state.load_error = None
             state.status_message = "Loading portfolio snapshot..."
@@ -198,14 +212,12 @@ def register_portfolio_page(
                 render.refresh()
 
         async def initialize_page() -> None:
-            if not _positions_csv_ready_for_autoload(state.artifact_form.positions_csv_path):
-                state.snapshot = None
-                state.warnings = []
-                state.load_error = None
-                state.status_message = "Positions CSV not found. Run Live Refresh or enter a valid artifact path."
-                render.refresh()
-                return
-            await load_snapshot()
+            state.snapshot = None
+            state.warnings = []
+            state.load_error = None
+            state.is_loading = False
+            state.status_message = _initial_dashboard_status(state.artifact_form.positions_csv_path)
+            render.refresh()
 
         async def run_action(action_name: str) -> None:
             if state.active_job is not None:
@@ -303,6 +315,7 @@ def _build_initial_state(query_service: PortfolioMonitorQueryService) -> Portfol
         flex_form=FlexActionFormState(output_dir=performance_output_dir),
         export_form=ExportActionFormState(output_path=str(Path(performance_output_dir).parent / "portfolio_combined_report.html")),
         reference_form=ReferenceActionFormState(security_reference_output_path=str(inputs.security_reference_path or "")),
+        status_message=_initial_dashboard_status(positions_path),
     )
 
 
