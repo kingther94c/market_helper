@@ -598,6 +598,7 @@ def _render_risk_overview(risk) -> None:
 def _render_risk_equity(risk) -> None:
     eq_rows = [r for r in risk.risk_rows if r.asset_class == "EQ"]
     with ui.column().classes("w-full gap-4"):
+        _render_dm_em_summary(risk.country_breakdown)
         with ui.row().classes("w-full gap-4 wrap"):
             render_risk_chart_block(
                 title="Equity Country Allocation",
@@ -614,6 +615,101 @@ def _render_risk_equity(risk) -> None:
                 row_key="bucket",
             )
         _render_position_subtable("Equity Holdings", eq_rows)
+
+
+def _render_dm_em_summary(country_breakdown: list[BreakdownRow]) -> None:
+    region_map = _load_dm_em_bucket_map()
+    buckets: dict[str, dict[str, float]] = {"DM": {}, "EM": {}}
+    totals: dict[str, float] = {"DM": 0.0, "EM": 0.0}
+    for row in country_breakdown:
+        region = region_map.get(row.bucket.upper())
+        if region not in ("DM", "EM"):
+            continue
+        buckets[region][row.bucket] = buckets[region].get(row.bucket, 0.0) + row.exposure_usd
+        totals[region] += row.exposure_usd
+    grand_total = totals["DM"] + totals["EM"]
+    if grand_total <= 0:
+        return
+    with ui.card().classes("w-full pm-card p-4"):
+        ui.label("DM / EM Summary").classes("text-h6")
+        with ui.row().classes("w-full gap-4 wrap"):
+            render_status_card(
+                title="Developed Markets",
+                value=format_percent(totals["DM"] / grand_total),
+                detail=format_amount(totals["DM"], decimals=0),
+            )
+            render_status_card(
+                title="Emerging Markets",
+                value=format_percent(totals["EM"] / grand_total),
+                detail=format_amount(totals["EM"], decimals=0),
+            )
+        ui.plotly(_build_dm_em_stacked_bars(buckets, totals)).classes("w-full h-[280px]")
+
+
+def _build_dm_em_stacked_bars(
+    buckets: dict[str, dict[str, float]], totals: dict[str, float]
+) -> dict[str, Any]:
+    traces = []
+    all_countries = sorted({c for region_buckets in buckets.values() for c in region_buckets})
+    for country in all_countries:
+        traces.append(
+            {
+                "type": "bar",
+                "name": country,
+                "x": ["DM", "EM"],
+                "y": [
+                    (buckets["DM"].get(country, 0.0) / totals["DM"]) if totals["DM"] else 0.0,
+                    (buckets["EM"].get(country, 0.0) / totals["EM"]) if totals["EM"] else 0.0,
+                ],
+                "hovertemplate": f"{country} %{{x}}<br>%{{y:.1%}}<extra></extra>",
+            }
+        )
+    return {
+        "data": traces,
+        "layout": {
+            "template": "plotly_white",
+            "barmode": "stack",
+            "height": 280,
+            "margin": {"l": 48, "r": 16, "t": 24, "b": 40},
+            "yaxis": {"tickformat": ".0%", "range": [0, 1.01]},
+            "xaxis": {"title": "Region"},
+            "legend": {"orientation": "h", "y": -0.2},
+        },
+        "config": {"displayModeBar": False, "responsive": True},
+    }
+
+
+@lru_cache(maxsize=1)
+def _load_dm_em_bucket_map() -> dict[str, str]:
+    path = (
+        Path(__file__).resolve().parents[4]
+        / "configs"
+        / "portfolio_monitor"
+        / "eq_country_lookthrough.csv"
+    )
+    mapping: dict[str, str] = {}
+    if not path.exists():
+        return mapping
+    with path.open("r", encoding="utf-8", newline="") as handle:
+        reader = csv.DictReader(handle)
+        dm_buckets: set[str] = set()
+        em_buckets: set[str] = set()
+        for row in reader:
+            region = (row.get("eq_country") or "").strip().upper()
+            bucket = (row.get("country_bucket") or "").strip().upper()
+            if not bucket or bucket.endswith("-OTHERS") or bucket in {"OTHER", "OTHERS"}:
+                continue
+            if region == "DM":
+                dm_buckets.add(bucket)
+            elif region == "EM":
+                em_buckets.add(bucket)
+    for bucket in dm_buckets - em_buckets:
+        mapping[bucket] = "DM"
+    for bucket in em_buckets - dm_buckets:
+        mapping[bucket] = "EM"
+    mapping["DM-OTHERS"] = "DM"
+    mapping["EM-OTHERS"] = "EM"
+    return mapping
 
 
 def _render_risk_fixed_income(risk) -> None:
