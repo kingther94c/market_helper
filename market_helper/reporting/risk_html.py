@@ -461,9 +461,10 @@ def build_risk_report_view_model(
     current_step += 1
     reporter.stage("Risk HTML: lookthrough refreshed", current=current_step, total=total_steps)
     included_rows = [row for row in rows if _is_report_included(row)]
+    vol_included_rows = [row for row in included_rows if _is_vol_included(row)]
     returns = _load_or_build_returns(
         returns_path=returns_path,
-        rows=included_rows,
+        rows=vol_included_rows,
         yahoo_client=resolved_yahoo_client,
         progress=reporter.child("Returns"),
     )
@@ -485,7 +486,7 @@ def build_risk_report_view_model(
             internal_id=row.internal_id,
             display_ticker=row.display_ticker,
         )
-        if _is_report_included(row)
+        if _is_vol_included(row)
         else 0.0
         for row in rows
     }
@@ -502,7 +503,7 @@ def build_risk_report_view_model(
             internal_id=row.internal_id,
             display_ticker=row.display_ticker,
         )
-        if _is_report_included(row)
+        if _is_vol_included(row)
         else 0.0
         for row in rows
     }
@@ -519,15 +520,15 @@ def build_risk_report_view_model(
             internal_id=row.internal_id,
             display_ticker=row.display_ticker,
         )
-        if _is_report_included(row)
+        if _is_vol_included(row)
         else 0.0
         for row in rows
     }
 
-    geomean_group_loadings = _build_group_loadings(included_rows, vols_geomean_1m_3m)
-    realized_5y_group_loadings = _build_group_loadings(included_rows, vols_5y_realized)
-    ewma_group_loadings = _build_group_loadings(included_rows, vols_ewma)
-    group_returns = _build_group_returns(included_rows, returns)
+    geomean_group_loadings = _build_group_loadings(vol_included_rows, vols_geomean_1m_3m)
+    realized_5y_group_loadings = _build_group_loadings(vol_included_rows, vols_5y_realized)
+    ewma_group_loadings = _build_group_loadings(vol_included_rows, vols_ewma)
+    group_returns = _build_group_returns(vol_included_rows, returns)
     asset_class_keys = set(geomean_group_loadings) | set(realized_5y_group_loadings) | set(ewma_group_loadings)
     proxy_group_returns = _load_asset_class_proxy_returns(
         asset_classes=asset_class_keys,
@@ -550,11 +551,11 @@ def build_risk_report_view_model(
             internal_id=row.internal_id,
             display_ticker=row.display_ticker,
         )
-        if _is_report_included(row)
+        if _is_vol_included(row)
         else 0.0
         for row in rows
     }
-    forward_looking_group_loadings = _build_group_loadings(included_rows, vols_forward_looking)
+    forward_looking_group_loadings = _build_group_loadings(vol_included_rows, vols_forward_looking)
     asset_class_keys = asset_class_keys | set(forward_looking_group_loadings)
     selected_group_corr = _build_group_correlation(
         asset_classes=asset_class_keys,
@@ -569,10 +570,10 @@ def build_risk_report_view_model(
         forward_looking_group_loadings, selected_group_corr
     )
 
-    security_geomean_loadings = _build_security_loadings(included_rows, vols_geomean_1m_3m)
-    security_realized_loadings = _build_security_loadings(included_rows, vols_5y_realized)
-    security_ewma_loadings = _build_security_loadings(included_rows, vols_ewma)
-    security_forward_looking_loadings = _build_security_loadings(included_rows, vols_forward_looking)
+    security_geomean_loadings = _build_security_loadings(vol_included_rows, vols_geomean_1m_3m)
+    security_realized_loadings = _build_security_loadings(vol_included_rows, vols_5y_realized)
+    security_ewma_loadings = _build_security_loadings(vol_included_rows, vols_ewma)
+    security_forward_looking_loadings = _build_security_loadings(vol_included_rows, vols_forward_looking)
     selected_security_loadings = _select_security_loadings(
         vol_method=vol_method,
         geomean=security_geomean_loadings,
@@ -1395,6 +1396,10 @@ def _is_report_included(row: RiskInputRow | RiskMetricsRow) -> bool:
 
 def _report_scope_label(row: RiskInputRow | RiskMetricsRow) -> str:
     return "included" if _is_report_included(row) else "excluded"
+
+
+def _is_vol_included(row: RiskInputRow | RiskMetricsRow) -> bool:
+    return _is_report_included(row) and row.mapping_status == "mapped"
 
 
 def _render_policy_drift_rows(rows: Iterable[PolicyDriftRow]) -> str:
@@ -2649,6 +2654,8 @@ def _instrument_type(
 ) -> str:
     if security is None:
         return infer_instrument_type(local_symbol, exchange)
+    if security.ibkr_sec_type in {"OPT", "FOP"}:
+        return "Option"
     if security.mapping_status == "outside_scope":
         return "Option" if _looks_like_option(local_symbol) else "Outside Scope"
     if security.ibkr_sec_type == "FUT":

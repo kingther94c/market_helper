@@ -172,6 +172,29 @@ def test_build_initial_state_prefills_flex_credentials_from_local_env(tmp_path, 
     assert state.flex_form.token == "demo-token"
 
 
+def test_build_initial_state_prefills_live_account_id_from_local_env(tmp_path, monkeypatch) -> None:
+    local_env = tmp_path / "local.env"
+    local_env.write_text(
+        'DEFAULT_PROD_ACCOUNT_ID="U2935967"\n',
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(
+        "market_helper.presentation.dashboard.pages.portfolio.DEFAULT_CANONICAL_LOCAL_ENV_PATH",
+        local_env,
+    )
+
+    class QueryService:
+        def resolve_inputs(self, inputs: PortfolioReportInputs | None = None) -> PortfolioReportInputs:
+            return PortfolioReportInputs(
+                positions_csv_path="data/positions.csv",
+                performance_output_dir="data/flex",
+            )
+
+    state = _build_initial_state(QueryService())
+
+    assert state.live_form.account_id == "U2935967"
+
+
 def test_action_progress_summary_uses_live_x_of_total_while_action_runs() -> None:
     sink = InMemoryUiProgressSink()
     sink.record(UiProgressEvent(kind="stage", label="IBKR Flex report", current=2, total=5))

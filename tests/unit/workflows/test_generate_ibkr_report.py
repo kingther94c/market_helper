@@ -154,6 +154,7 @@ def test_generate_ibkr_position_report_writes_proposed_security_reference_for_un
     assert proposal_rows == [
         {
             "asset_class": "EQ",
+            "sec_type": "STK",
             "ibkr_symbol": "AAPL",
             "display_name": "AAPL",
             "ibkr_exchange": "SMART",
