@@ -163,6 +163,7 @@ def test_generate_ibkr_position_report_writes_proposed_security_reference_for_un
             "dir_exposure": "L",
             "fi_mod_duration": "",
             "fi_tenor": "",
+            "cm_sector": "",
             "lookup_primary_exchange": "SMART",
             "lookup_currency": "USD",
             "lookup_multiplier": "1",
