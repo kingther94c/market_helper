@@ -495,7 +495,9 @@ def _render_feedback(state: PortfolioPageState) -> None:
 
 
 def _render_main_tabs(state: PortfolioPageState) -> None:
-    tabs = ui.tabs().classes("w-full")
+    tabs = ui.tabs(
+        on_change=lambda event: _update_top_tab(state, event.value),
+    ).classes("w-full")
     with tabs:
         tab_perf_usd = ui.tab("Performance USD")
         tab_perf_sgd = ui.tab("Performance SGD")
@@ -1396,6 +1398,21 @@ def _with_plotly_config(figure_spec: dict[str, Any]) -> dict[str, Any]:
     output = dict(figure_spec)
     output.setdefault("config", {"displayModeBar": False, "responsive": True})
     return output
+
+
+_TOP_TAB_LABEL_TO_KEY: dict[str, str] = {
+    "Performance USD": "performance_usd",
+    "Performance SGD": "performance_sgd",
+    "Risk": "risk",
+    "Artifacts": "artifacts",
+}
+
+
+def _update_top_tab(state: PortfolioPageState, value: str) -> None:
+    key = _TOP_TAB_LABEL_TO_KEY.get(str(value or "").strip())
+    if key is None:
+        return
+    state.selected_top_tab = key
 
 
 def _update_perf_mode(state: PortfolioPageState, currency: str, value: str) -> None:
