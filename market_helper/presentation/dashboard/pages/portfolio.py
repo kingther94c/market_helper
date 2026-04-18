@@ -375,9 +375,12 @@ def _render_portfolio_page(state: PortfolioPageState) -> None:
         if not state.snapshot_mode:
             _render_action_console(state)
             _render_logs(state)
-        if state.snapshot_mode and state.snapshot is not None:
-            as_of = getattr(state.snapshot, "as_of", "")
-            ui.html(f'<div id="snapshot-ready" data-as-of="{as_of}"></div>')
+        if state.snapshot_mode and not state.is_loading:
+            as_of = getattr(state.snapshot, "as_of", "") if state.snapshot is not None else ""
+            has_snapshot = "1" if state.snapshot is not None else "0"
+            ui.html(
+                f'<div id="snapshot-ready" data-as-of="{as_of}" data-has-snapshot="{has_snapshot}"></div>'
+            )
 
 
 def _render_header(state: PortfolioPageState) -> None:
