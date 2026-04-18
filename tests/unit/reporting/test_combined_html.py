@@ -7,6 +7,7 @@ import pandas as pd
 
 from market_helper.reporting.combined_html import build_combined_html_report
 from market_helper.reporting.performance_html import (
+    build_performance_chart_specs,
     build_performance_report_view_model,
     render_performance_assets,
     render_performance_tab,
@@ -117,6 +118,36 @@ def test_build_combined_html_report_renders_both_tabs(tmp_path: Path) -> None:
     assert "data-perf-value='MTD'" in rendered
     assert "data-perf-value='FULL'" in rendered
     assert "Secondary Return" not in rendered
+
+
+def test_build_performance_chart_specs_uses_single_continuous_main_line_with_signed_shading() -> None:
+    history = pd.DataFrame(
+        {
+            "date": pd.to_datetime(["2026-01-01", "2026-01-02", "2026-01-03", "2026-01-04"]),
+            "nav_eod_usd": [100.0, 101.0, 99.0, 102.0],
+            "nav_eod_sgd": [130.0, 131.3, 128.7, 132.6],
+            "cashflow_usd": [0.0, 0.0, 0.0, 0.0],
+            "cashflow_sgd": [0.0, 0.0, 0.0, 0.0],
+            "fx_usdsgd_eod": [1.30, 1.30, 1.30, 1.30],
+            "pnl_amt_usd": [0.0, 1.0, -2.0, 3.0],
+            "pnl_amt_sgd": [0.0, 1.3, -2.6, 3.9],
+            "pnl_usd": [0.0, 0.01, -0.0198019802, 0.0303030303],
+            "pnl_sgd": [0.0, 0.01, -0.0198019802, 0.0303030303],
+            "is_final": [True, True, True, True],
+            "source_kind": ["latest"] * 4,
+            "source_file": ["demo.xml"] * 4,
+            "source_as_of": pd.to_datetime(["2026-01-04"] * 4),
+        }
+    )
+
+    figure = build_performance_chart_specs(history, "USD")["percent"]["FULL"]
+    traces = figure["data"]
+
+    assert len(traces) == 4
+    assert traces[0]["fillcolor"] == "rgba(22,163,74,0.18)"
+    assert traces[1]["fillcolor"] == "rgba(220,38,38,0.18)"
+    assert traces[2]["line"]["color"] == "#0f172a"
+    assert all(value is not None for value in traces[2]["y"])
 
 
 def _demo_history_frame() -> pd.DataFrame:
