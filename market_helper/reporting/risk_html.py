@@ -180,6 +180,7 @@ class RiskInputRow:
     fi_tenor: str
     yahoo_symbol: str
     currency: str = "USD"
+    cm_sector: str = ""
 
 
 @dataclass(frozen=True)
@@ -213,6 +214,7 @@ class RiskMetricsRow:
     eq_country: str
     eq_sector_proxy: str
     fi_tenor: str
+    cm_sector: str = ""
 
 
 @dataclass(frozen=True)
@@ -609,6 +611,7 @@ def build_risk_report_view_model(
             eq_country=row.eq_country,
             eq_sector_proxy=row.eq_sector_proxy,
             fi_tenor=row.fi_tenor,
+            cm_sector=row.cm_sector,
         )
         for row in rows
     ]
@@ -729,6 +732,7 @@ def load_position_rows(
             eq_sector_proxy = security.eq_sector_proxy
             dir_exposure = security.dir_exposure or "L"
             fi_tenor = security.fi_tenor
+            cm_sector = security.cm_sector
             yahoo_symbol = security.yahoo_symbol
             canonical_symbol = security.canonical_symbol or symbol
         elif security is not None and security.mapping_status == "outside_scope":
@@ -740,6 +744,7 @@ def load_position_rows(
             eq_sector_proxy = ""
             dir_exposure = "L"
             fi_tenor = ""
+            cm_sector = ""
             yahoo_symbol = ""
             canonical_symbol = security.canonical_symbol or symbol
         else:
@@ -751,6 +756,7 @@ def load_position_rows(
             eq_sector_proxy = ""
             dir_exposure = "L"
             fi_tenor = ""
+            cm_sector = ""
             yahoo_symbol = ""
             canonical_symbol = symbol
 
@@ -791,6 +797,7 @@ def load_position_rows(
                 "eq_country": eq_country,
                 "eq_sector_proxy": eq_sector_proxy,
                 "fi_tenor": fi_tenor,
+                "cm_sector": cm_sector,
                 "yahoo_symbol": yahoo_symbol,
                 "currency": str(row.get("currency") or ""),
             }
@@ -843,6 +850,7 @@ def load_position_rows(
                 eq_country=str(row["eq_country"]),
                 eq_sector_proxy=str(row["eq_sector_proxy"]),
                 fi_tenor=str(row["fi_tenor"]),
+                cm_sector=str(row.get("cm_sector") or ""),
                 yahoo_symbol=str(row["yahoo_symbol"]),
                 currency=str(row.get("currency") or "USD"),
             )

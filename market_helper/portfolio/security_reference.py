@@ -33,6 +33,7 @@ SECURITY_UNIVERSE_HEADERS = [
     "dir_exposure",
     "fi_mod_duration",
     "fi_tenor",
+    "cm_sector",
 ]
 SECURITY_UNIVERSE_PROPOSAL_HEADERS = SECURITY_UNIVERSE_HEADERS + [
     "lookup_primary_exchange",
@@ -42,6 +43,10 @@ SECURITY_UNIVERSE_PROPOSAL_HEADERS = SECURITY_UNIVERSE_HEADERS + [
     "lookup_conid",
     "proposal_reason",
 ]
+ALLOWED_CM_SECTORS = {"PM", "IM", "EN", "AG"}
+# Columns added after the initial SECURITY_UNIVERSE_HEADERS contract. Older
+# universe CSVs without these columns are still accepted on read.
+_OPTIONAL_UNIVERSE_HEADERS: set[str] = {"cm_sector"}
 SECURITY_REFERENCE_HEADERS = [
     "internal_id",
     "is_active",
@@ -62,9 +67,14 @@ SECURITY_REFERENCE_HEADERS = [
     "dir_exposure",
     "fi_mod_duration",
     "fi_tenor",
+    "cm_sector",
     "lookup_status",
     "last_verified_at",
 ]
+# Columns added after the initial SECURITY_REFERENCE_HEADERS contract. Old
+# cached CSVs without these columns are still accepted on read; writes always
+# emit the full header list.
+_OPTIONAL_REFERENCE_HEADERS: set[str] = {"cm_sector"}
 CURATED_SECURITY_REFERENCE_HEADERS = SECURITY_REFERENCE_HEADERS
 LEGACY_SECURITY_REFERENCE_HEADERS = [
     "internal_id",
@@ -114,6 +124,7 @@ class SecurityUniverseRow:
     dir_exposure: str = "L"
     fi_mod_duration: float | None = None
     fi_tenor: str = ""
+    cm_sector: str = ""
 
     def __post_init__(self) -> None:
         asset_class = _clean_optional_str(self.asset_class).upper()
@@ -125,6 +136,9 @@ class SecurityUniverseRow:
         fi_tenor = _clean_optional_str(self.fi_tenor).upper()
         if fi_tenor and fi_tenor not in ALLOWED_FI_TENORS:
             raise ValueError(f"Unsupported fi_tenor in security_universe: {fi_tenor}")
+        cm_sector = _clean_optional_str(self.cm_sector).upper()
+        if cm_sector and cm_sector not in ALLOWED_CM_SECTORS:
+            raise ValueError(f"Unsupported cm_sector in security_universe: {cm_sector}")
         object.__setattr__(self, "asset_class", asset_class)
         object.__setattr__(self, "ibkr_symbol", _clean_optional_str(self.ibkr_symbol).upper())
         object.__setattr__(self, "display_name", _clean_optional_str(self.display_name))
@@ -134,6 +148,7 @@ class SecurityUniverseRow:
         object.__setattr__(self, "eq_sector_proxy", _clean_optional_str(self.eq_sector_proxy))
         object.__setattr__(self, "dir_exposure", dir_exposure)
         object.__setattr__(self, "fi_tenor", fi_tenor)
+        object.__setattr__(self, "cm_sector", cm_sector)
 
     @property
     def canonical_symbol(self) -> str:
@@ -169,6 +184,7 @@ class SecurityUniverseRow:
             "dir_exposure": self.dir_exposure,
             "fi_mod_duration": _stringify_optional_float(self.fi_mod_duration),
             "fi_tenor": self.fi_tenor,
+            "cm_sector": self.cm_sector,
         }
 
     def to_reference_seed(self, prior: SecurityReference | None = None) -> SecurityReference:
@@ -205,6 +221,7 @@ class SecurityUniverseRow:
             dir_exposure=self.dir_exposure,
             mod_duration=self.fi_mod_duration,
             fi_tenor=self.fi_tenor,
+            cm_sector=self.cm_sector,
             lookup_status=lookup_status,
             last_verified_at=last_verified_at,
             symbol=prior.symbol if prior is not None and prior.symbol else self.canonical_symbol,
@@ -240,6 +257,7 @@ class SecurityReference:
     dir_exposure: str = "L"
     mod_duration: float | None = None
     fi_tenor: str = ""
+    cm_sector: str = ""
     lookup_status: str = ""
     last_verified_at: str = ""
     mapping_status_hint: str = ""
@@ -260,6 +278,7 @@ class SecurityReference:
         description = _clean_optional_str(self.description) or display_name
         dir_exposure = _clean_optional_str(self.dir_exposure).upper() or "L"
         fi_tenor = _clean_optional_str(self.fi_tenor).upper()
+        cm_sector = _clean_optional_str(self.cm_sector).upper()
         object.__setattr__(self, "metadata", metadata)
         object.__setattr__(self, "asset_class", _clean_optional_str(self.asset_class).upper())
         object.__setattr__(self, "symbol", symbol)
@@ -279,6 +298,7 @@ class SecurityReference:
         object.__setattr__(self, "eq_sector_proxy", _clean_optional_str(self.eq_sector_proxy))
         object.__setattr__(self, "dir_exposure", dir_exposure)
         object.__setattr__(self, "fi_tenor", fi_tenor)
+        object.__setattr__(self, "cm_sector", cm_sector)
         object.__setattr__(self, "lookup_status", _clean_optional_str(self.lookup_status).lower())
         object.__setattr__(self, "last_verified_at", _clean_optional_str(self.last_verified_at))
         object.__setattr__(self, "mapping_status_hint", _clean_optional_str(self.mapping_status_hint).lower())
@@ -368,6 +388,7 @@ class SecurityReference:
             "dir_exposure": self.dir_exposure,
             "fi_mod_duration": _stringify_optional_float(self.mod_duration),
             "fi_tenor": self.fi_tenor,
+            "cm_sector": self.cm_sector,
             "lookup_status": self.lookup_status,
             "last_verified_at": self.last_verified_at,
         }
@@ -387,6 +408,7 @@ class SecurityReference:
             "dir_exposure": self.dir_exposure or "L",
             "fi_mod_duration": _stringify_optional_float(self.mod_duration),
             "fi_tenor": self.fi_tenor,
+            "cm_sector": self.cm_sector,
             "lookup_primary_exchange": self.primary_exchange,
             "lookup_currency": self.currency,
             "lookup_multiplier": _stringify_float(self.multiplier),
@@ -417,6 +439,7 @@ class SecurityReference:
             dir_exposure=str(row.get("dir_exposure") or "L"),
             mod_duration=_parse_optional_float(row.get("fi_mod_duration")),
             fi_tenor=str(row.get("fi_tenor") or ""),
+            cm_sector=str(row.get("cm_sector") or ""),
             lookup_status=str(row.get("lookup_status") or ""),
             last_verified_at=str(row.get("last_verified_at") or ""),
         )
@@ -493,7 +516,12 @@ class SecurityUniverseTable:
         with Path(path).open("r", encoding="utf-8", newline="") as handle:
             reader = csv.DictReader(handle)
             fieldnames = reader.fieldnames or []
-            missing = [column for column in SECURITY_UNIVERSE_HEADERS if column not in fieldnames]
+            required = [
+                column
+                for column in SECURITY_UNIVERSE_HEADERS
+                if column not in _OPTIONAL_UNIVERSE_HEADERS
+            ]
+            missing = [column for column in required if column not in fieldnames]
             if missing:
                 raise ValueError(
                     "security_universe CSV is missing required columns: {value}".format(
@@ -512,6 +540,7 @@ class SecurityUniverseTable:
                     dir_exposure=str(row.get("dir_exposure") or "L"),
                     fi_mod_duration=_parse_optional_float(row.get("fi_mod_duration")),
                     fi_tenor=str(row.get("fi_tenor") or ""),
+                    cm_sector=str(row.get("cm_sector") or ""),
                 )
                 for row in reader
                 if any((value or "").strip() for value in row.values())
@@ -1093,12 +1122,19 @@ def _infer_asset_class_from_security(security: SecurityReference) -> str:
 
 
 _PREV_SECURITY_REFERENCE_HEADERS = [
-    h if h != "eq_sector_proxy" else "eq_sector" for h in SECURITY_REFERENCE_HEADERS
+    h
+    if h != "eq_sector_proxy"
+    else "eq_sector"
+    for h in SECURITY_REFERENCE_HEADERS
+    if h not in _OPTIONAL_REFERENCE_HEADERS
 ]
 
 
 def _is_new_reference_schema(fieldnames: list[str]) -> bool:
-    return all(column in fieldnames for column in SECURITY_REFERENCE_HEADERS)
+    required = [
+        column for column in SECURITY_REFERENCE_HEADERS if column not in _OPTIONAL_REFERENCE_HEADERS
+    ]
+    return all(column in fieldnames for column in required)
 
 
 def _is_prev_reference_schema(fieldnames: list[str]) -> bool:

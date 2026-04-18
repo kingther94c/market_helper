@@ -747,12 +747,11 @@ def _render_risk_fixed_income(risk) -> None:
 
 def _render_risk_commodity(risk) -> None:
     cm_rows = [r for r in risk.risk_rows if r.asset_class == "CM"]
-    sector_map = _load_cm_sector_map()
     sector_rows: dict[str, dict[str, float]] = {}
     total_exposure = sum(r.exposure_usd for r in cm_rows)
     total_risk = sum(r.risk_contribution_estimated for r in cm_rows)
     for row in cm_rows:
-        code = sector_map.get(row.canonical_symbol.upper(), "")
+        code = (getattr(row, "cm_sector", "") or "").upper()
         bucket = _CM_SECTOR_LABELS.get(code, "Unmapped") if code else "Unmapped"
         agg = sector_rows.setdefault(
             bucket, {"exposure_usd": 0.0, "gross_exposure_usd": 0.0, "risk_contribution_estimated": 0.0}
@@ -887,24 +886,6 @@ _CM_SECTOR_LABELS: dict[str, str] = {
     "EN": "Energy",
     "AG": "Agriculture",
 }
-
-
-@lru_cache(maxsize=1)
-def _load_cm_sector_map() -> dict[str, str]:
-    path = Path(__file__).resolve().parents[4] / "configs" / "security_universe.csv"
-    if not path.exists():
-        return {}
-    mapping: dict[str, str] = {}
-    with path.open("r", encoding="utf-8", newline="") as handle:
-        reader = csv.DictReader(handle)
-        for row in reader:
-            if (row.get("asset_class") or "").strip().upper() != "CM":
-                continue
-            symbol = (row.get("ibkr_symbol") or "").strip().upper()
-            sector = (row.get("cm_sector") or "").strip().upper()
-            if symbol and sector:
-                mapping[symbol] = sector
-    return mapping
 
 
 def _render_risk_fx(risk) -> None:
