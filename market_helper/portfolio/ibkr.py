@@ -197,7 +197,7 @@ def resolve_ibkr_contract(
         if cash_match is not None:
             return cash_match
 
-    if contract.sec_type.upper() == "OPT":
+    if contract.sec_type.upper() in {"OPT", "FOP"}:
         return contract_to_security_reference(contract, status="outside_scope")
 
     return contract_to_security_reference(contract, status="unmapped")

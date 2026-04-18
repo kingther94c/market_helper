@@ -143,6 +143,30 @@ def test_normalize_ibkr_positions_marks_options_outside_scope() -> None:
     assert table.get_security("OUTSIDE_SCOPE:OPT:SPY:AMEX").mapping_status == "outside_scope"
 
 
+def test_normalize_ibkr_positions_marks_futures_options_outside_scope() -> None:
+    table = SecurityReferenceTable.from_default_csv()
+    positions = normalize_ibkr_positions(
+        [
+            {
+                "account": "U12345",
+                "con_id": "792265603",
+                "sec_type": "FOP",
+                "symbol": "MCL",
+                "currency": "USD",
+                "exchange": "NYMEX",
+                "local_symbol": "MCON6 C8525",
+                "position": "1",
+                "market_value": "589.24",
+            }
+        ],
+        table,
+        as_of="2026-03-26T00:00:00+00:00",
+    )
+
+    assert positions[0].internal_id == "OUTSIDE_SCOPE:FOP:MCL:NYMEX"
+    assert table.get_security("OUTSIDE_SCOPE:FOP:MCL:NYMEX").mapping_status == "outside_scope"
+
+
 def test_normalize_ibkr_positions_marks_unmapped_instruments() -> None:
     table = SecurityReferenceTable.from_default_csv()
     positions = normalize_ibkr_positions(

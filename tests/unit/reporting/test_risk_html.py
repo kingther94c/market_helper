@@ -16,6 +16,7 @@ from market_helper.reporting.risk_html import (
     RiskInputRow,
     _funded_aum_from_dicts,
     annualized_vol,
+    build_risk_report_view_model,
     build_risk_html_report,
     historical_geomean_vol,
     pairwise_corr,
@@ -82,6 +83,28 @@ def test_funded_aum_dual_converts_sgd_cash_into_usd_and_sgd_views() -> None:
 
     assert funded_aum_usd == pytest.approx(5100.0 + (900.0 / 1.35))
     assert funded_aum_sgd == pytest.approx((5100.0 * 1.35) + 900.0)
+
+
+def test_instrument_type_treats_fop_runtime_contract_as_option() -> None:
+    security = SecurityReference(
+        internal_id="FOP:MCL:NYMEX",
+        asset_class="CM",
+        symbol="MCL",
+        exchange="NYMEX",
+        ibkr_sec_type="FOP",
+        ibkr_symbol="MCL",
+        ibkr_exchange="NYMEX",
+        mapping_status_hint="unmapped",
+    )
+
+    assert (
+        risk_html_module._instrument_type(
+            security=security,
+            local_symbol="MCON6 C8525",
+            exchange="NYMEX",
+        )
+        == "Option"
+    )
 
 
 def test_load_proxy_defaults_from_yahoo_and_sets_default_semantics() -> None:
@@ -887,6 +910,71 @@ def test_build_risk_html_report_excludes_eq_options_outside_decomposition(
     assert "SPY 260417C00510000" in rendered
     assert "Rows marked <strong>excluded</strong>" in rendered
     assert ">excluded</td>" in rendered
+
+
+def test_unmapped_rows_do_not_count_toward_vol_contribution(tmp_path: Path) -> None:
+    positions_csv = tmp_path / "positions.csv"
+    positions_csv.write_text(
+        "\n".join(
+            [
+                "as_of,account,internal_id,con_id,symbol,local_symbol,exchange,currency,source,quantity,avg_cost,latest_price,market_value,cost_basis,unrealized_pnl,weight",
+                "2026-03-26T00:00:00+00:00,U1,STK:SPY:SMART,756733,SPY,SPY,ARCA,USD,ibkr,10,500,510,5100,5000,100,0.5",
+                "2026-03-26T00:00:00+00:00,U1,STK:AAPL:SMART,265598,AAPL,AAPL,SMART,USD,ibkr,10,170,175,1750,1700,50,0.5",
+            ]
+        ),
+        encoding="utf-8",
+    )
+    returns_json = tmp_path / "returns.json"
+    returns_json.write_text(
+        json.dumps(
+            {
+                "STK:SPY:SMART": [0.001 * ((idx % 7) - 3) for idx in range(90)],
+                "STK:AAPL:SMART": [0.0015 * ((idx % 5) - 2) for idx in range(90)],
+            }
+        ),
+        encoding="utf-8",
+    )
+    security_reference_path = tmp_path / "security_reference.csv"
+    export_security_reference_csv(
+        [
+            SecurityReference(
+                internal_id="STK:SPY:SMART",
+                asset_class="EQ",
+                canonical_symbol="SPY",
+                display_ticker="SPY",
+                display_name="US",
+                currency="USD",
+                primary_exchange="ARCA",
+                multiplier=1.0,
+                ibkr_sec_type="STK",
+                ibkr_symbol="SPY",
+                ibkr_exchange="SMART",
+                yahoo_symbol="SPY",
+                eq_country="US",
+                dir_exposure="L",
+                lookup_status="verified",
+            ),
+        ],
+        security_reference_path,
+    )
+
+    view_model = build_risk_report_view_model(
+        positions_csv_path=positions_csv,
+        returns_path=returns_json,
+        security_reference_path=security_reference_path,
+    )
+
+    spy_row = next(row for row in view_model.risk_rows if row.internal_id == "STK:SPY:SMART")
+    aapl_row = next(row for row in view_model.risk_rows if row.internal_id == "STK:AAPL:SMART")
+
+    assert spy_row.mapping_status == "mapped"
+    assert spy_row.risk_contribution_estimated > 0
+    assert aapl_row.mapping_status != "mapped"
+    assert aapl_row.report_scope == "included"
+    assert aapl_row.risk_contribution_estimated == 0.0
+
+    equity_summary = next(row for row in view_model.allocation_summary if row.asset_class == "EQ")
+    assert equity_summary.risk_contribution_estimated == pytest.approx(spy_row.risk_contribution_estimated)
 
 
 def test_fi_10y_equivalent_exposure_values_scale_and_preserve_sign() -> None:

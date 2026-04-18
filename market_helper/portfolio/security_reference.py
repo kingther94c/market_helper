@@ -24,6 +24,7 @@ ALLOWED_DIR_EXPOSURES = {"L", "S"}
 ALLOWED_FI_TENORS = {"0-1Y", "1-3Y", "3-5Y", "5-7Y", "7-10Y", "10-20Y", "20Y+"}
 SECURITY_UNIVERSE_HEADERS = [
     "asset_class",
+    "sec_type",
     "ibkr_symbol",
     "display_name",
     "ibkr_exchange",
@@ -115,6 +116,7 @@ RUNTIME_OUTSIDE_SCOPE_PREFIX = "OUTSIDE_SCOPE:"
 @dataclass(frozen=True)
 class SecurityUniverseRow:
     asset_class: str
+    sec_type: str
     ibkr_symbol: str
     display_name: str
     ibkr_exchange: str
@@ -130,6 +132,9 @@ class SecurityUniverseRow:
         asset_class = _clean_optional_str(self.asset_class).upper()
         if asset_class not in ALLOWED_ASSET_CLASSES:
             raise ValueError(f"Unsupported asset_class in security_universe: {asset_class or '<empty>'}")
+        sec_type = _clean_optional_str(self.sec_type).upper()
+        if sec_type not in {"CASH", "FUT", "STK"}:
+            raise ValueError(f"Unsupported sec_type in security_universe: {sec_type or '<empty>'}")
         dir_exposure = _clean_optional_str(self.dir_exposure).upper() or "L"
         if dir_exposure not in ALLOWED_DIR_EXPOSURES:
             raise ValueError(f"Unsupported dir_exposure in security_universe: {dir_exposure}")
@@ -140,6 +145,7 @@ class SecurityUniverseRow:
         if cm_sector and cm_sector not in ALLOWED_CM_SECTORS:
             raise ValueError(f"Unsupported cm_sector in security_universe: {cm_sector}")
         object.__setattr__(self, "asset_class", asset_class)
+        object.__setattr__(self, "sec_type", sec_type)
         object.__setattr__(self, "ibkr_symbol", _clean_optional_str(self.ibkr_symbol).upper())
         object.__setattr__(self, "display_name", _clean_optional_str(self.display_name))
         object.__setattr__(self, "ibkr_exchange", _clean_optional_str(self.ibkr_exchange).upper())
@@ -158,11 +164,7 @@ class SecurityUniverseRow:
 
     @property
     def resolved_ibkr_sec_type(self) -> str:
-        if self.asset_class == "CASH" and self.ibkr_exchange == "MANUAL":
-            return "CASH"
-        if self.ibkr_exchange in FUTURES_VENUES:
-            return "FUT"
-        return "STK"
+        return self.sec_type
 
     @property
     def internal_id(self) -> str:
@@ -175,6 +177,7 @@ class SecurityUniverseRow:
     def to_csv_row(self) -> Dict[str, str]:
         return {
             "asset_class": self.asset_class,
+            "sec_type": self.sec_type,
             "ibkr_symbol": self.ibkr_symbol,
             "display_name": self.display_name,
             "ibkr_exchange": self.ibkr_exchange,
@@ -399,6 +402,7 @@ class SecurityReference:
     def to_universe_proposal_row(self, *, proposal_reason: str) -> Dict[str, str]:
         return {
             "asset_class": self.asset_class or _infer_asset_class_from_security(self),
+            "sec_type": self.ibkr_sec_type,
             "ibkr_symbol": self.ibkr_symbol or self.symbol or self.canonical_symbol,
             "display_name": self.display_name or self.description or self.canonical_symbol,
             "ibkr_exchange": self.exchange or self.primary_exchange or self.ibkr_exchange,
@@ -531,6 +535,7 @@ class SecurityUniverseTable:
             rows = [
                 SecurityUniverseRow(
                     asset_class=str(row.get("asset_class") or ""),
+                    sec_type=str(row.get("sec_type") or _infer_legacy_universe_sec_type(row)),
                     ibkr_symbol=str(row.get("ibkr_symbol") or ""),
                     display_name=str(row.get("display_name") or ""),
                     ibkr_exchange=str(row.get("ibkr_exchange") or ""),
@@ -1076,6 +1081,16 @@ def _runtime_exchange_candidates(security: SecurityReference) -> set[str]:
         _clean_optional_str(security.metadata.get("runtime_exchange", "")).upper(),
         _clean_optional_str(security.metadata.get("runtime_primary_exchange", "")).upper(),
     } - {""}
+
+
+def _infer_legacy_universe_sec_type(row: Mapping[str, object]) -> str:
+    asset_class = _clean_optional_str(row.get("asset_class")).upper()
+    exchange = _clean_optional_str(row.get("ibkr_exchange")).upper()
+    if asset_class == "CASH" and exchange == "MANUAL":
+        return "CASH"
+    if exchange in FUTURES_VENUES:
+        return "FUT"
+    return "STK"
 
 
 def _has_cached_lookup(security: SecurityReference) -> bool:

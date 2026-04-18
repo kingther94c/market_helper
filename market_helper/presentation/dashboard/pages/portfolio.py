@@ -70,6 +70,8 @@ DEFAULT_CANONICAL_LOCAL_ENV_PATH = (
 )
 DEFAULT_IBKR_FLEX_QUERY_ID_ENV_VAR = "IBKR_FLEX_QUERY_ID"
 DEFAULT_IBKR_FLEX_TOKEN_ENV_VAR = "IBKR_FLEX_TOKEN"
+DEFAULT_PROD_ACCOUNT_ID_ENV_VAR = "DEFAULT_PROD_ACCOUNT_ID"
+DEFAULT_DEV_ACCOUNT_ID_ENV_VAR = "DEFAULT_DEV_ACCOUNT_ID"
 
 
 @dataclass
@@ -226,6 +228,12 @@ def _resolve_local_env_value(key: str) -> str:
     if from_process_env:
         return from_process_env
     return _read_env_file_value(DEFAULT_CANONICAL_LOCAL_ENV_PATH, normalized_key)
+
+
+def _resolve_default_live_account_id() -> str:
+    return _resolve_local_env_value(DEFAULT_PROD_ACCOUNT_ID_ENV_VAR) or _resolve_local_env_value(
+        DEFAULT_DEV_ACCOUNT_ID_ENV_VAR
+    )
 
 
 def _read_env_file_value(path: Path, key: str) -> str:
@@ -398,6 +406,7 @@ def _build_initial_state(query_service: PortfolioMonitorQueryService) -> Portfol
     performance_output_dir = str(inputs.performance_output_dir or "")
     flex_query_id = _resolve_local_env_value(DEFAULT_IBKR_FLEX_QUERY_ID_ENV_VAR)
     flex_token = _resolve_local_env_value(DEFAULT_IBKR_FLEX_TOKEN_ENV_VAR)
+    live_account_id = _resolve_default_live_account_id()
     return PortfolioPageState(
         artifact_form=PortfolioArtifactFormState(
             positions_csv_path=positions_path,
@@ -413,7 +422,7 @@ def _build_initial_state(query_service: PortfolioMonitorQueryService) -> Portfol
             vol_method=_normalize_vol_method_label(inputs.vol_method),
             inter_asset_corr=inputs.inter_asset_corr,
         ),
-        live_form=LiveActionFormState(output_path=positions_path),
+        live_form=LiveActionFormState(output_path=positions_path, account_id=live_account_id),
         flex_form=FlexActionFormState(
             output_dir=performance_output_dir,
             query_id=flex_query_id,
@@ -660,103 +669,89 @@ def _render_risk_overview(risk) -> None:
                 ],
                 row_key="asset_class",
             )
-        render_risk_chart_block(
-            title="Portfolio Drift - Asset Class",
-            figure=build_policy_drift_figure(risk.policy_drift_asset_class),
-            columns=[
-                {"name": "bucket", "label": "Bucket", "field": "bucket"},
-                {"name": "scope", "label": "Scope", "field": "scope"},
-                {"name": "current_weight", "label": "Current %", "field": "current_weight"},
-                {"name": "policy_weight", "label": "Policy %", "field": "policy_weight"},
-                {"name": "active_weight", "label": "Active %", "field": "active_weight"},
-            ],
-            rows=[_policy_drift_row_to_table_row(row, include_risk=False) for row in risk.policy_drift_asset_class],
-            row_key="bucket",
-        )
+        _render_policy_drift_asset_class(risk)
 
 
 def _render_risk_equity(risk) -> None:
     eq_rows = [r for r in risk.risk_rows if r.asset_class == "EQ"]
     with ui.column().classes("w-full gap-4"):
-        _render_dm_em_summary(risk.country_breakdown)
+        _render_dm_em_policy_drift_summary(risk.policy_drift_country)
         with ui.row().classes("w-full gap-4 wrap"):
             render_risk_chart_block(
-                title="Equity Country Allocation",
-                figure=build_breakdown_figure(risk.country_breakdown, title="Equity Country Allocation"),
-                columns=_breakdown_columns(),
-                rows=[_breakdown_row_to_table_row(row) for row in risk.country_breakdown],
+                title="Equity Country Active Weight",
+                figure=build_policy_drift_figure(risk.policy_drift_country),
+                columns=_policy_drift_columns(include_risk=False),
+                rows=[_policy_drift_row_to_table_row(row, include_risk=False) for row in risk.policy_drift_country],
                 row_key="bucket",
             )
             render_risk_chart_block(
-                title="US Sector View (vs SPY)",
-                figure=build_breakdown_figure(risk.sector_breakdown, title="US Sector View"),
-                columns=_breakdown_columns(),
-                rows=[_breakdown_row_to_table_row(row) for row in risk.sector_breakdown],
+                title="US Sector Active Weight (vs SPY)",
+                figure=build_policy_drift_figure(risk.policy_drift_sector),
+                columns=_policy_drift_columns(include_risk=False),
+                rows=[_policy_drift_row_to_table_row(row, include_risk=False) for row in risk.policy_drift_sector],
                 row_key="bucket",
             )
         _render_position_subtable("Equity Holdings", eq_rows)
 
 
-def _render_dm_em_summary(country_breakdown: list[BreakdownRow]) -> None:
+def _render_policy_drift_asset_class(risk) -> None:
+    rows = [_policy_drift_row_to_table_row(row, include_risk=False) for row in risk.policy_drift_asset_class]
+    columns = [
+        {"name": "bucket", "label": "Bucket", "field": "bucket"},
+        {"name": "scope", "label": "Scope", "field": "scope"},
+        {"name": "current_weight", "label": "Current %", "field": "current_weight"},
+        {"name": "policy_weight", "label": "Policy %", "field": "policy_weight"},
+        {"name": "active_weight", "label": "Active %", "field": "active_weight"},
+    ]
+    with ui.card().classes("w-full pm-card p-4"):
+        ui.label("Portfolio Drift - Asset Class").classes("text-h6")
+        if not rows:
+            ui.label("No data").classes("text-body2 pm-muted")
+            render_table(columns=columns, rows=rows, row_key="bucket")
+            return
+        with ui.row().classes("w-full gap-4 items-start wrap"):
+            with ui.column().classes("grow basis-[720px] min-w-[340px]"):
+                ui.plotly(build_policy_drift_figure(risk.policy_drift_asset_class)).classes("w-full h-[360px]")
+            with ui.column().classes("grow basis-[420px] min-w-[320px]"):
+                render_table(columns=columns, rows=rows, row_key="bucket")
+
+
+def _render_dm_em_policy_drift_summary(policy_drift_country: list[PolicyDriftRow]) -> None:
     region_map = _load_dm_em_bucket_map()
-    buckets: dict[str, dict[str, float]] = {"DM": {}, "EM": {}}
-    totals: dict[str, float] = {"DM": 0.0, "EM": 0.0}
-    for row in country_breakdown:
+    summary: dict[str, PolicyDriftRow] = {}
+    for row in policy_drift_country:
         region = region_map.get(row.bucket.upper())
         if region not in ("DM", "EM"):
             continue
-        buckets[region][row.bucket] = buckets[region].get(row.bucket, 0.0) + row.exposure_usd
-        totals[region] += row.exposure_usd
-    grand_total = totals["DM"] + totals["EM"]
-    if grand_total <= 0:
-        return
-    with ui.card().classes("w-full pm-card p-4"):
-        ui.label("DM / EM Summary").classes("text-h6")
-        with ui.row().classes("w-full gap-4 wrap"):
-            render_status_card(
-                title="Developed Markets",
-                value=format_percent(totals["DM"] / grand_total),
-                detail=format_amount(totals["DM"], decimals=0),
+        current = summary.get(region)
+        if current is None:
+            summary[region] = PolicyDriftRow(
+                bucket=region,
+                scope="EQ",
+                current_weight=row.current_weight,
+                policy_weight=row.policy_weight,
+                active_weight=row.active_weight,
+                current_risk_contribution=row.current_risk_contribution,
             )
-            render_status_card(
-                title="Emerging Markets",
-                value=format_percent(totals["EM"] / grand_total),
-                detail=format_amount(totals["EM"], decimals=0),
-            )
-        ui.plotly(_build_dm_em_stacked_bars(buckets, totals)).classes("w-full h-[280px]")
-
-
-def _build_dm_em_stacked_bars(
-    buckets: dict[str, dict[str, float]], totals: dict[str, float]
-) -> dict[str, Any]:
-    traces = []
-    all_countries = sorted({c for region_buckets in buckets.values() for c in region_buckets})
-    for country in all_countries:
-        traces.append(
-            {
-                "type": "bar",
-                "name": country,
-                "x": ["DM", "EM"],
-                "y": [
-                    (buckets["DM"].get(country, 0.0) / totals["DM"]) if totals["DM"] else 0.0,
-                    (buckets["EM"].get(country, 0.0) / totals["EM"]) if totals["EM"] else 0.0,
-                ],
-                "hovertemplate": f"{country} %{{x}}<br>%{{y:.1%}}<extra></extra>",
-            }
+            continue
+        summary[region] = PolicyDriftRow(
+            bucket=region,
+            scope="EQ",
+            current_weight=current.current_weight + row.current_weight,
+            policy_weight=current.policy_weight + row.policy_weight,
+            active_weight=current.active_weight + row.active_weight,
+            current_risk_contribution=current.current_risk_contribution + row.current_risk_contribution,
         )
-    return {
-        "data": traces,
-        "layout": {
-            "template": "plotly_white",
-            "barmode": "stack",
-            "height": 280,
-            "margin": {"l": 48, "r": 16, "t": 24, "b": 40},
-            "yaxis": {"tickformat": ".0%", "range": [0, 1.01]},
-            "xaxis": {"title": "Region"},
-            "legend": {"orientation": "h", "y": -0.2},
-        },
-        "config": {"displayModeBar": False, "responsive": True},
-    }
+    rows = [summary[key] for key in ("DM", "EM") if key in summary]
+    if not rows:
+        return
+    render_risk_chart_block(
+        title="DM / EM Active Weight",
+        figure=build_policy_drift_figure(rows),
+        columns=_policy_drift_columns(include_risk=False),
+        rows=[_policy_drift_row_to_table_row(row, include_risk=False) for row in rows],
+        row_key="bucket",
+    )
 
 
 @lru_cache(maxsize=1)
@@ -1392,6 +1387,21 @@ def _breakdown_row_to_table_row(row: BreakdownRow) -> dict[str, str]:
         "dollar_weight": format_percent(row.dollar_weight),
         "risk_contribution_estimated": format_percent(row.risk_contribution_estimated),
     }
+
+
+def _policy_drift_columns(*, include_risk: bool = True) -> list[dict[str, str]]:
+    columns = [
+        {"name": "bucket", "label": "Bucket", "field": "bucket"},
+        {"name": "scope", "label": "Scope", "field": "scope"},
+        {"name": "current_weight", "label": "Current %", "field": "current_weight"},
+        {"name": "policy_weight", "label": "Policy %", "field": "policy_weight"},
+        {"name": "active_weight", "label": "Active %", "field": "active_weight"},
+    ]
+    if include_risk:
+        columns.append(
+            {"name": "current_risk_contribution", "label": "Current Risk %", "field": "current_risk_contribution"}
+        )
+    return columns
 
 
 def _with_plotly_config(figure_spec: dict[str, Any]) -> dict[str, Any]:
