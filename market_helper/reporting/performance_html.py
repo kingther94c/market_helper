@@ -345,6 +345,7 @@ def _build_figure_spec(
     dates = pd.to_datetime(cumulative_frame["date"], errors="coerce").dt.strftime("%Y-%m-%d").tolist()
     positive_values = _series_to_plot_values(cumulative_series.where(cumulative_series >= 0))
     negative_values = _series_to_plot_values(cumulative_series.where(cumulative_series < 0))
+    cumulative_values = _series_to_plot_values(cumulative_series)
     drawdown_values = _series_to_plot_values(pd.to_numeric(drawdown_frame["drawdown"], errors="coerce"))
     drawdown_dates = pd.to_datetime(drawdown_frame["date"], errors="coerce").dt.strftime("%Y-%m-%d").tolist()
 
@@ -355,7 +356,9 @@ def _build_figure_spec(
             "y": positive_values,
             "type": "scatter",
             "mode": "lines",
-            "line": {"color": "#16a34a", "width": 3},
+            "line": {"color": "rgba(0,0,0,0)", "width": 0},
+            "fill": "tozeroy",
+            "fillcolor": "rgba(22,163,74,0.18)",
             "hovertemplate": hover_template,
             "xaxis": "x",
             "yaxis": "y",
@@ -366,7 +369,20 @@ def _build_figure_spec(
             "y": negative_values,
             "type": "scatter",
             "mode": "lines",
-            "line": {"color": "#dc2626", "width": 3},
+            "line": {"color": "rgba(0,0,0,0)", "width": 0},
+            "fill": "tozeroy",
+            "fillcolor": "rgba(220,38,38,0.18)",
+            "hovertemplate": hover_template,
+            "xaxis": "x",
+            "yaxis": "y",
+            "showlegend": False,
+        },
+        {
+            "x": dates,
+            "y": cumulative_values,
+            "type": "scatter",
+            "mode": "lines",
+            "line": {"color": "#0f172a", "width": 3},
             "hovertemplate": hover_template,
             "xaxis": "x",
             "yaxis": "y",
