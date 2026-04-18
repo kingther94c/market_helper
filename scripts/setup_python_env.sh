@@ -31,6 +31,9 @@ echo "Conda environment '${ENV_NAME}' was not found. Recreating it from ${ENV_FI
 "${CONDA_BIN}" env remove -n "${ENV_NAME}" -y >/dev/null 2>&1 || true
 "${CONDA_BIN}" env create -f "${ENV_FILE}"
 
+echo "Installing Playwright Chromium for headless dashboard snapshots..."
+"${CONDA_BIN}" run -n "${ENV_NAME}" python -m playwright install chromium
+
 cat <<EOF
 Conda environment '${ENV_NAME}' is ready.
 

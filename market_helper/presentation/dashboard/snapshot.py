@@ -87,7 +87,11 @@ async def _capture(request: SnapshotRequest) -> str:
             )
             page = await context.new_page()
             await page.goto(url, wait_until="networkidle")
-            await page.wait_for_selector(request.sentinel, timeout=int(request.wait_seconds * 1000))
+            await page.wait_for_selector(
+                request.sentinel,
+                state="attached",
+                timeout=int(request.wait_seconds * 1000),
+            )
             return await page.content()
         finally:
             await browser.close()
