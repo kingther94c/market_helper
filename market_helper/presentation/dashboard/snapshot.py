@@ -3,9 +3,16 @@ from __future__ import annotations
 """Headless UI snapshot of the portfolio dashboard.
 
 Drives the NiceGUI dashboard with Playwright, waits for the render sentinel
-(``#snapshot-ready``), and writes a self-contained HTML file. Used by the
-`risk-html-report` / `combined-html-report` CLI commands once the legacy
-Jinja-style HTML renderer is retired.
+(``#snapshot-ready``), extracts the fully-rendered DOM plus all inline CSS,
+inlines any ``/_nicegui/...`` stylesheets and fonts captured during
+navigation, strips all runtime ``<script>`` tags (the DOM is already
+hydrated), and writes a single self-contained HTML file.
+
+The output is intentionally non-interactive: Plotly charts, Quasar buttons,
+and NiceGUI event handlers are baked into the DOM at capture time, and no
+JavaScript runs when the snapshot is viewed later. This keeps the result
+fully offline-capable without the complexity of re-hydrating NiceGUI's
+runtime from inlined assets.
 
 Playwright is an optional dependency: install it with
 ``pip install playwright && playwright install chromium`` (the project
@@ -13,11 +20,15 @@ Playwright is an optional dependency: install it with
 """
 
 import asyncio
+import base64
+import re
 import socket
 import threading
 import time
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Dict
+from urllib.parse import urlsplit
 
 
 DEFAULT_SENTINEL = "#snapshot-ready"
@@ -35,6 +46,13 @@ class SnapshotRequest:
     wait_seconds: float = DEFAULT_WAIT_SECONDS
     viewport_width: int = 1600
     viewport_height: int = 900
+
+
+@dataclass
+class _Asset:
+    url_path: str
+    body: bytes
+    content_type: str
 
 
 def pick_free_port() -> int:
@@ -79,6 +97,8 @@ async def _capture(request: SnapshotRequest) -> str:
         ) from exc
 
     url = f"http://{request.host}:{request.port}{request.route}?{request.query}"
+    assets: Dict[str, _Asset] = {}
+
     async with async_playwright() as pw:
         browser = await pw.chromium.launch(headless=True)
         try:
@@ -86,15 +106,170 @@ async def _capture(request: SnapshotRequest) -> str:
                 viewport={"width": request.viewport_width, "height": request.viewport_height}
             )
             page = await context.new_page()
+
+            async def _on_response(response) -> None:
+                try:
+                    path = urlsplit(response.url).path
+                    if not path.startswith("/_nicegui/"):
+                        return
+                    if response.status >= 400:
+                        return
+                    body = await response.body()
+                except Exception:
+                    return
+                content_type = (response.headers or {}).get("content-type", "")
+                assets[path] = _Asset(url_path=path, body=body, content_type=content_type)
+
+            page.on("response", lambda r: asyncio.create_task(_on_response(r)))
+
             await page.goto(url, wait_until="networkidle")
             await page.wait_for_selector(
                 request.sentinel,
                 state="attached",
                 timeout=int(request.wait_seconds * 1000),
             )
-            return await page.content()
+            # Give late-loading stylesheets a moment to settle (NiceGUI loads
+            # quasar + fonts after the initial render completes).
+            await page.wait_for_timeout(500)
+            html = await page.content()
         finally:
             await browser.close()
+
+    return _ossify(html, assets)
+
+
+# ---------------------------------------------------------------------------
+# HTML post-processing
+# ---------------------------------------------------------------------------
+
+_SCRIPT_TAG_RE = re.compile(r"<script\b[^>]*>.*?</script>", re.IGNORECASE | re.DOTALL)
+_SELF_CLOSING_SCRIPT_RE = re.compile(r"<script\b[^>]*/>", re.IGNORECASE)
+_LINK_TAG_RE = re.compile(r"<link\b[^>]*?/?>", re.IGNORECASE)
+_LINK_HREF_RE = re.compile(r'href="([^"]+)"', re.IGNORECASE)
+_LINK_REL_RE = re.compile(r'rel="([^"]+)"', re.IGNORECASE)
+_CSS_URL_RE = re.compile(r"url\(\s*(['\"]?)(?P<url>/_nicegui/[^)'\"\s]+)\1\s*\)")
+
+
+def _ossify(html: str, assets: Dict[str, _Asset]) -> str:
+    """Freeze the rendered DOM: strip all scripts, inline or strip all link tags."""
+
+    # 1. Strip every <script> tag - the DOM is already hydrated.
+    rewritten = _SCRIPT_TAG_RE.sub("", html)
+    rewritten = _SELF_CLOSING_SCRIPT_RE.sub("", rewritten)
+
+    # 2. Process every <link> tag: inline captured stylesheets as <style> blocks,
+    #    convert captured icons/fonts to data URIs, and drop modulepreload hints.
+    css_blocks_to_prepend: list[str] = []
+
+    def _link_replacement(match: re.Match[str]) -> str:
+        tag = match.group(0)
+        href_match = _LINK_HREF_RE.search(tag)
+        rel_match = _LINK_REL_RE.search(tag)
+        if not href_match:
+            return tag
+        href = href_match.group(1)
+        rel = (rel_match.group(1) if rel_match else "").lower()
+
+        if not href.startswith("/_nicegui/"):
+            return tag  # external or already-data-URI link left alone
+        if "modulepreload" in rel or "preload" in rel:
+            return ""  # no runtime => no preloads needed
+
+        asset = assets.get(href)
+        if asset is None:
+            # Unknown reference; drop to avoid broken file:// fetch offline.
+            return ""
+
+        if "stylesheet" in rel:
+            css_text = _safe_decode(asset.body)
+            css_text = _inline_css_urls(css_text, assets)
+            css_blocks_to_prepend.append(css_text)
+            return ""
+
+        if "icon" in rel:
+            mime = _classify_mime(href, asset.content_type)
+            data_uri = _data_uri(asset.body, mime)
+            return tag.replace(href, data_uri)
+
+        # Other rel values we don't care about in a static snapshot.
+        return ""
+
+    rewritten = _LINK_TAG_RE.sub(_link_replacement, rewritten)
+
+    # 3. Inline <style>-inlined CSS urls that reference /_nicegui/ assets
+    #    (existing style tags, e.g. tailwind JIT output or Quasar imports).
+    def _existing_style_sub(match: re.Match[str]) -> str:
+        style_tag = match.group(0)
+        open_idx = style_tag.find(">")
+        close_idx = style_tag.rfind("</style")
+        if open_idx < 0 or close_idx < 0 or close_idx <= open_idx:
+            return style_tag
+        head = style_tag[: open_idx + 1]
+        body = style_tag[open_idx + 1 : close_idx]
+        tail = style_tag[close_idx:]
+        return head + _inline_css_urls(body, assets) + tail
+
+    rewritten = re.sub(r"<style\b[^>]*>.*?</style>", _existing_style_sub, rewritten, flags=re.IGNORECASE | re.DOTALL)
+
+    # 4. Prepend captured stylesheets at the top of <head> so they come before
+    #    any existing <style> tags (whose rules take precedence).
+    if css_blocks_to_prepend:
+        combined = "\n".join(css_blocks_to_prepend)
+        rewritten = _inject_into_head(rewritten, f"<style>{combined}</style>")
+
+    return rewritten
+
+
+def _inline_css_urls(css_text: str, assets: Dict[str, _Asset]) -> str:
+    """Replace `url(/_nicegui/...)` inside CSS with data URIs."""
+
+    def _repl(match: re.Match[str]) -> str:
+        url_path = match.group("url")
+        asset = assets.get(url_path)
+        if asset is None:
+            return match.group(0)
+        mime = _classify_mime(url_path, asset.content_type)
+        return f"url({_data_uri(asset.body, mime)})"
+
+    return _CSS_URL_RE.sub(_repl, css_text)
+
+
+def _data_uri(body: bytes, mime: str) -> str:
+    return f"data:{mime};base64,{base64.b64encode(body).decode('ascii')}"
+
+
+def _classify_mime(path: str, declared: str) -> str:
+    declared = (declared or "").split(";")[0].strip().lower()
+    if declared:
+        return declared
+    if path.endswith(".css"):
+        return "text/css"
+    if path.endswith(".svg"):
+        return "image/svg+xml"
+    if path.endswith(".ico"):
+        return "image/x-icon"
+    if path.endswith(".woff2"):
+        return "font/woff2"
+    if path.endswith(".woff"):
+        return "font/woff"
+    if path.endswith(".js") or path.endswith(".mjs"):
+        return "application/javascript"
+    return "application/octet-stream"
+
+
+def _safe_decode(body: bytes) -> str:
+    try:
+        return body.decode("utf-8")
+    except UnicodeDecodeError:  # pragma: no cover - defensive
+        return body.decode("utf-8", errors="replace")
+
+
+def _inject_into_head(html: str, fragment: str) -> str:
+    head_match = re.search(r"<head\b[^>]*>", html, re.IGNORECASE)
+    if head_match:
+        idx = head_match.end()
+        return html[:idx] + fragment + html[idx:]
+    return fragment + html
 
 
 def capture_snapshot(request: SnapshotRequest) -> Path:
