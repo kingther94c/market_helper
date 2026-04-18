@@ -164,7 +164,7 @@ def test_cli_ibkr_live_position_report_dispatches_to_live_workflow(monkeypatch, 
 def test_cli_risk_html_report_dispatches_to_workflow(monkeypatch, tmp_path) -> None:
     captured: dict[str, object] = {}
 
-    def fake_generate_risk_html_report(
+    def fake_generate_risk_snapshot_report(
         *,
         positions_csv_path,
         returns_path,
@@ -190,8 +190,8 @@ def test_cli_risk_html_report_dispatches_to_workflow(monkeypatch, tmp_path) -> N
         return output_path
 
     monkeypatch.setattr(
-        "market_helper.cli.main.generate_risk_html_report",
-        fake_generate_risk_html_report,
+        "market_helper.cli.main.generate_risk_snapshot_report",
+        fake_generate_risk_snapshot_report,
     )
 
     exit_code = main(

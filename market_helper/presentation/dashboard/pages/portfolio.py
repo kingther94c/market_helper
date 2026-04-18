@@ -50,6 +50,21 @@ from market_helper.reporting.risk_html import (
 _REGISTERED = False
 _QUERY_SERVICE: PortfolioMonitorQueryService = PortfolioMonitorQueryService()
 _ACTION_SERVICE: PortfolioMonitorActionService = PortfolioMonitorActionService()
+_SNAPSHOT_OVERRIDES: dict[str, str] | None = None
+
+
+def set_snapshot_overrides(overrides: dict[str, str] | None) -> None:
+    """Register artifact-path + vol-method overrides for the next snapshot-mode page load.
+
+    Used by the headless ``capture_snapshot()`` pipeline so the CLI can inject
+    positions-CSV / returns / vol-method etc. before Playwright navigates.
+    Keys that match ``PortfolioArtifactFormState`` field names overwrite the
+    defaults resolved from the query service. Pass ``None`` to clear.
+    """
+    global _SNAPSHOT_OVERRIDES
+    _SNAPSHOT_OVERRIDES = dict(overrides) if overrides else None
+
+
 DEFAULT_CANONICAL_LOCAL_ENV_PATH = (
     Path(__file__).resolve().parents[4] / "configs" / "portfolio_monitor" / "local.env"
 )
@@ -131,6 +146,7 @@ class PortfolioPageState:
     active_job: str | None = None
     status_message: str = "Ready"
     snapshot_mode: bool = False
+    selected_top_tab: str = "performance_usd"
     selected_perf_mode: dict[str, str] = field(default_factory=lambda: {"USD": "percent", "SGD": "percent"})
     selected_perf_window: dict[str, str] = field(default_factory=lambda: {"USD": "MTD", "SGD": "MTD"})
     progress_sink: InMemoryUiProgressSink = field(default_factory=InMemoryUiProgressSink)
@@ -154,6 +170,41 @@ def _normalize_vol_method_label(value: str) -> str:
         if key == resolved_key:
             return label
     return next(iter(DEFAULT_VOL_METHOD_LABELS))
+
+
+_TOP_TAB_KEYS = {"performance_usd", "performance_sgd", "risk", "artifacts"}
+
+
+def _resolve_top_tab_key(value: str | None) -> str:
+    normalized = str(value or "").strip().lower()
+    aliases = {
+        "": "performance_usd",
+        "performance": "performance_usd",
+        "perf": "performance_usd",
+        "usd": "performance_usd",
+        "sgd": "performance_sgd",
+        "perf_sgd": "performance_sgd",
+    }
+    if normalized in _TOP_TAB_KEYS:
+        return normalized
+    return aliases.get(normalized, "performance_usd")
+
+
+def _apply_snapshot_overrides(
+    state: PortfolioPageState, overrides: dict[str, str] | None
+) -> None:
+    if not overrides:
+        return
+    form = state.artifact_form
+    for key, value in overrides.items():
+        if value is None:
+            continue
+        if not hasattr(form, key):
+            continue
+        if key == "vol_method":
+            setattr(form, key, _normalize_vol_method_label(str(value)))
+        else:
+            setattr(form, key, str(value))
 
 
 def _positions_csv_ready_for_autoload(value: str) -> bool:
@@ -214,9 +265,15 @@ def register_portfolio_page(
         return
 
     @ui.page("/portfolio")
-    async def portfolio_page(snapshot: str | None = None) -> None:  # noqa: ARG001
+    async def portfolio_page(
+        snapshot: str | None = None,
+        tab: str | None = None,
+    ) -> None:  # noqa: ARG001
         state = _build_initial_state(_QUERY_SERVICE)
         state.snapshot_mode = str(snapshot or "").strip() in {"1", "true", "yes"}
+        state.selected_top_tab = _resolve_top_tab_key(tab)
+        if state.snapshot_mode:
+            _apply_snapshot_overrides(state, _SNAPSHOT_OVERRIDES)
 
         @ui.refreshable
         def render() -> None:
@@ -258,6 +315,10 @@ def register_portfolio_page(
             state.is_loading = False
             state.status_message = _initial_dashboard_status(state.artifact_form.positions_csv_path)
             render.refresh()
+            if state.snapshot_mode and _positions_csv_ready_for_autoload(
+                state.artifact_form.positions_csv_path
+            ):
+                await load_snapshot()
 
         async def run_action(action_name: str) -> None:
             if state.active_job is not None:
@@ -440,7 +501,13 @@ def _render_main_tabs(state: PortfolioPageState) -> None:
         tab_perf_sgd = ui.tab("Performance SGD")
         tab_risk = ui.tab("Risk")
         tab_artifacts = ui.tab("Artifacts")
-    with ui.tab_panels(tabs, value=tab_perf_usd).classes("w-full"):
+    initial_tab = {
+        "performance_usd": tab_perf_usd,
+        "performance_sgd": tab_perf_sgd,
+        "risk": tab_risk,
+        "artifacts": tab_artifacts,
+    }.get(state.selected_top_tab, tab_perf_usd)
+    with ui.tab_panels(tabs, value=initial_tab).classes("w-full"):
         with ui.tab_panel(tab_perf_usd):
             if state.snapshot is None:
                 _render_loading_panel("Performance USD")
@@ -854,7 +921,7 @@ def _load_commodity_sector_proxies() -> tuple[tuple[str, str], ...]:
 def _compute_commodity_sector_correlation(
     proxies: tuple[tuple[str, str], ...],
 ) -> tuple[list[str], list[list[float]]] | None:
-    from market_helper.data_sources.yahoo import YahooFinanceClient
+    from market_helper.data_sources.yahoo_finance import YahooFinanceClient
     from market_helper.domain.portfolio_monitor.services.yahoo_returns import (
         ensure_symbol_return_cache,
     )

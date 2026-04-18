@@ -24,6 +24,7 @@ from market_helper.domain.portfolio_monitor.pipelines.generate_portfolio_report 
     generate_position_report as _generate_position_report,
     generate_report_mapping_table as _generate_report_mapping_table,
     generate_risk_html_report as _generate_risk_html_report,
+    generate_risk_snapshot_report as _generate_risk_snapshot_report,
     generate_security_reference_sync as _generate_security_reference_sync,
     rebuild_ibkr_flex_nav_cashflow_history as _rebuild_ibkr_flex_nav_cashflow_history,
     refresh_current_year_latest_flex_xml as _refresh_current_year_latest_flex_xml,
@@ -219,6 +220,33 @@ def generate_risk_html_report(
         vol_method=vol_method,
         inter_asset_corr=inter_asset_corr,
         progress=progress,
+    )
+
+
+def generate_risk_snapshot_report(
+    *,
+    positions_csv_path: str | Path,
+    output_path: str | Path,
+    returns_path: str | Path | None = None,
+    proxy_path: str | Path | None = None,
+    regime_path: str | Path | None = None,
+    security_reference_path: str | Path | None = None,
+    risk_config_path: str | Path | None = None,
+    allocation_policy_path: str | Path | None = None,
+    vol_method: str = "geomean_1m_3m",
+    inter_asset_corr: str = "historical",
+) -> Path:
+    return _generate_risk_snapshot_report(
+        positions_csv_path=positions_csv_path,
+        output_path=output_path,
+        returns_path=returns_path,
+        proxy_path=proxy_path,
+        regime_path=regime_path,
+        security_reference_path=security_reference_path,
+        risk_config_path=risk_config_path,
+        allocation_policy_path=allocation_policy_path,
+        vol_method=vol_method,
+        inter_asset_corr=inter_asset_corr,
     )
 
 

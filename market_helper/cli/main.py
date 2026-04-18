@@ -15,6 +15,7 @@ from market_helper.workflows.generate_report import (
     generate_position_report,
     generate_report_mapping_table,
     generate_risk_html_report,
+    generate_risk_snapshot_report,
     generate_security_reference_sync,
 )
 from market_helper.workflows.generate_regime import generate_regime_snapshots
@@ -266,7 +267,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         )
         return 0
     if args.command == "risk-html-report":
-        generate_risk_html_report(
+        generate_risk_snapshot_report(
             positions_csv_path=Path(args.positions_csv),
             returns_path=Path(args.returns) if args.returns else None,
             output_path=Path(args.output),
