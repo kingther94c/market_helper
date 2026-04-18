@@ -2191,7 +2191,6 @@ def _build_eq_country_policy_drift(
     current_weights, current_risk = _aggregate_prefixed_eq_country_current(
         breakdown=breakdown,
         lookthrough=lookthrough,
-        fallback_weights=policy_weights,
     )
     buckets = sorted(
         set(current_weights) | set(policy_weights),
@@ -2230,25 +2229,11 @@ def _expand_eq_country_policy_mix(
         normalized_key = str(key).upper()
         if mix_weight <= 0:
             continue
-        if normalized_key in lookthrough:
-            raw_weights = {
-                str(bucket).upper(): float(bucket_weight)
-                for bucket, bucket_weight in lookthrough[normalized_key]
-                if float(bucket_weight) > 0
-            }
-            _merge_weight_maps(
-                prefixed,
-                _prefix_eq_country_weight_map(
-                    raw_weights,
-                    lookthrough=lookthrough,
-                ),
-                scale=float(mix_weight),
-            )
-            continue
         _merge_weight_maps(
             prefixed,
-            _prefix_eq_country_weight_map(
-                {normalized_key: 1.0},
+            _expand_eq_country_bucket_weights(
+                bucket=normalized_key,
+                weight=1.0,
                 lookthrough=lookthrough,
             ),
             scale=float(mix_weight),
@@ -2367,153 +2352,34 @@ def _aggregate_prefixed_eq_country_current(
     *,
     breakdown: list[BreakdownRow],
     lookthrough: Mapping[str, list[tuple[str, float]]],
-    fallback_weights: Mapping[str, float],
 ) -> tuple[dict[str, float], dict[str, float]]:
     current_weights: dict[str, float] = {}
     current_risk: dict[str, float] = {}
-    deferred_other_weight = 0.0
-    deferred_other_risk = 0.0
-    dm_observed = 0.0
-    em_observed = 0.0
+    leaf_aliases = _build_eq_country_leaf_aliases(lookthrough)
 
     for row in breakdown:
         bucket = row.bucket.upper()
-        prefixed = _prefix_eq_country_bucket(bucket, lookthrough)
+        prefixed = leaf_aliases.get(bucket, bucket if bucket.startswith(("DM-", "EM-")) else None)
         if prefixed is None:
-            deferred_other_weight += row.dollar_weight
-            deferred_other_risk += row.risk_contribution_estimated
             continue
         current_weights[prefixed] = current_weights.get(prefixed, 0.0) + row.dollar_weight
         current_risk[prefixed] = current_risk.get(prefixed, 0.0) + row.risk_contribution_estimated
-        if prefixed.startswith("DM-"):
-            dm_observed += row.dollar_weight
-        elif prefixed.startswith("EM-"):
-            em_observed += row.dollar_weight
-
-    if deferred_other_weight > 0 or deferred_other_risk > 0:
-        dm_share, em_share = _resolve_eq_country_other_split(
-            dm_weight=dm_observed,
-            em_weight=em_observed,
-            fallback_weights=fallback_weights,
-        )
-        current_weights["DM-Others"] = current_weights.get("DM-Others", 0.0) + deferred_other_weight * dm_share
-        current_weights["EM-Others"] = current_weights.get("EM-Others", 0.0) + deferred_other_weight * em_share
-        current_risk["DM-Others"] = current_risk.get("DM-Others", 0.0) + deferred_other_risk * dm_share
-        current_risk["EM-Others"] = current_risk.get("EM-Others", 0.0) + deferred_other_risk * em_share
 
     return _normalize_weights(current_weights), current_risk
-
-
-def _prefix_eq_country_weight_map(
-    raw_weights: Mapping[str, float],
-    *,
-    lookthrough: Mapping[str, list[tuple[str, float]]],
-) -> dict[str, float]:
-    prefixed: dict[str, float] = {}
-    deferred_other_weight = 0.0
-    dm_observed = 0.0
-    em_observed = 0.0
-
-    for bucket, weight in raw_weights.items():
-        normalized_bucket = str(bucket).upper()
-        if weight <= 0:
-            continue
-        prefixed_bucket = _prefix_eq_country_bucket(normalized_bucket, lookthrough)
-        if prefixed_bucket is None:
-            deferred_other_weight += float(weight)
-            continue
-        prefixed[prefixed_bucket] = prefixed.get(prefixed_bucket, 0.0) + float(weight)
-        if prefixed_bucket.startswith("DM-"):
-            dm_observed += float(weight)
-        elif prefixed_bucket.startswith("EM-"):
-            em_observed += float(weight)
-
-    if deferred_other_weight > 0:
-        dm_share, em_share = _resolve_eq_country_other_split(
-            dm_weight=dm_observed,
-            em_weight=em_observed,
-        )
-        prefixed["DM-Others"] = prefixed.get("DM-Others", 0.0) + deferred_other_weight * dm_share
-        prefixed["EM-Others"] = prefixed.get("EM-Others", 0.0) + deferred_other_weight * em_share
-
-    return prefixed
-
-
-def _prefix_eq_country_bucket(
-    bucket: str,
-    lookthrough: Mapping[str, list[tuple[str, float]]],
-) -> str | None:
-    normalized_bucket = str(bucket).upper()
-    if normalized_bucket.startswith("DM-") or normalized_bucket.startswith("EM-"):
-        return normalized_bucket.replace("OTHERS", "Others").replace("OTHER", "Others")
-    if _is_eq_country_other_bucket(normalized_bucket):
-        return None
-    region = _eq_country_region_for_bucket(normalized_bucket, lookthrough)
-    if region is None:
-        return normalized_bucket
-    suffix = "Others" if _is_eq_country_other_bucket(normalized_bucket) else normalized_bucket
-    return f"{region}-{suffix}"
-
-
-def _eq_country_region_for_bucket(
-    bucket: str,
-    lookthrough: Mapping[str, list[tuple[str, float]]],
-) -> str | None:
-    normalized_bucket = str(bucket).upper()
-    dm_buckets = {
-        str(name).upper()
-        for name, _ in lookthrough.get("DM", [])
-        if not _is_eq_country_other_bucket(str(name).upper())
-    }
-    em_buckets = {
-        str(name).upper()
-        for name, _ in lookthrough.get("EM", [])
-        if not _is_eq_country_other_bucket(str(name).upper())
-    }
-    if normalized_bucket in dm_buckets and normalized_bucket not in em_buckets:
-        return "DM"
-    if normalized_bucket in em_buckets and normalized_bucket not in dm_buckets:
-        return "EM"
-    return None
-
-
-def _resolve_eq_country_other_split(
-    *,
-    dm_weight: float,
-    em_weight: float,
-    fallback_weights: Mapping[str, float] | None = None,
-) -> tuple[float, float]:
-    total = dm_weight + em_weight
-    if total > 0:
-        return dm_weight / total, em_weight / total
-    if fallback_weights:
-        dm_fallback = sum(weight for bucket, weight in fallback_weights.items() if bucket.startswith("DM-"))
-        em_fallback = sum(weight for bucket, weight in fallback_weights.items() if bucket.startswith("EM-"))
-        fallback_total = dm_fallback + em_fallback
-        if fallback_total > 0:
-            return dm_fallback / fallback_total, em_fallback / fallback_total
-    return 0.5, 0.5
 
 
 def _eq_country_policy_bucket_sort_key(
     bucket: str,
     lookthrough: Mapping[str, list[tuple[str, float]]],
 ) -> tuple[int, int, str]:
-    normalized_bucket = str(bucket)
+    normalized_bucket = str(bucket).upper()
     prefix, _, suffix = normalized_bucket.partition("-")
     prefix_rank = {name: index for index, name in enumerate(EQ_COUNTRY_POLICY_REGION_ORDER)}
     region_rank = prefix_rank.get(prefix, len(prefix_rank))
 
-    region_order = [
-        (
-            "Others"
-            if _is_eq_country_other_bucket(str(name).upper())
-            else str(name).upper()
-        )
-        for name, _ in lookthrough.get(prefix, [])
-    ]
+    region_order = [str(name).upper() for name, _ in lookthrough.get(prefix, [])]
     suffix_rank_map = {name: index for index, name in enumerate(region_order)}
-    suffix_rank = suffix_rank_map.get(suffix.upper(), suffix_rank_map.get(suffix, len(suffix_rank_map)))
+    suffix_rank = suffix_rank_map.get(normalized_bucket, suffix_rank_map.get(suffix.upper(), len(suffix_rank_map)))
     return region_rank, suffix_rank, normalized_bucket
 
 
@@ -2524,10 +2390,62 @@ def _expand_country_allocations(
     if row.asset_class != "EQ":
         return []
     if row.eq_country in lookthrough:
-        return lookthrough[row.eq_country]
+        return list(_expand_eq_country_bucket_weights(bucket=row.eq_country, weight=1.0, lookthrough=lookthrough).items())
+    leaf_aliases = _build_eq_country_leaf_aliases(lookthrough)
+    normalized_country = str(row.eq_country).upper()
+    if normalized_country in leaf_aliases:
+        return [(leaf_aliases[normalized_country], 1.0)]
     if row.eq_country:
         return [(row.eq_country, 1.0)]
     return [("OTHER", 1.0)]
+
+
+def _expand_eq_country_bucket_weights(
+    *,
+    bucket: str,
+    weight: float,
+    lookthrough: Mapping[str, list[tuple[str, float]]],
+    _seen: set[str] | None = None,
+) -> dict[str, float]:
+    normalized_bucket = str(bucket).upper()
+    if weight <= 0:
+        return {}
+    if _seen is None:
+        _seen = set()
+    if normalized_bucket in _seen:
+        return {}
+    children = lookthrough.get(normalized_bucket)
+    if not children:
+        return {normalized_bucket: float(weight)}
+    expanded: dict[str, float] = {}
+    next_seen = set(_seen)
+    next_seen.add(normalized_bucket)
+    for child_bucket, child_weight in children:
+        _merge_weight_maps(
+            expanded,
+            _expand_eq_country_bucket_weights(
+                bucket=str(child_bucket).upper(),
+                weight=float(weight) * float(child_weight),
+                lookthrough=lookthrough,
+                _seen=next_seen,
+            ),
+        )
+    return expanded
+
+
+def _build_eq_country_leaf_aliases(
+    lookthrough: Mapping[str, list[tuple[str, float]]],
+) -> dict[str, str]:
+    aliases: dict[str, str] = {}
+    for root in lookthrough:
+        for leaf in _expand_eq_country_bucket_weights(bucket=root, weight=1.0, lookthrough=lookthrough):
+            normalized_leaf = str(leaf).upper()
+            aliases[normalized_leaf] = normalized_leaf
+            if normalized_leaf.startswith("DM-") or normalized_leaf.startswith("EM-"):
+                _, _, suffix = normalized_leaf.partition("-")
+                if suffix:
+                    aliases.setdefault(suffix.upper(), normalized_leaf)
+    return aliases
 
 
 def _expand_us_sector_allocations(

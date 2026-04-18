@@ -271,19 +271,18 @@ def test_load_risk_report_config_rejects_legacy_proxy_fi_duration_key(tmp_path: 
         )
 
 
-def test_default_eq_country_lookthrough_uses_explicit_dm_em_other_buckets() -> None:
+def test_default_eq_country_lookthrough_uses_hierarchical_dm_em_buckets() -> None:
     lookthrough_path = REPO_ROOT / "configs" / "portfolio_monitor" / "eq_country_lookthrough.csv"
     with lookthrough_path.open("r", encoding="utf-8", newline="") as handle:
         rows = list(csv.DictReader(handle))
 
     by_key: dict[str, set[str]] = {}
     for row in rows:
-        by_key.setdefault(str(row["eq_country"]).upper(), set()).add(str(row["country_bucket"]))
+        by_key.setdefault(str(row["eq_country"]).upper(), set()).add(str(row["country_bucket"]).upper())
 
-    assert all(str(row["country_bucket"]).upper() != "OTHERS" for row in rows)
-    assert {"DM-Others", "EM-Others"} <= by_key["ACWI"]
-    assert "DM-Others" in by_key["DM"]
-    assert "EM-Others" in by_key["EM"]
+    assert by_key["ACWI"] == {"DM", "EM"}
+    assert {"DM-US", "DM-JP", "DM-EU", "DM-OTHER DM"} <= by_key["DM"]
+    assert {"EM-CN", "EM-TW", "EM-KR", "EM-IN", "EM-BR", "EM-OTHER EM"} <= by_key["EM"]
 
 
 def test_default_us_sector_lookthrough_covers_all_us_equity_universe_symbols() -> None:
@@ -600,11 +599,11 @@ def test_build_risk_html_report_prefixes_policy_drift_equity_country_dm_em_bucke
     rendered = output_path.read_text(encoding="utf-8")
     assert "Policy Drift - Equity Country" in rendered
     assert "DM-US" in rendered
-    assert "DM-Others" in rendered
+    assert "DM-OTHER DM" in rendered
     assert "EM-CN" in rendered
-    assert "EM-Others" in rendered
+    assert "EM-OTHER EM" in rendered
     policy_section = rendered.split("Policy Drift - Equity Country", 1)[1].split("Policy Drift - US Sector", 1)[0]
-    assert policy_section.index("DM-US") < policy_section.index("DM-Others") < policy_section.index("EM-CN") < policy_section.index("EM-Others")
+    assert policy_section.index("DM-US") < policy_section.index("DM-OTHER DM") < policy_section.index("EM-CN") < policy_section.index("EM-OTHER EM")
 
 
 def test_build_risk_html_report_uses_security_reference_for_enrichment(tmp_path: Path) -> None:
