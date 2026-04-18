@@ -1141,6 +1141,65 @@ def generate_risk_html_report(
     )
 
 
+def generate_risk_snapshot_report(
+    *,
+    positions_csv_path: str | Path,
+    output_path: str | Path,
+    returns_path: str | Path | None = None,
+    proxy_path: str | Path | None = None,
+    regime_path: str | Path | None = None,
+    security_reference_path: str | Path | None = None,
+    risk_config_path: str | Path | None = None,
+    allocation_policy_path: str | Path | None = None,
+    vol_method: str = "geomean_1m_3m",
+    inter_asset_corr: str = "historical",
+) -> Path:
+    """Render the risk report by snapshotting the NiceGUI dashboard headlessly.
+
+    This is the snapshot-based replacement for the legacy Jinja risk renderer:
+    it spins the dashboard up in-process, drives Playwright through
+    ``/portfolio?snapshot=1&tab=risk``, and writes a self-contained HTML file.
+    Artifact paths + vol/correlation selections are injected into the page via
+    the ``set_snapshot_overrides`` registry so the CLI still takes the same
+    flags.
+    """
+    from market_helper.presentation.dashboard.snapshot import (
+        SnapshotRequest,
+        capture_snapshot,
+    )
+
+    reference_path = (
+        Path(security_reference_path)
+        if security_reference_path is not None
+        else DEFAULT_SECURITY_REFERENCE_PATH
+    )
+    sync_security_reference_csv(reference_path=reference_path)
+
+    overrides: dict[str, str] = {
+        "positions_csv_path": str(positions_csv_path),
+        "security_reference_path": str(reference_path),
+        "vol_method": vol_method,
+        "inter_asset_corr": inter_asset_corr,
+    }
+    if returns_path is not None:
+        overrides["returns_path"] = str(returns_path)
+    if proxy_path is not None:
+        overrides["proxy_path"] = str(proxy_path)
+    if regime_path is not None:
+        overrides["regime_path"] = str(regime_path)
+    if risk_config_path is not None:
+        overrides["risk_config_path"] = str(risk_config_path)
+    if allocation_policy_path is not None:
+        overrides["allocation_policy_path"] = str(allocation_policy_path)
+
+    request = SnapshotRequest(
+        output_path=Path(output_path),
+        query="snapshot=1&tab=risk",
+        overrides=overrides,
+    )
+    return capture_snapshot(request)
+
+
 def generate_combined_html_report(
     *,
     positions_csv_path: str | Path,

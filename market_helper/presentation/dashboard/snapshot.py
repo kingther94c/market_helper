@@ -27,7 +27,7 @@ import threading
 import time
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Dict
+from typing import Dict, Mapping
 from urllib.parse import urlsplit
 
 
@@ -46,6 +46,7 @@ class SnapshotRequest:
     wait_seconds: float = DEFAULT_WAIT_SECONDS
     viewport_width: int = 1600
     viewport_height: int = 900
+    overrides: Mapping[str, str] | None = None
 
 
 @dataclass
@@ -61,12 +62,18 @@ def pick_free_port() -> int:
         return int(sock.getsockname()[1])
 
 
-def _start_dashboard(host: str, port: int) -> threading.Thread:
+def _start_dashboard(
+    host: str,
+    port: int,
+    overrides: Mapping[str, str] | None = None,
+) -> threading.Thread:
     from market_helper.presentation.dashboard.app import create_app, patch_nicegui_process_pool_setup
+    from market_helper.presentation.dashboard.pages.portfolio import set_snapshot_overrides
     from nicegui import ui
 
     create_app()
     patch_nicegui_process_pool_setup()
+    set_snapshot_overrides(dict(overrides) if overrides else None)
 
     def _serve() -> None:
         ui.run(host=host, port=port, reload=False, show=False, title="Portfolio Monitor")
@@ -285,8 +292,9 @@ def capture_snapshot(request: SnapshotRequest) -> Path:
         wait_seconds=request.wait_seconds,
         viewport_width=request.viewport_width,
         viewport_height=request.viewport_height,
+        overrides=request.overrides,
     )
-    _start_dashboard(resolved.host, port)
+    _start_dashboard(resolved.host, port, overrides=resolved.overrides)
     html = asyncio.run(_capture(resolved))
     resolved.output_path.parent.mkdir(parents=True, exist_ok=True)
     resolved.output_path.write_text(html, encoding="utf-8")
