@@ -6,12 +6,28 @@ import market_helper.providers.tws_ib_async.client as client_module
 from market_helper.providers.tws_ib_async import TwsIbAsyncClient, TwsIbAsyncError, choose_tws_account
 
 
+class _FakeRawClient:
+    def __init__(self) -> None:
+        self.raw_account_updates_calls: list[tuple[bool, str]] = []
+
+    def reqAccountUpdates(self, subscribe: bool, account: str = "") -> None:
+        self.raw_account_updates_calls.append((subscribe, account))
+
+
 class FakeIb:
-    def __init__(self, *, connected: bool = True) -> None:
+    def __init__(
+        self,
+        *,
+        connected: bool = True,
+        empty_portfolio: bool = False,
+    ) -> None:
         self.connected = connected
         self.connected_with: dict[str, object] | None = None
         self.disconnected = False
-        self.requested_account_updates: list[str] = []
+        self.async_account_updates_calls: list[str] = []
+        self._empty_portfolio = empty_portfolio
+        self._portfolio_refills: list[str] = []
+        self.client = _FakeRawClient()
 
     def connect(
         self,
@@ -41,10 +57,26 @@ class FakeIb:
     def managedAccounts(self) -> list[str]:
         return ["U12345", "U99999"]
 
-    def reqAccountUpdates(self, account: str = "") -> None:
-        self.requested_account_updates.append(account)
+    async def reqAccountUpdatesAsync(self, account: str) -> None:
+        self.async_account_updates_calls.append(account)
+        # Simulate a successful re-subscribe: portfolio is now populated.
+        self._portfolio_refills.append(account)
+
+    def run(self, *awaitables, timeout: float | None = None) -> object:
+        import asyncio
+
+        future = awaitables[0]
+        if timeout is not None:
+            future = asyncio.wait_for(future, timeout)
+        loop = asyncio.new_event_loop()
+        try:
+            return loop.run_until_complete(future)
+        finally:
+            loop.close()
 
     def portfolio(self, account: str = "") -> list[object]:
+        if self._empty_portfolio and not self._portfolio_refills:
+            return []
         return [{"account": account or "ALL"}]
 
     def accountValues(self, account: str = "") -> list[object]:
@@ -82,7 +114,9 @@ def test_tws_ib_async_client_connects_and_reads_accounts_and_portfolio() -> None
     }
     assert client.list_accounts() == ["U12345", "U99999"]
     assert client.list_portfolio("U12345") == [{"account": "U12345"}]
-    assert fake_ib.requested_account_updates == ["U12345"]
+    # Non-empty portfolio means no forced re-subscribe is needed.
+    assert fake_ib.async_account_updates_calls == []
+    assert fake_ib.client.raw_account_updates_calls == []
     assert client.list_account_values("U12345") == [
         {
             "account": "U12345",
@@ -95,6 +129,27 @@ def test_tws_ib_async_client_connects_and_reads_accounts_and_portfolio() -> None
 
     client.disconnect()
     assert fake_ib.disconnected is True
+
+
+def test_list_portfolio_forces_resubscribe_when_portfolio_is_empty() -> None:
+    fake_ib = FakeIb(empty_portfolio=True)
+    client = TwsIbAsyncClient(
+        host="127.0.0.1",
+        port=7497,
+        client_id=1,
+        timeout=4.0,
+        account="U12345",
+        ib_factory=lambda: fake_ib,
+    )
+
+    client.connect()
+    rows = client.list_portfolio("U12345")
+
+    # First read returned empty, so the client should unsubscribe then
+    # re-subscribe and retry the read.
+    assert fake_ib.client.raw_account_updates_calls == [(False, "U12345")]
+    assert fake_ib.async_account_updates_calls == ["U12345"]
+    assert rows == [{"account": "U12345"}]
 
 
 def test_ensure_ib_async_notebook_compat_patches_running_loop(monkeypatch: pytest.MonkeyPatch) -> None:
