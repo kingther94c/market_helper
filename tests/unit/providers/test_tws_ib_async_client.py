@@ -11,6 +11,7 @@ class FakeIb:
         self.connected = connected
         self.connected_with: dict[str, object] | None = None
         self.disconnected = False
+        self.requested_account_updates: list[str] = []
 
     def connect(
         self,
@@ -39,6 +40,9 @@ class FakeIb:
 
     def managedAccounts(self) -> list[str]:
         return ["U12345", "U99999"]
+
+    def reqAccountUpdates(self, account: str = "") -> None:
+        self.requested_account_updates.append(account)
 
     def portfolio(self, account: str = "") -> list[object]:
         return [{"account": account or "ALL"}]
@@ -78,6 +82,7 @@ def test_tws_ib_async_client_connects_and_reads_accounts_and_portfolio() -> None
     }
     assert client.list_accounts() == ["U12345", "U99999"]
     assert client.list_portfolio("U12345") == [{"account": "U12345"}]
+    assert fake_ib.requested_account_updates == ["U12345"]
     assert client.list_account_values("U12345") == [
         {
             "account": "U12345",

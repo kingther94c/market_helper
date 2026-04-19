@@ -267,6 +267,23 @@ class TwsIbAsyncClient:
         if not callable(portfolio):
             raise TwsIbAsyncError("Connected ib_async client does not expose portfolio().")
 
+        # ib_async's `wrapper.portfolio` is only populated by `reqAccountUpdates`
+        # (not `reqAccountUpdatesMulti`). During IB.connect() the startup fetch
+        # may have timed out, or skipped the subscription entirely when the
+        # client was constructed without an account id and multiple managed
+        # accounts were returned. Request it explicitly so portfolio() has data.
+        req_account_updates = getattr(ib, "reqAccountUpdates", None)
+        if callable(req_account_updates):
+            try:
+                req_account_updates(account_id or "")
+            except Exception as error:
+                raise TwsIbAsyncError(
+                    "Failed to request TWS / IB Gateway account updates for account={account_id}: {reason}".format(
+                        account_id=account_id or "",
+                        reason=error,
+                    )
+                ) from error
+
         try:
             rows = portfolio(account_id or "")
         except Exception as error:
