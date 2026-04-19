@@ -267,34 +267,72 @@ class TwsIbAsyncClient:
         if not callable(portfolio):
             raise TwsIbAsyncError("Connected ib_async client does not expose portfolio().")
 
+        selected_account = account_id or ""
         # ib_async's `wrapper.portfolio` is only populated by `reqAccountUpdates`
-        # (not `reqAccountUpdatesMulti`). During IB.connect() the startup fetch
-        # may have timed out, or skipped the subscription entirely when the
-        # client was constructed without an account id and multiple managed
-        # accounts were returned. Request it explicitly so portfolio() has data.
-        req_account_updates = getattr(ib, "reqAccountUpdates", None)
-        if callable(req_account_updates):
-            try:
-                req_account_updates(account_id or "")
-            except Exception as error:
-                raise TwsIbAsyncError(
-                    "Failed to request TWS / IB Gateway account updates for account={account_id}: {reason}".format(
-                        account_id=account_id or "",
-                        reason=error,
-                    )
-                ) from error
-
+        # (not `reqAccountUpdatesMulti`). During `IB.connect()` the startup call
+        # may have timed out (raiseSyncErrors is False), or been skipped when
+        # the client was constructed with no account id and multiple managed
+        # accounts were returned. If portfolio() still reads empty, try an
+        # async re-subscribe with a bounded wait so we don't block forever:
+        # ib_async's blocking `reqAccountUpdates` waits for an end-of-download
+        # marker that TWS may not re-send if the subscription is already
+        # active.
         try:
-            rows = portfolio(account_id or "")
+            rows = portfolio(selected_account)
         except Exception as error:
             raise TwsIbAsyncError(
                 "Failed to fetch TWS / IB Gateway portfolio for account={account_id}: {reason}".format(
-                    account_id=account_id or "",
+                    account_id=selected_account,
                     reason=error,
                 )
             ) from error
 
+        if not list(rows):
+            self._force_refresh_account_portfolio(ib, selected_account)
+            try:
+                rows = portfolio(selected_account)
+            except Exception as error:
+                raise TwsIbAsyncError(
+                    "Failed to fetch TWS / IB Gateway portfolio for account={account_id}: {reason}".format(
+                        account_id=selected_account,
+                        reason=error,
+                    )
+                ) from error
+
         return list(rows)
+
+    @staticmethod
+    def _force_refresh_account_portfolio(ib: object, account: str) -> None:
+        """Force ib_async's ``wrapper.portfolio`` to be refilled for ``account``.
+
+        Unsubscribes from any existing account-updates feed and re-subscribes
+        so TWS sends a fresh ``accountDownloadEnd`` marker. The wait is bounded
+        to avoid hanging forever if the broker is slow or the end marker is
+        missed; in that case we still return since `wrapper.portfolio` has
+        been updated incrementally as items streamed in.
+        """
+        req_updates_async = getattr(ib, "reqAccountUpdatesAsync", None)
+        client = getattr(ib, "client", None)
+        req_updates_raw = getattr(client, "reqAccountUpdates", None)
+        run = getattr(ib, "run", None)
+
+        # Unsubscribe first (ignore errors) so the re-subscribe triggers a
+        # fresh download end event.
+        if callable(req_updates_raw):
+            try:
+                req_updates_raw(False, account)
+            except Exception:
+                pass
+
+        if not (callable(req_updates_async) and callable(run)):
+            return
+
+        try:
+            run(req_updates_async(account), timeout=30.0)
+        except asyncio.TimeoutError:
+            return
+        except Exception:
+            return
 
     def list_account_values(self, account_id: str | None = None) -> list[object]:
         ib = self._require_connected()
