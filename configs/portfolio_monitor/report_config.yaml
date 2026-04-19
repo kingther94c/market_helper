@@ -32,6 +32,7 @@ risk_report:
     Forward-Looking: forward_looking
   fx_excluded_asset_classes:
     - FX
+    - CASH
   # Commodity dashboard: proxy ETF per sector for the cross-sector
   # correlation heatmap. Keys match cm_sector codes in security_universe.csv.
   commodity_sector_proxies:

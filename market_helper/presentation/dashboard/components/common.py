@@ -23,6 +23,11 @@ def add_dashboard_styles() -> None:
           .pm-status-running { background: #dbeafe; color: #1d4ed8; }
           .pm-status-success { background: #dcfce7; color: #166534; }
           .pm-status-error { background: #fee2e2; color: #991b1b; }
+          .pm-static-tab-buttons { display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 14px; }
+          .pm-static-tab-button { appearance: none; border: 0; border-radius: 999px; padding: 10px 16px; background: #dbe4ee; color: #0f172a; font-weight: 700; cursor: pointer; }
+          .pm-static-tab-button.is-active { background: #0f172a; color: white; }
+          .pm-static-tab-panel { width: 100%; }
+          .pm-static-tab-panel[hidden] { display: none !important; }
         </style>
         """
     )
@@ -48,4 +53,3 @@ def render_status_card(*, title: str, value: str, detail: str | None = None) -> 
         ui.label(value).classes("text-body2")
         if detail:
             ui.label(detail).classes("text-caption pm-muted")
-

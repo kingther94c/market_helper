@@ -504,6 +504,9 @@ def _render_feedback(state: PortfolioPageState) -> None:
 
 
 def _render_main_tabs(state: PortfolioPageState) -> None:
+    if state.snapshot_mode:
+        _render_static_top_tabs(state)
+        return
     tabs = ui.tabs(
         on_change=lambda event: _update_top_tab(state, event.value),
     ).classes("w-full")
@@ -536,6 +539,47 @@ def _render_main_tabs(state: PortfolioPageState) -> None:
                 _render_risk_panel(state.snapshot)
         with ui.tab_panel(tab_artifacts):
             _render_artifact_metadata(state)
+
+
+def _render_static_top_tabs(state: PortfolioPageState) -> None:
+    tabs = [
+        ("performance_usd", "Performance USD"),
+        ("performance_sgd", "Performance SGD"),
+        ("risk", "Risk"),
+        ("artifacts", "Artifacts"),
+    ]
+    with ui.row().classes("w-full pm-static-tab-buttons").props("data-static-tab-buttons=top"):
+        for key, label in tabs:
+            button = ui.element("button").classes("pm-static-tab-button")
+            button.props(f"type=button data-tab-target={key}")
+            if state.selected_top_tab == key:
+                button.classes(add="is-active")
+            with button:
+                ui.label(label)
+
+    for key, label in tabs:
+        panel = ui.element("section").classes("pm-static-tab-panel")
+        panel.props(f"data-static-tab-panel=top data-tab-key={key}")
+        if state.selected_top_tab != key:
+            panel.props("hidden")
+        with panel:
+            if key == "performance_usd":
+                if state.snapshot is None:
+                    _render_loading_panel(label)
+                else:
+                    _render_performance_panel(state, state.snapshot.performance_usd_view_model)
+            elif key == "performance_sgd":
+                if state.snapshot is None:
+                    _render_loading_panel(label)
+                else:
+                    _render_performance_panel(state, state.snapshot.performance_sgd_view_model)
+            elif key == "risk":
+                if state.snapshot is None:
+                    _render_loading_panel(label)
+                else:
+                    _render_risk_panel(state.snapshot, static_mode=True)
+            else:
+                _render_artifact_metadata(state)
 
 
 def _render_loading_panel(title: str) -> None:
@@ -604,8 +648,11 @@ def _render_performance_panel(state: PortfolioPageState, view_model: Performance
                 )
 
 
-def _render_risk_panel(snapshot: PortfolioReportSnapshot) -> None:
+def _render_risk_panel(snapshot: PortfolioReportSnapshot, *, static_mode: bool = False) -> None:
     risk = snapshot.risk_view_model
+    if static_mode:
+        _render_static_risk_tabs(risk)
+        return
     with ui.column().classes("w-full gap-4"):
         risk_tabs = ui.tabs().classes("w-full")
         with risk_tabs:
@@ -628,6 +675,34 @@ def _render_risk_panel(snapshot: PortfolioReportSnapshot) -> None:
                 _render_risk_fx(risk)
             with ui.tab_panel(tab_macro):
                 _render_risk_macro(risk)
+
+
+def _render_static_risk_tabs(risk) -> None:
+    tabs = [
+        ("overview", "Main Overview", _render_risk_overview),
+        ("eq", "Equity", _render_risk_equity),
+        ("fi", "Fixed Income", _render_risk_fixed_income),
+        ("cm", "Commodity", _render_risk_commodity),
+        ("fx", "FX", _render_risk_fx),
+        ("macro", "Macro", _render_risk_macro),
+    ]
+    default_key = "overview"
+    with ui.column().classes("w-full gap-4"):
+        with ui.row().classes("w-full pm-static-tab-buttons").props("data-static-tab-buttons=risk"):
+            for key, label, _renderer in tabs:
+                button = ui.element("button").classes("pm-static-tab-button")
+                button.props(f"type=button data-tab-target={key}")
+                if key == default_key:
+                    button.classes(add="is-active")
+                with button:
+                    ui.label(label)
+        for key, _label, renderer in tabs:
+            panel = ui.element("section").classes("pm-static-tab-panel")
+            panel.props(f"data-static-tab-panel=risk data-tab-key={key}")
+            if key != default_key:
+                panel.props("hidden")
+            with panel:
+                renderer(risk)
 
 
 def _render_risk_overview(risk) -> None:
