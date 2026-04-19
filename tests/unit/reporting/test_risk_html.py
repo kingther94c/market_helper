@@ -941,6 +941,102 @@ def test_unmapped_rows_do_not_count_toward_vol_contribution(tmp_path: Path) -> N
     assert equity_summary.risk_contribution_estimated == pytest.approx(spy_row.risk_contribution_estimated)
 
 
+def test_fx_and_cash_do_not_count_toward_portfolio_vol_contribution(tmp_path: Path) -> None:
+    positions_csv = tmp_path / "positions.csv"
+    positions_csv.write_text(
+        "\n".join(
+            [
+                "as_of,account,internal_id,con_id,symbol,local_symbol,exchange,currency,source,quantity,avg_cost,latest_price,market_value,cost_basis,unrealized_pnl,weight",
+                "2026-03-26T00:00:00+00:00,U1,STK:SPY:SMART,756733,SPY,SPY,ARCA,USD,ibkr,10,500,510,5100,5000,100,0.4",
+                "2026-03-26T00:00:00+00:00,U1,FX:EURUSD:IDEALPRO,,EUR.USD,EUR.USD,IDEALPRO,USD,ibkr,1,1,1,4000,4000,0,0.3",
+                "2026-03-26T00:00:00+00:00,U1,CASH:USD_CASH_VALUE:MANUAL,,USD,USD,MANUAL,USD,ibkr,1,1,1,3000,3000,0,0.3",
+            ]
+        ),
+        encoding="utf-8",
+    )
+    returns_json = tmp_path / "returns.json"
+    returns_json.write_text(
+        json.dumps(
+            {
+                "STK:SPY:SMART": [0.001 * ((idx % 7) - 3) for idx in range(90)],
+                "FX:EURUSD:IDEALPRO": [0.0005 * ((idx % 5) - 2) for idx in range(90)],
+            }
+        ),
+        encoding="utf-8",
+    )
+    security_reference_path = tmp_path / "security_reference.csv"
+    export_security_reference_csv(
+        [
+            SecurityReference(
+                internal_id="STK:SPY:SMART",
+                asset_class="EQ",
+                canonical_symbol="SPY",
+                display_ticker="SPY",
+                display_name="US",
+                currency="USD",
+                primary_exchange="ARCA",
+                multiplier=1.0,
+                ibkr_sec_type="STK",
+                ibkr_symbol="SPY",
+                ibkr_exchange="SMART",
+                yahoo_symbol="SPY",
+                eq_country="US",
+                dir_exposure="L",
+                lookup_status="verified",
+            ),
+            SecurityReference(
+                internal_id="FX:EURUSD:IDEALPRO",
+                asset_class="FX",
+                canonical_symbol="EURUSD",
+                display_ticker="EURUSD",
+                display_name="EURUSD",
+                currency="USD",
+                primary_exchange="IDEALPRO",
+                multiplier=1.0,
+                ibkr_sec_type="CASH",
+                ibkr_symbol="EUR",
+                ibkr_exchange="IDEALPRO",
+                yahoo_symbol="EURUSD=X",
+                dir_exposure="L",
+                lookup_status="verified",
+            ),
+            SecurityReference(
+                internal_id="CASH:USD_CASH_VALUE:MANUAL",
+                asset_class="CASH",
+                canonical_symbol="USD_CASH_VALUE",
+                display_ticker="USD CASH",
+                display_name="Cash",
+                currency="USD",
+                primary_exchange="MANUAL",
+                multiplier=1.0,
+                ibkr_sec_type="CASH",
+                ibkr_symbol="USD",
+                ibkr_exchange="MANUAL",
+                dir_exposure="L",
+                lookup_status="verified",
+            ),
+        ],
+        security_reference_path,
+    )
+
+    view_model = build_risk_report_view_model(
+        positions_csv_path=positions_csv,
+        returns_path=returns_json,
+        security_reference_path=security_reference_path,
+    )
+
+    spy_row = next(row for row in view_model.risk_rows if row.asset_class == "EQ")
+    fx_row = next(row for row in view_model.risk_rows if row.asset_class == "FX")
+    cash_row = next(row for row in view_model.risk_rows if row.asset_class == "CASH")
+
+    assert spy_row.risk_contribution_estimated > 0
+    assert fx_row.risk_contribution_estimated == 0.0
+    assert cash_row.risk_contribution_estimated == 0.0
+    assert view_model.summary.portfolio_vol_geomean_1m_3m == pytest.approx(spy_row.risk_contribution_historical)
+    assert view_model.summary.portfolio_vol_5y_realized >= 0
+    assert view_model.summary.portfolio_vol_ewma >= 0
+
+
 def test_fi_10y_equivalent_exposure_values_scale_and_preserve_sign() -> None:
     gross, signed = risk_html_module._fi_10y_equivalent_exposure_values(
         gross_exposure_usd=100.0,

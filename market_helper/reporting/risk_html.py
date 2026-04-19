@@ -326,7 +326,7 @@ DEFAULT_VOL_METHOD_LABELS: dict[str, str] = {
     "Fast": "geomean_1m_3m",
     "Forward-Looking": "forward_looking",
 }
-DEFAULT_FX_EXCLUDED_ASSET_CLASSES: tuple[str, ...] = ("FX",)
+DEFAULT_FX_EXCLUDED_ASSET_CLASSES: tuple[str, ...] = ("FX", "CASH")
 
 
 @dataclass(frozen=True)
@@ -491,9 +491,22 @@ def build_risk_report_view_model(
         for row in rows
     }
 
-    geomean_group_loadings = _build_group_loadings(vol_included_rows, vols_geomean_1m_3m)
-    realized_5y_group_loadings = _build_group_loadings(vol_included_rows, vols_5y_realized)
-    ewma_group_loadings = _build_group_loadings(vol_included_rows, vols_ewma)
+    excluded_asset_classes = risk_report_config.fx_excluded_asset_classes
+    geomean_group_loadings = _build_group_loadings(
+        vol_included_rows,
+        vols_geomean_1m_3m,
+        excluded_asset_classes=excluded_asset_classes,
+    )
+    realized_5y_group_loadings = _build_group_loadings(
+        vol_included_rows,
+        vols_5y_realized,
+        excluded_asset_classes=excluded_asset_classes,
+    )
+    ewma_group_loadings = _build_group_loadings(
+        vol_included_rows,
+        vols_ewma,
+        excluded_asset_classes=excluded_asset_classes,
+    )
     group_returns = _build_group_returns(vol_included_rows, returns)
     asset_class_keys = set(geomean_group_loadings) | set(realized_5y_group_loadings) | set(ewma_group_loadings)
     proxy_group_returns = _load_asset_class_proxy_returns(
@@ -521,7 +534,11 @@ def build_risk_report_view_model(
         else 0.0
         for row in rows
     }
-    forward_looking_group_loadings = _build_group_loadings(vol_included_rows, vols_forward_looking)
+    forward_looking_group_loadings = _build_group_loadings(
+        vol_included_rows,
+        vols_forward_looking,
+        excluded_asset_classes=excluded_asset_classes,
+    )
     asset_class_keys = asset_class_keys | set(forward_looking_group_loadings)
     selected_group_corr = _build_group_correlation(
         asset_classes=asset_class_keys,
@@ -536,10 +553,26 @@ def build_risk_report_view_model(
         forward_looking_group_loadings, selected_group_corr
     )
 
-    security_geomean_loadings = _build_security_loadings(vol_included_rows, vols_geomean_1m_3m)
-    security_realized_loadings = _build_security_loadings(vol_included_rows, vols_5y_realized)
-    security_ewma_loadings = _build_security_loadings(vol_included_rows, vols_ewma)
-    security_forward_looking_loadings = _build_security_loadings(vol_included_rows, vols_forward_looking)
+    security_geomean_loadings = _build_security_loadings(
+        vol_included_rows,
+        vols_geomean_1m_3m,
+        excluded_asset_classes=excluded_asset_classes,
+    )
+    security_realized_loadings = _build_security_loadings(
+        vol_included_rows,
+        vols_5y_realized,
+        excluded_asset_classes=excluded_asset_classes,
+    )
+    security_ewma_loadings = _build_security_loadings(
+        vol_included_rows,
+        vols_ewma,
+        excluded_asset_classes=excluded_asset_classes,
+    )
+    security_forward_looking_loadings = _build_security_loadings(
+        vol_included_rows,
+        vols_forward_looking,
+        excluded_asset_classes=excluded_asset_classes,
+    )
     selected_security_loadings = _select_security_loadings(
         vol_method=vol_method,
         geomean=security_geomean_loadings,
@@ -1665,11 +1698,17 @@ def _proxy_fallback_security_vol(
 def _build_security_loadings(
     rows: list[RiskInputRow],
     vols: Mapping[str, float],
+    *,
+    excluded_asset_classes: Iterable[str] = (),
 ) -> dict[str, float]:
+    excluded = {str(asset_class).strip().upper() for asset_class in excluded_asset_classes}
+    funded_aum = _funded_aum(rows)
     return {
         row.internal_id: (
-            (row.signed_exposure_usd / _funded_aum(rows)) * vols.get(row.internal_id, 0.0)
-            if _funded_aum(rows) > 0
+            0.0
+            if row.asset_class.upper() in excluded
+            else (row.signed_exposure_usd / funded_aum) * vols.get(row.internal_id, 0.0)
+            if funded_aum > 0
             else 0.0
         )
         for row in rows
@@ -1679,11 +1718,16 @@ def _build_security_loadings(
 def _build_group_loadings(
     rows: list[RiskInputRow],
     vols: Mapping[str, float],
+    *,
+    excluded_asset_classes: Iterable[str] = (),
 ) -> dict[str, float]:
     loadings: dict[str, float] = {}
     funded_aum = _funded_aum(rows)
+    excluded = {str(asset_class).strip().upper() for asset_class in excluded_asset_classes}
     for row in rows:
         if funded_aum <= 0:
+            continue
+        if row.asset_class.upper() in excluded:
             continue
         loadings[row.asset_class] = loadings.get(row.asset_class, 0.0) + (
             row.signed_exposure_usd / funded_aum

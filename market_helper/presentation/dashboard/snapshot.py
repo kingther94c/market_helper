@@ -224,6 +224,7 @@ def _ossify(html: str, assets: Dict[str, _Asset]) -> str:
         combined = "\n".join(css_blocks_to_prepend)
         rewritten = _inject_into_head(rewritten, f"<style>{combined}</style>")
 
+    rewritten = _inject_static_tab_runtime(rewritten)
     return rewritten
 
 
@@ -277,6 +278,53 @@ def _inject_into_head(html: str, fragment: str) -> str:
         idx = head_match.end()
         return html[:idx] + fragment + html[idx:]
     return fragment + html
+
+
+def _inject_static_tab_runtime(html: str) -> str:
+    if "data-static-tab-buttons" not in html or "data-static-tab-panel" not in html:
+        return html
+
+    style = """
+<style>
+[data-static-tab-panel][hidden] { display: none !important; }
+.pm-static-tab-button.is-active { background: #0f172a !important; color: #fff !important; }
+</style>
+"""
+    script = """
+<script>
+(function () {
+  const groups = document.querySelectorAll('[data-static-tab-buttons]');
+  groups.forEach((group) => {
+    const name = group.getAttribute('data-static-tab-buttons');
+    const buttons = Array.from(group.querySelectorAll('[data-tab-target]'));
+    const panels = Array.from(document.querySelectorAll('[data-static-tab-panel="' + name + '"]'));
+    const activate = (target) => {
+      buttons.forEach((button) => {
+        const active = button.getAttribute('data-tab-target') === target;
+        button.classList.toggle('is-active', active);
+      });
+      panels.forEach((panel) => {
+        const active = panel.getAttribute('data-tab-key') === target;
+        if (active) {
+          panel.removeAttribute('hidden');
+        } else {
+          panel.setAttribute('hidden', '');
+        }
+      });
+    };
+    buttons.forEach((button) => {
+      button.addEventListener('click', () => activate(button.getAttribute('data-tab-target')));
+    });
+  });
+})();
+</script>
+"""
+    with_style = _inject_into_head(html, style)
+    body_close = re.search(r"</body>", with_style, re.IGNORECASE)
+    if body_close:
+        idx = body_close.start()
+        return with_style[:idx] + script + with_style[idx:]
+    return with_style + script
 
 
 def capture_snapshot(request: SnapshotRequest) -> Path:
