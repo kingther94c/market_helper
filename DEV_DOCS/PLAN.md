@@ -25,7 +25,14 @@ Build a broker-agnostic, read-only IBKR integration layer for market monitoring 
 ## Out of Scope
 - Any order placement/cancel/modify capability in V1.
 - Raw TWS socket client implementation.
-- Full interactive frontend app in this phase.
+- Full multi-user product frontend or any execution UI.
+
+## Current Review (2026-04-19)
+- The portfolio-monitor track is now the strongest and most coherent part of the repo: the live TWS path, Flex ingestion, combined-report pipeline, and NiceGUI dashboard all share the same artifact-driven workflow direction.
+- The codebase is materially more advanced than some of the docs imply. In practice the architecture is now `cli -> workflows (compatibility) -> application -> domain -> data_sources/presentation`, with `market_helper/application/portfolio_monitor` acting as the dashboard orchestration seam.
+- The main technical debt is not missing features so much as duplicated surfaces: legacy workflow shims, legacy HTML/reporting helpers, and the newer dashboard snapshot path all coexist. That keeps migration safe, but it slows simplification and raises parity risk.
+- Testing depth is solid at the unit level, especially around portfolio-monitor services and UI contracts, but the highest-risk edges are still integration-heavy: provider variability, snapshot rendering parity, and artifact/config drift across CLI, scripts, and UI forms.
+- The next phase should therefore prioritize consolidation over breadth: finish the rendering-path migration, formalize artifact/config contracts, then widen provider/e2e hardening.
 
 ## Completed
 - Consolidated developer-facing docs under `DEV_DOCS/`, moving the former top-level `docs/` tree into `DEV_DOCS/docs/`.
@@ -173,9 +180,9 @@ Build a broker-agnostic, read-only IBKR integration layer for market monitoring 
 
 ## Backlog / Future Phases
 - Extend the TWS `ib_async` adapter surface beyond the current client/portfolio/report/contract-lookup coverage, especially market-data and richer account/session tooling.
-- Extend the new Flex XML parse/map flow to direct Flex Web Service fetch using query-id/token and asynchronous statement download polling.
-- Build broker-agnostic business services (portfolio/quote/allocation/risk/monitor).
-- Build HTML monitor rendering and snapshot tests.
+- Deepen the Flex path around historical backfill ergonomics, archive validation, and surfaced statement/account metadata.
+- Continue shrinking compatibility shims as stable application/domain ownership becomes clearer.
+- Finish dashboard snapshot parity for all report surfaces and retire the remaining legacy HTML-only rendering path.
 - Add e2e workflow coverage across Web API, TWS, and Flex.
 
 ## Risks / Blockers / Assumptions
@@ -193,6 +200,18 @@ Build a broker-agnostic, read-only IBKR integration layer for market monitoring 
 ## Notes
 - Execution/trading support remains intentionally unimplemented.
 - Plan remains incremental; unrelated repo areas were not refactored.
+
+## Next Suggested PRs (Core / Portfolio Monitor)
+1. Finish rendering-path consolidation.
+   Move `combined-html-report` fully onto the dashboard snapshot path after performance-tab parity is complete, then start deleting legacy HTML-only rendering code that no longer owns unique behavior.
+2. Introduce explicit artifact/config contracts.
+   Replace the current spread of path-string plumbing across CLI args, workflow kwargs, dashboard form state, and snapshot overrides with typed request objects or manifest-style config resolution shared by CLI, scripts, and UI.
+3. Tighten the application-layer boundary.
+   Keep dashboard pages thin by moving more input normalization, action status assembly, and artifact discovery into `market_helper/application/portfolio_monitor`, making it the single orchestration seam for UI-triggered work.
+4. Expand high-value integration coverage.
+   Add end-to-end tests around snapshot capture, combined-report generation, and failure-path handling for missing/stale artifacts so the next round of cleanup can delete shims with confidence.
+5. Improve security-universe and override workflows.
+   Add a clearer manual-override/review path for provisional mappings and broaden explicit instrument semantics (`instrument_kind`, ETF detection, derivatives handling, FI tenor exceptions) before pushing further into workbook-style reporting.
 
 ## Known Limitations (Regime v1)
 - Inputs currently rely on local JSON artifacts; direct FRED pull-through adapters are not yet wired into the regime service.

@@ -362,40 +362,6 @@ def resolve_vol_method_key(
     )
 
 
-def build_risk_html_report(
-    *,
-    positions_csv_path: str | Path,
-    output_path: str | Path,
-    returns_path: str | Path | None = None,
-    proxy_path: str | Path | None = None,
-    regime_path: str | Path | None = None,
-    security_reference_path: str | Path | None = None,
-    risk_config_path: str | Path | None = None,
-    allocation_policy_path: str | Path | None = None,
-    yahoo_client: YahooFinanceClient | None = None,
-    vol_method: str = "geomean_1m_3m",
-    inter_asset_corr: str = "historical",
-    progress: ProgressReporter | None = None,
-) -> Path:
-    view_model = build_risk_report_view_model(
-        positions_csv_path=positions_csv_path,
-        returns_path=returns_path,
-        proxy_path=proxy_path,
-        regime_path=regime_path,
-        security_reference_path=security_reference_path,
-        risk_config_path=risk_config_path,
-        allocation_policy_path=allocation_policy_path,
-        yahoo_client=yahoo_client,
-        vol_method=vol_method,
-        inter_asset_corr=inter_asset_corr,
-        progress=progress,
-    )
-    output = Path(output_path)
-    output.parent.mkdir(parents=True, exist_ok=True)
-    output.write_text(render_html_from_view_model(view_model), encoding="utf-8")
-    return output
-
-
 def build_risk_report_view_model(
     *,
     positions_csv_path: str | Path,
@@ -1102,40 +1068,6 @@ def build_allocation_summary(rows: list[RiskMetricsRow]) -> list[CategorySummary
     return sorted(
         by_bucket.values(),
         key=lambda item: (-item.gross_exposure_usd, item.asset_class),
-    )
-
-
-def render_html(
-    *,
-    risk_rows: list[RiskMetricsRow],
-    summary: PortfolioRiskSummary,
-    allocation_summary: list[CategorySummaryRow],
-    country_breakdown: list[BreakdownRow],
-    sector_breakdown: list[BreakdownRow],
-    fi_tenor_breakdown: list[BreakdownRow],
-    policy_drift_asset_class: list[PolicyDriftRow],
-    policy_drift_country: list[PolicyDriftRow],
-    policy_drift_sector: list[PolicyDriftRow],
-    regime_summary: RegimeReportSummary | None,
-    vol_method: str,
-    inter_asset_corr: str,
-) -> str:
-    return render_html_from_view_model(
-        RiskReportViewModel(
-            as_of="n/a",
-            risk_rows=risk_rows,
-            summary=summary,
-            allocation_summary=allocation_summary,
-            country_breakdown=country_breakdown,
-            sector_breakdown=sector_breakdown,
-            fi_tenor_breakdown=fi_tenor_breakdown,
-            policy_drift_asset_class=policy_drift_asset_class,
-            policy_drift_country=policy_drift_country,
-            policy_drift_sector=policy_drift_sector,
-            regime_summary=regime_summary,
-            vol_method=vol_method,
-            inter_asset_corr=inter_asset_corr,
-        )
     )
 
 

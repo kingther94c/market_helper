@@ -17,7 +17,6 @@ from market_helper.reporting.risk_html import (
     _funded_aum_from_dicts,
     annualized_vol,
     build_risk_report_view_model,
-    build_risk_html_report,
     historical_geomean_vol,
     pairwise_corr,
 )
@@ -405,7 +404,7 @@ def test_report_us_etf_lookthrough_symbols_uses_proxy_and_existing() -> None:
     assert symbols == ["SPY", "XLK"]
 
 
-def test_build_risk_html_report_renders_summary_and_tables(tmp_path: Path) -> None:
+def test_build_risk_report_view_model_renders_summary_and_tables(tmp_path: Path) -> None:
     positions_csv = tmp_path / "positions.csv"
     positions_csv.write_text(
         "\n".join(
@@ -451,36 +450,29 @@ def test_build_risk_html_report_renders_summary_and_tables(tmp_path: Path) -> No
         encoding="utf-8",
     )
 
-    output_path = tmp_path / "risk_report.html"
-    written = build_risk_html_report(
+    view_model = build_risk_report_view_model(
         positions_csv_path=positions_csv,
         returns_path=returns_json,
-        output_path=output_path,
         proxy_path=proxy_json,
         regime_path=regime_json,
     )
 
-    assert written == output_path
-    rendered = output_path.read_text(encoding="utf-8")
-    assert "Portfolio Risk Report" in rendered
-    assert "Portfolio vol (1M/3M geomean" in rendered
-    assert "Portfolio vol (5Y realized" in rendered
-    assert "Portfolio vol (EWMA" in rendered
-    assert "Asset Class Summary" in rendered
-    assert "EQ Country Breakdown" in rendered
-    assert "Policy Drift - Asset Class" in rendered
-    assert "Policy Drift - Equity Country" in rendered
-    assert "Policy Drift - US Sector" in rendered
-    assert "Regime Snapshot" in rendered
-    assert "Goldilocks Expansion" in rendered
-    assert "SPY" in rendered
-    assert "10Y US" in rendered
-    assert "3M Trend" in rendered
-    assert "class='sparkline'" in rendered
-    assert "<tr><td>FI</td><td>FI</td>" not in rendered
+    assert view_model.summary.portfolio_vol_geomean_1m_3m > 0
+    assert view_model.summary.portfolio_vol_5y_realized > 0
+    assert view_model.summary.portfolio_vol_ewma > 0
+    assert view_model.allocation_summary
+    assert view_model.country_breakdown
+    assert view_model.policy_drift_asset_class
+    assert view_model.policy_drift_country
+    assert view_model.policy_drift_sector
+    assert view_model.regime_summary is not None
+    assert view_model.regime_summary.regime == "Goldilocks Expansion"
+    assert any(row.display_ticker == "SPY" for row in view_model.risk_rows)
+    assert any(row.display_name == "10Y US" for row in view_model.risk_rows)
+    assert any("svg" in row.sparkline_3m_svg for row in view_model.risk_rows)
 
 
-def test_build_risk_html_report_accepts_configurable_allocation_policy(tmp_path: Path) -> None:
+def test_build_risk_report_view_model_accepts_configurable_allocation_policy(tmp_path: Path) -> None:
     positions_csv = tmp_path / "positions.csv"
     positions_csv.write_text(
         "\n".join(
@@ -512,17 +504,14 @@ def test_build_risk_html_report_accepts_configurable_allocation_policy(tmp_path:
         encoding="utf-8",
     )
 
-    output_path = tmp_path / "risk_report.html"
-    build_risk_html_report(
+    view_model = build_risk_report_view_model(
         positions_csv_path=positions_csv,
         returns_path=returns_json,
-        output_path=output_path,
         allocation_policy_path=policy_yaml,
     )
-    rendered = output_path.read_text(encoding="utf-8")
-    assert "PORTFOLIO" in rendered
-    assert "Technology" in rendered
-    assert "JP" in rendered
+    assert any(row.scope == "PORTFOLIO" for row in view_model.policy_drift_asset_class)
+    assert any(row.bucket == "Technology" for row in view_model.policy_drift_sector)
+    assert any(row.bucket == "DM-JP" for row in view_model.policy_drift_country)
 
 
 def test_asset_class_policy_drift_preserves_non_normalized_targets() -> None:
@@ -546,7 +535,7 @@ def test_asset_class_policy_drift_preserves_non_normalized_targets() -> None:
     assert sum(row.policy_weight for row in drift_rows) == pytest.approx(3.0)
 
 
-def test_build_risk_html_report_prefixes_policy_drift_equity_country_dm_em_buckets(
+def test_build_risk_report_view_model_prefixes_policy_drift_equity_country_dm_em_buckets(
     tmp_path: Path,
 ) -> None:
     positions_csv = tmp_path / "positions.csv"
@@ -588,25 +577,20 @@ def test_build_risk_html_report_prefixes_policy_drift_equity_country_dm_em_bucke
         security_reference_path,
     )
 
-    output_path = tmp_path / "risk_report.html"
-    build_risk_html_report(
+    view_model = build_risk_report_view_model(
         positions_csv_path=positions_csv,
         returns_path=returns_json,
-        output_path=output_path,
         security_reference_path=security_reference_path,
     )
-
-    rendered = output_path.read_text(encoding="utf-8")
-    assert "Policy Drift - Equity Country" in rendered
-    assert "DM-US" in rendered
-    assert "DM-OTHER DM" in rendered
-    assert "EM-CN" in rendered
-    assert "EM-OTHER EM" in rendered
-    policy_section = rendered.split("Policy Drift - Equity Country", 1)[1].split("Policy Drift - US Sector", 1)[0]
-    assert policy_section.index("DM-US") < policy_section.index("DM-OTHER DM") < policy_section.index("EM-CN") < policy_section.index("EM-OTHER EM")
+    buckets = [row.bucket for row in view_model.policy_drift_country]
+    assert "DM-US" in buckets
+    assert "DM-OTHER DM" in buckets
+    assert "EM-CN" in buckets
+    assert "EM-OTHER EM" in buckets
+    assert buckets.index("DM-US") < buckets.index("DM-OTHER DM") < buckets.index("EM-CN") < buckets.index("EM-OTHER EM")
 
 
-def test_build_risk_html_report_uses_security_reference_for_enrichment(tmp_path: Path) -> None:
+def test_build_risk_report_view_model_uses_security_reference_for_enrichment(tmp_path: Path) -> None:
     positions_csv = tmp_path / "positions.csv"
     positions_csv.write_text(
         "\n".join(
@@ -673,21 +657,15 @@ def test_build_risk_html_report_uses_security_reference_for_enrichment(tmp_path:
         security_reference_path,
     )
 
-    output_path = tmp_path / "risk_report.html"
-    build_risk_html_report(
+    view_model = build_risk_report_view_model(
         positions_csv_path=positions_csv,
         returns_path=returns_json,
-        output_path=output_path,
         security_reference_path=security_reference_path,
     )
-
-    rendered = output_path.read_text(encoding="utf-8")
-    assert "LON:SPYL" in rendered
-    assert "10Y TF" in rendered
-    assert "FI Tenor Breakdown" in rendered
-    assert "<th>Label</th>" in rendered
-    assert "Long belly" in rendered
-    assert "mapped" in rendered
+    assert any(row.display_ticker == "LON:SPYL" for row in view_model.risk_rows)
+    assert any(row.display_name == "10Y TF" for row in view_model.risk_rows)
+    assert any(row.bucket_label == "Long belly" for row in view_model.fi_tenor_breakdown)
+    assert any(row.mapping_status == "mapped" for row in view_model.risk_rows)
 
 
 def test_annualized_vol_zero_for_short_series() -> None:
@@ -695,7 +673,7 @@ def test_annualized_vol_zero_for_short_series() -> None:
     assert annualized_vol([0.01]) == 0.0
 
 
-def test_build_risk_html_report_uses_yahoo_cache_when_no_returns_override(
+def test_build_risk_report_view_model_uses_yahoo_cache_when_no_returns_override(
     tmp_path: Path,
     monkeypatch,
 ) -> None:
@@ -779,32 +757,28 @@ def test_build_risk_html_report_uses_yahoo_cache_when_no_returns_override(
         "_latest_expected_daily_observation",
         lambda now=None: pd.Timestamp("2024-03-29"),
     )
-    output_path = tmp_path / "risk_report.html"
     client = YahooFinanceClient(downloader=fake_download)
 
-    build_risk_html_report(
+    first = build_risk_report_view_model(
         positions_csv_path=positions_csv,
-        output_path=output_path,
         security_reference_path=security_reference_path,
         yahoo_client=client,
     )
-    build_risk_html_report(
+    second = build_risk_report_view_model(
         positions_csv_path=positions_csv,
-        output_path=output_path,
         security_reference_path=security_reference_path,
         yahoo_client=client,
     )
 
-    rendered = output_path.read_text(encoding="utf-8")
     assert calls["count"] == 6
-    assert "Portfolio Risk Report" in rendered
-    assert "Funded AUM (USD)" in rendered
-    assert "Funded AUM (SGD)" in rendered
-    assert "SPY" in rendered
+    assert first.summary.funded_aum_usd > 0
+    assert first.summary.funded_aum_sgd > 0
+    assert any(row.display_ticker == "SPY" for row in first.risk_rows)
+    assert second.summary.funded_aum_usd == pytest.approx(first.summary.funded_aum_usd)
     assert (tmp_path / "yahoo_cache" / "SPY.json").exists()
 
 
-def test_build_risk_html_report_accepts_dated_returns_override(tmp_path: Path) -> None:
+def test_build_risk_report_view_model_accepts_dated_returns_override(tmp_path: Path) -> None:
     positions_csv = tmp_path / "positions.csv"
     positions_csv.write_text(
         "\n".join(
@@ -836,20 +810,15 @@ def test_build_risk_html_report_accepts_dated_returns_override(tmp_path: Path) -
         encoding="utf-8",
     )
 
-    output_path = tmp_path / "risk_report.html"
-    build_risk_html_report(
+    view_model = build_risk_report_view_model(
         positions_csv_path=positions_csv,
         returns_path=returns_json,
-        output_path=output_path,
     )
-
-    rendered = output_path.read_text(encoding="utf-8")
-    assert "Portfolio Risk Report" in rendered
-    assert "SPY" in rendered
-    assert "ZN" in rendered
+    tickers = {row.display_ticker for row in view_model.risk_rows}
+    assert {"SPY", "ZN"} <= tickers
 
 
-def test_build_risk_html_report_excludes_eq_options_outside_decomposition(
+def test_build_risk_report_view_model_excludes_eq_options_outside_decomposition(
     tmp_path: Path,
 ) -> None:
     positions_csv = tmp_path / "positions.csv"
@@ -894,21 +863,17 @@ def test_build_risk_html_report_excludes_eq_options_outside_decomposition(
         security_reference_path,
     )
 
-    output_path = tmp_path / "risk_report.html"
-    build_risk_html_report(
+    view_model = build_risk_report_view_model(
         positions_csv_path=positions_csv,
         returns_path=returns_json,
-        output_path=output_path,
         security_reference_path=security_reference_path,
     )
-
-    rendered = output_path.read_text(encoding="utf-8")
-    assert "Mapping coverage (included rows)</span><strong>1/1</strong>" in rendered
-    assert "Gross exposure (FI 10Y eq)</span><strong>5,100</strong>" in rendered
-    assert "<td>EQ</td><td class='num'>5,100.00</td><td class='num'>5,100.00</td>" in rendered
-    assert "SPY 260417C00510000" in rendered
-    assert "Rows marked <strong>excluded</strong>" in rendered
-    assert ">excluded</td>" in rendered
+    assert view_model.summary.gross_exposure == pytest.approx(5100.0)
+    equity_summary = next(row for row in view_model.allocation_summary if row.asset_class == "EQ")
+    assert equity_summary.exposure_usd == pytest.approx(5100.0)
+    assert any(row.display_ticker == "SPY 260417C00510000" for row in view_model.risk_rows)
+    option_row = next(row for row in view_model.risk_rows if row.internal_id.startswith("OPT:"))
+    assert option_row.report_scope == "excluded"
 
 
 def test_unmapped_rows_do_not_count_toward_vol_contribution(tmp_path: Path) -> None:
@@ -993,7 +958,7 @@ def test_resolve_fi_10y_eq_mod_duration_rejects_non_positive_values() -> None:
         risk_html_module._resolve_fi_10y_eq_mod_duration(0.0)
 
 
-def test_build_risk_html_report_displays_fi_10y_equivalent_exposures_only(
+def test_build_risk_report_view_model_displays_fi_10y_equivalent_exposures_only(
     tmp_path: Path,
 ) -> None:
     positions_csv = tmp_path / "positions.csv"
@@ -1113,16 +1078,12 @@ def test_build_risk_html_report_displays_fi_10y_equivalent_exposures_only(
         security_reference_path,
     )
 
-    output_path = tmp_path / "risk_report.html"
-    build_risk_html_report(
+    view_model = build_risk_report_view_model(
         positions_csv_path=positions_csv,
         returns_path=returns_json,
-        output_path=output_path,
         proxy_path=proxy_json,
         security_reference_path=security_reference_path,
     )
-
-    rendered = output_path.read_text(encoding="utf-8")
     expected_display = {
         "ZT": 8000.0 * 1.879 / 8.0,
         "ZF": 8000.0 * 4.333 / 8.0,
@@ -1130,21 +1091,17 @@ def test_build_risk_html_report_displays_fi_10y_equivalent_exposures_only(
         "LQD": 8000.0 * 8.379 / 8.0,
     }
     for ticker, expected_gross in expected_display.items():
-        assert f"<td>{ticker}</td>" in rendered
-        assert f"{expected_gross:,.2f}" in rendered
+        row = next(item for item in view_model.risk_rows if item.display_ticker == ticker)
+        assert row.gross_exposure_usd == pytest.approx(expected_gross)
 
     expected_hybrid_gross = 10000.0 + sum(expected_display.values())
-    assert f"Gross exposure (FI 10Y eq)</span><strong>{expected_hybrid_gross:,.0f}</strong>" in rendered
-    assert "FI dollar exposures are shown as 10Y-equivalent USD notional." in rendered
-    assert "Net Exposure (FI 10Y Eq)" in rendered
-    assert "Gross Exposure (FI 10Y Eq)" in rendered
-    assert "Net 10Y Eq Exposure" in rendered
-    assert "Gross 10Y Eq Exposure" in rendered
-    assert "7,627.00" in rendered
-    assert "3.73%" in rendered
+    assert view_model.summary.gross_exposure == pytest.approx(expected_hybrid_gross)
+    zn_row = next(item for item in view_model.risk_rows if item.display_ticker == "ZN")
+    assert zn_row.gross_exposure_usd == pytest.approx(7627.0)
+    assert zn_row.risk_contribution_estimated > 0
 
 
-def test_build_risk_html_report_respects_fi_10y_eq_mod_duration_override(
+def test_build_risk_report_view_model_respects_fi_10y_eq_mod_duration_override(
     tmp_path: Path,
 ) -> None:
     positions_csv = tmp_path / "positions.csv"
@@ -1218,21 +1175,17 @@ def test_build_risk_html_report_respects_fi_10y_eq_mod_duration_override(
         security_reference_path,
     )
 
-    output_path = tmp_path / "risk_report.html"
-    build_risk_html_report(
+    view_model = build_risk_report_view_model(
         positions_csv_path=positions_csv,
         returns_path=returns_json,
-        output_path=output_path,
         proxy_path=proxy_json,
         risk_config_path=risk_config,
         security_reference_path=security_reference_path,
     )
-
-    rendered = output_path.read_text(encoding="utf-8")
-    assert "6,101.60" in rendered
+    assert view_model.summary.gross_exposure == pytest.approx(16101.6)
 
 
-def test_build_risk_html_report_fi_display_exposure_falls_back_to_raw_without_duration(
+def test_build_risk_report_view_model_fi_display_exposure_falls_back_to_raw_without_duration(
     tmp_path: Path,
 ) -> None:
     positions_csv = tmp_path / "positions.csv"
@@ -1299,16 +1252,13 @@ def test_build_risk_html_report_fi_display_exposure_falls_back_to_raw_without_du
         security_reference_path,
     )
 
-    output_path = tmp_path / "risk_report.html"
-    build_risk_html_report(
+    view_model = build_risk_report_view_model(
         positions_csv_path=positions_csv,
         returns_path=returns_json,
-        output_path=output_path,
         security_reference_path=security_reference_path,
     )
-
-    rendered = output_path.read_text(encoding="utf-8")
-    assert "8,000.00" in rendered
+    zn_row = next(row for row in view_model.risk_rows if row.display_ticker == "ZN")
+    assert zn_row.gross_exposure_usd == pytest.approx(8000.0)
 
 
 def test_security_vol_uses_duration_scaled_fi_proxy_when_returns_missing() -> None:
@@ -1358,7 +1308,7 @@ def test_security_vol_uses_configured_fixed_income_and_cash_fallbacks() -> None:
     assert cash_value == pytest.approx(0.02)
 
 
-def test_build_risk_html_report_falls_back_to_proxy_when_yahoo_rate_limited(
+def test_build_risk_report_view_model_falls_back_to_proxy_when_yahoo_rate_limited(
     tmp_path: Path,
     monkeypatch,
 ) -> None:
@@ -1411,10 +1361,8 @@ def test_build_risk_html_report_falls_back_to_proxy_when_yahoo_rate_limited(
             fp=None,
         )
 
-    output_path = tmp_path / "risk_report.html"
-    build_risk_html_report(
+    view_model = build_risk_report_view_model(
         positions_csv_path=positions_csv,
-        output_path=output_path,
         proxy_path=proxy_json,
         security_reference_path=security_reference_path,
         yahoo_client=YahooFinanceClient(
@@ -1424,14 +1372,12 @@ def test_build_risk_html_report_falls_back_to_proxy_when_yahoo_rate_limited(
         ),
     )
 
-    rendered = output_path.read_text(encoding="utf-8")
-    assert "Portfolio Risk Report" in rendered
-    assert "10Y TF" in rendered
-    assert "8.39%" in rendered
-    assert "110.00%" not in rendered
+    row = next(item for item in view_model.risk_rows if item.display_name == "10Y TF")
+    assert row.vol_ewma == pytest.approx(0.083897, rel=1e-5)
+    assert row.display_name == "10Y TF"
 
 
-def test_build_risk_html_report_raises_for_mapped_row_missing_yahoo_symbol(tmp_path: Path) -> None:
+def test_build_risk_report_view_model_raises_for_mapped_row_missing_yahoo_symbol(tmp_path: Path) -> None:
     positions_csv = tmp_path / "positions.csv"
     positions_csv.write_text(
         "\n".join(
@@ -1466,9 +1412,8 @@ def test_build_risk_html_report_raises_for_mapped_row_missing_yahoo_symbol(tmp_p
     )
 
     with pytest.raises(ValueError, match="Missing yahoo_symbol"):
-        build_risk_html_report(
+        build_risk_report_view_model(
             positions_csv_path=positions_csv,
-            output_path=tmp_path / "risk_report.html",
             security_reference_path=security_reference_path,
             yahoo_client=YahooFinanceClient(downloader=lambda _url: {}),
         )
