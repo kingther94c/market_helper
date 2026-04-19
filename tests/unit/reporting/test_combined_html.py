@@ -1,11 +1,10 @@
 from __future__ import annotations
 
-import json
 from pathlib import Path
 
 import pandas as pd
 
-from market_helper.reporting.combined_html import build_combined_html_report
+import market_helper.domain.portfolio_monitor.pipelines.generate_portfolio_report as pipeline
 from market_helper.reporting.performance_html import (
     build_performance_chart_specs,
     build_performance_report_view_model,
@@ -35,89 +34,54 @@ def test_render_performance_tab_contains_plots_and_tables() -> None:
     assert ("cdn.plot.ly/plotly" in assets) or ("plotly.js v" in assets)
 
 
-def test_build_combined_html_report_renders_both_tabs(tmp_path: Path) -> None:
-    positions_csv = tmp_path / "positions.csv"
-    positions_csv.write_text(
-        "\n".join(
-            [
-                "as_of,account,internal_id,con_id,symbol,local_symbol,exchange,currency,source,quantity,avg_cost,latest_price,market_value,cost_basis,unrealized_pnl,weight",
-                "2026-03-26T00:00:00+00:00,U1,STK:SPY:SMART,756733,SPY,SPY,ARCA,USD,ibkr,10,500,510,5100,5000,100,0.6",
-                "2026-03-26T00:00:00+00:00,U1,FUT:ZN:CBOT,815824229,ZN,ZNM6,CBOT,USD,ibkr,1,110,111,111000,110000,1000,0.4",
-            ]
-        ),
-        encoding="utf-8",
-    )
-    returns_json = tmp_path / "returns.json"
-    returns_json.write_text(
-        json.dumps(
-            {
-                "STK:SPY:SMART": [0.001 * ((idx % 7) - 3) for idx in range(90)],
-                "FUT:ZN:CBOT": [0.0007 * ((idx % 5) - 2) for idx in range(90)],
-            }
-        ),
-        encoding="utf-8",
-    )
-    proxy_json = tmp_path / "proxy.json"
-    proxy_json.write_text(json.dumps({"VIX": 20.0, "MOVE": 120.0}), encoding="utf-8")
-    regime_json = tmp_path / "regime.json"
-    regime_json.write_text(
-        json.dumps(
-            [
-                {
-                    "as_of": "2026-03-26",
-                    "regime": "Goldilocks Expansion",
-                    "scores": {"VOL": 0.2, "CREDIT": 0.2, "RATES": -0.1, "GROWTH": 0.6, "TREND": 0.7, "STRESS": 0.2},
-                    "inputs": {},
-                    "flags": {},
-                }
-            ]
-        ),
-        encoding="utf-8",
-    )
-    performance_output_dir = tmp_path / "flex"
-    performance_output_dir.mkdir()
-    history_path = performance_output_dir / "nav_cashflow_history.feather"
-    _demo_history_frame().to_feather(history_path)
-    (performance_output_dir / "performance_report_20260331.csv").write_text(
-        "\n".join(
-            [
-                "as_of,source_version,horizon,weighting,currency,dollar_pnl,return_pct",
-                "2026-03-31,DailyNavRebuilt,YTD,time_weighted,USD,10,0.10",
-            ]
-        ),
-        encoding="utf-8",
-    )
+def test_generate_combined_html_report_builds_snapshot_request_with_performance_overrides(
+    monkeypatch, tmp_path: Path
+) -> None:
+    captured: dict[str, object] = {}
+
+    def fake_capture(request):
+        captured["request"] = request
+        request.output_path.write_text("<html>snapshot</html>", encoding="utf-8")
+        return request.output_path
+
+    monkeypatch.setattr(pipeline, "_capture_portfolio_snapshot", fake_capture)
+    monkeypatch.setattr(pipeline, "sync_security_reference_csv", lambda reference_path: Path(reference_path))
 
     output_path = tmp_path / "combined_report.html"
-    written = build_combined_html_report(
-        positions_csv_path=positions_csv,
+    written = pipeline.generate_combined_html_report(
+        positions_csv_path=tmp_path / "positions.csv",
         output_path=output_path,
-        performance_output_dir=performance_output_dir,
-        returns_path=returns_json,
-        proxy_path=proxy_json,
-        regime_path=regime_json,
+        performance_output_dir=tmp_path / "flex",
+        performance_history_path=tmp_path / "flex" / "nav_cashflow_history.feather",
+        performance_report_csv_path=tmp_path / "flex" / "performance_report_20260331.csv",
+        returns_path=tmp_path / "returns.json",
+        proxy_path=tmp_path / "proxy.json",
+        regime_path=tmp_path / "regime.json",
+        security_reference_path=tmp_path / "security_reference.csv",
+        risk_config_path=tmp_path / "report_config.yaml",
+        allocation_policy_path=tmp_path / "allocation_policy.yaml",
+        vol_method="forward_looking",
+        inter_asset_corr="corr_0",
     )
 
     assert written == output_path
-    rendered = output_path.read_text(encoding="utf-8")
-    assert "Combined Portfolio Report" in rendered
-    assert "data-tab-target='risk-tab'" in rendered
-    assert "data-tab-target='performance-usd-tab'" in rendered
-    assert "data-tab-target='performance-sgd-tab'" in rendered
-    assert "Portfolio Risk Report" not in rendered
-    assert "Performance Report (USD)" in rendered
-    assert "Performance Report (SGD)" in rendered
-    assert "Performance Overview" in rendered
-    assert "Portfolio Summary" in rendered
-    assert "Historical Years" in rendered
-    assert "Goldilocks Expansion" in rendered
-    assert "n/a" in rendered
-    assert "Primary view uses <strong>TWR</strong> in USD." in rendered
-    assert "Primary view uses <strong>TWR</strong> in SGD." in rendered
-    assert "Plotly.newPlot" in rendered
-    assert "data-perf-value='MTD'" in rendered
-    assert "data-perf-value='FULL'" in rendered
-    assert "Secondary Return" not in rendered
+    request = captured["request"]
+    assert request.query == "snapshot=1"
+    assert request.output_path == output_path
+    assert request.overrides == {
+        "positions_csv_path": str(tmp_path / "positions.csv"),
+        "security_reference_path": str(tmp_path / "security_reference.csv"),
+        "vol_method": "forward_looking",
+        "inter_asset_corr": "corr_0",
+        "performance_history_path": str(tmp_path / "flex" / "nav_cashflow_history.feather"),
+        "performance_output_dir": str(tmp_path / "flex"),
+        "performance_report_csv_path": str(tmp_path / "flex" / "performance_report_20260331.csv"),
+        "returns_path": str(tmp_path / "returns.json"),
+        "proxy_path": str(tmp_path / "proxy.json"),
+        "regime_path": str(tmp_path / "regime.json"),
+        "risk_config_path": str(tmp_path / "report_config.yaml"),
+        "allocation_policy_path": str(tmp_path / "allocation_policy.yaml"),
+    }
 
 
 def test_build_performance_chart_specs_uses_single_continuous_main_line_with_signed_shading() -> None:

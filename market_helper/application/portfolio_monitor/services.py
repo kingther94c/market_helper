@@ -24,7 +24,6 @@ from market_helper.application.portfolio_monitor.contracts import (
 )
 from market_helper.application.portfolio_monitor.progress import UiProgressReporterAdapter
 from market_helper.common.models.security_reference import DEFAULT_SECURITY_REFERENCE_PATH
-from market_helper.reporting.combined_html import _resolve_performance_report_csv_path
 from market_helper.reporting.performance_html import (
     build_performance_chart_specs,
     build_performance_report_view_model,
@@ -75,6 +74,21 @@ def _file_mtime(path: Path | None) -> float | None:
     if path is None or not path.exists():
         return None
     return path.stat().st_mtime
+
+
+def _resolve_performance_report_csv_path(
+    *,
+    performance_report_csv_path: str | Path | None,
+    performance_output_dir: str | Path | None,
+) -> Path | None:
+    if performance_report_csv_path is not None:
+        return Path(performance_report_csv_path)
+    if performance_output_dir is None:
+        return None
+    candidates = sorted(Path(performance_output_dir).glob("performance_report_*.csv"))
+    if not candidates:
+        return None
+    return candidates[-1]
 
 
 class PortfolioMonitorQueryService:
