@@ -13,6 +13,7 @@ import time
 from typing import TYPE_CHECKING
 import warnings
 import xml.etree.ElementTree as ET
+import yaml
 
 from market_helper.common.models import (
     DEFAULT_SECURITY_REFERENCE_PATH,
@@ -76,6 +77,8 @@ if TYPE_CHECKING:
 
 DEFAULT_IBKR_FLEX_ARCHIVE_START_YEAR = 2020
 DEFAULT_IBKR_FLEX_BACKFILL_MAX_INFLIGHT_REQUESTS = 3
+DEFAULT_GOOGLE_DRIVE_POSITIONS_FILENAME = "live_ibkr_position_report.csv"
+DEFAULT_GOOGLE_DRIVE_COMBINED_REPORT_FILENAME = "portfolio_combined_report.html"
 
 
 @dataclass(frozen=True)
@@ -1042,6 +1045,10 @@ def generate_live_ibkr_position_report(
         current_step += 1
         reporter.stage("IBKR live report: contract details refreshed", current=current_step, total=total_steps)
         written_path = export_position_report_csv(rows, output_path)
+        _mirror_artifact_if_configured(
+            written_path,
+            target_name=DEFAULT_GOOGLE_DRIVE_POSITIONS_FILENAME,
+        )
         _write_generated_security_reference_csv(reference_table)
         _write_proposed_security_universe_csv(reference_table, output_path=written_path)
         reporter.done("IBKR live report", detail=f"wrote {written_path}")
@@ -1197,7 +1204,13 @@ def generate_combined_html_report(
         vol_method=vol_method,
         inter_asset_corr=inter_asset_corr,
     )
-    return _capture_portfolio_snapshot(request)
+    written_path = _capture_portfolio_snapshot(request)
+    _mirror_artifact_if_configured(
+        written_path,
+        config_path=risk_config_path,
+        target_name=DEFAULT_GOOGLE_DRIVE_COMBINED_REPORT_FILENAME,
+    )
+    return written_path
 
 
 def _capture_portfolio_snapshot(request) -> Path:
@@ -1453,6 +1466,44 @@ def _build_live_cash_price_rows(
             )
         )
     return rows
+
+
+def _mirror_artifact_if_configured(
+    source_path: str | Path,
+    *,
+    target_name: str,
+    config_path: str | Path | None = None,
+) -> Path | None:
+    mirror_dir = _load_artifact_mirror_dir(config_path)
+    if mirror_dir is None:
+        return None
+    source = Path(source_path)
+    target_path = mirror_dir / target_name
+    target_path.parent.mkdir(parents=True, exist_ok=True)
+    shutil.copy2(source, target_path)
+    return target_path
+
+
+def _load_artifact_mirror_dir(config_path: str | Path | None = None) -> Path | None:
+    resolved_config_path = Path(config_path) if config_path is not None else _default_report_config_path()
+    if not resolved_config_path.exists():
+        return None
+    payload = yaml.safe_load(resolved_config_path.read_text(encoding="utf-8")) or {}
+    artifact_mirror = payload.get("artifact_mirror")
+    if artifact_mirror is None:
+        return None
+    if not isinstance(artifact_mirror, dict):
+        raise ValueError("artifact_mirror must be a mapping")
+    google_drive_dir = str(artifact_mirror.get("google_drive_dir", "")).strip()
+    if google_drive_dir == "":
+        return None
+    return Path(google_drive_dir).expanduser()
+
+
+def _default_report_config_path() -> Path:
+    from market_helper.reporting.risk_html import DEFAULT_RISK_REPORT_CONFIG_PATH
+
+    return DEFAULT_RISK_REPORT_CONFIG_PATH
 
 
 def _refresh_live_security_lookups(

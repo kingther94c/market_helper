@@ -38,6 +38,7 @@ def test_generate_combined_html_report_builds_snapshot_request_with_performance_
     monkeypatch, tmp_path: Path
 ) -> None:
     captured: dict[str, object] = {}
+    mirror_dir = tmp_path / "google-drive"
 
     def fake_capture(request):
         captured["request"] = request
@@ -46,6 +47,7 @@ def test_generate_combined_html_report_builds_snapshot_request_with_performance_
 
     monkeypatch.setattr(pipeline, "_capture_portfolio_snapshot", fake_capture)
     monkeypatch.setattr(pipeline, "sync_security_reference_csv", lambda reference_path: Path(reference_path))
+    monkeypatch.setattr(pipeline, "_load_artifact_mirror_dir", lambda config_path=None: mirror_dir)
 
     output_path = tmp_path / "combined_report.html"
     written = pipeline.generate_combined_html_report(
@@ -82,6 +84,38 @@ def test_generate_combined_html_report_builds_snapshot_request_with_performance_
         "risk_config_path": str(tmp_path / "report_config.yaml"),
         "allocation_policy_path": str(tmp_path / "allocation_policy.yaml"),
     }
+    mirrored_path = mirror_dir / "portfolio_combined_report.html"
+    assert mirrored_path.exists()
+    assert mirrored_path.read_text(encoding="utf-8") == "<html>snapshot</html>"
+
+
+def test_generate_combined_html_report_uses_configured_google_drive_mirror_dir(
+    monkeypatch, tmp_path: Path
+) -> None:
+    config_path = tmp_path / "report_config.yaml"
+    config_path.write_text(
+        "artifact_mirror:\n"
+        f"  google_drive_dir: {str(tmp_path / 'google-drive')!r}\n",
+        encoding="utf-8",
+    )
+
+    def fake_capture(request):
+        request.output_path.write_text("<html>snapshot</html>", encoding="utf-8")
+        return request.output_path
+
+    monkeypatch.setattr(pipeline, "_capture_portfolio_snapshot", fake_capture)
+    monkeypatch.setattr(pipeline, "sync_security_reference_csv", lambda reference_path: Path(reference_path))
+
+    pipeline.generate_combined_html_report(
+        positions_csv_path=tmp_path / "positions.csv",
+        output_path=tmp_path / "combined_report.html",
+        security_reference_path=tmp_path / "security_reference.csv",
+        risk_config_path=config_path,
+    )
+
+    mirrored_path = tmp_path / "google-drive" / "portfolio_combined_report.html"
+    assert mirrored_path.exists()
+    assert mirrored_path.read_text(encoding="utf-8") == "<html>snapshot</html>"
 
 
 def test_build_performance_chart_specs_uses_single_continuous_main_line_with_signed_shading() -> None:

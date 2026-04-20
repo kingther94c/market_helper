@@ -1,3 +1,6 @@
+artifact_mirror:
+  google_drive_dir: "/Users/kelvin/Library/CloudStorage/GoogleDrive-jc8344@nyu.edu/My Drive/005 Portfolio"
+
 risk_report:
   lookthrough:
     eq_country: eq_country_lookthrough.csv
