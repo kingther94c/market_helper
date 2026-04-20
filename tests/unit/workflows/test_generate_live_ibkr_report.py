@@ -1,9 +1,16 @@
 import csv
 
+import pytest
+
 from market_helper.common.progress import RecordingProgressReporter
 from market_helper.portfolio import SecurityReference, export_security_reference_csv
 from market_helper.workflows.generate_report import generate_live_ibkr_position_report
 import market_helper.domain.portfolio_monitor.pipelines.generate_portfolio_report as report_pipeline
+
+
+@pytest.fixture(autouse=True)
+def disable_default_artifact_mirror(monkeypatch) -> None:
+    monkeypatch.setattr(report_pipeline, "_load_artifact_mirror_dir", lambda config_path=None: None)
 
 
 class FakeContract:
@@ -76,6 +83,25 @@ def test_generate_live_ibkr_position_report_writes_csv_from_gateway_client(tmp_p
     assert rows[0]["currency"] == "USD"
     assert rows[0]["latest_price"] == "214.8"
     assert rows[0]["unrealized_pnl"] == "90.0"
+
+
+def test_generate_live_ibkr_position_report_mirrors_csv_to_google_drive(tmp_path, monkeypatch) -> None:
+    output_path = tmp_path / "outputs" / "live_position_report.csv"
+    mirror_dir = tmp_path / "google-drive"
+    client = FakeLiveClient()
+
+    monkeypatch.setattr(report_pipeline, "_load_artifact_mirror_dir", lambda config_path=None: mirror_dir)
+
+    generate_live_ibkr_position_report(
+        output_path=output_path,
+        account_id="U12345",
+        as_of="2026-03-26T00:00:00+00:00",
+        client=client,
+    )
+
+    mirrored_path = mirror_dir / "live_ibkr_position_report.csv"
+    assert mirrored_path.exists()
+    assert mirrored_path.read_text(encoding="utf-8") == output_path.read_text(encoding="utf-8")
 
 
 def test_generate_live_ibkr_position_report_reports_progress(tmp_path) -> None:
