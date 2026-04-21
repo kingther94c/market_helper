@@ -25,7 +25,7 @@ from market_helper.presentation.dashboard.pages.portfolio import (
     _initial_dashboard_status,
     _live_inputs_from_form,
     _positions_csv_ready_for_autoload,
-    _snapshot_matches_current_local_date,
+    _report_data_matches_current_local_date,
 )
 
 
@@ -100,7 +100,7 @@ def test_combined_export_form_reuses_artifact_form_inputs() -> None:
     assert combined.vol_method == "5y_realized"
 
 
-def test_build_initial_state_normalizes_internal_vol_method_key_for_select() -> None:
+def test_build_initial_state_keeps_internal_vol_method_key() -> None:
     class QueryService:
         def resolve_inputs(self, inputs: PortfolioReportInputs | None = None) -> PortfolioReportInputs:
             return PortfolioReportInputs(
@@ -111,7 +111,7 @@ def test_build_initial_state_normalizes_internal_vol_method_key_for_select() -> 
 
     state = _build_initial_state(QueryService())
 
-    assert state.artifact_form.vol_method == "Fast"
+    assert state.artifact_form.vol_method == "geomean_1m_3m"
 
 
 def test_positions_csv_ready_for_autoload_requires_existing_file(tmp_path) -> None:
@@ -127,7 +127,7 @@ def test_initial_dashboard_status_reflects_local_artifact_readiness(tmp_path) ->
     existing = tmp_path / "positions.csv"
     existing.write_text("as_of\n", encoding="utf-8")
 
-    assert _initial_dashboard_status(str(existing)) == "Ready. Click Refresh Snapshot to load the current artifacts."
+    assert _initial_dashboard_status(str(existing)) == "Ready. Load report data or generate the HTML report from current artifacts."
     assert _initial_dashboard_status(str(tmp_path / "missing.csv")) == (
         "Positions CSV not found. Run Live Refresh or enter a valid artifact path."
     )
@@ -221,7 +221,7 @@ def test_action_progress_summary_uses_live_x_of_total_while_action_runs() -> Non
     assert _action_progress_summary(state, "flex") == "IBKR Flex report: 2 / 5"
 
 
-def test_restore_stale_page_state_rehydrates_cached_snapshot() -> None:
+def test_restore_stale_page_state_rehydrates_cached_report_data() -> None:
     cached_state = PortfolioPageState(
         artifact_form=PortfolioArtifactFormState(
             positions_csv_path="data/cached_positions.csv",
@@ -231,13 +231,12 @@ def test_restore_stale_page_state_rehydrates_cached_snapshot() -> None:
         flex_form=FlexActionFormState(query_id="cached-query"),
         export_form=ExportActionFormState(output_path="outputs/cached.html"),
         reference_form=ReferenceActionFormState(security_reference_output_path="data/security_reference.csv"),
-        snapshot="cached snapshot",  # type: ignore[arg-type]
+        report_data="cached report data",  # type: ignore[arg-type]
         warnings=["cached warning"],
-        status_message="Loaded cached snapshot",
-        selected_top_tab="risk",
-        selected_perf_mode={"USD": "dollar", "SGD": "percent"},
-        selected_perf_window={"USD": "FULL", "SGD": "YTD"},
+        status_message="Loaded cached report data",
+        selected_top_tab="artifacts",
         action_statuses={
+            "refresh": ActionStatusState(),
             "live": ActionStatusState(status="success", message="Live positions refreshed"),
             "flex": ActionStatusState(),
             "combined": ActionStatusState(),
@@ -256,12 +255,10 @@ def test_restore_stale_page_state_rehydrates_cached_snapshot() -> None:
     _cache_stale_page_state(cached_state)
     _restore_stale_page_state(fresh_state)
 
-    assert fresh_state.snapshot == "cached snapshot"
+    assert fresh_state.report_data == "cached report data"
     assert fresh_state.warnings == ["cached warning"]
-    assert fresh_state.status_message == "Loaded cached snapshot"
-    assert fresh_state.selected_top_tab == "risk"
-    assert fresh_state.selected_perf_mode["USD"] == "dollar"
-    assert fresh_state.selected_perf_window["USD"] == "FULL"
+    assert fresh_state.status_message == "Loaded cached report data"
+    assert fresh_state.selected_top_tab == "artifacts"
     assert fresh_state.artifact_form.positions_csv_path == "data/cached_positions.csv"
     assert fresh_state.live_form.account_id == "U123"
     assert fresh_state.action_statuses["live"].message == "Live positions refreshed"
@@ -274,7 +271,7 @@ def test_restore_stale_page_state_uses_deep_copy() -> None:
         flex_form=FlexActionFormState(),
         export_form=ExportActionFormState(),
         reference_form=ReferenceActionFormState(),
-        snapshot={"as_of": "2026-04-21"},  # type: ignore[arg-type]
+        report_data={"as_of": "2026-04-21"},  # type: ignore[arg-type]
         warnings=["cached warning"],
     )
     restored_state = PortfolioPageState(
@@ -290,7 +287,7 @@ def test_restore_stale_page_state_uses_deep_copy() -> None:
 
     restored_state.artifact_form.positions_csv_path = "data/modified.csv"
     restored_state.warnings.append("new warning")
-    restored_state.snapshot["as_of"] = "changed"  # type: ignore[index]
+    restored_state.report_data["as_of"] = "changed"  # type: ignore[index]
 
     second_restore = PortfolioPageState(
         artifact_form=PortfolioArtifactFormState(),
@@ -303,18 +300,18 @@ def test_restore_stale_page_state_uses_deep_copy() -> None:
 
     assert second_restore.artifact_form.positions_csv_path == "data/cached_positions.csv"
     assert second_restore.warnings == ["cached warning"]
-    assert second_restore.snapshot["as_of"] == "2026-04-21"  # type: ignore[index]
+    assert second_restore.report_data["as_of"] == "2026-04-21"  # type: ignore[index]
 
 
-def test_snapshot_matches_current_local_date_accepts_same_local_date() -> None:
-    class Snapshot:
+def test_report_data_matches_current_local_date_accepts_same_local_date() -> None:
+    class ReportData:
         as_of = "2026-04-21T09:30:00+08:00"
 
-    assert _snapshot_matches_current_local_date(Snapshot()) is True
+    assert _report_data_matches_current_local_date(ReportData()) is True
 
 
-def test_snapshot_matches_current_local_date_rejects_different_local_date() -> None:
-    class Snapshot:
+def test_report_data_matches_current_local_date_rejects_different_local_date() -> None:
+    class ReportData:
         as_of = "2026-04-20T23:30:00+08:00"
 
-    assert _snapshot_matches_current_local_date(Snapshot()) is False
+    assert _report_data_matches_current_local_date(ReportData()) is False

@@ -22,6 +22,7 @@ from market_helper.domain.portfolio_monitor.services.performance_analytics impor
     sharpe_ratio,
     slice_history_for_window,
 )
+from market_helper.reporting.html_tables import HtmlTableColumn, HtmlTableRow, render_html_table
 
 try:
     from plotly.offline.offline import get_plotlyjs
@@ -207,8 +208,16 @@ def render_performance_assets() -> str:
 
 def render_performance_tab(view_model: PerformanceReportViewModel) -> str:
     summary_cards = "\n".join(_render_summary_card(card) for card in view_model.summary_cards)
-    horizon_rows = _render_horizon_metric_rows(view_model.horizon_rows)
-    yearly_rows = _render_yearly_metric_rows(view_model.yearly_rows)
+    horizon_table = render_html_table(
+        columns=_metric_table_columns(include_annualized_return=True),
+        rows=_metric_table_rows(view_model.horizon_rows, include_annualized_return=True),
+        empty_message="No horizon data",
+    )
+    yearly_table = render_html_table(
+        columns=_metric_table_columns(include_annualized_return=False),
+        rows=_metric_table_rows(view_model.yearly_rows, include_annualized_return=False),
+        empty_message="No yearly data",
+    )
     instance_id = f"perf-plot-{view_model.primary_currency.lower()}"
     overview_text = (
         f"Primary view uses <strong>{html.escape(view_model.primary_basis)}</strong> in {html.escape(view_model.primary_currency)}."
@@ -239,17 +248,11 @@ def render_performance_tab(view_model: PerformanceReportViewModel) -> str:
         "</div>"
         "<div class='card'>"
         "<h2>Horizon Metrics</h2>"
-        "<table>"
-        "<thead><tr><th>Window</th><th class='num'>TWR Return</th><th class='num'>MWR Return</th><th class='num'>Ann Return</th><th class='num'>Ann Vol</th><th class='num'>Sharpe</th><th class='num'>Max Drawdown</th></tr></thead>"
-        f"<tbody>{horizon_rows}</tbody>"
-        "</table>"
+        f"{horizon_table}"
         "</div>"
         "<div class='card'>"
         "<h2>Historical Years</h2>"
-        "<table>"
-        "<thead><tr><th>Year</th><th class='num'>TWR Return</th><th class='num'>MWR Return</th><th class='num'>Ann Vol</th><th class='num'>Sharpe</th><th class='num'>Max Drawdown</th></tr></thead>"
-        f"<tbody>{yearly_rows}</tbody>"
-        "</table>"
+        f"{yearly_table}"
         "</div>"
         "</section>"
     )
@@ -504,41 +507,43 @@ def _render_summary_card(card: PerformanceSummaryCard) -> str:
     )
 
 
-def _render_horizon_metric_rows(rows: list[PerformanceMetricRow]) -> str:
-    if not rows:
-        return "<tr><td colspan='7'>No data</td></tr>"
-    return "\n".join(
-        (
-            "<tr>"
-            f"<td>{html.escape(_DISPLAY_WINDOW_LABELS.get(row.label, row.label))}</td>"
-            f"<td class='num'>{_format_metric_value(row.twr_return, 'percent')}</td>"
-            f"<td class='num'>{_format_metric_value(row.mwr_return, 'percent')}</td>"
-            f"<td class='num'>{_format_metric_value(row.annualized_return, 'percent')}</td>"
-            f"<td class='num'>{_format_metric_value(row.annualized_vol, 'percent')}</td>"
-            f"<td class='num'>{_format_metric_value(row.sharpe_ratio, 'ratio')}</td>"
-            f"<td class='num'>{_format_metric_value(row.max_drawdown, 'percent')}</td>"
-            "</tr>"
-        )
-        for row in rows
+def _metric_table_columns(*, include_annualized_return: bool) -> list[HtmlTableColumn]:
+    columns = [
+        HtmlTableColumn("label", "Window"),
+        HtmlTableColumn("twr_return", "TWR Return", align="num"),
+        HtmlTableColumn("mwr_return", "MWR Return", align="num"),
+    ]
+    if include_annualized_return:
+        columns.append(HtmlTableColumn("annualized_return", "Ann Return", align="num"))
+    columns.extend(
+        [
+            HtmlTableColumn("annualized_vol", "Ann Vol", align="num"),
+            HtmlTableColumn("sharpe_ratio", "Sharpe", align="num"),
+            HtmlTableColumn("max_drawdown", "Max Drawdown", align="num"),
+        ]
     )
+    return columns
 
 
-def _render_yearly_metric_rows(rows: list[PerformanceMetricRow]) -> str:
-    if not rows:
-        return "<tr><td colspan='6'>No data</td></tr>"
-    return "\n".join(
-        (
-            "<tr>"
-            f"<td>{html.escape(row.label)}</td>"
-            f"<td class='num'>{_format_metric_value(row.twr_return, 'percent')}</td>"
-            f"<td class='num'>{_format_metric_value(row.mwr_return, 'percent')}</td>"
-            f"<td class='num'>{_format_metric_value(row.annualized_vol, 'percent')}</td>"
-            f"<td class='num'>{_format_metric_value(row.sharpe_ratio, 'ratio')}</td>"
-            f"<td class='num'>{_format_metric_value(row.max_drawdown, 'percent')}</td>"
-            "</tr>"
-        )
-        for row in rows
-    )
+def _metric_table_rows(
+    rows: list[PerformanceMetricRow],
+    *,
+    include_annualized_return: bool,
+) -> list[HtmlTableRow]:
+    output: list[HtmlTableRow] = []
+    for row in rows:
+        cells = {
+            "label": _DISPLAY_WINDOW_LABELS.get(row.label, row.label),
+            "twr_return": _format_metric_value(row.twr_return, "percent"),
+            "mwr_return": _format_metric_value(row.mwr_return, "percent"),
+            "annualized_vol": _format_metric_value(row.annualized_vol, "percent"),
+            "sharpe_ratio": _format_metric_value(row.sharpe_ratio, "ratio"),
+            "max_drawdown": _format_metric_value(row.max_drawdown, "percent"),
+        }
+        if include_annualized_return:
+            cells["annualized_return"] = _format_metric_value(row.annualized_return, "percent")
+        output.append(HtmlTableRow(cells=cells))
+    return output
 
 
 def _format_metric_value(value: float | str | None, kind: str) -> str:

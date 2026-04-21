@@ -16,9 +16,10 @@ from market_helper.application.portfolio_monitor.contracts import (
     EtfSectorSyncInputs,
     FlexPerformanceRefreshInputs,
     GenerateCombinedReportInputs,
+    GeneratedReportArtifact,
     LivePortfolioRefreshInputs,
+    PortfolioReportData,
     PortfolioReportInputs,
-    PortfolioReportSnapshot,
     UiProgressEvent,
     UiProgressSink,
 )
@@ -139,8 +140,11 @@ class PortfolioMonitorQueryService:
             inter_asset_corr=source.inter_asset_corr,
         )
 
-    def load_snapshot(self, inputs: PortfolioReportInputs | None = None) -> PortfolioReportSnapshot:
+    def load_report_data(self, inputs: PortfolioReportInputs | None = None) -> PortfolioReportData:
         resolved = self.resolve_inputs(inputs)
+        return self._assemble_report_data(resolved)
+
+    def _assemble_report_data(self, resolved: PortfolioReportInputs) -> PortfolioReportData:
         positions_path = Path(str(resolved.positions_csv_path))
         if not positions_path.exists():
             raise FileNotFoundError(f"Position CSV not found: {positions_path}")
@@ -184,18 +188,41 @@ class PortfolioMonitorQueryService:
             allocation_policy_path=Path(str(resolved.allocation_policy_path)) if resolved.allocation_policy_path is not None else None,
             positions_as_of=positions_as_of,
         )
-        snapshot_as_of = _resolve_snapshot_as_of(
+        report_as_of = _resolve_report_as_of(
             positions_as_of=positions_as_of,
             performance_as_of=performance_usd_view_model.as_of,
             risk_as_of=risk_view_model.as_of,
         )
-        return PortfolioReportSnapshot(
-            as_of=snapshot_as_of,
-            risk_view_model=replace(risk_view_model, as_of=snapshot_as_of),
+        return PortfolioReportData(
+            as_of=report_as_of,
+            risk_view_model=replace(risk_view_model, as_of=report_as_of),
             performance_usd_view_model=performance_usd_view_model,
             performance_sgd_view_model=performance_sgd_view_model,
             artifact_metadata=metadata,
             warnings=warnings,
+        )
+
+    def resolve_report_artifact(
+        self,
+        *,
+        inputs: PortfolioReportInputs | None = None,
+        output_path: str | Path | None = None,
+        report_data: PortfolioReportData | None = None,
+        as_of: str = "n/a",
+        warnings: list[str] | None = None,
+    ) -> GeneratedReportArtifact:
+        resolved = self.resolve_inputs(inputs)
+        target_path = Path(output_path) if output_path is not None else DEFAULT_COMBINED_REPORT_PATH
+        if report_data is not None:
+            as_of = report_data.as_of
+            warnings = report_data.warnings
+        return GeneratedReportArtifact(
+            report_type="portfolio_monitor",
+            title="Portfolio Monitor HTML Report",
+            output_path=target_path,
+            as_of=as_of,
+            warnings=list(warnings or []),
+            exists=target_path.exists(),
         )
 
     def _load_perf_cached(
@@ -277,6 +304,9 @@ class PortfolioMonitorQueryService:
 
 
 class PortfolioMonitorActionService:
+    def __init__(self, *, query_service: PortfolioMonitorQueryService | None = None) -> None:
+        self._query_service = query_service or PortfolioMonitorQueryService()
+
     def refresh_live_positions(
         self,
         inputs: LivePortfolioRefreshInputs,
@@ -319,8 +349,8 @@ class PortfolioMonitorActionService:
         inputs: GenerateCombinedReportInputs,
         *,
         sink: UiProgressSink | None = None,
-    ) -> Path:
-        resolved = PortfolioMonitorQueryService().resolve_inputs(inputs)
+    ) -> GeneratedReportArtifact:
+        resolved = self._query_service.resolve_inputs(inputs)
         output_path = Path(inputs.output_path) if inputs.output_path is not None else DEFAULT_COMBINED_REPORT_PATH
         _record_manual_event(sink, kind="spinner", label="Combined HTML", detail="rendering")
         written = report_workflows.generate_combined_html_report(
@@ -339,7 +369,12 @@ class PortfolioMonitorActionService:
             inter_asset_corr=resolved.inter_asset_corr,
         )
         _record_manual_event(sink, kind="done", label="Combined HTML", detail=f"wrote {written}")
-        return written
+        report_data = self._query_service.load_report_data(resolved)
+        return self._query_service.resolve_report_artifact(
+            inputs=resolved,
+            output_path=written,
+            report_data=report_data,
+        )
 
     def sync_security_reference(
         self,
@@ -400,7 +435,7 @@ def _read_positions_as_of(path: Path) -> str | None:
     return raw_value or None
 
 
-def _resolve_snapshot_as_of(*, positions_as_of: str | None, performance_as_of: str, risk_as_of: str) -> str:
+def _resolve_report_as_of(*, positions_as_of: str | None, performance_as_of: str, risk_as_of: str) -> str:
     for candidate in (positions_as_of, performance_as_of, risk_as_of):
         normalized = (candidate or "").strip()
         if normalized and normalized.lower() != "n/a":

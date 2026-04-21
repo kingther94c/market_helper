@@ -6,8 +6,8 @@ from market_helper.application.portfolio_monitor import (
     ArtifactMetadata,
     PortfolioMonitorActionService,
     PortfolioMonitorQueryService,
+    PortfolioReportData,
     PortfolioReportInputs,
-    PortfolioReportSnapshot,
 )
 from market_helper.presentation.dashboard.app import (
     DEFAULT_PORTFOLIO_ROUTE,
@@ -29,8 +29,8 @@ class SlowQueryService(PortfolioMonitorQueryService):
     def resolve_inputs(self, inputs: PortfolioReportInputs | None = None) -> PortfolioReportInputs:
         return PortfolioReportInputs(positions_csv_path="positions.csv", performance_output_dir="flex")
 
-    def load_snapshot(self, inputs: PortfolioReportInputs | None = None) -> PortfolioReportSnapshot:
-        return _fake_snapshot()
+    def load_report_data(self, inputs: PortfolioReportInputs | None = None) -> PortfolioReportData:
+        return _fake_report_data()
 
 
 def test_resolve_show_target_defaults_to_portfolio(monkeypatch) -> None:
@@ -70,7 +70,7 @@ def test_patch_nicegui_process_pool_setup_handles_permission_error(monkeypatch) 
     assert called["count"] == 1
 
 
-def _fake_snapshot() -> PortfolioReportSnapshot:
+def _fake_report_data() -> PortfolioReportData:
     performance = PerformanceReportViewModel(
         as_of="2026-04-08",
         primary_currency="USD",
@@ -121,9 +121,14 @@ def _fake_snapshot() -> PortfolioReportSnapshot:
                 vol_geomean_1m_3m=0.2,
                 vol_5y_realized=0.18,
                 vol_ewma=0.22,
+                vol_forward_looking=0.24,
                 sparkline_3m_svg="",
                 risk_contribution_historical=0.2,
                 risk_contribution_estimated=0.2,
+                risk_contribution_geomean_1m_3m=0.2,
+                risk_contribution_5y_realized=0.18,
+                risk_contribution_ewma=0.22,
+                risk_contribution_forward_looking=0.24,
                 mapping_status="mapped",
                 report_scope="included",
                 dir_exposure="L",
@@ -168,7 +173,7 @@ def _fake_snapshot() -> PortfolioReportSnapshot:
         allocation_policy_path=None,
         positions_as_of="2026-04-08T00:00:00+00:00",
     )
-    return PortfolioReportSnapshot(
+    return PortfolioReportData(
         as_of="2026-04-08T00:00:00+00:00",
         risk_view_model=risk,
         performance_usd_view_model=performance,
