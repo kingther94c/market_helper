@@ -10,6 +10,7 @@ from functools import lru_cache
 from pathlib import Path
 from typing import Any
 
+from fastapi import Request
 from nicegui import ui
 
 from market_helper.application.portfolio_monitor import (
@@ -157,6 +158,7 @@ class PortfolioPageState:
     progress_sink: InMemoryUiProgressSink = field(default_factory=InMemoryUiProgressSink)
     action_statuses: dict[str, ActionStatusState] = field(
         default_factory=lambda: {
+            "refresh": ActionStatusState(message="Not run yet"),
             "live": ActionStatusState(),
             "flex": ActionStatusState(),
             "combined": ActionStatusState(),
@@ -337,6 +339,7 @@ def register_portfolio_page(
 
     @ui.page("/portfolio")
     async def portfolio_page(
+        request: Request,
         snapshot: str | None = None,
         tab: str | None = None,
     ) -> None:  # noqa: ARG001
@@ -362,7 +365,7 @@ def register_portfolio_page(
                 return
             state.is_loading = True
             state.load_error = None
-            state.status_message = "Loading portfolio snapshot..."
+            state.status_message = "Loading latest snapshot..."
             render.refresh()
             try:
                 inputs = _artifact_inputs_from_form(state.artifact_form)
@@ -377,7 +380,8 @@ def register_portfolio_page(
                 state.warnings = list(snapshot.warnings)
                 state.status_message = f"Loaded snapshot as of {snapshot.as_of}"
                 _cache_stale_page_state(state)
-                await _persist_html_snapshot(state)
+                if not state.snapshot_mode:
+                    asyncio.create_task(_persist_html_snapshot(state, request))
             finally:
                 state.is_loading = False
                 render.refresh()
@@ -460,10 +464,49 @@ def register_portfolio_page(
                         sink=state.progress_sink,
                     )
                     _set_action_success(state, action_name, message="ETF sector lookthrough synced", output_path=str(output_path))
+                elif action_name == "refresh":
+                    _set_action_running(state, action_name)
+                    render.refresh()
+                    live_inputs = _live_inputs_from_form(state.live_form)
+                    live_output = await asyncio.to_thread(
+                        _ACTION_SERVICE.refresh_live_positions,
+                        live_inputs,
+                        sink=state.progress_sink,
+                    )
+                    state.artifact_form.positions_csv_path = str(live_output)
+                    state.live_form.output_path = str(live_output)
+                    _set_action_success(
+                        state,
+                        "live",
+                        message="Live positions refreshed",
+                        output_path=str(live_output),
+                    )
+
+                    flex_inputs = _flex_inputs_from_form(state.flex_form)
+                    flex_output = await asyncio.to_thread(
+                        _ACTION_SERVICE.rebuild_flex_performance,
+                        flex_inputs,
+                        sink=state.progress_sink,
+                    )
+                    state.artifact_form.performance_output_dir = str(flex_output.parent)
+                    _set_action_success(
+                        state,
+                        "flex",
+                        message="Flex performance refreshed",
+                        output_path=str(flex_output),
+                    )
+                    await load_snapshot()
+                    _set_action_success(
+                        state,
+                        action_name,
+                        message="Refresh completed",
+                        output_path=state.action_statuses["combined"].last_output_path,
+                    )
                 else:
                     raise ValueError(f"Unsupported action: {action_name}")
                 state.status_message = state.action_statuses[action_name].message
-                await load_snapshot()
+                if action_name != "refresh":
+                    await load_snapshot()
             except Exception as exc:
                 _set_action_error(state, action_name, str(exc))
                 state.status_message = f"Action failed: {exc}"
@@ -546,49 +589,123 @@ def _render_header(state: PortfolioPageState) -> None:
 
 def _render_toolbar(state: PortfolioPageState) -> None:
     load_snapshot = getattr(state, "_load_snapshot", None)
+    run_action = getattr(state, "_run_action", None)
     with ui.card().classes("w-full pm-card p-4"):
-        ui.label("Artifacts").classes("text-h6")
-        with ui.grid(columns=2).classes("w-full gap-3"):
-            ui.input("Positions CSV").bind_value(state.artifact_form, "positions_csv_path").classes("w-full")
-            ui.select(
-                options=list(DEFAULT_VOL_METHOD_LABELS.keys()),
-                label="Vol Method",
-                value=state.artifact_form.vol_method,
-            ).bind_value(state.artifact_form, "vol_method")
-            ui.select(
-                options=["historical", "corr_0", "corr_1"],
-                label="Inter-asset corr",
-                value=state.artifact_form.inter_asset_corr,
-            ).bind_value(state.artifact_form, "inter_asset_corr")
-            ui.input("Performance output dir").bind_value(state.artifact_form, "performance_output_dir").classes("w-full")
-            ui.input("Performance history").bind_value(state.artifact_form, "performance_history_path").classes("w-full")
-            ui.input("Performance report CSV").bind_value(state.artifact_form, "performance_report_csv_path").classes("w-full")
-            ui.input("Returns JSON").bind_value(state.artifact_form, "returns_path").classes("w-full")
-            ui.input("Proxy JSON").bind_value(state.artifact_form, "proxy_path").classes("w-full")
-            ui.input("Regime JSON").bind_value(state.artifact_form, "regime_path").classes("w-full")
-            ui.input("Security reference CSV").bind_value(state.artifact_form, "security_reference_path").classes("w-full")
-            ui.input("Risk config YAML").bind_value(state.artifact_form, "risk_config_path").classes("w-full")
-            ui.input("Allocation policy YAML").bind_value(state.artifact_form, "allocation_policy_path").classes("w-full")
-        with ui.row().classes("items-center gap-3 mt-4"):
-            button = ui.button("Refresh Snapshot", on_click=lambda: asyncio.create_task(load_snapshot())).props("color=primary")
+        ui.label("Snapshot Controls").classes("text-h6")
+        ui.label(
+            "Default mode keeps the surface simple. Load the latest disk snapshot, or run a full refresh to rebuild artifacts and replace the snapshot."
+        ).classes("pm-muted")
+        with ui.row().classes("items-center gap-3 mt-4 wrap"):
+            load_button = ui.button(
+                "Load Latest Snapshot",
+                on_click=lambda: asyncio.create_task(load_snapshot()),
+            ).props("color=primary")
+            refresh_button = ui.button(
+                "Refresh",
+                on_click=lambda: asyncio.create_task(run_action("refresh")),
+            ).props("color=secondary")
             if state.is_loading or state.active_job is not None:
-                button.props("disable")
-            ui.label("Artifact paths are editable strings; loading is explicit and local-only.").classes("pm-muted")
+                load_button.props("disable")
+                refresh_button.props("disable")
+        with ui.row().classes("w-full gap-3 wrap mt-4"):
+            render_status_card(
+                title="Snapshot",
+                value=state.status_message,
+                detail=getattr(state.snapshot, "as_of", None) if state.snapshot is not None else None,
+            )
+            render_status_card(
+                title="Refresh Pipeline",
+                value=state.action_statuses["refresh"].message,
+                detail=state.action_statuses["refresh"].last_output_path,
+            )
+        with ui.expansion("Artifacts", icon="folder", value=False).classes("w-full mt-4"):
+            with ui.column().classes("w-full gap-3 p-2"):
+                with ui.grid(columns=2).classes("w-full gap-3"):
+                    ui.input("Positions CSV").bind_value(state.artifact_form, "positions_csv_path").classes("w-full")
+                    ui.input("Performance output dir").bind_value(state.artifact_form, "performance_output_dir").classes("w-full")
+                    ui.select(
+                        options=list(DEFAULT_VOL_METHOD_LABELS.keys()),
+                        label="Vol Method",
+                        value=state.artifact_form.vol_method,
+                    ).bind_value(state.artifact_form, "vol_method")
+                    ui.select(
+                        options=["historical", "corr_0", "corr_1"],
+                        label="Inter-asset corr",
+                        value=state.artifact_form.inter_asset_corr,
+                    ).bind_value(state.artifact_form, "inter_asset_corr")
+                    ui.input("Combined HTML output").bind_value(state.export_form, "output_path").classes("w-full")
+                with ui.expansion("More Paths", icon="tune", value=False).classes("w-full"):
+                    with ui.grid(columns=2).classes("w-full gap-3 p-2"):
+                        ui.input("Performance history").bind_value(state.artifact_form, "performance_history_path").classes("w-full")
+                        ui.input("Performance report CSV").bind_value(state.artifact_form, "performance_report_csv_path").classes("w-full")
+                        ui.input("Returns JSON").bind_value(state.artifact_form, "returns_path").classes("w-full")
+                        ui.input("Proxy JSON").bind_value(state.artifact_form, "proxy_path").classes("w-full")
+                        ui.input("Regime JSON").bind_value(state.artifact_form, "regime_path").classes("w-full")
+                        ui.input("Security reference CSV").bind_value(state.artifact_form, "security_reference_path").classes("w-full")
+                        ui.input("Risk config YAML").bind_value(state.artifact_form, "risk_config_path").classes("w-full")
+                        ui.input("Allocation policy YAML").bind_value(state.artifact_form, "allocation_policy_path").classes("w-full")
 
 
 def _render_feedback(state: PortfolioPageState) -> None:
     if state.is_loading:
-        ui.label("Loading portfolio snapshot...").classes("pm-loading w-full")
+        ui.label("Loading latest snapshot...").classes("pm-loading w-full")
     if state.load_error:
         ui.label(state.load_error).classes("pm-error w-full")
     for warning in state.warnings:
         ui.label(warning).classes("pm-warning w-full")
 
 
-async def _persist_html_snapshot(state: PortfolioPageState) -> None:
+async def _persist_html_snapshot(state: PortfolioPageState, request: Request) -> None:
+    from market_helper.domain.portfolio_monitor.pipelines.generate_portfolio_report import (
+        _build_snapshot_request,
+        _mirror_artifact_if_configured,
+        DEFAULT_GOOGLE_DRIVE_COMBINED_REPORT_FILENAME,
+    )
+    from market_helper.presentation.dashboard.snapshot import capture_snapshot
+
     try:
         combined_inputs = _combined_inputs_from_form(state)
-        output_path = await asyncio.to_thread(_ACTION_SERVICE.generate_combined_report, combined_inputs)
+        request_url = request.base_url
+        output_path = Path(combined_inputs.output_path)
+        snapshot_request = _build_snapshot_request(
+            positions_csv_path=combined_inputs.positions_csv_path,
+            output_path=output_path,
+            performance_history_path=combined_inputs.performance_history_path,
+            performance_output_dir=combined_inputs.performance_output_dir,
+            performance_report_csv_path=combined_inputs.performance_report_csv_path,
+            returns_path=combined_inputs.returns_path,
+            proxy_path=combined_inputs.proxy_path,
+            regime_path=combined_inputs.regime_path,
+            security_reference_path=combined_inputs.security_reference_path,
+            risk_config_path=combined_inputs.risk_config_path,
+            allocation_policy_path=combined_inputs.allocation_policy_path,
+            vol_method=combined_inputs.vol_method,
+            inter_asset_corr=combined_inputs.inter_asset_corr,
+        )
+        set_snapshot_overrides(dict(snapshot_request.overrides or {}))
+        try:
+            existing_server_request = snapshot_request.__class__(
+                output_path=snapshot_request.output_path,
+                route=snapshot_request.route,
+                query=snapshot_request.query,
+                host=request_url.hostname or "127.0.0.1",
+                port=request_url.port or (443 if request_url.scheme == "https" else 80),
+                sentinel=snapshot_request.sentinel,
+                wait_seconds=snapshot_request.wait_seconds,
+                viewport_width=snapshot_request.viewport_width,
+                viewport_height=snapshot_request.viewport_height,
+                overrides=snapshot_request.overrides,
+                launch_server=False,
+            )
+            output_path = await asyncio.to_thread(capture_snapshot, existing_server_request)
+        finally:
+            set_snapshot_overrides(None)
+        await asyncio.to_thread(
+            _mirror_artifact_if_configured,
+            output_path,
+            target_name=DEFAULT_GOOGLE_DRIVE_COMBINED_REPORT_FILENAME,
+            config_path=combined_inputs.risk_config_path,
+        )
     except Exception as exc:
         state.warnings.append(f"HTML snapshot export failed: {exc}")
         return
@@ -1217,7 +1334,7 @@ def _render_artifact_metadata(state: PortfolioPageState) -> None:
 
 def _render_action_console(state: PortfolioPageState) -> None:
     run_action = getattr(state, "_run_action", None)
-    with ui.expansion("Actions", icon="build", value=True).classes("w-full pm-card"):
+    with ui.expansion("Advanced Actions", icon="build", value=False).classes("w-full pm-card"):
         with ui.column().classes("w-full p-4 gap-4"):
             with ui.row().classes("w-full gap-4 wrap"):
                 render_action_card(
@@ -1269,7 +1386,7 @@ def _render_live_action_body(state: PortfolioPageState, run_action) -> None:
     with ui.expansion("Advanced", icon="tune").classes("w-full"):
         ui.input("Account ID").bind_value(state.live_form, "account_id").classes("w-full")
         ui.input("As Of").bind_value(state.live_form, "as_of").classes("w-full")
-    button = ui.button("Run Live Refresh", on_click=lambda: asyncio.create_task(run_action("live"))).props("color=primary")
+    button = ui.button("Refresh Live", on_click=lambda: asyncio.create_task(run_action("live"))).props("color=primary")
     if disabled:
         button.props("disable")
 
@@ -1285,7 +1402,7 @@ def _render_flex_action_body(state: PortfolioPageState, run_action) -> None:
         ui.input("To date").bind_value(state.flex_form, "to_date").classes("w-full")
         ui.input("Period").bind_value(state.flex_form, "period").classes("w-full")
         ui.input("XML output path").bind_value(state.flex_form, "xml_output_path").classes("w-full")
-    button = ui.button("Run Flex Refresh", on_click=lambda: asyncio.create_task(run_action("flex"))).props("color=primary")
+    button = ui.button("Refresh Flex", on_click=lambda: asyncio.create_task(run_action("flex"))).props("color=primary")
     if disabled:
         button.props("disable")
 
