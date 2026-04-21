@@ -282,7 +282,11 @@ def _inject_into_head(html: str, fragment: str) -> str:
 
 
 def _inject_static_tab_runtime(html: str) -> str:
-    if "data-static-tab-buttons" not in html or "data-static-tab-panel" not in html:
+    if (
+        "data-static-tab-buttons" not in html
+        and "data-risk-vol-buttons" not in html
+        and "data-risk-method-table" not in html
+    ):
         return html
 
     style = """
@@ -315,6 +319,64 @@ def _inject_static_tab_runtime(html: str) -> str:
     };
     buttons.forEach((button) => {
       button.addEventListener('click', () => activate(button.getAttribute('data-tab-target')));
+    });
+  });
+
+  const applyVolColumns = (selectedVol) => {
+    const wrappers = document.querySelectorAll('[data-risk-method-table]');
+    wrappers.forEach((wrapper) => {
+      const map = wrapper.getAttribute('data-vol-column-map') || '';
+      const table = wrapper.querySelector('table');
+      if (!table) return;
+      const parts = map.split(';').filter(Boolean);
+      const visible = new Set();
+      parts.forEach((part) => {
+        const tuple = part.split(':');
+        if (tuple.length !== 2) return;
+        const key = tuple[0];
+        const index = Number(tuple[1]);
+        if (Number.isNaN(index)) return;
+        const baseKey = key.replace('_rc', '');
+        if (baseKey === selectedVol) visible.add(index);
+      });
+      table.querySelectorAll('tr').forEach((row) => {
+        Array.from(row.children).forEach((cell, idx) => {
+          const col = idx + 1;
+          if (col < 8) return;
+          const isVisible = visible.has(col) || col === row.children.length;
+          cell.style.display = isVisible ? '' : 'none';
+        });
+      });
+    });
+  };
+
+  const volGroups = document.querySelectorAll('[data-risk-vol-buttons]');
+  volGroups.forEach((group) => {
+    const buttons = Array.from(group.querySelectorAll('[data-risk-vol-target]'));
+    const activate = (target) => {
+      buttons.forEach((button) => {
+        const active = button.getAttribute('data-risk-vol-target') === target;
+        button.classList.toggle('is-active', active);
+      });
+      applyVolColumns(target);
+    };
+    buttons.forEach((button) => {
+      button.addEventListener('click', () => activate(button.getAttribute('data-risk-vol-target')));
+    });
+    const initial = buttons.find((button) => button.classList.contains('is-active'));
+    if (initial) activate(initial.getAttribute('data-risk-vol-target'));
+  });
+
+  const corrGroups = document.querySelectorAll('[data-risk-corr-buttons]');
+  corrGroups.forEach((group) => {
+    const buttons = Array.from(group.querySelectorAll('[data-risk-corr-target]'));
+    buttons.forEach((button) => {
+      button.addEventListener('click', () => {
+        const target = button.getAttribute('data-risk-corr-target');
+        buttons.forEach((other) => {
+          other.classList.toggle('is-active', other.getAttribute('data-risk-corr-target') === target);
+        });
+      });
     });
   });
 })();

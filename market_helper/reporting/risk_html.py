@@ -205,9 +205,14 @@ class RiskMetricsRow:
     vol_geomean_1m_3m: float
     vol_5y_realized: float
     vol_ewma: float
+    vol_forward_looking: float
     sparkline_3m_svg: str
     risk_contribution_historical: float
     risk_contribution_estimated: float
+    risk_contribution_geomean_1m_3m: float
+    risk_contribution_5y_realized: float
+    risk_contribution_ewma: float
+    risk_contribution_forward_looking: float
     mapping_status: str
     report_scope: str
     dir_exposure: str
@@ -267,6 +272,7 @@ class RiskReportViewModel:
     regime_summary: RegimeReportSummary | None
     vol_method: str
     inter_asset_corr: str
+    portfolio_vol_matrix: dict[str, dict[str, float]]
 
 
 @dataclass(frozen=True)
@@ -553,6 +559,38 @@ def build_risk_report_view_model(
     portfolio_vol_forward_looking = _portfolio_vol_from_group_loadings(
         forward_looking_group_loadings, selected_group_corr
     )
+    portfolio_vol_matrix = {
+        corr_mode: {
+            "geomean_1m_3m": _portfolio_vol_from_group_loadings(
+                geomean_group_loadings,
+                _build_group_correlation(
+                    asset_classes=asset_class_keys,
+                    group_returns=group_returns,
+                    proxy_group_returns=proxy_group_returns,
+                    mode=corr_mode,
+                ),
+            ),
+            "5y_realized": _portfolio_vol_from_group_loadings(
+                realized_5y_group_loadings,
+                _build_group_correlation(
+                    asset_classes=asset_class_keys,
+                    group_returns=group_returns,
+                    proxy_group_returns=proxy_group_returns,
+                    mode=corr_mode,
+                ),
+            ),
+            "forward_looking": _portfolio_vol_from_group_loadings(
+                forward_looking_group_loadings,
+                _build_group_correlation(
+                    asset_classes=asset_class_keys,
+                    group_returns=group_returns,
+                    proxy_group_returns=proxy_group_returns,
+                    mode=corr_mode,
+                ),
+            ),
+        }
+        for corr_mode in ("historical", "corr_0", "corr_1")
+    }
 
     security_geomean_loadings = _build_security_loadings(
         vol_included_rows,
@@ -603,9 +641,14 @@ def build_risk_report_view_model(
             vol_geomean_1m_3m=vols_geomean_1m_3m[row.internal_id],
             vol_5y_realized=vols_5y_realized[row.internal_id],
             vol_ewma=vols_ewma[row.internal_id],
+            vol_forward_looking=vols_forward_looking[row.internal_id],
             sparkline_3m_svg=_sparkline_svg_for_returns(returns.get(row.internal_id, [])),
             risk_contribution_historical=abs(security_geomean_loadings.get(row.internal_id, 0.0)),
             risk_contribution_estimated=abs(selected_security_loadings.get(row.internal_id, 0.0)),
+            risk_contribution_geomean_1m_3m=abs(security_geomean_loadings.get(row.internal_id, 0.0)),
+            risk_contribution_5y_realized=abs(security_realized_loadings.get(row.internal_id, 0.0)),
+            risk_contribution_ewma=abs(security_ewma_loadings.get(row.internal_id, 0.0)),
+            risk_contribution_forward_looking=abs(security_forward_looking_loadings.get(row.internal_id, 0.0)),
             mapping_status=row.mapping_status,
             report_scope=_report_scope_label(row),
             dir_exposure=row.dir_exposure,
@@ -684,6 +727,7 @@ def build_risk_report_view_model(
         regime_summary=regime_summary,
         vol_method=vol_method,
         inter_asset_corr=inter_asset_corr,
+        portfolio_vol_matrix=portfolio_vol_matrix,
     )
 
 
