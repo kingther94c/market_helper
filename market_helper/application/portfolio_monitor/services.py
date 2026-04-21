@@ -36,6 +36,8 @@ from market_helper.workflows import generate_report as report_workflows
 DEFAULT_POSITIONS_CSV_PATH = PORTFOLIO_ARTIFACTS_DIR / "live_ibkr_position_report.csv"
 DEFAULT_COMBINED_REPORT_PATH = PORTFOLIO_ARTIFACTS_DIR / "portfolio_combined_report.html"
 DEFAULT_PERFORMANCE_OUTPUT_DIR = PORTFOLIO_ARTIFACTS_DIR / "flex"
+DEFAULT_UI_FLEX_POLL_INTERVAL_SECONDS = 10.0
+DEFAULT_UI_FLEX_MAX_ATTEMPTS = 24
 
 
 @dataclass
@@ -311,6 +313,8 @@ class PortfolioMonitorActionService:
             to_date=inputs.to_date,
             period=inputs.period,
             xml_output_path=Path(inputs.xml_output_path) if inputs.xml_output_path is not None else None,
+            poll_interval_seconds=DEFAULT_UI_FLEX_POLL_INTERVAL_SECONDS,
+            max_attempts=DEFAULT_UI_FLEX_MAX_ATTEMPTS,
             progress=reporter,
         )
 
