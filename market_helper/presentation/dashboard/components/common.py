@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from datetime import datetime
 import re
 from typing import Any
 
@@ -55,24 +56,15 @@ def render_status_card(*, title: str, value: str, detail: str | None = None) -> 
         ui.label(title).classes("text-caption pm-muted")
         ui.label(value).classes("text-body2")
         if detail:
-            if _ISO_UTC_TIMESTAMP_RE.match(detail.strip()):
-                container = ui.element("div").classes("text-caption pm-muted")
-                container.props(f'data-utc-timestamp="{detail}"')
-                ui.add_body_html(
-                    """
-                    <script>
-                    (function () {
-                      const nodes = document.querySelectorAll('[data-utc-timestamp]');
-                      nodes.forEach((node) => {
-                        const raw = node.getAttribute('data-utc-timestamp');
-                        if (!raw) return;
-                        const dt = new Date(raw);
-                        if (Number.isNaN(dt.getTime())) return;
-                        node.textContent = dt.toLocaleString();
-                      });
-                    })();
-                    </script>
-                    """
-                )
-            else:
-                ui.label(detail).classes("text-caption pm-muted")
+            ui.label(_format_status_detail(detail)).classes("text-caption pm-muted")
+
+
+def _format_status_detail(detail: str) -> str:
+    normalized = detail.strip()
+    if not _ISO_UTC_TIMESTAMP_RE.match(normalized):
+        return detail
+    try:
+        dt = datetime.fromisoformat(normalized)
+    except ValueError:
+        return detail
+    return dt.astimezone().isoformat(timespec="seconds")
