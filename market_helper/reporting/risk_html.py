@@ -112,6 +112,12 @@ FI_TENOR_BUCKET_LABELS = {
 FI_10Y_EQ_DISPLAY_NOTE = "FI dollar exposures are shown as 10Y-equivalent USD notional."
 EQ_COUNTRY_POLICY_REGION_ORDER = ("DM", "EM")
 EQ_COUNTRY_OTHER_BUCKETS = {"OTHER", "OTHERS"}
+CM_SECTOR_LABELS = {
+    "PM": "Precious Metals",
+    "IM": "Industrial Metals",
+    "EN": "Energy",
+    "AG": "Agriculture",
+}
 US_SECTOR_BUCKETS = {
     "COMMUNICATION SERVICES",
     "CONSUMER DISCRETIONARY",
@@ -280,6 +286,7 @@ class RiskReportViewModel:
     vol_method: str
     inter_asset_corr: str
     portfolio_vol_matrix: dict[str, dict[str, float]]
+    commodity_sector_correlation: tuple[list[str], list[list[float]]] | None = None
 
 
 @dataclass(frozen=True)
@@ -355,6 +362,7 @@ class RiskReportConfig:
     fixed_income: FixedIncomeMethodologyConfig
     vol_method_labels: dict[str, str]
     fx_excluded_asset_classes: tuple[str, ...]
+    commodity_sector_proxies: tuple[tuple[str, str], ...]
 
 
 def resolve_vol_method_key(
@@ -747,6 +755,10 @@ def build_risk_report_view_model(
         vol_method=vol_method,
         inter_asset_corr=inter_asset_corr,
         portfolio_vol_matrix=portfolio_vol_matrix,
+        commodity_sector_correlation=_compute_commodity_sector_correlation(
+            risk_report_config.commodity_sector_proxies,
+            yahoo_client=resolved_yahoo_client,
+        ),
     )
 
 
@@ -1215,9 +1227,18 @@ def render_html_from_view_model(view_model: RiskReportViewModel) -> str:
     .tab-button {{ appearance: none; border: 0; border-radius: 999px; padding: 10px 14px; background: #e2e8f0; color: #0f172a; font-weight: 700; cursor: pointer; }}
     .tab-button.is-active {{ background: #0f172a; color: #fff; }}
     .tab-panel[hidden] {{ display: none !important; }}
+    .risk-method-strip {{ display:flex; flex-wrap:wrap; gap:8px; margin-bottom:12px; }}
+    .risk-method-button {{ appearance:none; border:0; border-radius:999px; padding:9px 14px; background:#dbe4ee; color:#0f172a; font-weight:700; cursor:pointer; }}
+    .risk-method-button.is-active {{ background:#9a3412; color:#fff; }}
+    .heat-table {{ width:100%; border-collapse:separate; border-spacing:0; border:1px solid #e2e8f0; border-radius:12px; overflow:hidden; }}
+    .heat-table th, .heat-table td {{ padding:12px 14px; border-bottom:1px solid #f1f5f9; }}
+    .heat-table th {{ background:#fff7ed; border-bottom:1px solid #fed7aa; }}
+    .heat-table td + td, .heat-table th + th {{ border-left:1px solid #f1f5f9; }}
+    .heat-table .is-active-method {{ box-shadow: inset 0 0 0 2px #c2410c; }}
+    .report-table .is-hidden-by-method {{ display:none; }}
   </style>
 </head>
-<body>
+<body data-selected-risk-vol='{html.escape(view_model.vol_method)}'>
   <h1>Portfolio Risk Report</h1>
   {render_risk_tab(view_model)}
   <script>
@@ -1247,6 +1268,33 @@ def render_html_from_view_model(view_model: RiskReportViewModel) -> str:
         activate(initial.getAttribute('data-report-tab-target'));
       }}
     }});
+
+    const applyVolMethod = (selectedVol) => {{
+      document.querySelectorAll('[data-risk-method-table]').forEach((wrapper) => {{
+        wrapper.querySelectorAll('.vol-col, .rc-col').forEach((node) => {{
+          const visible =
+            node.classList.contains('vol-col--' + selectedVol) ||
+            node.classList.contains('rc-col--' + selectedVol);
+          node.classList.toggle('is-hidden-by-method', !visible);
+        }});
+      }});
+      document.querySelectorAll('[data-risk-vol-buttons]').forEach((group) => {{
+        group.querySelectorAll('[data-risk-vol-target]').forEach((button) => {{
+          button.classList.toggle('is-active', button.getAttribute('data-risk-vol-target') === selectedVol);
+        }});
+      }});
+      document.querySelectorAll('[data-risk-vol-matrix] [data-vol-key]').forEach((cell) => {{
+        cell.classList.toggle('is-active-method', cell.getAttribute('data-vol-key') === selectedVol);
+      }});
+    }};
+
+    document.querySelectorAll('[data-risk-vol-buttons]').forEach((group) => {{
+      group.querySelectorAll('[data-risk-vol-target]').forEach((button) => {{
+        button.addEventListener('click', () => applyVolMethod(button.getAttribute('data-risk-vol-target')));
+      }});
+    }});
+
+    applyVolMethod(document.body.getAttribute('data-selected-risk-vol') || '5y_realized');
   }})();
   </script>
 </body>
@@ -1271,6 +1319,7 @@ def render_risk_tab(view_model: RiskReportViewModel) -> str:
         columns=_allocation_columns(),
         rows=_allocation_summary_rows(allocation_summary),
         empty_message="No allocation data",
+        data_attributes={"risk-method-table": "1"},
     )
     eq_rows = [row for row in risk_rows if row.asset_class == "EQ"]
     fi_rows = [row for row in risk_rows if row.asset_class == "FI"]
@@ -1292,6 +1341,7 @@ def render_risk_tab(view_model: RiskReportViewModel) -> str:
         columns=_breakdown_columns(include_bucket_label=True),
         rows=_breakdown_table_rows(fi_tenor_breakdown, include_bucket_label=True),
         empty_message="No tenor breakdown data",
+        data_attributes={"risk-method-table": "1"},
     )
     policy_asset_table = render_html_table(
         columns=_policy_drift_columns(),
@@ -1312,26 +1362,37 @@ def render_risk_tab(view_model: RiskReportViewModel) -> str:
         columns=_position_columns(),
         rows=_position_table_rows(eq_rows),
         empty_message="No equity positions available",
+        data_attributes={"risk-method-table": "1"},
     )
     fi_position_table = render_html_table(
         columns=_position_columns(),
         rows=_position_table_rows(fi_rows),
         empty_message="No fixed income positions available",
+        data_attributes={"risk-method-table": "1"},
     )
     cm_position_table = render_html_table(
         columns=_position_columns(),
         rows=_position_table_rows(cm_rows),
         empty_message="No commodity positions available",
+        data_attributes={"risk-method-table": "1"},
     )
     fx_position_table = render_html_table(
         columns=_position_columns(),
         rows=_position_table_rows(fx_rows),
         empty_message="No FX positions available",
+        data_attributes={"risk-method-table": "1"},
     )
     macro_position_table = render_html_table(
         columns=_position_columns(),
         rows=_position_table_rows(macro_rows),
         empty_message="No macro positions available",
+        data_attributes={"risk-method-table": "1"},
+    )
+    commodity_summary_table = render_html_table(
+        columns=_commodity_summary_columns(),
+        rows=_commodity_summary_rows(cm_rows),
+        empty_message="No commodity positions available",
+        data_attributes={"risk-method-table": "1"},
     )
     policy_asset_chart = _render_policy_drift_chart(policy_drift_asset_class)
     policy_country_chart = _render_policy_drift_chart(policy_drift_country)
@@ -1359,10 +1420,6 @@ def render_risk_tab(view_model: RiskReportViewModel) -> str:
     <div class='card'>
     <h2>Portfolio Summary</h2>
     <div class='metrics'>
-      <div class='metric'><span>Portfolio vol (1M/3M geomean, {html.escape(inter_asset_corr)})</span><strong>{summary.portfolio_vol_geomean_1m_3m:.2%}</strong></div>
-      <div class='metric'><span>Portfolio vol (5Y realized, {html.escape(inter_asset_corr)})</span><strong>{summary.portfolio_vol_5y_realized:.2%}</strong></div>
-      <div class='metric'><span>Portfolio vol (EWMA, {html.escape(inter_asset_corr)})</span><strong>{summary.portfolio_vol_ewma:.2%}</strong></div>
-      <div class='metric'><span>Portfolio vol (forward-looking, {html.escape(inter_asset_corr)})</span><strong>{summary.portfolio_vol_forward_looking:.2%}</strong></div>
       <div class='metric'><span>Funded AUM (USD)</span><strong>{summary.funded_aum_usd:,.0f}</strong></div>
       <div class='metric'><span>Funded AUM (SGD)</span><strong>{_format_optional_amount(summary.funded_aum_sgd)}</strong></div>
       <div class='metric'><span>Gross exposure (FI 10Y eq)</span><strong>{summary.gross_exposure:,.0f}</strong></div>
@@ -1370,6 +1427,12 @@ def render_risk_tab(view_model: RiskReportViewModel) -> str:
       <div class='metric'><span>Mapping coverage (included rows)</span><strong>{summary.mapped_positions}/{summary.total_positions}</strong></div>
     </div>
     <p>{html.escape(FI_10Y_EQ_DISPLAY_NOTE)}</p>
+    </div>
+
+    <div class='card'>
+    <h2>Portfolio Vol Matrix</h2>
+    <p>Rows are correlation assumptions. Columns are volatility methods.</p>
+    {_build_portfolio_vol_matrix_html(view_model)}
     </div>
 
     <div class='card'>
@@ -1436,6 +1499,16 @@ def render_risk_tab(view_model: RiskReportViewModel) -> str:
     commodity_panel = f"""
   <section class='tab-panel' data-report-tab-panel='risk' data-report-tab-key='commodity' hidden>
     <div class='card'>
+      <h2>Commodity Sector Summary</h2>
+      {commodity_summary_table}
+    </div>
+
+    <div class='card'>
+      <h2>Commodity Sector Correlation</h2>
+      {_build_commodity_corr_table_html(view_model.commodity_sector_correlation)}
+    </div>
+
+    <div class='card'>
       <h2>Commodity Positions</h2>
       <p>Rows marked <strong>excluded</strong> are shown for audit only and do not feed the portfolio summary, allocation breakdowns, or portfolio risk aggregation.</p>
       {cm_position_table}
@@ -1465,6 +1538,8 @@ def render_risk_tab(view_model: RiskReportViewModel) -> str:
 
     return f"""
   {regime_block}
+
+  {_render_risk_assumption_bar_html(vol_method)}
 
   <div class='tab-strip' data-report-tab-group='risk'>
     <button type='button' class='tab-button is-active' data-report-tab-target='overview'>Overview</button>
@@ -1496,7 +1571,27 @@ def _allocation_columns() -> list[HtmlTableColumn]:
         HtmlTableColumn("exposure_usd", "Net Exposure (FI 10Y Eq)", align="num"),
         HtmlTableColumn("gross_exposure_usd", "Gross Exposure (FI 10Y Eq)", align="num"),
         HtmlTableColumn("dollar_weight", "Dollar%", align="num"),
-        HtmlTableColumn("risk_contribution_estimated", "Vol Contribution", align="num"),
+        HtmlTableColumn(
+            "risk_contribution_5y_realized",
+            "Vol Contribution (Long-Term)",
+            align="num",
+            header_class="rc-col rc-col--5y_realized",
+            cell_class="rc-col rc-col--5y_realized",
+        ),
+        HtmlTableColumn(
+            "risk_contribution_geomean_1m_3m",
+            "Vol Contribution (Fast)",
+            align="num",
+            header_class="rc-col rc-col--geomean_1m_3m",
+            cell_class="rc-col rc-col--geomean_1m_3m",
+        ),
+        HtmlTableColumn(
+            "risk_contribution_forward_looking",
+            "Vol Contribution (Forward-Looking)",
+            align="num",
+            header_class="rc-col rc-col--forward_looking",
+            cell_class="rc-col rc-col--forward_looking",
+        ),
     ]
 
 
@@ -1508,7 +1603,9 @@ def _allocation_summary_rows(rows: Iterable[CategorySummaryRow]) -> list[HtmlTab
                 "exposure_usd": f"{row.exposure_usd:,.2f}",
                 "gross_exposure_usd": f"{row.gross_exposure_usd:,.2f}",
                 "dollar_weight": f"{row.dollar_weight:.2%}",
-                "risk_contribution_estimated": f"{row.risk_contribution_estimated:.2%}",
+                "risk_contribution_5y_realized": f"{row.risk_contribution_5y_realized:.2%}",
+                "risk_contribution_geomean_1m_3m": f"{row.risk_contribution_geomean_1m_3m:.2%}",
+                "risk_contribution_forward_looking": f"{row.risk_contribution_forward_looking:.2%}",
             }
         )
         for row in rows
@@ -1543,7 +1640,27 @@ def _breakdown_columns(*, include_bucket_label: bool) -> list[HtmlTableColumn]:
             HtmlTableColumn("exposure_usd", "Net Exposure", align="num"),
             HtmlTableColumn("gross_exposure_usd", "Gross Exposure", align="num"),
             HtmlTableColumn("dollar_weight", "Dollar%", align="num"),
-            HtmlTableColumn("risk_contribution_estimated", "Vol Contribution", align="num"),
+            HtmlTableColumn(
+                "risk_contribution_5y_realized",
+                "Vol Contribution (Long-Term)",
+                align="num",
+                header_class="rc-col rc-col--5y_realized",
+                cell_class="rc-col rc-col--5y_realized",
+            ),
+            HtmlTableColumn(
+                "risk_contribution_geomean_1m_3m",
+                "Vol Contribution (Fast)",
+                align="num",
+                header_class="rc-col rc-col--geomean_1m_3m",
+                cell_class="rc-col rc-col--geomean_1m_3m",
+            ),
+            HtmlTableColumn(
+                "risk_contribution_forward_looking",
+                "Vol Contribution (Forward-Looking)",
+                align="num",
+                header_class="rc-col rc-col--forward_looking",
+                cell_class="rc-col rc-col--forward_looking",
+            ),
         ]
     )
     return columns
@@ -1562,7 +1679,9 @@ def _breakdown_table_rows(
             "exposure_usd": f"{row.exposure_usd:,.2f}",
             "gross_exposure_usd": f"{row.gross_exposure_usd:,.2f}",
             "dollar_weight": f"{row.dollar_weight:.2%}",
-            "risk_contribution_estimated": f"{row.risk_contribution_estimated:.2%}",
+            "risk_contribution_5y_realized": f"{row.risk_contribution_5y_realized:.2%}",
+            "risk_contribution_geomean_1m_3m": f"{row.risk_contribution_geomean_1m_3m:.2%}",
+            "risk_contribution_forward_looking": f"{row.risk_contribution_forward_looking:.2%}",
         }
         if include_bucket_label:
             cells["bucket_label"] = row.bucket_label
@@ -1610,11 +1729,49 @@ def _position_columns() -> list[HtmlTableColumn]:
         HtmlTableColumn("gross_exposure_usd", "Gross Exposure (FI 10Y Eq)", align="num"),
         HtmlTableColumn("exposure_usd", "Net Exposure (FI 10Y Eq)", align="num"),
         HtmlTableColumn("dollar_weight", "Dollar%", align="num"),
-        HtmlTableColumn("vol_geomean_1m_3m", "Vol (1M/3M)", align="num"),
-        HtmlTableColumn("vol_5y_realized", "Vol (5Y)", align="num"),
-        HtmlTableColumn("vol_ewma", "Vol (EWMA)", align="num"),
+        HtmlTableColumn(
+            "vol_5y_realized",
+            "Vol (Long-Term)",
+            align="num",
+            header_class="vol-col vol-col--5y_realized",
+            cell_class="vol-col vol-col--5y_realized",
+        ),
+        HtmlTableColumn(
+            "vol_geomean_1m_3m",
+            "Vol (Fast)",
+            align="num",
+            header_class="vol-col vol-col--geomean_1m_3m",
+            cell_class="vol-col vol-col--geomean_1m_3m",
+        ),
+        HtmlTableColumn(
+            "vol_forward_looking",
+            "Vol (Forward-Looking)",
+            align="num",
+            header_class="vol-col vol-col--forward_looking",
+            cell_class="vol-col vol-col--forward_looking",
+        ),
         HtmlTableColumn("sparkline_3m_svg", "3M Trend", allow_html=True),
-        HtmlTableColumn("risk_contribution_estimated", "Vol Contribution", align="num"),
+        HtmlTableColumn(
+            "risk_contribution_5y_realized",
+            "Vol Contribution (Long-Term)",
+            align="num",
+            header_class="rc-col rc-col--5y_realized",
+            cell_class="rc-col rc-col--5y_realized",
+        ),
+        HtmlTableColumn(
+            "risk_contribution_geomean_1m_3m",
+            "Vol Contribution (Fast)",
+            align="num",
+            header_class="rc-col rc-col--geomean_1m_3m",
+            cell_class="rc-col rc-col--geomean_1m_3m",
+        ),
+        HtmlTableColumn(
+            "risk_contribution_forward_looking",
+            "Vol Contribution (Forward-Looking)",
+            align="num",
+            header_class="rc-col rc-col--forward_looking",
+            cell_class="rc-col rc-col--forward_looking",
+        ),
         HtmlTableColumn("mapping_status", "Mapping"),
         HtmlTableColumn("report_scope", "Report Scope", allow_html=True),
     ]
@@ -1640,11 +1797,13 @@ def _position_table_rows(rows: Iterable[RiskMetricsRow]) -> list[HtmlTableRow]:
                     "gross_exposure_usd": f"{row.gross_exposure_usd:,.2f}",
                     "exposure_usd": f"{row.exposure_usd:,.2f}",
                     "dollar_weight": f"{row.dollar_weight:.2%}",
-                    "vol_geomean_1m_3m": f"{row.vol_geomean_1m_3m:.2%}",
                     "vol_5y_realized": f"{row.vol_5y_realized:.2%}",
-                    "vol_ewma": f"{row.vol_ewma:.2%}",
+                    "vol_geomean_1m_3m": f"{row.vol_geomean_1m_3m:.2%}",
+                    "vol_forward_looking": f"{row.vol_forward_looking:.2%}",
                     "sparkline_3m_svg": row.sparkline_3m_svg,
-                    "risk_contribution_estimated": f"{row.risk_contribution_estimated:.2%}",
+                    "risk_contribution_5y_realized": f"{row.risk_contribution_5y_realized:.2%}",
+                    "risk_contribution_geomean_1m_3m": f"{row.risk_contribution_geomean_1m_3m:.2%}",
+                    "risk_contribution_forward_looking": f"{row.risk_contribution_forward_looking:.2%}",
                     "mapping_status": row.mapping_status,
                     "report_scope": scope_label,
                 },
@@ -1652,6 +1811,175 @@ def _position_table_rows(rows: Iterable[RiskMetricsRow]) -> list[HtmlTableRow]:
             )
         )
     return output
+
+
+def _commodity_summary_columns() -> list[HtmlTableColumn]:
+    return [
+        HtmlTableColumn("bucket", "Sector"),
+        HtmlTableColumn("exposure_usd", "Net Exposure", align="num"),
+        HtmlTableColumn("gross_exposure_usd", "Gross Exposure", align="num"),
+        HtmlTableColumn("within_cm_weight", "Within-CM Weight", align="num"),
+        HtmlTableColumn(
+            "risk_contribution_5y_realized",
+            "Vol Contribution (Long-Term)",
+            align="num",
+            header_class="rc-col rc-col--5y_realized",
+            cell_class="rc-col rc-col--5y_realized",
+        ),
+        HtmlTableColumn(
+            "risk_contribution_geomean_1m_3m",
+            "Vol Contribution (Fast)",
+            align="num",
+            header_class="rc-col rc-col--geomean_1m_3m",
+            cell_class="rc-col rc-col--geomean_1m_3m",
+        ),
+        HtmlTableColumn(
+            "risk_contribution_forward_looking",
+            "Vol Contribution (Forward-Looking)",
+            align="num",
+            header_class="rc-col rc-col--forward_looking",
+            cell_class="rc-col rc-col--forward_looking",
+        ),
+    ]
+
+
+def _commodity_summary_rows(rows: Iterable[RiskMetricsRow]) -> list[HtmlTableRow]:
+    materialized = [row for row in rows if row.asset_class == "CM"]
+    total_exposure = sum(row.exposure_usd for row in materialized)
+    aggregates: dict[str, dict[str, float]] = {}
+    for row in materialized:
+        bucket = CM_SECTOR_LABELS.get((row.cm_sector or "").upper(), "Unmapped")
+        agg = aggregates.setdefault(
+            bucket,
+            {
+                "exposure_usd": 0.0,
+                "gross_exposure_usd": 0.0,
+                "risk_contribution_5y_realized": 0.0,
+                "risk_contribution_geomean_1m_3m": 0.0,
+                "risk_contribution_forward_looking": 0.0,
+            },
+        )
+        agg["exposure_usd"] += row.exposure_usd
+        agg["gross_exposure_usd"] += row.gross_exposure_usd
+        agg["risk_contribution_5y_realized"] += row.risk_contribution_5y_realized
+        agg["risk_contribution_geomean_1m_3m"] += row.risk_contribution_geomean_1m_3m
+        agg["risk_contribution_forward_looking"] += row.risk_contribution_forward_looking
+    return [
+        HtmlTableRow(
+            cells={
+                "bucket": bucket,
+                "exposure_usd": f"{values['exposure_usd']:,.2f}",
+                "gross_exposure_usd": f"{values['gross_exposure_usd']:,.2f}",
+                "within_cm_weight": f"{(values['exposure_usd'] / total_exposure) if total_exposure else 0.0:.2%}",
+                "risk_contribution_5y_realized": f"{values['risk_contribution_5y_realized']:.2%}",
+                "risk_contribution_geomean_1m_3m": f"{values['risk_contribution_geomean_1m_3m']:.2%}",
+                "risk_contribution_forward_looking": f"{values['risk_contribution_forward_looking']:.2%}",
+            }
+        )
+        for bucket, values in sorted(aggregates.items(), key=lambda item: -abs(item[1]["exposure_usd"]))
+    ]
+
+
+def _render_risk_assumption_bar_html(vol_method: str) -> str:
+    buttons = []
+    for label, key in DEFAULT_VOL_METHOD_LABELS.items():
+        active = " is-active" if key == vol_method else ""
+        buttons.append(
+            f"<button type='button' class='risk-method-button{active}' data-risk-vol-target='{html.escape(key)}'>{html.escape(label)}</button>"
+        )
+    return (
+        "<div class='card'>"
+        "<h2>Risk Assumptions</h2>"
+        "<div class='risk-method-strip' data-risk-vol-buttons='1'>"
+        + "".join(buttons)
+        + "</div>"
+        "<p>This toggle controls which precomputed vol and contribution columns are shown. Correlation stays fixed to the report snapshot.</p>"
+        "</div>"
+    )
+
+
+def _build_portfolio_vol_matrix_html(view_model: RiskReportViewModel) -> str:
+    row_labels = (
+        ("corr_0", "Corr = 0"),
+        ("historical", "Historical Corr"),
+        ("corr_1", "Corr = 1"),
+    )
+    col_labels = (
+        ("5y_realized", "Long-Term"),
+        ("geomean_1m_3m", "Fast"),
+        ("forward_looking", "Forward-Looking"),
+    )
+    values = [
+        [float(view_model.portfolio_vol_matrix.get(row_key, {}).get(col_key, 0.0)) for col_key, _ in col_labels]
+        for row_key, _ in row_labels
+    ]
+    flat_values = [value for row in values for value in row]
+    min_value = min(flat_values, default=0.0)
+    max_value = max(flat_values, default=0.0)
+    parts = ["<div data-risk-vol-matrix='1'><table class='heat-table'><thead><tr><th>Correlation</th>"]
+    for col_key, label in col_labels:
+        parts.append(f"<th data-vol-key='{html.escape(col_key)}'>{html.escape(label)}</th>")
+    parts.append("</tr></thead><tbody>")
+    for row_index, (_row_key, row_label) in enumerate(row_labels):
+        parts.append(f"<tr><td>{html.escape(row_label)}</td>")
+        for col_index, (col_key, _label) in enumerate(col_labels):
+            value = values[row_index][col_index]
+            parts.append(
+                f"<td data-vol-key='{html.escape(col_key)}' style='background:{_orange_heat_color(value, min_value=min_value, max_value=max_value)};text-align:right;font-weight:700'>{value:.2%}</td>"
+            )
+        parts.append("</tr>")
+    parts.append("</tbody></table></div>")
+    return "".join(parts)
+
+
+def _build_commodity_corr_table_html(
+    matrix: tuple[list[str], list[list[float]]] | None,
+) -> str:
+    if matrix is None:
+        return "<div>No commodity correlation data available.</div>"
+    labels, corr = matrix
+    display_labels = [CM_SECTOR_LABELS.get(code, code) for code in labels]
+    parts = ["<table class='heat-table'><thead><tr><th>Sector</th>"]
+    for label in display_labels:
+        parts.append(f"<th>{html.escape(label)}</th>")
+    parts.append("</tr></thead><tbody>")
+    for row_label, row_values in zip(display_labels, corr, strict=False):
+        parts.append(f"<tr><td>{html.escape(row_label)}</td>")
+        for value in row_values:
+            parts.append(
+                f"<td style='background:{_red_heat_color(value)};text-align:right;font-weight:700'>{value:.2f}</td>"
+            )
+        parts.append("</tr>")
+    parts.append("</tbody></table>")
+    return "".join(parts)
+
+
+def _orange_heat_color(value: float, *, min_value: float, max_value: float) -> str:
+    return _blend_heat_color(value, min_value=min_value, max_value=max_value, start=(255, 247, 237), end=(194, 65, 12))
+
+
+def _red_heat_color(value: float) -> str:
+    clipped = max(value, 0.0)
+    return _blend_heat_color(clipped, min_value=0.0, max_value=1.0, start=(255, 245, 245), end=(153, 27, 27))
+
+
+def _blend_heat_color(
+    value: float,
+    *,
+    min_value: float,
+    max_value: float,
+    start: tuple[int, int, int],
+    end: tuple[int, int, int],
+) -> str:
+    if max_value <= min_value:
+        ratio = 1.0
+    else:
+        ratio = (value - min_value) / (max_value - min_value)
+    ratio = max(0.0, min(1.0, ratio))
+    red = round(start[0] + (end[0] - start[0]) * ratio)
+    green = round(start[1] + (end[1] - start[1]) * ratio)
+    blue = round(start[2] + (end[2] - start[2]) * ratio)
+    return f"rgb({red}, {green}, {blue})"
 
 
 def _render_policy_drift_chart(rows: Iterable[PolicyDriftRow]) -> str:
@@ -2130,6 +2458,35 @@ def _build_group_correlation(
     return corr
 
 
+def _compute_commodity_sector_correlation(
+    proxies: tuple[tuple[str, str], ...],
+    *,
+    yahoo_client: YahooFinanceClient,
+) -> tuple[list[str], list[list[float]]] | None:
+    if not proxies:
+        return None
+    series_by_code: dict[str, pd.Series] = {}
+    for code, symbol in proxies:
+        try:
+            cache = ensure_symbol_return_cache(symbol, yahoo_client=yahoo_client, period="5y")
+        except Exception:
+            continue
+        series = cache.series.dropna()
+        if not series.empty:
+            series_by_code[code] = series
+    if len(series_by_code) < 2:
+        return None
+    labels = [code for code, _symbol in proxies if code in series_by_code]
+    corr = [
+        [
+            1.0 if left == right else pairwise_corr(series_by_code[left], series_by_code[right])
+            for right in labels
+        ]
+        for left in labels
+    ]
+    return labels, corr
+
+
 def _portfolio_vol_from_group_loadings(
     loadings: Mapping[str, float],
     corr: Mapping[tuple[str, str], float],
@@ -2222,6 +2579,14 @@ def _load_risk_report_config(
     if not isinstance(fx_excluded_payload, (list, tuple)):
         raise ValueError("fx_excluded_asset_classes must be a list")
     fx_excluded = tuple(str(x).strip().upper() for x in fx_excluded_payload) or DEFAULT_FX_EXCLUDED_ASSET_CLASSES
+    commodity_sector_proxies_payload = payload.get("commodity_sector_proxies", {}) or {}
+    if not isinstance(commodity_sector_proxies_payload, Mapping):
+        raise ValueError("commodity_sector_proxies must be a mapping")
+    commodity_sector_proxies = tuple(
+        (str(code).strip().upper(), str(symbol).strip().upper())
+        for code, symbol in commodity_sector_proxies_payload.items()
+        if str(symbol).strip()
+    )
 
     return RiskReportConfig(
         eq_country_lookthrough_path=eq_path,
@@ -2234,6 +2599,7 @@ def _load_risk_report_config(
         fixed_income=_parse_fixed_income_config(fixed_income_payload),
         vol_method_labels=vol_method_labels,
         fx_excluded_asset_classes=fx_excluded,
+        commodity_sector_proxies=commodity_sector_proxies,
     )
 
 
