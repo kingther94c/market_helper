@@ -1,8 +1,11 @@
 from __future__ import annotations
 
+import re
 from typing import Any
 
 from nicegui import ui
+
+_ISO_UTC_TIMESTAMP_RE = re.compile(r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?\+00:00$")
 
 
 def add_dashboard_styles() -> None:
@@ -52,4 +55,24 @@ def render_status_card(*, title: str, value: str, detail: str | None = None) -> 
         ui.label(title).classes("text-caption pm-muted")
         ui.label(value).classes("text-body2")
         if detail:
-            ui.label(detail).classes("text-caption pm-muted")
+            if _ISO_UTC_TIMESTAMP_RE.match(detail.strip()):
+                container = ui.element("div").classes("text-caption pm-muted")
+                container.props(f'data-utc-timestamp="{detail}"')
+                ui.add_body_html(
+                    """
+                    <script>
+                    (function () {
+                      const nodes = document.querySelectorAll('[data-utc-timestamp]');
+                      nodes.forEach((node) => {
+                        const raw = node.getAttribute('data-utc-timestamp');
+                        if (!raw) return;
+                        const dt = new Date(raw);
+                        if (Number.isNaN(dt.getTime())) return;
+                        node.textContent = dt.toLocaleString();
+                      });
+                    })();
+                    </script>
+                    """
+                )
+            else:
+                ui.label(detail).classes("text-caption pm-muted")

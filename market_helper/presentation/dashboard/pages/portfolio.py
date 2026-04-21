@@ -623,16 +623,6 @@ def _render_toolbar(state: PortfolioPageState) -> None:
                 with ui.grid(columns=2).classes("w-full gap-3"):
                     ui.input("Positions CSV").bind_value(state.artifact_form, "positions_csv_path").classes("w-full")
                     ui.input("Performance output dir").bind_value(state.artifact_form, "performance_output_dir").classes("w-full")
-                    ui.select(
-                        options=list(DEFAULT_VOL_METHOD_LABELS.keys()),
-                        label="Vol Method",
-                        value=state.artifact_form.vol_method,
-                    ).bind_value(state.artifact_form, "vol_method")
-                    ui.select(
-                        options=["historical", "corr_0", "corr_1"],
-                        label="Inter-asset corr",
-                        value=state.artifact_form.inter_asset_corr,
-                    ).bind_value(state.artifact_form, "inter_asset_corr")
                     ui.input("Combined HTML output").bind_value(state.export_form, "output_path").classes("w-full")
                 with ui.expansion("More Paths", icon="tune", value=False).classes("w-full"):
                     with ui.grid(columns=2).classes("w-full gap-3 p-2"):
@@ -746,11 +736,11 @@ def _render_main_tabs(state: PortfolioPageState) -> None:
                 _render_loading_panel("Performance SGD")
             else:
                 _render_performance_panel(state, state.snapshot.performance_sgd_view_model)
-        with ui.tab_panel(tab_risk):
-            if state.snapshot is None:
-                _render_loading_panel("Risk")
-            else:
-                _render_risk_panel(state.snapshot)
+            with ui.tab_panel(tab_risk):
+                if state.snapshot is None:
+                    _render_loading_panel("Risk")
+                else:
+                    _render_risk_panel(state, state.snapshot)
         with ui.tab_panel(tab_artifacts):
             _render_artifact_metadata(state)
 
@@ -791,7 +781,7 @@ def _render_static_top_tabs(state: PortfolioPageState) -> None:
                 if state.snapshot is None:
                     _render_loading_panel(label)
                 else:
-                    _render_risk_panel(state.snapshot, static_mode=True)
+                    _render_risk_panel(state, state.snapshot, static_mode=True)
             else:
                 _render_artifact_metadata(state)
 
@@ -862,12 +852,13 @@ def _render_performance_panel(state: PortfolioPageState, view_model: Performance
                 )
 
 
-def _render_risk_panel(snapshot: PortfolioReportSnapshot, *, static_mode: bool = False) -> None:
+def _render_risk_panel(state: PortfolioPageState, snapshot: PortfolioReportSnapshot, *, static_mode: bool = False) -> None:
     risk = snapshot.risk_view_model
     if static_mode:
-        _render_static_risk_tabs(risk)
+        _render_static_risk_tabs(state, risk)
         return
     with ui.column().classes("w-full gap-4"):
+        _render_risk_assumption_bar(state, risk, interactive=True)
         risk_tabs = ui.tabs().classes("w-full")
         with risk_tabs:
             tab_overview = ui.tab("Main Overview")
@@ -878,20 +869,20 @@ def _render_risk_panel(snapshot: PortfolioReportSnapshot, *, static_mode: bool =
             tab_macro = ui.tab("Macro")
         with ui.tab_panels(risk_tabs, value=tab_overview).classes("w-full"):
             with ui.tab_panel(tab_overview):
-                _render_risk_overview(risk)
+                _render_risk_overview(state, risk)
             with ui.tab_panel(tab_eq):
-                _render_risk_equity(risk)
+                _render_risk_equity(state, risk)
             with ui.tab_panel(tab_fi):
-                _render_risk_fixed_income(risk)
+                _render_risk_fixed_income(state, risk)
             with ui.tab_panel(tab_cm):
-                _render_risk_commodity(risk)
+                _render_risk_commodity(state, risk)
             with ui.tab_panel(tab_fx):
-                _render_risk_fx(risk)
+                _render_risk_fx(state, risk)
             with ui.tab_panel(tab_macro):
-                _render_risk_macro(risk)
+                _render_risk_macro(state, risk)
 
 
-def _render_static_risk_tabs(risk) -> None:
+def _render_static_risk_tabs(state: PortfolioPageState, risk) -> None:
     tabs = [
         ("overview", "Main Overview", _render_risk_overview),
         ("eq", "Equity", _render_risk_equity),
@@ -902,6 +893,7 @@ def _render_static_risk_tabs(risk) -> None:
     ]
     default_key = "overview"
     with ui.column().classes("w-full gap-4"):
+        _render_risk_assumption_bar(state, risk, interactive=False)
         with ui.row().classes("w-full pm-static-tab-buttons").props("data-static-tab-buttons=risk"):
             for key, label, _renderer in tabs:
                 button = ui.element("button").classes("pm-static-tab-button")
@@ -916,10 +908,57 @@ def _render_static_risk_tabs(risk) -> None:
             if key != default_key:
                 panel.props("hidden")
             with panel:
-                renderer(risk)
+                renderer(state, risk)
 
 
-def _render_risk_overview(risk) -> None:
+def _render_risk_assumption_bar(state: PortfolioPageState, risk, *, interactive: bool) -> None:
+    with ui.card().classes("w-full pm-card p-4"):
+        ui.label("Risk Assumptions").classes("text-h6")
+        if interactive:
+            with ui.row().classes("items-center gap-3 wrap"):
+                ui.toggle(
+                    {label: label for label in DEFAULT_VOL_METHOD_LABELS.keys()},
+                    value=state.artifact_form.vol_method,
+                    on_change=lambda event: _update_risk_vol_method(state, event.value),
+                )
+                ui.toggle(
+                    {"historical": "Historical Corr", "corr_0": "Corr 0", "corr_1": "Corr 1"},
+                    value=state.artifact_form.inter_asset_corr,
+                    on_change=lambda event: _update_risk_corr(state, event.value),
+                )
+            ui.label(
+                "These toggles control which columns are shown and which matrix cell is highlighted. Reload to rebuild the snapshot with new assumptions."
+            ).classes("pm-muted text-caption")
+        else:
+            selected_vol = resolve_vol_method_key(state.artifact_form.vol_method, DEFAULT_VOL_METHOD_LABELS)
+            with ui.row().classes("items-center gap-3 wrap").props("data-risk-vol-buttons=1"):
+                for label, key in (
+                    ("Fast", "geomean_1m_3m"),
+                    ("Long-Term", "5y_realized"),
+                    ("Forward-Looking", "forward_looking"),
+                ):
+                    button = ui.element("button").classes("pm-static-tab-button")
+                    button.props(f"type=button data-risk-vol-target={key}")
+                    if key == selected_vol:
+                        button.classes(add="is-active")
+                    with button:
+                        ui.label(label)
+            with ui.row().classes("items-center gap-3 wrap mt-3").props("data-risk-corr-buttons=1"):
+                for label, key in (
+                    ("Historical Corr", "historical"),
+                    ("Corr 0", "corr_0"),
+                    ("Corr 1", "corr_1"),
+                ):
+                    button = ui.element("button").classes("pm-static-tab-button")
+                    button.props(f"type=button data-risk-corr-target={key}")
+                    if key == state.artifact_form.inter_asset_corr:
+                        button.classes(add="is-active")
+                    with button:
+                        ui.label(label)
+        ui.label(f"Snapshot built with {risk.vol_method} / {risk.inter_asset_corr}").classes("pm-muted text-caption")
+
+
+def _render_risk_overview(state: PortfolioPageState, risk) -> None:
     with ui.column().classes("w-full gap-4"):
         with ui.card().classes("w-full pm-card p-4"):
             ui.label("Portfolio Summary").classes("text-h6")
@@ -936,6 +975,19 @@ def _render_risk_overview(risk) -> None:
                 ]:
                     render_status_card(title=label, value=value)
             ui.label("FX excluded from portfolio vol aggregation.").classes("pm-muted text-caption mt-2")
+        with ui.card().classes("w-full pm-card p-4"):
+            ui.label("Portfolio Vol Matrix").classes("text-h6")
+            ui.label("Rows are correlation assumptions. Columns are volatility methods.").classes("pm-muted text-caption")
+            render_table(
+                columns=[
+                    {"name": "corr", "label": "Correlation", "field": "corr"},
+                    {"name": "fast", "label": "Fast", "field": "fast"},
+                    {"name": "long", "label": "Long-Term", "field": "long"},
+                    {"name": "forward", "label": "Forward-Looking", "field": "forward"},
+                ],
+                rows=_portfolio_vol_matrix_rows(state, risk),
+                row_key="corr",
+            )
         with ui.card().classes("w-full pm-card p-4"):
             ui.label("Asset Class Summary").classes("text-h6")
             render_table(
@@ -961,7 +1013,7 @@ def _render_risk_overview(risk) -> None:
         _render_policy_drift_asset_class(risk)
 
 
-def _render_risk_equity(risk) -> None:
+def _render_risk_equity(state: PortfolioPageState, risk) -> None:
     eq_rows = [r for r in risk.risk_rows if r.asset_class == "EQ"]
     with ui.column().classes("w-full gap-4"):
         _render_dm_em_policy_drift_summary(risk.policy_drift_country)
@@ -980,7 +1032,7 @@ def _render_risk_equity(risk) -> None:
                 rows=[_policy_drift_row_to_table_row(row, include_risk=False) for row in risk.policy_drift_sector],
                 row_key="bucket",
             )
-        _render_position_subtable("Equity Holdings", eq_rows)
+        _render_position_subtable(state, "Equity Holdings", eq_rows)
 
 
 def _render_policy_drift_asset_class(risk) -> None:
@@ -1076,7 +1128,7 @@ def _load_dm_em_bucket_map() -> dict[str, str]:
     return mapping
 
 
-def _render_risk_fixed_income(risk) -> None:
+def _render_risk_fixed_income(state: PortfolioPageState, risk) -> None:
     fi_rows = [r for r in risk.risk_rows if r.asset_class == "FI"]
     total_fi_exposure = sum(r.exposure_usd for r in fi_rows)
     weighted_duration = (
@@ -1098,10 +1150,10 @@ def _render_risk_fixed_income(risk) -> None:
                 rows=[_breakdown_row_to_table_row(row) for row in risk.fi_tenor_breakdown],
                 row_key="bucket",
             )
-        _render_position_subtable("FI Instruments", fi_rows)
+        _render_position_subtable(state, "FI Instruments", fi_rows)
 
 
-def _render_risk_commodity(risk) -> None:
+def _render_risk_commodity(state: PortfolioPageState, risk) -> None:
     cm_rows = [r for r in risk.risk_rows if r.asset_class == "CM"]
     sector_rows: dict[str, dict[str, float]] = {}
     total_exposure = sum(r.exposure_usd for r in cm_rows)
@@ -1144,7 +1196,7 @@ def _render_risk_commodity(risk) -> None:
                     row_key="bucket",
                 )
         _render_commodity_correlation_heatmap()
-        _render_position_subtable("Commodity Holdings", cm_rows)
+        _render_position_subtable(state, "Commodity Holdings", cm_rows)
 
 
 def _render_commodity_correlation_heatmap() -> None:
@@ -1244,22 +1296,23 @@ _CM_SECTOR_LABELS: dict[str, str] = {
 }
 
 
-def _render_risk_fx(risk) -> None:
+def _render_risk_fx(state: PortfolioPageState, risk) -> None:
     fx_rows = [r for r in risk.risk_rows if r.asset_class == "FX"]
     with ui.column().classes("w-full gap-4"):
         with ui.card().classes("w-full pm-card p-4"):
             ui.label("FX Allocation").classes("text-h6")
             ui.label("Vol Contribution % omitted in MVP (FX vol unstable).").classes("pm-muted text-caption")
-        _render_position_subtable("FX Positions", fx_rows, include_vol_contribution=False)
+        _render_position_subtable(state, "FX Positions", fx_rows, include_vol_contribution=False)
 
 
-def _render_risk_macro(risk) -> None:
+def _render_risk_macro(state: PortfolioPageState, risk) -> None:
     macro_rows = [r for r in risk.risk_rows if r.asset_class == "MACRO"]
     with ui.column().classes("w-full gap-4"):
-        _render_position_subtable("Macro Instruments", macro_rows)
+        _render_position_subtable(state, "Macro Instruments", macro_rows)
 
 
 def _render_position_subtable(
+    state: PortfolioPageState,
     title: str,
     rows: list[RiskMetricsRow],
     *,
@@ -1270,6 +1323,52 @@ def _render_position_subtable(
         if not rows:
             ui.label("No positions in this asset class.").classes("pm-muted")
             return
+        if state.snapshot_mode:
+            columns = [
+                {"name": "account", "label": "Account", "field": "account"},
+                {"name": "display_ticker", "label": "Ticker", "field": "display_ticker"},
+                {"name": "display_name", "label": "Name", "field": "display_name"},
+                {"name": "instrument_type", "label": "Type", "field": "instrument_type"},
+                {"name": "gross_exposure_usd", "label": "Gross Exposure ($)", "field": "gross_exposure_usd"},
+                {"name": "exposure_usd", "label": "Net Exposure ($)", "field": "exposure_usd"},
+                {"name": "dollar_weight", "label": "Portfolio Allocation %", "field": "dollar_weight"},
+                {"name": "vol_geomean_1m_3m", "label": "Vol (Fast)", "field": "vol_geomean_1m_3m"},
+                {"name": "vol_5y_realized", "label": "Vol (Long-Term)", "field": "vol_5y_realized"},
+                {"name": "vol_forward_looking", "label": "Vol (Forward-Looking)", "field": "vol_forward_looking"},
+            ]
+            column_map = "geomean_1m_3m:8;5y_realized:9;forward_looking:10"
+            if include_vol_contribution:
+                columns.extend(
+                    [
+                        {
+                            "name": "risk_contribution_geomean_1m_3m",
+                            "label": "Vol Contribution (Fast)",
+                            "field": "risk_contribution_geomean_1m_3m",
+                        },
+                        {
+                            "name": "risk_contribution_5y_realized",
+                            "label": "Vol Contribution (Long-Term)",
+                            "field": "risk_contribution_5y_realized",
+                        },
+                        {
+                            "name": "risk_contribution_forward_looking",
+                            "label": "Vol Contribution (Forward-Looking)",
+                            "field": "risk_contribution_forward_looking",
+                        },
+                    ]
+                )
+                column_map = f"{column_map};geomean_1m_3m_rc:11;5y_realized_rc:12;forward_looking_rc:13"
+            columns.append({"name": "mapping_status", "label": "Mapping", "field": "mapping_status"})
+            with ui.element("div").props(
+                f'data-risk-method-table=1 data-selected-vol="{resolve_vol_method_key(state.artifact_form.vol_method, DEFAULT_VOL_METHOD_LABELS)}" data-vol-column-map="{column_map}"'
+            ).classes("w-full"):
+                render_table(
+                    columns=columns,
+                    rows=[_risk_row_to_table_row(row) for row in rows],
+                    row_key="internal_id",
+                )
+            return
+
         columns = [
             {"name": "account", "label": "Account", "field": "account"},
             {"name": "display_ticker", "label": "Ticker", "field": "display_ticker"},
@@ -1278,11 +1377,20 @@ def _render_position_subtable(
             {"name": "gross_exposure_usd", "label": "Gross Exposure ($)", "field": "gross_exposure_usd"},
             {"name": "exposure_usd", "label": "Net Exposure ($)", "field": "exposure_usd"},
             {"name": "dollar_weight", "label": "Portfolio Allocation %", "field": "dollar_weight"},
-            {"name": "vol_5y_realized", "label": "Vol Long-Term", "field": "vol_5y_realized"},
-            {"name": "vol_geomean_1m_3m", "label": "Vol Fast", "field": "vol_geomean_1m_3m"},
+            {
+                "name": _selected_vol_field_name(state),
+                "label": f"Vol ({state.artifact_form.vol_method})",
+                "field": _selected_vol_field_name(state),
+            },
         ]
         if include_vol_contribution:
-            columns.append({"name": "risk_contribution_estimated", "label": "Vol Contribution %", "field": "risk_contribution_estimated"})
+            columns.append(
+                {
+                    "name": _selected_risk_contribution_field_name(state),
+                    "label": f"Vol Contribution ({state.artifact_form.vol_method})",
+                    "field": _selected_risk_contribution_field_name(state),
+                }
+            )
         columns.append({"name": "mapping_status", "label": "Mapping", "field": "mapping_status"})
         render_table(
             columns=columns,
@@ -1650,10 +1758,51 @@ def _risk_row_to_table_row(row: RiskMetricsRow) -> dict[str, str]:
         "vol_geomean_1m_3m": format_percent(row.vol_geomean_1m_3m),
         "vol_5y_realized": format_percent(row.vol_5y_realized),
         "vol_ewma": format_percent(row.vol_ewma),
+        "vol_forward_looking": format_percent(row.vol_forward_looking),
         "risk_contribution_estimated": format_percent(row.risk_contribution_estimated),
+        "risk_contribution_geomean_1m_3m": format_percent(row.risk_contribution_geomean_1m_3m),
+        "risk_contribution_5y_realized": format_percent(row.risk_contribution_5y_realized),
+        "risk_contribution_ewma": format_percent(row.risk_contribution_ewma),
+        "risk_contribution_forward_looking": format_percent(row.risk_contribution_forward_looking),
         "mapping_status": row.mapping_status,
         "report_scope": row.report_scope,
     }
+
+
+def _selected_vol_field_name(state: PortfolioPageState) -> str:
+    key = resolve_vol_method_key(state.artifact_form.vol_method, DEFAULT_VOL_METHOD_LABELS)
+    return {
+        "geomean_1m_3m": "vol_geomean_1m_3m",
+        "5y_realized": "vol_5y_realized",
+        "ewma": "vol_ewma",
+        "forward_looking": "vol_forward_looking",
+    }[key]
+
+
+def _selected_risk_contribution_field_name(state: PortfolioPageState) -> str:
+    key = resolve_vol_method_key(state.artifact_form.vol_method, DEFAULT_VOL_METHOD_LABELS)
+    return {
+        "geomean_1m_3m": "risk_contribution_geomean_1m_3m",
+        "5y_realized": "risk_contribution_5y_realized",
+        "ewma": "risk_contribution_ewma",
+        "forward_looking": "risk_contribution_forward_looking",
+    }[key]
+
+
+def _portfolio_vol_matrix_rows(state: PortfolioPageState, risk) -> list[dict[str, str]]:
+    corr_labels = {"historical": "Historical", "corr_0": "Corr 0", "corr_1": "Corr 1"}
+    rows: list[dict[str, str]] = []
+    for corr_key in ("historical", "corr_0", "corr_1"):
+        row = risk.portfolio_vol_matrix.get(corr_key, {})
+        rows.append(
+            {
+                "corr": corr_labels.get(corr_key, corr_key),
+                "fast": format_percent(row.get("geomean_1m_3m", 0.0)),
+                "long": format_percent(row.get("5y_realized", 0.0)),
+                "forward": format_percent(row.get("forward_looking", 0.0)),
+            }
+        )
+    return rows
 
 
 def _breakdown_columns() -> list[dict[str, str]]:
@@ -1723,6 +1872,20 @@ def _update_perf_mode(state: PortfolioPageState, currency: str, value: str) -> N
 
 def _update_perf_window(state: PortfolioPageState, currency: str, value: str) -> None:
     state.selected_perf_window[currency] = value
+    refresh = getattr(state, "_refresh_ui", None)
+    if refresh is not None:
+        refresh()
+
+
+def _update_risk_vol_method(state: PortfolioPageState, value: str) -> None:
+    state.artifact_form.vol_method = _normalize_vol_method_label(value)
+    refresh = getattr(state, "_refresh_ui", None)
+    if refresh is not None:
+        refresh()
+
+
+def _update_risk_corr(state: PortfolioPageState, value: str) -> None:
+    state.artifact_form.inter_asset_corr = str(value)
     refresh = getattr(state, "_refresh_ui", None)
     if refresh is not None:
         refresh()
