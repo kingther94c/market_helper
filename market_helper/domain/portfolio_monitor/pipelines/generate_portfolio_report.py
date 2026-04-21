@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from collections import deque
 from dataclasses import dataclass
-from datetime import date
+from datetime import date, timedelta
 import json
 from pathlib import Path
 import shutil
@@ -77,6 +77,7 @@ if TYPE_CHECKING:
 
 DEFAULT_IBKR_FLEX_ARCHIVE_START_YEAR = 2020
 DEFAULT_IBKR_FLEX_BACKFILL_MAX_INFLIGHT_REQUESTS = 3
+DEFAULT_PREVIOUS_FULL_YEAR_MAX_ATTEMPTS_MULTIPLIER = 2
 DEFAULT_GOOGLE_DRIVE_POSITIONS_FILENAME = "live_ibkr_position_report.csv"
 DEFAULT_GOOGLE_DRIVE_COMBINED_REPORT_FILENAME = "portfolio_combined_report.html"
 
@@ -172,7 +173,7 @@ def generate_ibkr_flex_performance_report(
                     query_id=normalized_query_id,
                     flex_client=flex_client,
                     poll_interval_seconds=poll_interval_seconds,
-                    max_attempts=max_attempts,
+                    max_attempts=max_attempts * DEFAULT_PREVIOUS_FULL_YEAR_MAX_ATTEMPTS_MULTIPLIER,
                     overwrite_existing=False,
                 )
             latest_record = refresh_current_year_latest_flex_xml(
@@ -620,7 +621,8 @@ def refresh_current_year_latest_flex_xml(
         token=token,
     )
     resolved_today = today or _current_local_date()
-    year = resolved_today.year
+    resolved_to_date = _previous_weekday(resolved_today)
+    year = resolved_to_date.year
     target_path = (
         Path(xml_output_path)
         if xml_output_path is not None
@@ -631,7 +633,7 @@ def refresh_current_year_latest_flex_xml(
         getattr(flex_client, "fetch_statement")(
             normalized_query_id,
             from_date=date(year, 1, 1),
-            to_date=resolved_today,
+            to_date=resolved_to_date,
             poll_interval_seconds=poll_interval_seconds,
             max_attempts=max_attempts,
         )
@@ -660,6 +662,14 @@ def _normalize_live_flex_credentials(*, query_id: str | None, token: str | None)
 
 def _current_local_date() -> date:
     return date.today()
+
+
+def _previous_weekday(value: date) -> date:
+    resolved = value
+    while True:
+        resolved = resolved - timedelta(days=1)
+        if resolved.weekday() < 5:
+            return resolved
 
 
 def _uses_default_current_ytd_request(
