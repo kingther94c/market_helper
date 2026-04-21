@@ -231,6 +231,9 @@ class CategorySummaryRow:
     gross_exposure_usd: float
     dollar_weight: float
     risk_contribution_estimated: float
+    risk_contribution_geomean_1m_3m: float = 0.0
+    risk_contribution_5y_realized: float = 0.0
+    risk_contribution_forward_looking: float = 0.0
 
 
 @dataclass(frozen=True)
@@ -242,6 +245,9 @@ class BreakdownRow:
     gross_exposure_usd: float
     dollar_weight: float
     risk_contribution_estimated: float
+    risk_contribution_geomean_1m_3m: float = 0.0
+    risk_contribution_5y_realized: float = 0.0
+    risk_contribution_forward_looking: float = 0.0
 
 
 @dataclass(frozen=True)
@@ -665,14 +671,26 @@ def build_risk_report_view_model(
     country_breakdown = _build_eq_country_breakdown(
         included_rows,
         selected_security_loadings,
+        security_geomean_loadings,
+        security_realized_loadings,
+        security_forward_looking_loadings,
         lookthrough_path=risk_report_config.eq_country_lookthrough_path,
     )
     sector_breakdown = _build_us_sector_breakdown(
         included_rows,
         selected_security_loadings,
+        security_geomean_loadings,
+        security_realized_loadings,
+        security_forward_looking_loadings,
         lookthrough_path=risk_report_config.us_sector_lookthrough_path,
     )
-    fi_tenor_breakdown = _build_fi_tenor_breakdown(included_rows, selected_security_loadings)
+    fi_tenor_breakdown = _build_fi_tenor_breakdown(
+        included_rows,
+        selected_security_loadings,
+        security_geomean_loadings,
+        security_realized_loadings,
+        security_forward_looking_loadings,
+    )
     policy_drift_asset_class = _build_asset_class_policy_drift(
         allocation_summary=allocation_summary,
         asset_class_targets=allocation_policy.portfolio_asset_class_targets,
@@ -1137,6 +1155,9 @@ def build_allocation_summary(rows: list[RiskMetricsRow]) -> list[CategorySummary
                 gross_exposure_usd=row.gross_exposure_usd,
                 dollar_weight=row.dollar_weight,
                 risk_contribution_estimated=row.risk_contribution_estimated,
+                risk_contribution_geomean_1m_3m=row.risk_contribution_geomean_1m_3m,
+                risk_contribution_5y_realized=row.risk_contribution_5y_realized,
+                risk_contribution_forward_looking=row.risk_contribution_forward_looking,
             )
             continue
         by_bucket[row.asset_class] = CategorySummaryRow(
@@ -1146,6 +1167,15 @@ def build_allocation_summary(rows: list[RiskMetricsRow]) -> list[CategorySummary
             gross_exposure_usd=existing.gross_exposure_usd + row.gross_exposure_usd,
             dollar_weight=existing.dollar_weight + row.dollar_weight,
             risk_contribution_estimated=existing.risk_contribution_estimated + row.risk_contribution_estimated,
+            risk_contribution_geomean_1m_3m=(
+                existing.risk_contribution_geomean_1m_3m + row.risk_contribution_geomean_1m_3m
+            ),
+            risk_contribution_5y_realized=(
+                existing.risk_contribution_5y_realized + row.risk_contribution_5y_realized
+            ),
+            risk_contribution_forward_looking=(
+                existing.risk_contribution_forward_looking + row.risk_contribution_forward_looking
+            ),
         )
     return sorted(
         by_bucket.values(),
@@ -1181,11 +1211,44 @@ def render_html_from_view_model(view_model: RiskReportViewModel) -> str:
     .chart-fill-neg {{ position: absolute; top: 0; bottom: 0; background: #dc2626; }}
     .chart-value {{ text-align: right; color: #334155; font-size: 12px; font-variant-numeric: tabular-nums; }}
     .excluded-row {{ background: #fff7ed; }}
+    .tab-strip {{ display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 16px; }}
+    .tab-button {{ appearance: none; border: 0; border-radius: 999px; padding: 10px 14px; background: #e2e8f0; color: #0f172a; font-weight: 700; cursor: pointer; }}
+    .tab-button.is-active {{ background: #0f172a; color: #fff; }}
+    .tab-panel[hidden] {{ display: none !important; }}
   </style>
 </head>
 <body>
   <h1>Portfolio Risk Report</h1>
   {render_risk_tab(view_model)}
+  <script>
+  (function () {{
+    const groups = document.querySelectorAll('[data-report-tab-group]');
+    groups.forEach((group) => {{
+      const name = group.getAttribute('data-report-tab-group');
+      const buttons = Array.from(group.querySelectorAll('[data-report-tab-target]'));
+      const panels = Array.from(document.querySelectorAll('[data-report-tab-panel="' + name + '"]'));
+      const activate = (target) => {{
+        buttons.forEach((button) => {{
+          button.classList.toggle('is-active', button.getAttribute('data-report-tab-target') === target);
+        }});
+        panels.forEach((panel) => {{
+          if (panel.getAttribute('data-report-tab-key') === target) {{
+            panel.removeAttribute('hidden');
+          }} else {{
+            panel.setAttribute('hidden', '');
+          }}
+        }});
+      }};
+      buttons.forEach((button) => {{
+        button.addEventListener('click', () => activate(button.getAttribute('data-report-tab-target')));
+      }});
+      const initial = buttons.find((button) => button.classList.contains('is-active')) || buttons[0];
+      if (initial) {{
+        activate(initial.getAttribute('data-report-tab-target'));
+      }}
+    }});
+  }})();
+  </script>
 </body>
 </html>
 """
@@ -1204,11 +1267,17 @@ def render_risk_tab(view_model: RiskReportViewModel) -> str:
     regime_summary = view_model.regime_summary
     vol_method = view_model.vol_method
     inter_asset_corr = view_model.inter_asset_corr
-    allocation_table = render_html_table(
+    overview_allocation_table = render_html_table(
         columns=_allocation_columns(),
         rows=_allocation_summary_rows(allocation_summary),
         empty_message="No allocation data",
     )
+    eq_rows = [row for row in risk_rows if row.asset_class == "EQ"]
+    fi_rows = [row for row in risk_rows if row.asset_class == "FI"]
+    cm_rows = [row for row in risk_rows if row.asset_class == "CM"]
+    fx_rows = [row for row in risk_rows if row.asset_class == "FX"]
+    macro_rows = [row for row in risk_rows if row.asset_class == "MACRO"]
+
     country_table = render_html_table(
         columns=_breakdown_columns(include_bucket_label=False),
         rows=_breakdown_table_rows(country_breakdown, include_bucket_label=False),
@@ -1239,10 +1308,30 @@ def render_risk_tab(view_model: RiskReportViewModel) -> str:
         rows=_policy_drift_table_rows(policy_drift_sector),
         empty_message="No policy drift data",
     )
-    position_table = render_html_table(
+    eq_position_table = render_html_table(
         columns=_position_columns(),
-        rows=_position_table_rows(risk_rows),
-        empty_message="No positions available",
+        rows=_position_table_rows(eq_rows),
+        empty_message="No equity positions available",
+    )
+    fi_position_table = render_html_table(
+        columns=_position_columns(),
+        rows=_position_table_rows(fi_rows),
+        empty_message="No fixed income positions available",
+    )
+    cm_position_table = render_html_table(
+        columns=_position_columns(),
+        rows=_position_table_rows(cm_rows),
+        empty_message="No commodity positions available",
+    )
+    fx_position_table = render_html_table(
+        columns=_position_columns(),
+        rows=_position_table_rows(fx_rows),
+        empty_message="No FX positions available",
+    )
+    macro_position_table = render_html_table(
+        columns=_position_columns(),
+        rows=_position_table_rows(macro_rows),
+        empty_message="No macro positions available",
     )
     policy_asset_chart = _render_policy_drift_chart(policy_drift_asset_class)
     policy_country_chart = _render_policy_drift_chart(policy_drift_country)
@@ -1265,10 +1354,9 @@ def render_risk_tab(view_model: RiskReportViewModel) -> str:
             "</div>"
         )
 
-    return f"""
-  {regime_block}
-
-  <div class='card'>
+    overview_panel = f"""
+  <section class='tab-panel' data-report-tab-panel='risk' data-report-tab-key='overview'>
+    <div class='card'>
     <h2>Portfolio Summary</h2>
     <div class='metrics'>
       <div class='metric'><span>Portfolio vol (1M/3M geomean, {html.escape(inter_asset_corr)})</span><strong>{summary.portfolio_vol_geomean_1m_3m:.2%}</strong></div>
@@ -1282,52 +1370,117 @@ def render_risk_tab(view_model: RiskReportViewModel) -> str:
       <div class='metric'><span>Mapping coverage (included rows)</span><strong>{summary.mapped_positions}/{summary.total_positions}</strong></div>
     </div>
     <p>{html.escape(FI_10Y_EQ_DISPLAY_NOTE)}</p>
-  </div>
+    </div>
 
-  <div class='card'>
+    <div class='card'>
     <h2>Asset Class Summary</h2>
-    {allocation_table}
-  </div>
+    {overview_allocation_table}
+    </div>
 
-  <div class='card'>
+    <div class='card'>
     <h2>Policy Drift - Asset Class (Dollar Weight Active)</h2>
     <p>Active = current dollar weight minus policy weight. Vol contributions shown below use <strong>{html.escape(vol_method)}</strong>.</p>
     <div class='chart'>{policy_asset_chart}</div>
     {policy_asset_table}
-  </div>
+    </div>
+  </section>
+"""
 
-  <div class='card'>
+    equity_panel = f"""
+  <section class='tab-panel' data-report-tab-panel='risk' data-report-tab-key='equity' hidden>
+    <div class='card'>
     <h2>EQ Country Breakdown</h2>
     {country_table}
-  </div>
+    </div>
 
-  <div class='card'>
+    <div class='card'>
     <h2>Policy Drift - Equity Country (within EQ scope)</h2>
     <div class='chart'>{policy_country_chart}</div>
     {policy_country_table}
-  </div>
+    </div>
 
-  <div class='card'>
+    <div class='card'>
     <h2>US Sector Breakdown</h2>
     {sector_table}
-  </div>
+    </div>
 
-  <div class='card'>
+    <div class='card'>
     <h2>Policy Drift - US Sector (within US EQ scope)</h2>
     <div class='chart'>{policy_sector_chart}</div>
     {policy_sector_table}
-  </div>
+    </div>
 
-  <div class='card'>
+    <div class='card'>
+      <h2>Equity Positions</h2>
+      <p>Rows marked <strong>excluded</strong> are shown for audit only and do not feed the portfolio summary, allocation breakdowns, or portfolio risk aggregation.</p>
+      {eq_position_table}
+    </div>
+  </section>
+"""
+
+    fi_panel = f"""
+  <section class='tab-panel' data-report-tab-panel='risk' data-report-tab-key='fixed-income' hidden>
+    <div class='card'>
     <h2>FI Tenor Breakdown</h2>
     {tenor_table}
+    </div>
+
+    <div class='card'>
+      <h2>Fixed Income Positions</h2>
+      <p>Rows marked <strong>excluded</strong> are shown for audit only and do not feed the portfolio summary, allocation breakdowns, or portfolio risk aggregation.</p>
+      {fi_position_table}
+    </div>
+  </section>
+"""
+
+    commodity_panel = f"""
+  <section class='tab-panel' data-report-tab-panel='risk' data-report-tab-key='commodity' hidden>
+    <div class='card'>
+      <h2>Commodity Positions</h2>
+      <p>Rows marked <strong>excluded</strong> are shown for audit only and do not feed the portfolio summary, allocation breakdowns, or portfolio risk aggregation.</p>
+      {cm_position_table}
+    </div>
+  </section>
+"""
+
+    fx_panel = f"""
+  <section class='tab-panel' data-report-tab-panel='risk' data-report-tab-key='fx' hidden>
+    <div class='card'>
+      <h2>FX Positions</h2>
+      <p>Rows marked <strong>excluded</strong> are shown for audit only and do not feed the portfolio summary, allocation breakdowns, or portfolio risk aggregation.</p>
+      {fx_position_table}
+    </div>
+  </section>
+"""
+
+    macro_panel = f"""
+  <section class='tab-panel' data-report-tab-panel='risk' data-report-tab-key='macro' hidden>
+    <div class='card'>
+      <h2>Macro Positions</h2>
+      <p>Rows marked <strong>excluded</strong> are shown for audit only and do not feed the portfolio summary, allocation breakdowns, or portfolio risk aggregation.</p>
+      {macro_position_table}
+    </div>
+  </section>
+"""
+
+    return f"""
+  {regime_block}
+
+  <div class='tab-strip' data-report-tab-group='risk'>
+    <button type='button' class='tab-button is-active' data-report-tab-target='overview'>Overview</button>
+    <button type='button' class='tab-button' data-report-tab-target='equity'>Equity</button>
+    <button type='button' class='tab-button' data-report-tab-target='fixed-income'>Fixed Income</button>
+    <button type='button' class='tab-button' data-report-tab-target='commodity'>Commodity</button>
+    <button type='button' class='tab-button' data-report-tab-target='fx'>FX</button>
+    <button type='button' class='tab-button' data-report-tab-target='macro'>Macro</button>
   </div>
 
-  <div class='card'>
-    <h2>Position Risk Decomposition</h2>
-    <p>Rows marked <strong>excluded</strong> are shown for audit only and do not feed the portfolio summary, allocation breakdowns, or portfolio risk aggregation.</p>
-    {position_table}
-  </div>
+  {overview_panel}
+  {equity_panel}
+  {fi_panel}
+  {commodity_panel}
+  {fx_panel}
+  {macro_panel}
 """
 
 
@@ -2355,6 +2508,9 @@ def _expand_eq_country_policy_mix(
 def _build_eq_country_breakdown(
     rows: list[RiskInputRow],
     estimated_loadings: Mapping[str, float],
+    geomean_loadings: Mapping[str, float],
+    realized_5y_loadings: Mapping[str, float],
+    forward_looking_loadings: Mapping[str, float],
     *,
     lookthrough_path: Path = DEFAULT_EQ_COUNTRY_LOOKTHROUGH_PATH,
 ) -> list[BreakdownRow]:
@@ -2362,6 +2518,9 @@ def _build_eq_country_breakdown(
     return _build_breakdown(
         rows=rows,
         estimated_loadings=estimated_loadings,
+        geomean_loadings=geomean_loadings,
+        realized_5y_loadings=realized_5y_loadings,
+        forward_looking_loadings=forward_looking_loadings,
         expander=lambda row: _expand_country_allocations(row, lookthrough),
         parent="EQ",
     )
@@ -2370,6 +2529,9 @@ def _build_eq_country_breakdown(
 def _build_us_sector_breakdown(
     rows: list[RiskInputRow],
     estimated_loadings: Mapping[str, float],
+    geomean_loadings: Mapping[str, float],
+    realized_5y_loadings: Mapping[str, float],
+    forward_looking_loadings: Mapping[str, float],
     *,
     lookthrough_path: Path = DEFAULT_US_SECTOR_LOOKTHROUGH_PATH,
 ) -> list[BreakdownRow]:
@@ -2377,6 +2539,9 @@ def _build_us_sector_breakdown(
     return _build_breakdown(
         rows=rows,
         estimated_loadings=estimated_loadings,
+        geomean_loadings=geomean_loadings,
+        realized_5y_loadings=realized_5y_loadings,
+        forward_looking_loadings=forward_looking_loadings,
         expander=lambda row: _expand_us_sector_allocations(row, lookthrough),
         parent="US_EQ",
     )
@@ -2385,10 +2550,16 @@ def _build_us_sector_breakdown(
 def _build_fi_tenor_breakdown(
     rows: list[RiskInputRow],
     estimated_loadings: Mapping[str, float],
+    geomean_loadings: Mapping[str, float],
+    realized_5y_loadings: Mapping[str, float],
+    forward_looking_loadings: Mapping[str, float],
 ) -> list[BreakdownRow]:
     breakdown = _build_breakdown(
         rows=rows,
         estimated_loadings=estimated_loadings,
+        geomean_loadings=geomean_loadings,
+        realized_5y_loadings=realized_5y_loadings,
+        forward_looking_loadings=forward_looking_loadings,
         expander=lambda row: [(row.fi_tenor or "UNASSIGNED", 1.0)] if row.asset_class == "FI" else [],
         parent="FI",
         bucket_labeler=_fi_tenor_bucket_label,
@@ -2408,6 +2579,9 @@ def _build_breakdown(
     *,
     rows: list[RiskInputRow],
     estimated_loadings: Mapping[str, float],
+    geomean_loadings: Mapping[str, float],
+    realized_5y_loadings: Mapping[str, float],
+    forward_looking_loadings: Mapping[str, float],
     expander: Any,
     parent: str,
     bucket_labeler: Any | None = None,
@@ -2420,6 +2594,9 @@ def _build_breakdown(
             net_exposure = row.display_exposure_usd * weight
             gross_exposure = row.display_gross_exposure_usd * weight
             contribution = abs(estimated_loadings.get(row.internal_id, 0.0) * weight)
+            geomean_contribution = abs(geomean_loadings.get(row.internal_id, 0.0) * weight)
+            realized_5y_contribution = abs(realized_5y_loadings.get(row.internal_id, 0.0) * weight)
+            forward_looking_contribution = abs(forward_looking_loadings.get(row.internal_id, 0.0) * weight)
             if existing is None:
                 aggregated[bucket] = BreakdownRow(
                     bucket=bucket,
@@ -2429,6 +2606,9 @@ def _build_breakdown(
                     gross_exposure_usd=gross_exposure,
                     dollar_weight=(gross_exposure / funded_aum) if funded_aum > 0 else 0.0,
                     risk_contribution_estimated=contribution,
+                    risk_contribution_geomean_1m_3m=geomean_contribution,
+                    risk_contribution_5y_realized=realized_5y_contribution,
+                    risk_contribution_forward_looking=forward_looking_contribution,
                 )
                 continue
             aggregated[bucket] = BreakdownRow(
@@ -2439,6 +2619,11 @@ def _build_breakdown(
                 gross_exposure_usd=existing.gross_exposure_usd + gross_exposure,
                 dollar_weight=((existing.gross_exposure_usd + gross_exposure) / funded_aum) if funded_aum > 0 else 0.0,
                 risk_contribution_estimated=existing.risk_contribution_estimated + contribution,
+                risk_contribution_geomean_1m_3m=existing.risk_contribution_geomean_1m_3m + geomean_contribution,
+                risk_contribution_5y_realized=existing.risk_contribution_5y_realized + realized_5y_contribution,
+                risk_contribution_forward_looking=(
+                    existing.risk_contribution_forward_looking + forward_looking_contribution
+                ),
             )
     return sorted(aggregated.values(), key=lambda item: item.gross_exposure_usd, reverse=True)
 
