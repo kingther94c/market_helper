@@ -45,6 +45,7 @@ from market_helper.domain.portfolio_monitor.services.yahoo_returns import (
     load_internal_id_return_series_override,
 )
 from market_helper.data_sources.yahoo_finance import YahooFinanceTransientError
+from market_helper.reporting.html_tables import HtmlTableColumn, HtmlTableRow, render_html_table
 from market_helper.portfolio.security_reference import (
     DEFAULT_SECURITY_REFERENCE_PATH,
     SecurityReference,
@@ -1203,34 +1204,46 @@ def render_risk_tab(view_model: RiskReportViewModel) -> str:
     regime_summary = view_model.regime_summary
     vol_method = view_model.vol_method
     inter_asset_corr = view_model.inter_asset_corr
-    position_rows = "\n".join(
-        f"<tr class='{'excluded-row' if row.report_scope == 'excluded' else ''}'>"
-        f"<td>{html.escape(row.account)}</td>"
-        f"<td>{html.escape(row.display_ticker)}</td>"
-        f"<td>{html.escape(row.display_name)}</td>"
-        f"<td>{html.escape(row.asset_class)}</td>"
-        f"<td>{html.escape(row.instrument_type)}</td>"
-        f"<td class='num'>{row.quantity:,.2f}</td>"
-        f"<td class='num'>{row.gross_exposure_usd:,.2f}</td>"
-        f"<td class='num'>{row.exposure_usd:,.2f}</td>"
-        f"<td class='num'>{row.dollar_weight:.2%}</td>"
-        f"<td class='num'>{row.vol_geomean_1m_3m:.2%}</td>"
-        f"<td class='num'>{row.vol_5y_realized:.2%}</td>"
-        f"<td class='num'>{row.vol_ewma:.2%}</td>"
-        f"<td>{row.sparkline_3m_svg}</td>"
-        f"<td class='num'>{row.risk_contribution_estimated:.2%}</td>"
-        f"<td>{html.escape(row.mapping_status)}</td>"
-        f"<td>{html.escape(row.report_scope)}</td>"
-        "</tr>"
-        for row in risk_rows
+    allocation_table = render_html_table(
+        columns=_allocation_columns(),
+        rows=_allocation_summary_rows(allocation_summary),
+        empty_message="No allocation data",
     )
-    allocation_rows = _render_allocation_summary_rows(allocation_summary)
-    country_rows = _render_breakdown_rows(country_breakdown)
-    sector_rows = _render_breakdown_rows(sector_breakdown)
-    tenor_rows = _render_breakdown_rows(fi_tenor_breakdown, include_bucket_label=True)
-    policy_asset_rows = _render_policy_drift_rows(policy_drift_asset_class)
-    policy_country_rows = _render_policy_drift_rows(policy_drift_country)
-    policy_sector_rows = _render_policy_drift_rows(policy_drift_sector)
+    country_table = render_html_table(
+        columns=_breakdown_columns(include_bucket_label=False),
+        rows=_breakdown_table_rows(country_breakdown, include_bucket_label=False),
+        empty_message="No country breakdown data",
+    )
+    sector_table = render_html_table(
+        columns=_breakdown_columns(include_bucket_label=False),
+        rows=_breakdown_table_rows(sector_breakdown, include_bucket_label=False),
+        empty_message="No sector breakdown data",
+    )
+    tenor_table = render_html_table(
+        columns=_breakdown_columns(include_bucket_label=True),
+        rows=_breakdown_table_rows(fi_tenor_breakdown, include_bucket_label=True),
+        empty_message="No tenor breakdown data",
+    )
+    policy_asset_table = render_html_table(
+        columns=_policy_drift_columns(),
+        rows=_policy_drift_table_rows(policy_drift_asset_class),
+        empty_message="No policy drift data",
+    )
+    policy_country_table = render_html_table(
+        columns=_policy_drift_columns(),
+        rows=_policy_drift_table_rows(policy_drift_country),
+        empty_message="No policy drift data",
+    )
+    policy_sector_table = render_html_table(
+        columns=_policy_drift_columns(),
+        rows=_policy_drift_table_rows(policy_drift_sector),
+        empty_message="No policy drift data",
+    )
+    position_table = render_html_table(
+        columns=_position_columns(),
+        rows=_position_table_rows(risk_rows),
+        empty_message="No positions available",
+    )
     policy_asset_chart = _render_policy_drift_chart(policy_drift_asset_class)
     policy_country_chart = _render_policy_drift_chart(policy_drift_country)
     policy_sector_chart = _render_policy_drift_chart(policy_drift_sector)
@@ -1273,78 +1286,47 @@ def render_risk_tab(view_model: RiskReportViewModel) -> str:
 
   <div class='card'>
     <h2>Asset Class Summary</h2>
-    <table>
-      <thead><tr><th>Asset Class</th><th class='num'>Net Exposure (FI 10Y Eq)</th><th class='num'>Gross Exposure (FI 10Y Eq)</th><th class='num'>Dollar%</th><th class='num'>Vol Contribution</th></tr></thead>
-      <tbody>{allocation_rows}</tbody>
-    </table>
+    {allocation_table}
   </div>
 
   <div class='card'>
     <h2>Policy Drift - Asset Class (Dollar Weight Active)</h2>
     <p>Active = current dollar weight minus policy weight. Vol contributions shown below use <strong>{html.escape(vol_method)}</strong>.</p>
     <div class='chart'>{policy_asset_chart}</div>
-    <table>
-      <thead><tr><th>Bucket</th><th>Scope</th><th class='num'>Current Weight</th><th class='num'>Policy Weight</th><th class='num'>Active (OW/UW)</th><th class='num'>Vol Contribution</th></tr></thead>
-      <tbody>{policy_asset_rows}</tbody>
-    </table>
+    {policy_asset_table}
   </div>
 
   <div class='card'>
     <h2>EQ Country Breakdown</h2>
-    <table>
-      <thead><tr><th>Country</th><th>Scope</th><th class='num'>Net Exposure</th><th class='num'>Gross Exposure</th><th class='num'>Dollar%</th><th class='num'>Vol Contribution</th></tr></thead>
-      <tbody>{country_rows}</tbody>
-    </table>
+    {country_table}
   </div>
 
   <div class='card'>
     <h2>Policy Drift - Equity Country (within EQ scope)</h2>
     <div class='chart'>{policy_country_chart}</div>
-    <table>
-      <thead><tr><th>Bucket</th><th>Scope</th><th class='num'>Current Weight</th><th class='num'>Policy Weight</th><th class='num'>Active (OW/UW)</th><th class='num'>Vol Contribution</th></tr></thead>
-      <tbody>{policy_country_rows}</tbody>
-    </table>
+    {policy_country_table}
   </div>
 
   <div class='card'>
     <h2>US Sector Breakdown</h2>
-    <table>
-      <thead><tr><th>Sector</th><th>Scope</th><th class='num'>Net Exposure</th><th class='num'>Gross Exposure</th><th class='num'>Dollar%</th><th class='num'>Vol Contribution</th></tr></thead>
-      <tbody>{sector_rows}</tbody>
-    </table>
+    {sector_table}
   </div>
 
   <div class='card'>
     <h2>Policy Drift - US Sector (within US EQ scope)</h2>
     <div class='chart'>{policy_sector_chart}</div>
-    <table>
-      <thead><tr><th>Bucket</th><th>Scope</th><th class='num'>Current Weight</th><th class='num'>Policy Weight</th><th class='num'>Active (OW/UW)</th><th class='num'>Vol Contribution</th></tr></thead>
-      <tbody>{policy_sector_rows}</tbody>
-    </table>
+    {policy_sector_table}
   </div>
 
   <div class='card'>
     <h2>FI Tenor Breakdown</h2>
-    <table>
-      <thead><tr><th>Tenor</th><th>Label</th><th>Scope</th><th class='num'>Net 10Y Eq Exposure</th><th class='num'>Gross 10Y Eq Exposure</th><th class='num'>Dollar%</th><th class='num'>Vol Contribution</th></tr></thead>
-      <tbody>{tenor_rows}</tbody>
-    </table>
+    {tenor_table}
   </div>
 
   <div class='card'>
     <h2>Position Risk Decomposition</h2>
     <p>Rows marked <strong>excluded</strong> are shown for audit only and do not feed the portfolio summary, allocation breakdowns, or portfolio risk aggregation.</p>
-    <table>
-      <thead>
-        <tr>
-          <th>Account</th><th>Ticker</th><th>Name</th><th>Asset Class</th><th>Type</th>
-          <th class='num'>Qty</th><th class='num'>Gross Exposure (FI 10Y Eq)</th><th class='num'>Net Exposure (FI 10Y Eq)</th>
-          <th class='num'>Dollar%</th><th class='num'>Vol (1M/3M)</th><th class='num'>Vol (5Y)</th><th class='num'>Vol (EWMA)</th><th>3M Trend</th><th class='num'>Vol Contribution</th>
-          <th>Mapping</th><th>Report Scope</th>
-        </tr>
-      </thead>
-      <tbody>{position_rows}</tbody>
-    </table>
+    {position_table}
   </div>
 """
 
@@ -1355,46 +1337,29 @@ def _format_optional_amount(value: float | None) -> str:
     return f"{value:,.0f}"
 
 
-def _render_breakdown_rows(
-    rows: Iterable[BreakdownRow],
-    *,
-    include_bucket_label: bool = False,
-) -> str:
-    materialized = list(rows)
-    if not materialized:
-        colspan = 7 if include_bucket_label else 6
-        return f"<tr><td colspan='{colspan}'>No data</td></tr>"
-    rendered_rows: list[str] = []
-    for row in materialized:
-        label_cell = f"<td>{html.escape(row.bucket_label)}</td>" if include_bucket_label else ""
-        rendered_rows.append(
-            "<tr>"
-            f"<td>{html.escape(row.bucket)}</td>"
-            f"{label_cell}"
-            f"<td>{html.escape(row.parent)}</td>"
-            f"<td class='num'>{row.exposure_usd:,.2f}</td>"
-            f"<td class='num'>{row.gross_exposure_usd:,.2f}</td>"
-            f"<td class='num'>{row.dollar_weight:.2%}</td>"
-            f"<td class='num'>{row.risk_contribution_estimated:.2%}</td>"
-            "</tr>"
+def _allocation_columns() -> list[HtmlTableColumn]:
+    return [
+        HtmlTableColumn("asset_class", "Asset Class"),
+        HtmlTableColumn("exposure_usd", "Net Exposure (FI 10Y Eq)", align="num"),
+        HtmlTableColumn("gross_exposure_usd", "Gross Exposure (FI 10Y Eq)", align="num"),
+        HtmlTableColumn("dollar_weight", "Dollar%", align="num"),
+        HtmlTableColumn("risk_contribution_estimated", "Vol Contribution", align="num"),
+    ]
+
+
+def _allocation_summary_rows(rows: Iterable[CategorySummaryRow]) -> list[HtmlTableRow]:
+    return [
+        HtmlTableRow(
+            cells={
+                "asset_class": row.asset_class,
+                "exposure_usd": f"{row.exposure_usd:,.2f}",
+                "gross_exposure_usd": f"{row.gross_exposure_usd:,.2f}",
+                "dollar_weight": f"{row.dollar_weight:.2%}",
+                "risk_contribution_estimated": f"{row.risk_contribution_estimated:.2%}",
+            }
         )
-    return "\n".join(rendered_rows)
-
-
-def _render_allocation_summary_rows(rows: Iterable[CategorySummaryRow]) -> str:
-    materialized = list(rows)
-    if not materialized:
-        return "<tr><td colspan='5'>No data</td></tr>"
-    return "\n".join(
-        "<tr>"
-        f"<td>{html.escape(row.asset_class)}</td>"
-        f"<td class='num'>{row.exposure_usd:,.2f}</td>"
-        f"<td class='num'>{row.gross_exposure_usd:,.2f}</td>"
-        f"<td class='num'>{row.dollar_weight:.2%}</td>"
-        f"<td class='num'>{row.risk_contribution_estimated:.2%}</td>"
-        "</tr>"
-        for row in materialized
-    )
+        for row in rows
+    ]
 
 
 def _is_report_included(row: RiskInputRow | RiskMetricsRow) -> bool:
@@ -1415,21 +1380,125 @@ def _is_vol_included(row: RiskInputRow | RiskMetricsRow) -> bool:
     return _is_report_included(row) and row.mapping_status == "mapped"
 
 
-def _render_policy_drift_rows(rows: Iterable[PolicyDriftRow]) -> str:
-    materialized = list(rows)
-    if not materialized:
-        return "<tr><td colspan='6'>No data</td></tr>"
-    return "\n".join(
-        "<tr>"
-        f"<td>{html.escape(row.bucket)}</td>"
-        f"<td>{html.escape(row.scope)}</td>"
-        f"<td class='num'>{row.current_weight:.2%}</td>"
-        f"<td class='num'>{row.policy_weight:.2%}</td>"
-        f"<td class='num'>{row.active_weight:+.2%}</td>"
-        f"<td class='num'>{row.current_risk_contribution:.2%}</td>"
-        "</tr>"
-        for row in materialized
+def _breakdown_columns(*, include_bucket_label: bool) -> list[HtmlTableColumn]:
+    columns = [HtmlTableColumn("bucket", "Bucket")]
+    if include_bucket_label:
+        columns.append(HtmlTableColumn("bucket_label", "Label"))
+    columns.extend(
+        [
+            HtmlTableColumn("parent", "Scope"),
+            HtmlTableColumn("exposure_usd", "Net Exposure", align="num"),
+            HtmlTableColumn("gross_exposure_usd", "Gross Exposure", align="num"),
+            HtmlTableColumn("dollar_weight", "Dollar%", align="num"),
+            HtmlTableColumn("risk_contribution_estimated", "Vol Contribution", align="num"),
+        ]
     )
+    return columns
+
+
+def _breakdown_table_rows(
+    rows: Iterable[BreakdownRow],
+    *,
+    include_bucket_label: bool,
+) -> list[HtmlTableRow]:
+    output: list[HtmlTableRow] = []
+    for row in rows:
+        cells = {
+            "bucket": row.bucket,
+            "parent": row.parent,
+            "exposure_usd": f"{row.exposure_usd:,.2f}",
+            "gross_exposure_usd": f"{row.gross_exposure_usd:,.2f}",
+            "dollar_weight": f"{row.dollar_weight:.2%}",
+            "risk_contribution_estimated": f"{row.risk_contribution_estimated:.2%}",
+        }
+        if include_bucket_label:
+            cells["bucket_label"] = row.bucket_label
+        output.append(HtmlTableRow(cells=cells))
+    return output
+
+
+def _policy_drift_columns() -> list[HtmlTableColumn]:
+    return [
+        HtmlTableColumn("bucket", "Bucket"),
+        HtmlTableColumn("scope", "Scope"),
+        HtmlTableColumn("current_weight", "Current Weight", align="num"),
+        HtmlTableColumn("policy_weight", "Policy Weight", align="num"),
+        HtmlTableColumn("active_weight", "Active (OW/UW)", align="num"),
+        HtmlTableColumn("current_risk_contribution", "Vol Contribution", align="num"),
+    ]
+
+
+def _policy_drift_table_rows(rows: Iterable[PolicyDriftRow]) -> list[HtmlTableRow]:
+    output: list[HtmlTableRow] = []
+    for row in rows:
+        output.append(
+            HtmlTableRow(
+                cells={
+                    "bucket": row.bucket,
+                    "scope": row.scope,
+                    "current_weight": f"{row.current_weight:.2%}",
+                    "policy_weight": f"{row.policy_weight:.2%}",
+                    "active_weight": f"{row.active_weight:+.2%}",
+                    "current_risk_contribution": f"{row.current_risk_contribution:.2%}",
+                }
+            )
+        )
+    return output
+
+
+def _position_columns() -> list[HtmlTableColumn]:
+    return [
+        HtmlTableColumn("account", "Account"),
+        HtmlTableColumn("display_ticker", "Ticker"),
+        HtmlTableColumn("display_name", "Name"),
+        HtmlTableColumn("asset_class", "Asset Class"),
+        HtmlTableColumn("instrument_type", "Type"),
+        HtmlTableColumn("quantity", "Qty", align="num"),
+        HtmlTableColumn("gross_exposure_usd", "Gross Exposure (FI 10Y Eq)", align="num"),
+        HtmlTableColumn("exposure_usd", "Net Exposure (FI 10Y Eq)", align="num"),
+        HtmlTableColumn("dollar_weight", "Dollar%", align="num"),
+        HtmlTableColumn("vol_geomean_1m_3m", "Vol (1M/3M)", align="num"),
+        HtmlTableColumn("vol_5y_realized", "Vol (5Y)", align="num"),
+        HtmlTableColumn("vol_ewma", "Vol (EWMA)", align="num"),
+        HtmlTableColumn("sparkline_3m_svg", "3M Trend", allow_html=True),
+        HtmlTableColumn("risk_contribution_estimated", "Vol Contribution", align="num"),
+        HtmlTableColumn("mapping_status", "Mapping"),
+        HtmlTableColumn("report_scope", "Report Scope", allow_html=True),
+    ]
+
+
+def _position_table_rows(rows: Iterable[RiskMetricsRow]) -> list[HtmlTableRow]:
+    output: list[HtmlTableRow] = []
+    for row in rows:
+        scope_label = (
+            "<span class='tag tag--warning'>excluded</span>"
+            if row.report_scope == "excluded"
+            else "<span class='tag'>included</span>"
+        )
+        output.append(
+            HtmlTableRow(
+                cells={
+                    "account": row.account,
+                    "display_ticker": row.display_ticker,
+                    "display_name": row.display_name,
+                    "asset_class": row.asset_class,
+                    "instrument_type": row.instrument_type,
+                    "quantity": f"{row.quantity:,.2f}",
+                    "gross_exposure_usd": f"{row.gross_exposure_usd:,.2f}",
+                    "exposure_usd": f"{row.exposure_usd:,.2f}",
+                    "dollar_weight": f"{row.dollar_weight:.2%}",
+                    "vol_geomean_1m_3m": f"{row.vol_geomean_1m_3m:.2%}",
+                    "vol_5y_realized": f"{row.vol_5y_realized:.2%}",
+                    "vol_ewma": f"{row.vol_ewma:.2%}",
+                    "sparkline_3m_svg": row.sparkline_3m_svg,
+                    "risk_contribution_estimated": f"{row.risk_contribution_estimated:.2%}",
+                    "mapping_status": row.mapping_status,
+                    "report_scope": scope_label,
+                },
+                row_class="is-excluded" if row.report_scope == "excluded" else "",
+            )
+        )
+    return output
 
 
 def _render_policy_drift_chart(rows: Iterable[PolicyDriftRow]) -> str:

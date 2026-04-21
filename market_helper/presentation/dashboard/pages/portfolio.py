@@ -1,76 +1,37 @@
 from __future__ import annotations
 
 import asyncio
-import csv
 import html
 import os
 from copy import deepcopy
 from dataclasses import dataclass, field
 from datetime import datetime
-from functools import lru_cache
 from pathlib import Path
 from typing import Any
 
-from fastapi import Request
 from nicegui import ui
 
 from market_helper.application.portfolio_monitor import (
     EtfSectorSyncInputs,
     FlexPerformanceRefreshInputs,
     GenerateCombinedReportInputs,
+    GeneratedReportArtifact,
     InMemoryUiProgressSink,
     LivePortfolioRefreshInputs,
     PortfolioMonitorActionService,
     PortfolioMonitorQueryService,
+    PortfolioReportData,
     PortfolioReportInputs,
-    PortfolioReportSnapshot,
 )
-from market_helper.presentation.dashboard.components import (
-    add_dashboard_styles,
-    build_breakdown_figure,
-    build_policy_drift_figure,
-    render_action_card,
-    render_risk_chart_block,
-    render_status_card,
-    render_table,
-)
-from market_helper.presentation.dashboard.formatters import (
-    format_amount,
-    format_path,
-    format_percent,
-    format_ratio,
-    format_text,
-)
-from market_helper.reporting.performance_html import PerformanceMetricRow, PerformanceReportViewModel
-from market_helper.reporting.risk_html import (
-    BreakdownRow,
-    DEFAULT_VOL_METHOD_LABELS,
-    FI_TENOR_BUCKET_LABELS,
-    FI_TENOR_BUCKET_ORDER,
-    PolicyDriftRow,
-    RiskMetricsRow,
-    resolve_vol_method_key,
-)
+from market_helper.presentation.dashboard.components import render_action_card
+from market_helper.presentation.dashboard.components.common import add_dashboard_styles, render_status_card
+from market_helper.presentation.dashboard.formatters import format_path, format_text
 
 
 _REGISTERED = False
 _QUERY_SERVICE: PortfolioMonitorQueryService = PortfolioMonitorQueryService()
 _ACTION_SERVICE: PortfolioMonitorActionService = PortfolioMonitorActionService()
-_SNAPSHOT_OVERRIDES: dict[str, str] | None = None
 _STALE_PAGE_CACHE: dict[str, Any] | None = None
-
-
-def set_snapshot_overrides(overrides: dict[str, str] | None) -> None:
-    """Register artifact-path + vol-method overrides for the next snapshot-mode page load.
-
-    Used by the headless ``capture_snapshot()`` pipeline so the CLI can inject
-    positions-CSV / returns / vol-method etc. before Playwright navigates.
-    Keys that match ``PortfolioArtifactFormState`` field names overwrite the
-    defaults resolved from the query service. Pass ``None`` to clear.
-    """
-    global _SNAPSHOT_OVERRIDES
-    _SNAPSHOT_OVERRIDES = dict(overrides) if overrides else None
-
 
 DEFAULT_CANONICAL_LOCAL_ENV_PATH = (
     Path(__file__).resolve().parents[4] / "configs" / "portfolio_monitor" / "local.env"
@@ -93,7 +54,7 @@ class PortfolioArtifactFormState:
     security_reference_path: str = ""
     risk_config_path: str = ""
     allocation_policy_path: str = ""
-    vol_method: str = "Fast"
+    vol_method: str = "geomean_1m_3m"
     inter_asset_corr: str = "historical"
 
 
@@ -148,23 +109,21 @@ class PortfolioPageState:
     flex_form: FlexActionFormState
     export_form: ExportActionFormState
     reference_form: ReferenceActionFormState
-    snapshot: PortfolioReportSnapshot | None = None
+    report_data: PortfolioReportData | None = None
+    generated_report: GeneratedReportArtifact | None = None
     warnings: list[str] = field(default_factory=list)
     is_loading: bool = False
     load_error: str | None = None
     active_job: str | None = None
     status_message: str = "Ready"
-    snapshot_mode: bool = False
-    selected_top_tab: str = "performance_usd"
-    selected_perf_mode: dict[str, str] = field(default_factory=lambda: {"USD": "percent", "SGD": "percent"})
-    selected_perf_window: dict[str, str] = field(default_factory=lambda: {"USD": "MTD", "SGD": "MTD"})
+    selected_top_tab: str = "report"
     progress_sink: InMemoryUiProgressSink = field(default_factory=InMemoryUiProgressSink)
     action_statuses: dict[str, ActionStatusState] = field(
         default_factory=lambda: {
             "refresh": ActionStatusState(message="Not run yet"),
             "live": ActionStatusState(),
             "flex": ActionStatusState(),
-            "combined": ActionStatusState(),
+            "combined": ActionStatusState(message="Not generated yet"),
             "security-reference": ActionStatusState(),
             "etf": ActionStatusState(),
         }
@@ -172,21 +131,18 @@ class PortfolioPageState:
 
 
 def _cache_stale_page_state(state: PortfolioPageState) -> None:
-    """Persist the last successful UI snapshot until an explicit refresh replaces it."""
     global _STALE_PAGE_CACHE
-
     _STALE_PAGE_CACHE = {
         "artifact_form": deepcopy(state.artifact_form),
         "live_form": deepcopy(state.live_form),
         "flex_form": deepcopy(state.flex_form),
         "export_form": deepcopy(state.export_form),
         "reference_form": deepcopy(state.reference_form),
-        "snapshot": deepcopy(state.snapshot),
+        "report_data": deepcopy(state.report_data),
+        "generated_report": deepcopy(state.generated_report),
         "warnings": list(state.warnings),
         "status_message": state.status_message,
         "selected_top_tab": state.selected_top_tab,
-        "selected_perf_mode": dict(state.selected_perf_mode),
-        "selected_perf_window": dict(state.selected_perf_window),
         "action_statuses": deepcopy(state.action_statuses),
     }
 
@@ -194,18 +150,16 @@ def _cache_stale_page_state(state: PortfolioPageState) -> None:
 def _restore_stale_page_state(state: PortfolioPageState) -> None:
     if _STALE_PAGE_CACHE is None:
         return
-
     state.artifact_form = deepcopy(_STALE_PAGE_CACHE["artifact_form"])
     state.live_form = deepcopy(_STALE_PAGE_CACHE["live_form"])
     state.flex_form = deepcopy(_STALE_PAGE_CACHE["flex_form"])
     state.export_form = deepcopy(_STALE_PAGE_CACHE["export_form"])
     state.reference_form = deepcopy(_STALE_PAGE_CACHE["reference_form"])
-    state.snapshot = deepcopy(_STALE_PAGE_CACHE["snapshot"])
+    state.report_data = deepcopy(_STALE_PAGE_CACHE["report_data"])
+    state.generated_report = deepcopy(_STALE_PAGE_CACHE["generated_report"])
     state.warnings = list(_STALE_PAGE_CACHE["warnings"])
     state.status_message = str(_STALE_PAGE_CACHE["status_message"])
     state.selected_top_tab = str(_STALE_PAGE_CACHE["selected_top_tab"])
-    state.selected_perf_mode = dict(_STALE_PAGE_CACHE["selected_perf_mode"])
-    state.selected_perf_window = dict(_STALE_PAGE_CACHE["selected_perf_window"])
     state.action_statuses = deepcopy(_STALE_PAGE_CACHE["action_statuses"])
     state.load_error = None
     state.is_loading = False
@@ -217,64 +171,33 @@ def _clear_stale_page_cache() -> None:
     _STALE_PAGE_CACHE = None
 
 
-def _snapshot_matches_current_local_date(snapshot: Any) -> bool:
-    as_of = str(getattr(snapshot, "as_of", "") or "").strip()
+def _report_data_matches_current_local_date(report_data: Any) -> bool:
+    as_of = str(getattr(report_data, "as_of", "") or "").strip()
     if not as_of:
         return True
-    normalized = as_of.replace("Z", "+00:00")
     try:
-        snapshot_dt = datetime.fromisoformat(normalized)
+        report_dt = datetime.fromisoformat(as_of.replace("Z", "+00:00"))
     except ValueError:
         return True
-    if snapshot_dt.tzinfo is not None:
-        snapshot_dt = snapshot_dt.astimezone()
-    return snapshot_dt.date() == datetime.now().astimezone().date()
+    if report_dt.tzinfo is not None:
+        report_dt = report_dt.astimezone()
+    return report_dt.date() == datetime.now().astimezone().date()
 
 
-def _normalize_vol_method_label(value: str) -> str:
-    normalized = str(value).strip()
-    if normalized in DEFAULT_VOL_METHOD_LABELS:
-        return normalized
-    resolved_key = resolve_vol_method_key(normalized, DEFAULT_VOL_METHOD_LABELS)
-    for label, key in DEFAULT_VOL_METHOD_LABELS.items():
-        if key == resolved_key:
-            return label
-    return next(iter(DEFAULT_VOL_METHOD_LABELS))
-
-
-_TOP_TAB_KEYS = {"performance_usd", "performance_sgd", "risk", "artifacts"}
+_TOP_TAB_KEYS = {"report", "artifacts"}
 
 
 def _resolve_top_tab_key(value: str | None) -> str:
     normalized = str(value or "").strip().lower()
     aliases = {
-        "": "performance_usd",
-        "performance": "performance_usd",
-        "perf": "performance_usd",
-        "usd": "performance_usd",
-        "sgd": "performance_sgd",
-        "perf_sgd": "performance_sgd",
+        "": "report",
+        "html": "report",
+        "performance": "report",
+        "risk": "report",
     }
     if normalized in _TOP_TAB_KEYS:
         return normalized
-    return aliases.get(normalized, "performance_usd")
-
-
-def _apply_snapshot_overrides(
-    state: PortfolioPageState, overrides: dict[str, str] | None
-) -> None:
-    if not overrides:
-        return
-    form = state.artifact_form
-    for key, value in overrides.items():
-        if value is None:
-            continue
-        if not hasattr(form, key):
-            continue
-        if key == "vol_method":
-            setattr(form, key, _normalize_vol_method_label(str(value)))
-        else:
-            setattr(form, key, str(value))
+    return aliases.get(normalized, "report")
 
 
 def _positions_csv_ready_for_autoload(value: str) -> bool:
@@ -284,7 +207,7 @@ def _positions_csv_ready_for_autoload(value: str) -> bool:
 
 def _initial_dashboard_status(positions_csv_path: str) -> str:
     if _positions_csv_ready_for_autoload(positions_csv_path):
-        return "Ready. Click Refresh Snapshot to load the current artifacts."
+        return "Ready. Load report data or generate the HTML report from current artifacts."
     return "Positions CSV not found. Run Live Refresh or enter a valid artifact path."
 
 
@@ -307,7 +230,6 @@ def _resolve_default_live_account_id() -> str:
 def _read_env_file_value(path: Path, key: str) -> str:
     if not path.exists():
         return ""
-
     for raw_line in path.read_text(encoding="utf-8").splitlines():
         line = raw_line.strip()
         if not line or line.startswith("#"):
@@ -332,7 +254,6 @@ def register_portfolio_page(
     action_service: PortfolioMonitorActionService | None = None,
 ) -> None:
     global _REGISTERED, _QUERY_SERVICE, _ACTION_SERVICE
-
     if query_service is not None:
         _QUERY_SERVICE = query_service
     if action_service is not None:
@@ -341,24 +262,17 @@ def register_portfolio_page(
         return
 
     @ui.page("/portfolio")
-    async def portfolio_page(
-        request: Request,
-        snapshot: str | None = None,
-        tab: str | None = None,
-    ) -> None:  # noqa: ARG001
+    async def portfolio_page(tab: str | None = None) -> None:
         state = _build_initial_state(_QUERY_SERVICE)
         _restore_stale_page_state(state)
-        state.snapshot_mode = str(snapshot or "").strip() in {"1", "true", "yes"}
         state.selected_top_tab = _resolve_top_tab_key(tab)
-        if state.snapshot_mode:
-            _apply_snapshot_overrides(state, _SNAPSHOT_OVERRIDES)
 
         @ui.refreshable
         def render() -> None:
             _render_portfolio_page(state)
 
-        async def load_snapshot() -> None:
-            previous_snapshot = state.snapshot
+        async def load_report_data() -> None:
+            previous_data = state.report_data
             previous_warnings = list(state.warnings)
             if not _positions_csv_ready_for_autoload(state.artifact_form.positions_csv_path):
                 state.load_error = None
@@ -368,54 +282,49 @@ def register_portfolio_page(
                 return
             state.is_loading = True
             state.load_error = None
-            state.status_message = "Loading latest snapshot..."
+            state.status_message = "Loading report data..."
             render.refresh()
             try:
                 inputs = _artifact_inputs_from_form(state.artifact_form)
-                snapshot = await asyncio.to_thread(_QUERY_SERVICE.load_snapshot, inputs)
+                report_data = await asyncio.to_thread(_QUERY_SERVICE.load_report_data, inputs)
             except Exception as exc:
-                state.snapshot = previous_snapshot
+                state.report_data = previous_data
                 state.warnings = previous_warnings
                 state.load_error = str(exc)
-                state.status_message = "Snapshot load failed"
+                state.status_message = "Report data load failed"
             else:
-                state.snapshot = snapshot
-                state.warnings = list(snapshot.warnings)
-                state.status_message = f"Loaded snapshot as of {_format_local_timestamp(snapshot.as_of)}"
+                state.report_data = report_data
+                state.warnings = list(report_data.warnings)
+                state.generated_report = _QUERY_SERVICE.resolve_report_artifact(
+                    inputs=inputs,
+                    output_path=_required_text(state.export_form.output_path, "Combined report output path"),
+                    report_data=report_data,
+                )
+                state.status_message = f"Loaded report data as of {_format_local_timestamp(report_data.as_of)}"
                 _cache_stale_page_state(state)
-                if not state.snapshot_mode:
-                    asyncio.create_task(_persist_html_snapshot(state, request))
             finally:
                 state.is_loading = False
                 render.refresh()
 
         async def initialize_page() -> None:
-            if state.snapshot is not None:
-                if not _snapshot_matches_current_local_date(state.snapshot):
+            if state.report_data is not None:
+                if not _report_data_matches_current_local_date(state.report_data):
                     _clear_stale_page_cache()
-                    state.snapshot = None
+                    state.report_data = None
+                    state.generated_report = None
                     state.warnings = []
                     state.load_error = None
-                    state.is_loading = False
-                    state.status_message = "Snapshot date changed; reloading current artifacts..."
+                    state.status_message = "Report date changed; reloading current artifacts..."
                     render.refresh()
                     if _positions_csv_ready_for_autoload(state.artifact_form.positions_csv_path):
-                        await load_snapshot()
+                        await load_report_data()
                     return
-                state.load_error = None
-                state.is_loading = False
                 render.refresh()
                 return
-            state.snapshot = None
-            state.warnings = []
-            state.load_error = None
-            state.is_loading = False
             state.status_message = _initial_dashboard_status(state.artifact_form.positions_csv_path)
             render.refresh()
-            if state.snapshot_mode and _positions_csv_ready_for_autoload(
-                state.artifact_form.positions_csv_path
-            ):
-                await load_snapshot()
+            if _positions_csv_ready_for_autoload(state.artifact_form.positions_csv_path):
+                await load_report_data()
 
         async def run_action(action_name: str) -> None:
             if state.active_job is not None:
@@ -433,7 +342,9 @@ def register_portfolio_page(
                         sink=state.progress_sink,
                     )
                     state.artifact_form.positions_csv_path = str(output_path)
-                    _set_action_success(state, action_name, message="Live positions refreshed", output_path=str(output_path))
+                    state.live_form.output_path = str(output_path)
+                    _set_action_success(state, "live", message="Live positions refreshed", output_path=str(output_path))
+                    await load_report_data()
                 elif action_name == "flex":
                     action_inputs = _flex_inputs_from_form(state.flex_form)
                     output_path = await asyncio.to_thread(
@@ -442,15 +353,17 @@ def register_portfolio_page(
                         sink=state.progress_sink,
                     )
                     state.artifact_form.performance_output_dir = str(output_path.parent)
-                    _set_action_success(state, action_name, message="Flex performance refreshed", output_path=str(output_path))
+                    _set_action_success(state, "flex", message="Flex performance refreshed", output_path=str(output_path))
+                    await load_report_data()
                 elif action_name == "combined":
                     action_inputs = _combined_inputs_from_form(state)
-                    output_path = await asyncio.to_thread(
+                    artifact = await asyncio.to_thread(
                         _ACTION_SERVICE.generate_combined_report,
                         action_inputs,
                         sink=state.progress_sink,
                     )
-                    _set_action_success(state, action_name, message="Combined report generated", output_path=str(output_path))
+                    state.generated_report = artifact
+                    _set_action_success(state, "combined", message="HTML report generated", output_path=str(artifact.output_path))
                 elif action_name == "security-reference":
                     output_path = await asyncio.to_thread(
                         _ACTION_SERVICE.sync_security_reference,
@@ -458,7 +371,14 @@ def register_portfolio_page(
                         sink=state.progress_sink,
                     )
                     state.artifact_form.security_reference_path = str(output_path)
-                    _set_action_success(state, action_name, message="Security reference synced", output_path=str(output_path))
+                    state.reference_form.security_reference_output_path = str(output_path)
+                    _set_action_success(
+                        state,
+                        "security-reference",
+                        message="Security reference synced",
+                        output_path=str(output_path),
+                    )
+                    await load_report_data()
                 elif action_name == "etf":
                     action_inputs = _etf_inputs_from_form(state.reference_form)
                     output_path = await asyncio.to_thread(
@@ -466,10 +386,9 @@ def register_portfolio_page(
                         action_inputs,
                         sink=state.progress_sink,
                     )
-                    _set_action_success(state, action_name, message="ETF sector lookthrough synced", output_path=str(output_path))
+                    state.reference_form.etf_output_path = str(output_path)
+                    _set_action_success(state, "etf", message="ETF sector lookthrough synced", output_path=str(output_path))
                 elif action_name == "refresh":
-                    _set_action_running(state, action_name)
-                    render.refresh()
                     live_inputs = _live_inputs_from_form(state.live_form)
                     live_output = await asyncio.to_thread(
                         _ACTION_SERVICE.refresh_live_positions,
@@ -478,12 +397,7 @@ def register_portfolio_page(
                     )
                     state.artifact_form.positions_csv_path = str(live_output)
                     state.live_form.output_path = str(live_output)
-                    _set_action_success(
-                        state,
-                        "live",
-                        message="Live positions refreshed",
-                        output_path=str(live_output),
-                    )
+                    _set_action_success(state, "live", message="Live positions refreshed", output_path=str(live_output))
 
                     flex_inputs = _flex_inputs_from_form(state.flex_form)
                     flex_output = await asyncio.to_thread(
@@ -492,35 +406,32 @@ def register_portfolio_page(
                         sink=state.progress_sink,
                     )
                     state.artifact_form.performance_output_dir = str(flex_output.parent)
-                    _set_action_success(
-                        state,
-                        "flex",
-                        message="Flex performance refreshed",
-                        output_path=str(flex_output),
+                    state.flex_form.output_dir = str(flex_output.parent)
+                    _set_action_success(state, "flex", message="Flex performance refreshed", output_path=str(flex_output))
+
+                    await load_report_data()
+                    combined_inputs = _combined_inputs_from_form(state)
+                    artifact = await asyncio.to_thread(
+                        _ACTION_SERVICE.generate_combined_report,
+                        combined_inputs,
+                        sink=state.progress_sink,
                     )
-                    await load_snapshot()
-                    _set_action_success(
-                        state,
-                        action_name,
-                        message="Refresh completed",
-                        output_path=state.action_statuses["combined"].last_output_path,
-                    )
+                    state.generated_report = artifact
+                    _set_action_success(state, "combined", message="HTML report generated", output_path=str(artifact.output_path))
+                    _set_action_success(state, "refresh", message="Refresh completed", output_path=str(artifact.output_path))
                 else:
                     raise ValueError(f"Unsupported action: {action_name}")
                 state.status_message = state.action_statuses[action_name].message
-                if action_name != "refresh":
-                    await load_snapshot()
             except Exception as exc:
                 _set_action_error(state, action_name, str(exc))
                 state.status_message = f"Action failed: {exc}"
-                render.refresh()
             finally:
                 state.active_job = None
+                _cache_stale_page_state(state)
                 render.refresh()
 
-        state._load_snapshot = load_snapshot  # type: ignore[attr-defined]
+        state._load_report_data = load_report_data  # type: ignore[attr-defined]
         state._run_action = run_action  # type: ignore[attr-defined]
-        state._refresh_ui = render.refresh  # type: ignore[attr-defined]
         render()
         ui.timer(0.1, lambda: asyncio.create_task(initialize_page()), once=True)
         ui.timer(0.5, lambda: render.refresh() if state.active_job is not None else None)
@@ -532,9 +443,11 @@ def _build_initial_state(query_service: PortfolioMonitorQueryService) -> Portfol
     inputs = query_service.resolve_inputs()
     positions_path = str(inputs.positions_csv_path or "")
     performance_output_dir = str(inputs.performance_output_dir or "")
-    flex_query_id = _resolve_local_env_value(DEFAULT_IBKR_FLEX_QUERY_ID_ENV_VAR)
-    flex_token = _resolve_local_env_value(DEFAULT_IBKR_FLEX_TOKEN_ENV_VAR)
-    live_account_id = _resolve_default_live_account_id()
+    default_output_path = (
+        str(Path(performance_output_dir).parent / "portfolio_combined_report.html")
+        if performance_output_dir
+        else "portfolio_combined_report.html"
+    )
     return PortfolioPageState(
         artifact_form=PortfolioArtifactFormState(
             positions_csv_path=positions_path,
@@ -547,17 +460,22 @@ def _build_initial_state(query_service: PortfolioMonitorQueryService) -> Portfol
             security_reference_path=str(inputs.security_reference_path or ""),
             risk_config_path=str(inputs.risk_config_path or ""),
             allocation_policy_path=str(inputs.allocation_policy_path or ""),
-            vol_method=_normalize_vol_method_label(inputs.vol_method),
-            inter_asset_corr=inputs.inter_asset_corr,
+            vol_method=str(inputs.vol_method or "geomean_1m_3m"),
+            inter_asset_corr=str(inputs.inter_asset_corr or "historical"),
         ),
-        live_form=LiveActionFormState(output_path=positions_path, account_id=live_account_id),
+        live_form=LiveActionFormState(
+            output_path=positions_path,
+            account_id=_resolve_default_live_account_id(),
+        ),
         flex_form=FlexActionFormState(
             output_dir=performance_output_dir,
-            query_id=flex_query_id,
-            token=flex_token,
+            query_id=_resolve_local_env_value(DEFAULT_IBKR_FLEX_QUERY_ID_ENV_VAR),
+            token=_resolve_local_env_value(DEFAULT_IBKR_FLEX_TOKEN_ENV_VAR),
         ),
-        export_form=ExportActionFormState(output_path=str(Path(performance_output_dir).parent / "portfolio_combined_report.html")),
-        reference_form=ReferenceActionFormState(security_reference_output_path=str(inputs.security_reference_path or "")),
+        export_form=ExportActionFormState(output_path=default_output_path),
+        reference_form=ReferenceActionFormState(
+            security_reference_output_path=str(inputs.security_reference_path or "")
+        ),
         status_message=_initial_dashboard_status(positions_path),
     )
 
@@ -566,67 +484,65 @@ def _render_portfolio_page(state: PortfolioPageState) -> None:
     add_dashboard_styles()
     with ui.column().classes("w-full max-w-[1600px] mx-auto p-4 pm-shell"):
         _render_header(state)
-        if not state.snapshot_mode:
-            _render_toolbar(state)
+        _render_toolbar(state)
         _render_feedback(state)
         _render_main_tabs(state)
-        if not state.snapshot_mode:
-            _render_action_console(state)
-            _render_logs(state)
-        if state.snapshot_mode and not state.is_loading:
-            as_of = getattr(state.snapshot, "as_of", "") if state.snapshot is not None else ""
-            has_snapshot = "1" if state.snapshot is not None else "0"
-            ui.html(
-                f'<div id="snapshot-ready" data-as-of="{as_of}" data-has-snapshot="{has_snapshot}"></div>'
-            )
+        _render_action_console(state)
+        _render_logs(state)
 
 
 def _render_header(state: PortfolioPageState) -> None:
     with ui.card().classes("w-full pm-hero shadow-lg"):
         ui.label("Portfolio Monitor").classes("text-h4")
-        ui.label(
-            "NiceGUI portfolio surface for artifact-driven analysis and selected report-generation workflows."
-        ).classes("text-body1 opacity-80")
+        ui.label("GUI shell for actions, artifact inspection, and embedded HTML report hosting.").classes(
+            "text-body1 opacity-80"
+        )
         ui.label(state.status_message).classes("text-body2 opacity-80")
 
 
 def _render_toolbar(state: PortfolioPageState) -> None:
-    load_snapshot = getattr(state, "_load_snapshot", None)
+    load_report_data = getattr(state, "_load_report_data", None)
     run_action = getattr(state, "_run_action", None)
     with ui.card().classes("w-full pm-card p-4"):
-        ui.label("Snapshot Controls").classes("text-h6")
+        ui.label("Report Controls").classes("text-h6")
         ui.label(
-            "Default mode keeps the surface simple. Load the latest disk snapshot, or run a full refresh to rebuild artifacts and replace the snapshot."
+            "Load current report data without mutating artifacts, or explicitly generate the self-contained HTML report."
         ).classes("pm-muted")
         with ui.row().classes("items-center gap-3 mt-4 wrap"):
             load_button = ui.button(
-                "Load Latest Snapshot",
-                on_click=lambda: asyncio.create_task(load_snapshot()),
+                "Load Latest Data",
+                on_click=lambda: asyncio.create_task(load_report_data()),
             ).props("color=primary")
             refresh_button = ui.button(
-                "Refresh",
+                "Refresh Pipeline + Generate",
                 on_click=lambda: asyncio.create_task(run_action("refresh")),
             ).props("color=secondary")
+            generate_button = ui.button(
+                "Generate HTML Report",
+                on_click=lambda: asyncio.create_task(run_action("combined")),
+            ).props("color=accent")
             if state.is_loading or state.active_job is not None:
                 load_button.props("disable")
                 refresh_button.props("disable")
+                generate_button.props("disable")
         with ui.row().classes("w-full gap-3 wrap mt-4"):
             render_status_card(
-                title="Snapshot",
+                title="Report Data",
                 value=state.status_message,
-                detail=getattr(state.snapshot, "as_of", None) if state.snapshot is not None else None,
+                detail=state.report_data.as_of if state.report_data is not None else None,
             )
             render_status_card(
-                title="Refresh Pipeline",
-                value=state.action_statuses["refresh"].message,
-                detail=state.action_statuses["refresh"].last_output_path,
+                title="Generated HTML",
+                value=state.action_statuses["combined"].message,
+                detail=state.action_statuses["combined"].last_output_path,
             )
-        with ui.expansion("Artifacts", icon="folder", value=False).classes("w-full mt-4"):
+        with ui.expansion("Artifact Paths", icon="folder", value=False).classes("w-full mt-4"):
             with ui.column().classes("w-full gap-3 p-2"):
                 with ui.grid(columns=2).classes("w-full gap-3"):
                     ui.input("Positions CSV").bind_value(state.artifact_form, "positions_csv_path").classes("w-full")
                     ui.input("Performance output dir").bind_value(state.artifact_form, "performance_output_dir").classes("w-full")
                     ui.input("Combined HTML output").bind_value(state.export_form, "output_path").classes("w-full")
+                    ui.input("Security reference CSV").bind_value(state.artifact_form, "security_reference_path").classes("w-full")
                 with ui.expansion("More Paths", icon="tune", value=False).classes("w-full"):
                     with ui.grid(columns=2).classes("w-full gap-3 p-2"):
                         ui.input("Performance history").bind_value(state.artifact_form, "performance_history_path").classes("w-full")
@@ -634,834 +550,201 @@ def _render_toolbar(state: PortfolioPageState) -> None:
                         ui.input("Returns JSON").bind_value(state.artifact_form, "returns_path").classes("w-full")
                         ui.input("Proxy JSON").bind_value(state.artifact_form, "proxy_path").classes("w-full")
                         ui.input("Regime JSON").bind_value(state.artifact_form, "regime_path").classes("w-full")
-                        ui.input("Security reference CSV").bind_value(state.artifact_form, "security_reference_path").classes("w-full")
                         ui.input("Risk config YAML").bind_value(state.artifact_form, "risk_config_path").classes("w-full")
                         ui.input("Allocation policy YAML").bind_value(state.artifact_form, "allocation_policy_path").classes("w-full")
+                        ui.input("Vol method").bind_value(state.artifact_form, "vol_method").classes("w-full")
+                        ui.input("Correlation assumption").bind_value(state.artifact_form, "inter_asset_corr").classes("w-full")
 
 
 def _render_feedback(state: PortfolioPageState) -> None:
     if state.is_loading:
-        ui.label("Loading latest snapshot...").classes("pm-loading w-full")
+        ui.label("Loading report data...").classes("pm-loading w-full")
     if state.load_error:
         ui.label(state.load_error).classes("pm-error w-full")
     for warning in state.warnings:
         ui.label(warning).classes("pm-warning w-full")
 
 
-async def _persist_html_snapshot(state: PortfolioPageState, request: Request) -> None:
-    from market_helper.domain.portfolio_monitor.pipelines.generate_portfolio_report import (
-        _build_snapshot_request,
-        _mirror_artifact_if_configured,
-        DEFAULT_GOOGLE_DRIVE_COMBINED_REPORT_FILENAME,
-    )
-    from market_helper.presentation.dashboard.snapshot import capture_snapshot
-
-    try:
-        combined_inputs = _combined_inputs_from_form(state)
-        request_url = request.base_url
-        output_path = Path(combined_inputs.output_path)
-        snapshot_request = _build_snapshot_request(
-            positions_csv_path=combined_inputs.positions_csv_path,
-            output_path=output_path,
-            performance_history_path=combined_inputs.performance_history_path,
-            performance_output_dir=combined_inputs.performance_output_dir,
-            performance_report_csv_path=combined_inputs.performance_report_csv_path,
-            returns_path=combined_inputs.returns_path,
-            proxy_path=combined_inputs.proxy_path,
-            regime_path=combined_inputs.regime_path,
-            security_reference_path=combined_inputs.security_reference_path,
-            risk_config_path=combined_inputs.risk_config_path,
-            allocation_policy_path=combined_inputs.allocation_policy_path,
-            vol_method=combined_inputs.vol_method,
-            inter_asset_corr=combined_inputs.inter_asset_corr,
-        )
-        set_snapshot_overrides(dict(snapshot_request.overrides or {}))
-        try:
-            existing_server_request = snapshot_request.__class__(
-                output_path=snapshot_request.output_path,
-                route=snapshot_request.route,
-                query=snapshot_request.query,
-                host=request_url.hostname or "127.0.0.1",
-                port=request_url.port or (443 if request_url.scheme == "https" else 80),
-                sentinel=snapshot_request.sentinel,
-                wait_seconds=snapshot_request.wait_seconds,
-                viewport_width=snapshot_request.viewport_width,
-                viewport_height=snapshot_request.viewport_height,
-                overrides=snapshot_request.overrides,
-                launch_server=False,
-            )
-            output_path = await asyncio.to_thread(capture_snapshot, existing_server_request)
-        finally:
-            set_snapshot_overrides(None)
-        await asyncio.to_thread(
-            _mirror_artifact_if_configured,
-            output_path,
-            target_name=DEFAULT_GOOGLE_DRIVE_COMBINED_REPORT_FILENAME,
-            config_path=combined_inputs.risk_config_path,
-        )
-    except Exception as exc:
-        state.warnings.append(f"HTML snapshot export failed: {exc}")
-        return
-
-    combined_status = state.action_statuses["combined"]
-    combined_status.status = "success"
-    combined_status.message = "HTML snapshot exported"
-    combined_status.progress_summary = "Saved after snapshot reload"
-    combined_status.last_output_path = str(output_path)
-
-
 def _render_main_tabs(state: PortfolioPageState) -> None:
-    if state.snapshot_mode:
-        _render_static_top_tabs(state)
-        return
-    tabs = ui.tabs(
-        on_change=lambda event: _update_top_tab(state, event.value),
-    ).classes("w-full")
+    tabs = ui.tabs(on_change=lambda event: _update_top_tab(state, event.value)).classes("w-full")
     with tabs:
-        tab_perf_usd = ui.tab("Performance USD")
-        tab_perf_sgd = ui.tab("Performance SGD")
-        tab_risk = ui.tab("Risk")
+        tab_report = ui.tab("Report")
         tab_artifacts = ui.tab("Artifacts")
-    initial_tab = {
-        "performance_usd": tab_perf_usd,
-        "performance_sgd": tab_perf_sgd,
-        "risk": tab_risk,
-        "artifacts": tab_artifacts,
-    }.get(state.selected_top_tab, tab_perf_usd)
+    initial_tab = {"report": tab_report, "artifacts": tab_artifacts}.get(state.selected_top_tab, tab_report)
     with ui.tab_panels(tabs, value=initial_tab).classes("w-full"):
-        with ui.tab_panel(tab_perf_usd):
-            if state.snapshot is None:
-                _render_loading_panel("Performance USD")
-            else:
-                _render_performance_panel(state, state.snapshot.performance_usd_view_model)
-        with ui.tab_panel(tab_perf_sgd):
-            if state.snapshot is None:
-                _render_loading_panel("Performance SGD")
-            else:
-                _render_performance_panel(state, state.snapshot.performance_sgd_view_model)
-        with ui.tab_panel(tab_risk):
-            if state.snapshot is None:
-                _render_loading_panel("Risk")
-            else:
-                _render_risk_panel(state, state.snapshot)
+        with ui.tab_panel(tab_report):
+            _render_report_host(state)
         with ui.tab_panel(tab_artifacts):
             _render_artifact_metadata(state)
 
 
-def _render_static_top_tabs(state: PortfolioPageState) -> None:
-    tabs = [
-        ("performance_usd", "Performance USD"),
-        ("performance_sgd", "Performance SGD"),
-        ("risk", "Risk"),
-        ("artifacts", "Artifacts"),
-    ]
-    with ui.row().classes("w-full pm-static-tab-buttons").props("data-static-tab-buttons=top"):
-        for key, label in tabs:
-            button = ui.element("button").classes("pm-static-tab-button")
-            button.props(f"type=button data-tab-target={key}")
-            if state.selected_top_tab == key:
-                button.classes(add="is-active")
-            with button:
-                ui.label(label)
-
-    for key, label in tabs:
-        panel = ui.element("section").classes("pm-static-tab-panel")
-        panel.props(f"data-static-tab-panel=top data-tab-key={key}")
-        if state.selected_top_tab != key:
-            panel.props("hidden")
-        with panel:
-            if key == "performance_usd":
-                if state.snapshot is None:
-                    _render_loading_panel(label)
-                else:
-                    _render_performance_panel(state, state.snapshot.performance_usd_view_model)
-            elif key == "performance_sgd":
-                if state.snapshot is None:
-                    _render_loading_panel(label)
-                else:
-                    _render_performance_panel(state, state.snapshot.performance_sgd_view_model)
-            elif key == "risk":
-                if state.snapshot is None:
-                    _render_loading_panel(label)
-                else:
-                    _render_risk_panel(state, state.snapshot, static_mode=True)
-            else:
-                _render_artifact_metadata(state)
-
-
-def _render_loading_panel(title: str) -> None:
-    with ui.card().classes("w-full pm-card p-4"):
-        ui.label(title).classes("text-h6")
-        ui.label("Waiting for the portfolio snapshot to load.").classes("pm-muted")
-
-
-def _render_performance_panel(state: PortfolioPageState, view_model: PerformanceReportViewModel) -> None:
-    currency = view_model.primary_currency
-    selected_mode = state.selected_perf_mode[currency]
-    selected_window = state.selected_perf_window[currency]
-    with ui.column().classes("w-full gap-4"):
+def _render_report_host(state: PortfolioPageState) -> None:
+    report_path = _current_report_output_path(state)
+    if report_path is None:
         with ui.card().classes("w-full pm-card p-4"):
-            ui.label(f"{currency} performance overview").classes("text-h6")
-            with ui.row().classes("w-full gap-4 wrap"):
-                for card in view_model.summary_cards:
-                    render_status_card(
-                        title=card.label,
-                        value=_format_summary_card_value(card.primary_value, card.value_kind),
-                        detail=card.secondary_label,
-                    )
-        with ui.card().classes("w-full pm-card p-4"):
-            with ui.row().classes("items-center gap-3"):
-                ui.toggle(
-                    {"percent": "Percent", "dollar": "Dollar"},
-                    value=selected_mode,
-                    on_change=lambda event, c=currency: _update_perf_mode(state, c, event.value),
-                )
-                ui.toggle(
-                    {"MTD": "MTD", "YTD": "YTD", "1Y": "1Y", "FULL": "Full"},
-                    value=selected_window,
-                    on_change=lambda event, c=currency: _update_perf_window(state, c, event.value),
-                )
-            figure_spec = dict(view_model.chart_specs[selected_mode][selected_window])
-            ui.plotly(_with_plotly_config(figure_spec)).classes("w-full h-[560px]")
-        with ui.row().classes("w-full gap-4 wrap"):
-            with ui.card().classes("grow basis-[560px] pm-card p-4"):
-                ui.label("Horizon Metrics").classes("text-h6")
-                render_table(
-                    columns=[
-                        {"name": "label", "label": "Window", "field": "label"},
-                        {"name": "twr_return", "label": "TWR", "field": "twr_return"},
-                        {"name": "mwr_return", "label": "MWR", "field": "mwr_return"},
-                        {"name": "annualized_return", "label": "Ann Return", "field": "annualized_return"},
-                        {"name": "annualized_vol", "label": "Ann Vol", "field": "annualized_vol"},
-                        {"name": "sharpe_ratio", "label": "Sharpe", "field": "sharpe_ratio"},
-                        {"name": "max_drawdown", "label": "Max DD", "field": "max_drawdown"},
-                    ],
-                    rows=[_performance_metric_row_to_table_row(row) for row in view_model.horizon_rows],
-                    row_key="label",
-                )
-            with ui.card().classes("grow basis-[560px] pm-card p-4"):
-                ui.label("Historical Years").classes("text-h6")
-                render_table(
-                    columns=[
-                        {"name": "label", "label": "Year", "field": "label"},
-                        {"name": "twr_return", "label": "TWR", "field": "twr_return"},
-                        {"name": "mwr_return", "label": "MWR", "field": "mwr_return"},
-                        {"name": "annualized_vol", "label": "Ann Vol", "field": "annualized_vol"},
-                        {"name": "sharpe_ratio", "label": "Sharpe", "field": "sharpe_ratio"},
-                        {"name": "max_drawdown", "label": "Max DD", "field": "max_drawdown"},
-                    ],
-                    rows=[_performance_metric_row_to_table_row(row) for row in view_model.yearly_rows],
-                    row_key="label",
-                )
-
-
-def _render_risk_panel(state: PortfolioPageState, snapshot: PortfolioReportSnapshot, *, static_mode: bool = False) -> None:
-    risk = snapshot.risk_view_model
-    if static_mode:
-        _render_static_risk_tabs(state, risk)
+            ui.label("HTML Report").classes("text-h6")
+            ui.label("No report output path is configured.").classes("pm-muted")
         return
-    with ui.column().classes("w-full gap-4"):
-        _render_risk_assumption_bar(state, risk, interactive=True)
-        risk_tabs = ui.tabs().classes("w-full")
-        with risk_tabs:
-            tab_overview = ui.tab("Main Overview")
-            tab_eq = ui.tab("Equity")
-            tab_fi = ui.tab("Fixed Income")
-            tab_cm = ui.tab("Commodity")
-            tab_fx = ui.tab("FX")
-            tab_macro = ui.tab("Macro")
-        with ui.tab_panels(risk_tabs, value=tab_overview).classes("w-full"):
-            with ui.tab_panel(tab_overview):
-                _render_risk_overview(state, risk)
-            with ui.tab_panel(tab_eq):
-                _render_risk_equity(state, risk)
-            with ui.tab_panel(tab_fi):
-                _render_risk_fixed_income(state, risk)
-            with ui.tab_panel(tab_cm):
-                _render_risk_commodity(state, risk)
-            with ui.tab_panel(tab_fx):
-                _render_risk_fx(state, risk)
-            with ui.tab_panel(tab_macro):
-                _render_risk_macro(state, risk)
-
-
-def _render_static_risk_tabs(state: PortfolioPageState, risk) -> None:
-    tabs = [
-        ("overview", "Main Overview", _render_risk_overview),
-        ("eq", "Equity", _render_risk_equity),
-        ("fi", "Fixed Income", _render_risk_fixed_income),
-        ("cm", "Commodity", _render_risk_commodity),
-        ("fx", "FX", _render_risk_fx),
-        ("macro", "Macro", _render_risk_macro),
-    ]
-    default_key = "overview"
-    with ui.column().classes("w-full gap-4"):
-        _render_risk_assumption_bar(state, risk, interactive=False)
-        with ui.row().classes("w-full pm-static-tab-buttons").props("data-static-tab-buttons=risk"):
-            for key, label, _renderer in tabs:
-                button = ui.element("button").classes("pm-static-tab-button")
-                button.props(f"type=button data-tab-target={key}")
-                if key == default_key:
-                    button.classes(add="is-active")
-                with button:
-                    ui.label(label)
-        for key, _label, renderer in tabs:
-            panel = ui.element("section").classes("pm-static-tab-panel")
-            panel.props(f"data-static-tab-panel=risk data-tab-key={key}")
-            if key != default_key:
-                panel.props("hidden")
-            with panel:
-                renderer(state, risk)
-
-
-def _render_risk_assumption_bar(state: PortfolioPageState, risk, *, interactive: bool) -> None:
-    with ui.card().classes("w-full pm-card p-4"):
-        ui.label("Risk Assumptions").classes("text-h6")
-        if interactive:
-            with ui.row().classes("items-center gap-3 wrap"):
-                ui.toggle(
-                    {label: label for label in DEFAULT_VOL_METHOD_LABELS.keys()},
-                    value=state.artifact_form.vol_method,
-                    on_change=lambda event: _update_risk_vol_method(state, event.value),
-                )
+    if not report_path.exists():
+        with ui.card().classes("w-full pm-card p-4"):
+            ui.label("HTML Report").classes("text-h6")
             ui.label(
-                "This toggle controls which precomputed vol and contribution columns are shown. Reload to rebuild the snapshot with a different correlation assumption."
-            ).classes("pm-muted text-caption")
-        else:
-            selected_vol = resolve_vol_method_key(state.artifact_form.vol_method, DEFAULT_VOL_METHOD_LABELS)
-            with ui.row().classes("items-center gap-3 wrap").props("data-risk-vol-buttons=1"):
-                for label, key in (
-                    ("Long-Term", "5y_realized"),
-                    ("Fast", "geomean_1m_3m"),
-                    ("Forward-Looking", "forward_looking"),
-                ):
-                    button = ui.element("button").classes("pm-static-tab-button")
-                    button.props(f"type=button data-risk-vol-target={key}")
-                    if key == selected_vol:
-                        button.classes(add="is-active")
-                    with button:
-                        ui.label(label)
-        ui.label(f"Snapshot built with {risk.vol_method} / {risk.inter_asset_corr}").classes("pm-muted text-caption")
-
-
-def _render_risk_overview(state: PortfolioPageState, risk) -> None:
-    with ui.column().classes("w-full gap-4"):
-        with ui.card().classes("w-full pm-card p-4"):
-            ui.label("Portfolio Summary").classes("text-h6")
-            with ui.row().classes("w-full gap-4 wrap"):
-                for label, value in [
-                    ("Funded AUM USD", format_amount(risk.summary.funded_aum_usd, decimals=0)),
-                    ("Funded AUM SGD", format_amount(risk.summary.funded_aum_sgd, decimals=0)),
-                    ("Gross Exposure", format_amount(risk.summary.gross_exposure, decimals=0)),
-                    ("Net Exposure", format_amount(risk.summary.net_exposure, decimals=0)),
-                    ("Mapping Coverage", f"{risk.summary.mapped_positions}/{risk.summary.total_positions}"),
-                ]:
-                    render_status_card(title=label, value=value)
-            ui.label("FX excluded from portfolio vol aggregation.").classes("pm-muted text-caption mt-2")
-        with ui.card().classes("w-full pm-card p-4"):
-            ui.label("Portfolio Vol Matrix").classes("text-h6")
-            ui.label("Rows are correlation assumptions. Columns are volatility methods.").classes("pm-muted text-caption")
-            ui.html(_build_portfolio_vol_matrix_html(state, risk)).classes("w-full")
-        with ui.card().classes("w-full pm-card p-4"):
-            ui.label("Asset Class Summary").classes("text-h6")
-            _render_allocation_summary_table(state, risk)
-        _render_policy_drift_asset_class(risk)
-
-
-def _render_risk_equity(state: PortfolioPageState, risk) -> None:
-    eq_rows = [r for r in risk.risk_rows if r.asset_class == "EQ"]
-    with ui.column().classes("w-full gap-4"):
-        _render_dm_em_policy_drift_summary(risk.policy_drift_country)
-        with ui.row().classes("w-full gap-4 wrap"):
-            render_risk_chart_block(
-                title="Equity Country Active Weight",
-                figure=build_policy_drift_figure(risk.policy_drift_country),
-                columns=_policy_drift_columns(include_risk=False),
-                rows=[_policy_drift_row_to_table_row(row, include_risk=False) for row in risk.policy_drift_country],
-                row_key="bucket",
-            )
-            render_risk_chart_block(
-                title="US Sector Active Weight (vs SPY)",
-                figure=build_policy_drift_figure(risk.policy_drift_sector),
-                columns=_policy_drift_columns(include_risk=False),
-                rows=[_policy_drift_row_to_table_row(row, include_risk=False) for row in risk.policy_drift_sector],
-                row_key="bucket",
-            )
-        _render_position_subtable(state, "Equity Holdings", eq_rows)
-
-
-def _render_policy_drift_asset_class(risk) -> None:
-    rows = [_policy_drift_row_to_table_row(row, include_risk=False) for row in risk.policy_drift_asset_class]
-    columns = [
-        {"name": "bucket", "label": "Bucket", "field": "bucket"},
-        {"name": "scope", "label": "Scope", "field": "scope"},
-        {"name": "current_weight", "label": "Current %", "field": "current_weight"},
-        {"name": "policy_weight", "label": "Policy %", "field": "policy_weight"},
-        {"name": "active_weight", "label": "Active %", "field": "active_weight"},
-    ]
-    with ui.card().classes("w-full pm-card p-4"):
-        ui.label("Portfolio Drift - Asset Class").classes("text-h6")
-        if not rows:
-            ui.label("No data").classes("text-body2 pm-muted")
-            render_table(columns=columns, rows=rows, row_key="bucket")
-            return
-        with ui.row().classes("w-full gap-4 items-start wrap"):
-            with ui.column().classes("grow basis-[720px] min-w-[340px]"):
-                ui.plotly(build_policy_drift_figure(risk.policy_drift_asset_class)).classes("w-full h-[360px]")
-            with ui.column().classes("grow basis-[420px] min-w-[320px]"):
-                render_table(columns=columns, rows=rows, row_key="bucket")
-
-
-def _render_dm_em_policy_drift_summary(policy_drift_country: list[PolicyDriftRow]) -> None:
-    region_map = _load_dm_em_bucket_map()
-    summary: dict[str, PolicyDriftRow] = {}
-    for row in policy_drift_country:
-        region = region_map.get(row.bucket.upper())
-        if region not in ("DM", "EM"):
-            continue
-        current = summary.get(region)
-        if current is None:
-            summary[region] = PolicyDriftRow(
-                bucket=region,
-                scope="EQ",
-                current_weight=row.current_weight,
-                policy_weight=row.policy_weight,
-                active_weight=row.active_weight,
-                current_risk_contribution=row.current_risk_contribution,
-            )
-            continue
-        summary[region] = PolicyDriftRow(
-            bucket=region,
-            scope="EQ",
-            current_weight=current.current_weight + row.current_weight,
-            policy_weight=current.policy_weight + row.policy_weight,
-            active_weight=current.active_weight + row.active_weight,
-            current_risk_contribution=current.current_risk_contribution + row.current_risk_contribution,
-        )
-    rows = [summary[key] for key in ("DM", "EM") if key in summary]
-    if not rows:
+                "No generated HTML report is available yet. Load report data or explicitly generate the HTML report."
+            ).classes("pm-muted")
+            ui.label(str(report_path)).classes("text-caption pm-muted")
         return
-    render_risk_chart_block(
-        title="DM / EM Active Weight",
-        figure=build_policy_drift_figure(rows),
-        columns=_policy_drift_columns(include_risk=False),
-        rows=[_policy_drift_row_to_table_row(row, include_risk=False) for row in rows],
-        row_key="bucket",
+    report_html = report_path.read_text(encoding="utf-8")
+    iframe_html = (
+        "<iframe "
+        "title='Portfolio Monitor HTML Report' "
+        "sandbox='allow-same-origin allow-scripts' "
+        "style='width:100%;min-height:78vh;border:0;border-radius:20px;background:#fff' "
+        f"srcdoc='{html.escape(report_html, quote=True)}'></iframe>"
     )
-
-
-@lru_cache(maxsize=1)
-def _load_dm_em_bucket_map() -> dict[str, str]:
-    path = (
-        Path(__file__).resolve().parents[4]
-        / "configs"
-        / "portfolio_monitor"
-        / "eq_country_lookthrough.csv"
-    )
-    mapping: dict[str, str] = {}
-    if not path.exists():
-        return mapping
-    with path.open("r", encoding="utf-8", newline="") as handle:
-        reader = csv.DictReader(handle)
-        dm_buckets: set[str] = set()
-        em_buckets: set[str] = set()
-        for row in reader:
-            region = (row.get("eq_country") or "").strip().upper()
-            bucket = (row.get("country_bucket") or "").strip().upper()
-            if not bucket or bucket.endswith("-OTHERS") or bucket in {"OTHER", "OTHERS"}:
-                continue
-            if region == "DM":
-                dm_buckets.add(bucket)
-            elif region == "EM":
-                em_buckets.add(bucket)
-    for bucket in dm_buckets - em_buckets:
-        mapping[bucket] = "DM"
-    for bucket in em_buckets - dm_buckets:
-        mapping[bucket] = "EM"
-    mapping["DM-OTHERS"] = "DM"
-    mapping["EM-OTHERS"] = "EM"
-    return mapping
-
-
-def _render_risk_fixed_income(state: PortfolioPageState, risk) -> None:
-    fi_rows = [r for r in risk.risk_rows if r.asset_class == "FI"]
-    total_fi_exposure = sum(r.exposure_usd for r in fi_rows)
-    weighted_duration = (
-        sum((r.duration or 0.0) * r.exposure_usd for r in fi_rows) / total_fi_exposure
-        if total_fi_exposure
-        else 0.0
-    )
-    with ui.column().classes("w-full gap-4"):
-        with ui.card().classes("w-full pm-card p-4"):
-            ui.label("Fixed Income Summary").classes("text-h6")
-            with ui.row().classes("w-full gap-4 wrap"):
-                render_status_card(title="Total FI Net Exposure", value=format_amount(total_fi_exposure, decimals=0))
-                render_status_card(title="Weighted Avg Duration", value=format_ratio(weighted_duration))
-                render_status_card(title="Position Count", value=str(len(fi_rows)))
-        with ui.card().classes("w-full pm-card p-4"):
-            ui.label("Tenor Bucket Allocation").classes("text-h6")
-            _render_fi_tenor_breakdown_table(state, risk, fi_rows)
-        _render_position_subtable(state, "FI Instruments", fi_rows)
-
-
-def _render_risk_commodity(state: PortfolioPageState, risk) -> None:
-    cm_rows = [r for r in risk.risk_rows if r.asset_class == "CM"]
-    with ui.column().classes("w-full gap-4"):
-        with ui.card().classes("w-full pm-card p-4"):
-            ui.label("Commodity Sector Summary").classes("text-h6")
-            _render_commodity_sector_summary_table(state, cm_rows)
-        _render_commodity_correlation_heatmap_html()
-        _render_position_subtable(state, "Commodity Holdings", cm_rows)
-
-
-def _render_commodity_correlation_heatmap_html() -> None:
-    proxies = _load_commodity_sector_proxies()
-    if not proxies:
-        return
-    matrix = _compute_commodity_sector_correlation(proxies)
-    if matrix is None:
-        with ui.card().classes("w-full pm-card p-4"):
-            ui.label("Commodity Sector Correlation").classes("text-h6")
-            ui.label("Proxy return data unavailable — heatmap skipped.").classes("pm-muted")
-        return
-    labels, corr = matrix
-    with ui.card().classes("w-full pm-card p-4"):
-        ui.label("Commodity Sector Correlation").classes("text-h6")
-        ui.html(_build_commodity_corr_table_html(labels, corr)).classes("w-full")
-
-
-@lru_cache(maxsize=1)
-def _load_commodity_sector_proxies() -> tuple[tuple[str, str], ...]:
-    import yaml
-
-    path = (
-        Path(__file__).resolve().parents[4]
-        / "configs"
-        / "portfolio_monitor"
-        / "report_config.yaml"
-    )
-    if not path.exists():
-        return ()
-    with path.open("r", encoding="utf-8") as handle:
-        data = yaml.safe_load(handle) or {}
-    proxies = (data.get("risk_report") or {}).get("commodity_sector_proxies") or {}
-    return tuple((str(code).upper(), str(symbol)) for code, symbol in proxies.items() if symbol)
-
-
-def _compute_commodity_sector_correlation(
-    proxies: tuple[tuple[str, str], ...],
-) -> tuple[list[str], list[list[float]]] | None:
-    from market_helper.data_sources.yahoo_finance import YahooFinanceClient
-    from market_helper.domain.portfolio_monitor.services.yahoo_returns import (
-        ensure_symbol_return_cache,
-    )
-    from market_helper.reporting.risk_html import pairwise_corr
-
-    client = YahooFinanceClient()
-    series_by_code: dict[str, list[float]] = {}
-    for code, symbol in proxies:
-        try:
-            cache = ensure_symbol_return_cache(symbol, yahoo_client=client, period="5y")
-        except Exception:
-            continue
-        if cache.series is None or cache.series.empty:
-            continue
-        series_by_code[code] = cache.series.tolist()
-    if len(series_by_code) < 2:
-        return None
-    labels = [code for code, _ in proxies if code in series_by_code]
-    corr = [
-        [
-            1.0 if a == b else pairwise_corr(series_by_code[a], series_by_code[b])
-            for b in labels
-        ]
-        for a in labels
-    ]
-    return labels, corr
-
-
-_CM_SECTOR_LABELS: dict[str, str] = {
-    "PM": "Precious Metals",
-    "IM": "Industrial Metals",
-    "EN": "Energy",
-    "AG": "Agriculture",
-}
-
-
-def _render_risk_fx(state: PortfolioPageState, risk) -> None:
-    fx_rows = [r for r in risk.risk_rows if r.asset_class == "FX"]
-    with ui.column().classes("w-full gap-4"):
-        with ui.card().classes("w-full pm-card p-4"):
-            ui.label("FX Allocation").classes("text-h6")
-            ui.label("Vol Contribution % omitted in MVP (FX vol unstable).").classes("pm-muted text-caption")
-        _render_position_subtable(state, "FX Positions", fx_rows, include_vol_contribution=False)
-
-
-def _render_risk_macro(state: PortfolioPageState, risk) -> None:
-    macro_rows = [r for r in risk.risk_rows if r.asset_class == "MACRO"]
-    with ui.column().classes("w-full gap-4"):
-        _render_position_subtable(state, "Macro Instruments", macro_rows)
-
-
-def _render_position_subtable(
-    state: PortfolioPageState,
-    title: str,
-    rows: list[RiskMetricsRow],
-    *,
-    include_vol_contribution: bool = True,
-) -> None:
-    with ui.card().classes("w-full pm-card p-4"):
-        ui.label(title).classes("text-h6")
-        if not rows:
-            ui.label("No positions in this asset class.").classes("pm-muted")
-            return
-        if state.snapshot_mode:
-            columns = [
-                {"name": "account", "label": "Account", "field": "account"},
-                {"name": "display_ticker", "label": "Ticker", "field": "display_ticker"},
-                {"name": "display_name", "label": "Name", "field": "display_name"},
-                {"name": "instrument_type", "label": "Type", "field": "instrument_type"},
-                {"name": "gross_exposure_usd", "label": "Gross Exposure ($)", "field": "gross_exposure_usd"},
-                {"name": "exposure_usd", "label": "Net Exposure ($)", "field": "exposure_usd"},
-                {"name": "dollar_weight", "label": "Portfolio Allocation %", "field": "dollar_weight"},
-                {"name": "vol_geomean_1m_3m", "label": "Vol (Fast)", "field": "vol_geomean_1m_3m"},
-                {"name": "vol_5y_realized", "label": "Vol (Long-Term)", "field": "vol_5y_realized"},
-                {"name": "vol_forward_looking", "label": "Vol (Forward-Looking)", "field": "vol_forward_looking"},
-            ]
-            column_map = "geomean_1m_3m:8;5y_realized:9;forward_looking:10"
-            if include_vol_contribution:
-                columns.extend(
-                    [
-                        {
-                            "name": "risk_contribution_geomean_1m_3m",
-                            "label": "Vol Contribution (Fast)",
-                            "field": "risk_contribution_geomean_1m_3m",
-                        },
-                        {
-                            "name": "risk_contribution_5y_realized",
-                            "label": "Vol Contribution (Long-Term)",
-                            "field": "risk_contribution_5y_realized",
-                        },
-                        {
-                            "name": "risk_contribution_forward_looking",
-                            "label": "Vol Contribution (Forward-Looking)",
-                            "field": "risk_contribution_forward_looking",
-                        },
-                    ]
-                )
-                column_map = f"{column_map};geomean_1m_3m_rc:11;5y_realized_rc:12;forward_looking_rc:13"
-            columns.append({"name": "mapping_status", "label": "Mapping", "field": "mapping_status"})
-            with ui.element("div").props(
-                f'data-risk-method-table=1 data-selected-vol="{resolve_vol_method_key(state.artifact_form.vol_method, DEFAULT_VOL_METHOD_LABELS)}" data-fixed-columns="7" data-tail-columns="1" data-vol-column-map="{column_map}"'
-            ).classes("w-full"):
-                render_table(
-                    columns=columns,
-                    rows=[_risk_row_to_table_row(row) for row in rows],
-                    row_key="internal_id",
-                )
-            return
-
-        columns = [
-            {"name": "account", "label": "Account", "field": "account"},
-            {"name": "display_ticker", "label": "Ticker", "field": "display_ticker"},
-            {"name": "display_name", "label": "Name", "field": "display_name"},
-            {"name": "instrument_type", "label": "Type", "field": "instrument_type"},
-            {"name": "gross_exposure_usd", "label": "Gross Exposure ($)", "field": "gross_exposure_usd"},
-            {"name": "exposure_usd", "label": "Net Exposure ($)", "field": "exposure_usd"},
-            {"name": "dollar_weight", "label": "Portfolio Allocation %", "field": "dollar_weight"},
-            {
-                "name": _selected_vol_field_name(state),
-                "label": f"Vol ({state.artifact_form.vol_method})",
-                "field": _selected_vol_field_name(state),
-            },
-        ]
-        if include_vol_contribution:
-            columns.append(
-                {
-                    "name": _selected_risk_contribution_field_name(state),
-                    "label": f"Vol Contribution ({state.artifact_form.vol_method})",
-                    "field": _selected_risk_contribution_field_name(state),
-                }
-            )
-        columns.append({"name": "mapping_status", "label": "Mapping", "field": "mapping_status"})
-        render_table(
-            columns=columns,
-            rows=[_risk_row_to_table_row(row) for row in rows],
-            row_key="internal_id",
-        )
+    with ui.card().classes("w-full pm-card p-2"):
+        ui.html(iframe_html).classes("w-full")
 
 
 def _render_artifact_metadata(state: PortfolioPageState) -> None:
-    snapshot = state.snapshot
-    if snapshot is not None:
-        metadata_rows = [
-            {"label": "Positions CSV", "value": format_path(snapshot.artifact_metadata.positions_csv_path)},
-            {"label": "Positions as of", "value": format_text(snapshot.artifact_metadata.positions_as_of)},
-            {"label": "Performance output dir", "value": format_path(snapshot.artifact_metadata.performance_output_dir)},
-            {"label": "Performance history", "value": format_path(snapshot.artifact_metadata.performance_history_path)},
-            {"label": "Performance report CSV", "value": format_path(snapshot.artifact_metadata.performance_report_csv_path)},
-            {"label": "Returns JSON", "value": format_path(snapshot.artifact_metadata.returns_path)},
-            {"label": "Proxy JSON", "value": format_path(snapshot.artifact_metadata.proxy_path)},
-            {"label": "Regime JSON", "value": format_path(snapshot.artifact_metadata.regime_path)},
-            {"label": "Security reference", "value": format_path(snapshot.artifact_metadata.security_reference_path)},
-            {"label": "Risk config", "value": format_path(snapshot.artifact_metadata.risk_config_path)},
-            {"label": "Allocation policy", "value": format_path(snapshot.artifact_metadata.allocation_policy_path)},
+    if state.report_data is not None:
+        metadata = state.report_data.artifact_metadata
+        rows = [
+            ("Positions CSV", format_path(metadata.positions_csv_path)),
+            ("Positions as of", format_text(metadata.positions_as_of)),
+            ("Performance output dir", format_path(metadata.performance_output_dir)),
+            ("Performance history", format_path(metadata.performance_history_path)),
+            ("Performance report CSV", format_path(metadata.performance_report_csv_path)),
+            ("Returns JSON", format_path(metadata.returns_path)),
+            ("Proxy JSON", format_path(metadata.proxy_path)),
+            ("Regime JSON", format_path(metadata.regime_path)),
+            ("Security reference", format_path(metadata.security_reference_path)),
+            ("Risk config", format_path(metadata.risk_config_path)),
+            ("Allocation policy", format_path(metadata.allocation_policy_path)),
         ]
     else:
-        metadata_rows = [
-            {"label": "Positions CSV", "value": state.artifact_form.positions_csv_path or "n/a"},
-            {"label": "Performance output dir", "value": state.artifact_form.performance_output_dir or "n/a"},
-            {"label": "Performance history", "value": state.artifact_form.performance_history_path or "n/a"},
-            {"label": "Performance report CSV", "value": state.artifact_form.performance_report_csv_path or "n/a"},
-            {"label": "Returns JSON", "value": state.artifact_form.returns_path or "n/a"},
-            {"label": "Proxy JSON", "value": state.artifact_form.proxy_path or "n/a"},
-            {"label": "Regime JSON", "value": state.artifact_form.regime_path or "n/a"},
-            {"label": "Security reference", "value": state.artifact_form.security_reference_path or "n/a"},
-            {"label": "Risk config", "value": state.artifact_form.risk_config_path or "n/a"},
-            {"label": "Allocation policy", "value": state.artifact_form.allocation_policy_path or "n/a"},
+        rows = [
+            ("Positions CSV", state.artifact_form.positions_csv_path or "n/a"),
+            ("Performance output dir", state.artifact_form.performance_output_dir or "n/a"),
+            ("Combined HTML output", state.export_form.output_path or "n/a"),
         ]
+
     with ui.card().classes("w-full pm-card p-4"):
-        ui.label("Resolved artifact metadata").classes("text-h6")
-        render_table(
-            columns=[
-                {"name": "label", "label": "Item", "field": "label"},
-                {"name": "value", "label": "Value", "field": "value"},
-            ],
-            rows=metadata_rows,
-            row_key="label",
-        )
+        ui.label("Artifact Metadata").classes("text-h6")
+        for label, value in rows:
+            render_status_card(title=label, value=value)
 
 
 def _render_action_console(state: PortfolioPageState) -> None:
     run_action = getattr(state, "_run_action", None)
-    with ui.expansion("Advanced Actions", icon="build", value=False).classes("w-full pm-card"):
-        with ui.column().classes("w-full p-4 gap-4"):
-            with ui.row().classes("w-full gap-4 wrap"):
-                render_action_card(
-                    title="Live Positions",
-                    subtitle="Refresh the tracked position CSV from a local TWS / IB Gateway session.",
-                    status=state.action_statuses["live"].status,
-                    message=state.action_statuses["live"].message,
-                    progress_summary=_action_progress_summary(state, "live"),
-                    last_output_path=state.action_statuses["live"].last_output_path,
-                    body=lambda: _render_live_action_body(state, run_action),
-                )
-                render_action_card(
-                    title="Flex Performance",
-                    subtitle="Rebuild flex-based performance artifacts from local XML or live Flex credentials.",
-                    status=state.action_statuses["flex"].status,
-                    message=state.action_statuses["flex"].message,
-                    progress_summary=_action_progress_summary(state, "flex"),
-                    last_output_path=state.action_statuses["flex"].last_output_path,
-                    body=lambda: _render_flex_action_body(state, run_action),
-                )
-                render_action_card(
-                    title="Static Export",
-                    subtitle="Regenerate the compatibility combined HTML report from the current artifact form.",
-                    status=state.action_statuses["combined"].status,
-                    message=state.action_statuses["combined"].message,
-                    progress_summary=_action_progress_summary(state, "combined"),
-                    last_output_path=state.action_statuses["combined"].last_output_path,
-                    body=lambda: _render_export_action_body(state, run_action),
-                )
-                render_action_card(
-                    title="Reference Sync",
-                    subtitle="Sync security reference outputs and ETF sector lookthrough with explicit inputs.",
-                    status=_combined_reference_status(state),
-                    message=_combined_reference_message(state),
-                    progress_summary=_combined_reference_progress(state),
-                    last_output_path=_combined_reference_output(state),
-                    body=lambda: _render_reference_action_body(state, run_action),
-                )
+    with ui.row().classes("w-full gap-4 wrap"):
+        render_action_card(
+            title="Refresh Pipeline",
+            subtitle="Run live refresh, rebuild flex artifacts, reload report data, and regenerate HTML.",
+            status=state.action_statuses["refresh"].status,
+            message=state.action_statuses["refresh"].message,
+            progress_summary=_action_progress_summary(state, "refresh"),
+            last_output_path=state.action_statuses["refresh"].last_output_path,
+            body=lambda: _render_action_button(run_action, "refresh", "Run Full Refresh"),
+        )
+        render_action_card(
+            title="Live Refresh",
+            subtitle="Fetch latest live positions into the configured CSV artifact.",
+            status=state.action_statuses["live"].status,
+            message=state.action_statuses["live"].message,
+            progress_summary=_action_progress_summary(state, "live"),
+            last_output_path=state.action_statuses["live"].last_output_path,
+            body=lambda: _render_live_action_form(state, run_action),
+        )
+        render_action_card(
+            title="Flex Refresh",
+            subtitle="Rebuild flex performance artifacts from local XML or live credentials.",
+            status=state.action_statuses["flex"].status,
+            message=state.action_statuses["flex"].message,
+            progress_summary=_action_progress_summary(state, "flex"),
+            last_output_path=state.action_statuses["flex"].last_output_path,
+            body=lambda: _render_flex_action_form(state, run_action),
+        )
+        render_action_card(
+            title="HTML Report",
+            subtitle="Explicitly generate the self-contained HTML report artifact.",
+            status=state.action_statuses["combined"].status,
+            message=state.action_statuses["combined"].message,
+            progress_summary=_action_progress_summary(state, "combined"),
+            last_output_path=state.action_statuses["combined"].last_output_path,
+            body=lambda: _render_action_button(run_action, "combined", "Generate HTML Report"),
+        )
+        render_action_card(
+            title="Reference Sync",
+            subtitle="Refresh supporting reference artifacts used by the report data pipeline.",
+            status=state.action_statuses["security-reference"].status,
+            message=state.action_statuses["security-reference"].message,
+            progress_summary=_action_progress_summary(state, "security-reference"),
+            last_output_path=state.action_statuses["security-reference"].last_output_path,
+            body=lambda: _render_reference_action_form(state, run_action),
+        )
 
 
-def _render_live_action_body(state: PortfolioPageState, run_action) -> None:
-    disabled = state.active_job is not None
-    ui.input("Output path").bind_value(state.live_form, "output_path").classes("w-full")
-    with ui.row().classes("w-full gap-3 wrap"):
-        ui.input("Host").bind_value(state.live_form, "host")
-        ui.input("Port").bind_value(state.live_form, "port")
-        ui.input("Client ID").bind_value(state.live_form, "client_id")
-        ui.input("Timeout").bind_value(state.live_form, "timeout")
-    with ui.expansion("Advanced", icon="tune").classes("w-full"):
-        ui.input("Account ID").bind_value(state.live_form, "account_id").classes("w-full")
-        ui.input("As Of").bind_value(state.live_form, "as_of").classes("w-full")
-    button = ui.button("Refresh Live", on_click=lambda: asyncio.create_task(run_action("live"))).props("color=primary")
-    if disabled:
-        button.props("disable")
+def _render_live_action_form(state: PortfolioPageState, run_action) -> None:
+    with ui.column().classes("w-full gap-2"):
+        ui.input("Output CSV").bind_value(state.live_form, "output_path").classes("w-full")
+        with ui.grid(columns=2).classes("w-full gap-2"):
+            ui.input("Host").bind_value(state.live_form, "host").classes("w-full")
+            ui.input("Port").bind_value(state.live_form, "port").classes("w-full")
+            ui.input("Client ID").bind_value(state.live_form, "client_id").classes("w-full")
+            ui.input("Account ID").bind_value(state.live_form, "account_id").classes("w-full")
+            ui.input("Timeout").bind_value(state.live_form, "timeout").classes("w-full")
+            ui.input("As of").bind_value(state.live_form, "as_of").classes("w-full")
+        _render_action_button(run_action, "live", "Run Live Refresh")
 
 
-def _render_flex_action_body(state: PortfolioPageState, run_action) -> None:
-    disabled = state.active_job is not None
-    ui.input("Output dir").bind_value(state.flex_form, "output_dir").classes("w-full")
-    ui.input("Flex XML path").bind_value(state.flex_form, "flex_xml_path").classes("w-full")
-    with ui.expansion("Advanced", icon="tune").classes("w-full"):
-        ui.input("Query ID").bind_value(state.flex_form, "query_id").classes("w-full")
-        ui.input("Token").bind_value(state.flex_form, "token").classes("w-full")
-        ui.input("From date").bind_value(state.flex_form, "from_date").classes("w-full")
-        ui.input("To date").bind_value(state.flex_form, "to_date").classes("w-full")
-        ui.input("Period").bind_value(state.flex_form, "period").classes("w-full")
-        ui.input("XML output path").bind_value(state.flex_form, "xml_output_path").classes("w-full")
-    button = ui.button("Refresh Flex", on_click=lambda: asyncio.create_task(run_action("flex"))).props("color=primary")
-    if disabled:
-        button.props("disable")
+def _render_flex_action_form(state: PortfolioPageState, run_action) -> None:
+    with ui.column().classes("w-full gap-2"):
+        ui.input("Output dir").bind_value(state.flex_form, "output_dir").classes("w-full")
+        ui.input("Flex XML path").bind_value(state.flex_form, "flex_xml_path").classes("w-full")
+        with ui.grid(columns=2).classes("w-full gap-2"):
+            ui.input("Query ID").bind_value(state.flex_form, "query_id").classes("w-full")
+            ui.input("Token").bind_value(state.flex_form, "token").classes("w-full")
+            ui.input("From date").bind_value(state.flex_form, "from_date").classes("w-full")
+            ui.input("To date").bind_value(state.flex_form, "to_date").classes("w-full")
+            ui.input("Period").bind_value(state.flex_form, "period").classes("w-full")
+            ui.input("XML output path").bind_value(state.flex_form, "xml_output_path").classes("w-full")
+        _render_action_button(run_action, "flex", "Run Flex Refresh")
 
 
-def _render_export_action_body(state: PortfolioPageState, run_action) -> None:
-    disabled = state.active_job is not None
-    ui.input("Combined HTML output").bind_value(state.export_form, "output_path").classes("w-full")
-    button = ui.button("Generate Combined HTML", on_click=lambda: asyncio.create_task(run_action("combined"))).props("color=primary")
-    if disabled:
-        button.props("disable")
+def _render_reference_action_form(state: PortfolioPageState, run_action) -> None:
+    with ui.column().classes("w-full gap-2"):
+        ui.input("Security reference output").bind_value(
+            state.reference_form, "security_reference_output_path"
+        ).classes("w-full")
+        ui.input("ETF symbols").bind_value(state.reference_form, "etf_symbols").classes("w-full")
+        with ui.grid(columns=2).classes("w-full gap-2"):
+            ui.input("ETF output path").bind_value(state.reference_form, "etf_output_path").classes("w-full")
+            ui.input("API key").bind_value(state.reference_form, "api_key").classes("w-full")
+        with ui.row().classes("gap-2 wrap"):
+            _render_action_button(run_action, "security-reference", "Sync Security Reference")
+            _render_action_button(run_action, "etf", "Sync ETF Lookthrough")
 
 
-def _render_reference_action_body(state: PortfolioPageState, run_action) -> None:
-    disabled = state.active_job is not None
-    ui.input("Security reference output").bind_value(state.reference_form, "security_reference_output_path").classes("w-full")
-    button_ref = ui.button("Sync Security Reference", on_click=lambda: asyncio.create_task(run_action("security-reference"))).props("outline")
-    if disabled:
-        button_ref.props("disable")
-    ui.separator().classes("my-3")
-    ui.input("ETF symbols (comma-separated)").bind_value(state.reference_form, "etf_symbols").classes("w-full")
-    ui.input("ETF output path").bind_value(state.reference_form, "etf_output_path").classes("w-full")
-    with ui.expansion("Advanced", icon="vpn_key").classes("w-full"):
-        ui.input("FMP API Key").bind_value(state.reference_form, "api_key").classes("w-full")
-    button_etf = ui.button("Sync ETF Sectors", on_click=lambda: asyncio.create_task(run_action("etf"))).props("outline")
-    if disabled:
-        button_etf.props("disable")
+def _render_action_button(run_action, action_name: str, label: str) -> None:
+    ui.button(label, on_click=lambda: asyncio.create_task(run_action(action_name)))
 
 
 def _render_logs(state: PortfolioPageState) -> None:
-    with ui.expansion("Run History", icon="receipt_long").classes("w-full pm-card"):
-        with ui.column().classes("w-full p-4 gap-3"):
-            ui.label("Workflow progress events").classes("text-subtitle1")
-            rows = [
-                {
-                    "timestamp": event.timestamp,
-                    "kind": event.kind,
-                    "label": event.label,
-                    "detail": event.detail or "",
-                    "progress": _format_progress_event(event),
-                }
-                for event in reversed(state.progress_sink.events)
-            ]
-            with ui.element("div").classes("w-full pm-log"):
-                render_table(
-                    columns=[
-                        {"name": "timestamp", "label": "Timestamp", "field": "timestamp"},
-                        {"name": "kind", "label": "Kind", "field": "kind"},
-                        {"name": "label", "label": "Label", "field": "label"},
-                        {"name": "detail", "label": "Detail", "field": "detail"},
-                        {"name": "progress", "label": "Progress", "field": "progress"},
-                    ],
-                    rows=rows,
-                    row_key="timestamp",
-                )
+    with ui.card().classes("w-full pm-card p-4"):
+        ui.label("Progress Log").classes("text-h6")
+        with ui.column().classes("w-full gap-2 pm-log"):
+            if not state.progress_sink.events:
+                ui.label("No progress events yet.").classes("pm-muted")
+                return
+            for event in state.progress_sink.events[-20:]:
+                detail = _format_progress_event(event)
+                text = f"{event.label}: {detail}" if detail else event.label
+                ui.label(text).classes("text-caption")
 
 
 def _artifact_inputs_from_form(form: PortfolioArtifactFormState) -> PortfolioReportInputs:
     return PortfolioReportInputs(
-        positions_csv_path=_required_text(form.positions_csv_path, "Positions CSV"),
+        positions_csv_path=_required_text(form.positions_csv_path, "Positions CSV path"),
         performance_output_dir=_optional_text(form.performance_output_dir),
         performance_history_path=_optional_text(form.performance_history_path),
         performance_report_csv_path=_optional_text(form.performance_report_csv_path),
@@ -1471,8 +754,8 @@ def _artifact_inputs_from_form(form: PortfolioArtifactFormState) -> PortfolioRep
         security_reference_path=_optional_text(form.security_reference_path),
         risk_config_path=_optional_text(form.risk_config_path),
         allocation_policy_path=_optional_text(form.allocation_policy_path),
-        vol_method=form.vol_method,
-        inter_asset_corr=form.inter_asset_corr,
+        vol_method=_required_text(form.vol_method, "Vol method"),
+        inter_asset_corr=_required_text(form.inter_asset_corr, "Inter-asset correlation assumption"),
     )
 
 
@@ -1529,6 +812,18 @@ def _etf_inputs_from_form(form: ReferenceActionFormState) -> EtfSectorSyncInputs
         output_path=_optional_text(form.etf_output_path),
         api_key=_optional_text(form.api_key),
     )
+
+
+def _current_report_output_path(state: PortfolioPageState) -> Path | None:
+    candidates = [
+        str(state.generated_report.output_path) if state.generated_report is not None else None,
+        _optional_text(state.action_statuses["combined"].last_output_path),
+        _optional_text(state.export_form.output_path),
+    ]
+    for candidate in candidates:
+        if candidate:
+            return Path(candidate)
+    return None
 
 
 def _required_text(value: str, label: str) -> str:
@@ -1601,200 +896,12 @@ def _summarize_progress(state: PortfolioPageState) -> str:
     return latest.label
 
 
-def _format_summary_card_value(value: float | str | None, kind: str) -> str:
-    if isinstance(value, str):
-        return value
-    if kind == "percent":
-        return format_percent(value)
-    if kind == "ratio":
-        return format_ratio(value)
-    return format_text(str(value) if value is not None else None)
-
-
-def _performance_metric_row_to_table_row(row: PerformanceMetricRow) -> dict[str, str]:
-    return {
-        "label": row.label,
-        "twr_return": format_percent(row.twr_return),
-        "mwr_return": format_percent(row.mwr_return),
-        "annualized_return": format_percent(row.annualized_return),
-        "annualized_vol": format_percent(row.annualized_vol),
-        "sharpe_ratio": format_ratio(row.sharpe_ratio),
-        "max_drawdown": format_percent(row.max_drawdown),
-    }
-
-
-def _policy_drift_row_to_table_row(row: PolicyDriftRow, *, include_risk: bool = True) -> dict[str, str]:
-    out = {
-        "bucket": row.bucket,
-        "scope": row.scope,
-        "current_weight": format_percent(row.current_weight),
-        "policy_weight": format_percent(row.policy_weight),
-        "active_weight": format_percent(row.active_weight),
-    }
-    if include_risk:
-        out["current_risk_contribution"] = format_percent(row.current_risk_contribution)
-    return out
-
-
-def _risk_row_to_table_row(row: RiskMetricsRow) -> dict[str, str]:
-    return {
-        "internal_id": row.internal_id,
-        "account": row.account,
-        "display_ticker": row.display_ticker,
-        "display_name": row.display_name,
-        "asset_class": row.asset_class,
-        "instrument_type": row.instrument_type,
-        "gross_exposure_usd": format_amount(row.gross_exposure_usd),
-        "exposure_usd": format_amount(row.exposure_usd),
-        "dollar_weight": format_percent(row.dollar_weight),
-        "vol_geomean_1m_3m": format_percent(row.vol_geomean_1m_3m),
-        "vol_5y_realized": format_percent(row.vol_5y_realized),
-        "vol_ewma": format_percent(row.vol_ewma),
-        "vol_forward_looking": format_percent(row.vol_forward_looking),
-        "risk_contribution_estimated": format_percent(row.risk_contribution_estimated),
-        "risk_contribution_geomean_1m_3m": format_percent(row.risk_contribution_geomean_1m_3m),
-        "risk_contribution_5y_realized": format_percent(row.risk_contribution_5y_realized),
-        "risk_contribution_ewma": format_percent(row.risk_contribution_ewma),
-        "risk_contribution_forward_looking": format_percent(row.risk_contribution_forward_looking),
-        "mapping_status": row.mapping_status,
-        "report_scope": row.report_scope,
-    }
-
-
-def _selected_vol_field_name(state: PortfolioPageState) -> str:
-    key = resolve_vol_method_key(state.artifact_form.vol_method, DEFAULT_VOL_METHOD_LABELS)
-    return {
-        "geomean_1m_3m": "vol_geomean_1m_3m",
-        "5y_realized": "vol_5y_realized",
-        "ewma": "vol_ewma",
-        "forward_looking": "vol_forward_looking",
-    }[key]
-
-
-def _selected_risk_contribution_field_name(state: PortfolioPageState) -> str:
-    key = resolve_vol_method_key(state.artifact_form.vol_method, DEFAULT_VOL_METHOD_LABELS)
-    return {
-        "geomean_1m_3m": "risk_contribution_geomean_1m_3m",
-        "5y_realized": "risk_contribution_5y_realized",
-        "ewma": "risk_contribution_ewma",
-        "forward_looking": "risk_contribution_forward_looking",
-    }[key]
-
-
-def _breakdown_columns() -> list[dict[str, str]]:
-    return [
-        {"name": "bucket", "label": "Bucket", "field": "bucket"},
-        {"name": "parent", "label": "Scope", "field": "parent"},
-        {"name": "exposure_usd", "label": "Net Exposure", "field": "exposure_usd"},
-        {"name": "gross_exposure_usd", "label": "Gross Exposure", "field": "gross_exposure_usd"},
-        {"name": "dollar_weight", "label": "Dollar%", "field": "dollar_weight"},
-        {"name": "risk_contribution_estimated", "label": "Vol Contribution", "field": "risk_contribution_estimated"},
-    ]
-
-
-def _breakdown_row_to_table_row(row: BreakdownRow) -> dict[str, str]:
-    return {
-        "bucket": row.bucket,
-        "parent": row.parent,
-        "exposure_usd": format_amount(row.exposure_usd),
-        "gross_exposure_usd": format_amount(row.gross_exposure_usd),
-        "dollar_weight": format_percent(row.dollar_weight),
-        "risk_contribution_estimated": format_percent(row.risk_contribution_estimated),
-    }
-
-
-def _policy_drift_columns(*, include_risk: bool = True) -> list[dict[str, str]]:
-    columns = [
-        {"name": "bucket", "label": "Bucket", "field": "bucket"},
-        {"name": "scope", "label": "Scope", "field": "scope"},
-        {"name": "current_weight", "label": "Current %", "field": "current_weight"},
-        {"name": "policy_weight", "label": "Policy %", "field": "policy_weight"},
-        {"name": "active_weight", "label": "Active %", "field": "active_weight"},
-    ]
-    if include_risk:
-        columns.append(
-            {"name": "current_risk_contribution", "label": "Current Risk %", "field": "current_risk_contribution"}
-        )
-    return columns
-
-
-def _with_plotly_config(figure_spec: dict[str, Any]) -> dict[str, Any]:
-    output = dict(figure_spec)
-    output.setdefault("config", {"displayModeBar": False, "responsive": True})
-    return output
-
-
-_TOP_TAB_LABEL_TO_KEY: dict[str, str] = {
-    "Performance USD": "performance_usd",
-    "Performance SGD": "performance_sgd",
-    "Risk": "risk",
-    "Artifacts": "artifacts",
-}
-
-
-def _update_top_tab(state: PortfolioPageState, value: str) -> None:
-    key = _TOP_TAB_LABEL_TO_KEY.get(str(value or "").strip())
-    if key is None:
-        return
-    state.selected_top_tab = key
-
-
-def _update_perf_mode(state: PortfolioPageState, currency: str, value: str) -> None:
-    state.selected_perf_mode[currency] = value
-    refresh = getattr(state, "_refresh_ui", None)
-    if refresh is not None:
-        refresh()
-
-
-def _update_perf_window(state: PortfolioPageState, currency: str, value: str) -> None:
-    state.selected_perf_window[currency] = value
-    refresh = getattr(state, "_refresh_ui", None)
-    if refresh is not None:
-        refresh()
-
-
-def _update_risk_vol_method(state: PortfolioPageState, value: str) -> None:
-    state.artifact_form.vol_method = _normalize_vol_method_label(value)
-    refresh = getattr(state, "_refresh_ui", None)
-    if refresh is not None:
-        refresh()
-
-
 def _format_progress_event(event: Any) -> str:
     if event.completed is not None and event.total is not None:
         return f"{event.completed} / {event.total}"
     if event.current is not None and event.total is not None:
         return f"{event.current} / {event.total}"
-    return ""
-
-
-def _combined_reference_status(state: PortfolioPageState) -> str:
-    statuses = [state.action_statuses["security-reference"].status, state.action_statuses["etf"].status]
-    if "running" in statuses:
-        return "running"
-    if "error" in statuses:
-        return "error"
-    if "success" in statuses:
-        return "success"
-    return "idle"
-
-
-def _combined_reference_message(state: PortfolioPageState) -> str:
-    security_ref = state.action_statuses["security-reference"].message
-    etf = state.action_statuses["etf"].message
-    return f"Reference: {security_ref} | ETF: {etf}"
-
-
-def _combined_reference_progress(state: PortfolioPageState) -> str:
-    return f"Reference: {state.action_statuses['security-reference'].progress_summary} | ETF: {state.action_statuses['etf'].progress_summary}"
-
-
-def _combined_reference_output(state: PortfolioPageState) -> str:
-    reference_output = state.action_statuses["security-reference"].last_output_path
-    etf_output = state.action_statuses["etf"].last_output_path
-    if reference_output != "n/a":
-        return reference_output
-    return etf_output
+    return event.detail or ""
 
 
 def _format_local_timestamp(value: str | None) -> str:
@@ -1808,360 +915,8 @@ def _format_local_timestamp(value: str | None) -> str:
     return dt.astimezone().isoformat(timespec="seconds")
 
 
-def _render_allocation_summary_table(state: PortfolioPageState, risk) -> None:
-    rows = [_allocation_summary_row_to_table_row(row) for row in risk.allocation_summary]
-    selected_field = _selected_summary_risk_field_name(state)
-    selected_label = f"Vol Contribution ({state.artifact_form.vol_method})"
-    if state.snapshot_mode:
-        columns = [
-            {"name": "asset_class", "label": "Asset Class", "field": "asset_class"},
-            {"name": "exposure_usd", "label": "Net Exposure ($)", "field": "exposure_usd"},
-            {"name": "gross_exposure_usd", "label": "Gross Exposure ($)", "field": "gross_exposure_usd"},
-            {"name": "dollar_weight", "label": "Portfolio Allocation %", "field": "dollar_weight"},
-            {
-                "name": "risk_contribution_5y_realized",
-                "label": "Vol Contribution (Long-Term)",
-                "field": "risk_contribution_5y_realized",
-            },
-            {
-                "name": "risk_contribution_geomean_1m_3m",
-                "label": "Vol Contribution (Fast)",
-                "field": "risk_contribution_geomean_1m_3m",
-            },
-            {
-                "name": "risk_contribution_forward_looking",
-                "label": "Vol Contribution (Forward-Looking)",
-                "field": "risk_contribution_forward_looking",
-            },
-        ]
-        with ui.element("div").props(
-            f'data-risk-method-table=1 data-selected-vol="{resolve_vol_method_key(state.artifact_form.vol_method, DEFAULT_VOL_METHOD_LABELS)}" data-fixed-columns="4" data-tail-columns="0" data-vol-column-map="5y_realized:5;geomean_1m_3m:6;forward_looking:7"'
-        ).classes("w-full"):
-            render_table(columns=columns, rows=rows, row_key="asset_class")
-        return
-
-    render_table(
-        columns=[
-            {"name": "asset_class", "label": "Asset Class", "field": "asset_class"},
-            {"name": "exposure_usd", "label": "Net Exposure ($)", "field": "exposure_usd"},
-            {"name": "gross_exposure_usd", "label": "Gross Exposure ($)", "field": "gross_exposure_usd"},
-            {"name": "dollar_weight", "label": "Portfolio Allocation %", "field": "dollar_weight"},
-            {"name": selected_field, "label": selected_label, "field": selected_field},
-        ],
-        rows=rows,
-        row_key="asset_class",
-    )
-
-
-def _render_fi_tenor_breakdown_table(state: PortfolioPageState, risk, fi_rows: list[RiskMetricsRow]) -> None:
-    rows = _fi_tenor_breakdown_rows(risk, fi_rows)
-    selected_field = _selected_summary_risk_field_name(state)
-    selected_label = f"Vol Contribution ({state.artifact_form.vol_method})"
-    if state.snapshot_mode:
-        columns = [
-            {"name": "bucket", "label": "Bucket", "field": "bucket"},
-            {"name": "parent", "label": "Scope", "field": "parent"},
-            {"name": "exposure_usd", "label": "Net Exposure", "field": "exposure_usd"},
-            {"name": "gross_exposure_usd", "label": "Gross Exposure", "field": "gross_exposure_usd"},
-            {"name": "dollar_weight", "label": "Dollar%", "field": "dollar_weight"},
-            {
-                "name": "risk_contribution_5y_realized",
-                "label": "Vol Contribution (Long-Term)",
-                "field": "risk_contribution_5y_realized",
-            },
-            {
-                "name": "risk_contribution_geomean_1m_3m",
-                "label": "Vol Contribution (Fast)",
-                "field": "risk_contribution_geomean_1m_3m",
-            },
-            {
-                "name": "risk_contribution_forward_looking",
-                "label": "Vol Contribution (Forward-Looking)",
-                "field": "risk_contribution_forward_looking",
-            },
-        ]
-        with ui.element("div").props(
-            f'data-risk-method-table=1 data-selected-vol="{resolve_vol_method_key(state.artifact_form.vol_method, DEFAULT_VOL_METHOD_LABELS)}" data-fixed-columns="5" data-tail-columns="0" data-vol-column-map="5y_realized:6;geomean_1m_3m:7;forward_looking:8"'
-        ).classes("w-full"):
-            render_table(columns=columns, rows=rows, row_key="bucket")
-        return
-
-    render_table(
-        columns=[
-            {"name": "bucket", "label": "Bucket", "field": "bucket"},
-            {"name": "parent", "label": "Scope", "field": "parent"},
-            {"name": "exposure_usd", "label": "Net Exposure", "field": "exposure_usd"},
-            {"name": "gross_exposure_usd", "label": "Gross Exposure", "field": "gross_exposure_usd"},
-            {"name": "dollar_weight", "label": "Dollar%", "field": "dollar_weight"},
-            {"name": selected_field, "label": selected_label, "field": selected_field},
-        ],
-        rows=rows,
-        row_key="bucket",
-    )
-
-
-def _render_commodity_sector_summary_table(state: PortfolioPageState, cm_rows: list[RiskMetricsRow]) -> None:
-    rows = _commodity_sector_summary_rows(cm_rows)
-    if not rows:
-        ui.label("No commodity positions.").classes("pm-muted")
-        return
-    selected_field = _selected_summary_risk_field_name(state)
-    selected_label = f"Vol Contribution ({state.artifact_form.vol_method})"
-    if state.snapshot_mode:
-        columns = [
-            {"name": "bucket", "label": "Sector", "field": "bucket"},
-            {"name": "exposure_usd", "label": "Net Exposure ($)", "field": "exposure_usd"},
-            {"name": "gross_exposure_usd", "label": "Gross Exposure ($)", "field": "gross_exposure_usd"},
-            {"name": "within_cm_weight", "label": "Within-CM Weight %", "field": "within_cm_weight"},
-            {
-                "name": "risk_contribution_5y_realized",
-                "label": "Vol Contribution (Long-Term)",
-                "field": "risk_contribution_5y_realized",
-            },
-            {
-                "name": "risk_contribution_geomean_1m_3m",
-                "label": "Vol Contribution (Fast)",
-                "field": "risk_contribution_geomean_1m_3m",
-            },
-            {
-                "name": "risk_contribution_forward_looking",
-                "label": "Vol Contribution (Forward-Looking)",
-                "field": "risk_contribution_forward_looking",
-            },
-        ]
-        with ui.element("div").props(
-            f'data-risk-method-table=1 data-selected-vol="{resolve_vol_method_key(state.artifact_form.vol_method, DEFAULT_VOL_METHOD_LABELS)}" data-fixed-columns="4" data-tail-columns="0" data-vol-column-map="5y_realized:5;geomean_1m_3m:6;forward_looking:7"'
-        ).classes("w-full"):
-            render_table(columns=columns, rows=rows, row_key="bucket")
-        return
-
-    render_table(
-        columns=[
-            {"name": "bucket", "label": "Sector", "field": "bucket"},
-            {"name": "exposure_usd", "label": "Net Exposure ($)", "field": "exposure_usd"},
-            {"name": "gross_exposure_usd", "label": "Gross Exposure ($)", "field": "gross_exposure_usd"},
-            {"name": "within_cm_weight", "label": "Within-CM Weight %", "field": "within_cm_weight"},
-            {"name": selected_field, "label": selected_label, "field": selected_field},
-        ],
-        rows=rows,
-        row_key="bucket",
-    )
-
-
-def _allocation_summary_row_to_table_row(row: Any) -> dict[str, str]:
-    risk_fast = getattr(row, "risk_contribution_geomean_1m_3m", None)
-    risk_long = getattr(row, "risk_contribution_5y_realized", None)
-    risk_forward = getattr(row, "risk_contribution_forward_looking", None)
-    fallback = getattr(row, "risk_contribution_estimated", 0.0)
-    return {
-        "asset_class": row.asset_class,
-        "exposure_usd": format_amount(row.exposure_usd),
-        "gross_exposure_usd": format_amount(row.gross_exposure_usd),
-        "dollar_weight": format_percent(row.dollar_weight),
-        "risk_contribution_5y_realized": format_percent(risk_long if risk_long is not None else fallback),
-        "risk_contribution_geomean_1m_3m": format_percent(risk_fast if risk_fast is not None else fallback),
-        "risk_contribution_forward_looking": format_percent(risk_forward if risk_forward is not None else fallback),
-    }
-
-
-def _selected_summary_risk_field_name(state: PortfolioPageState) -> str:
-    key = resolve_vol_method_key(state.artifact_form.vol_method, DEFAULT_VOL_METHOD_LABELS)
-    return {
-        "5y_realized": "risk_contribution_5y_realized",
-        "geomean_1m_3m": "risk_contribution_geomean_1m_3m",
-        "forward_looking": "risk_contribution_forward_looking",
-    }.get(key, "risk_contribution_geomean_1m_3m")
-
-
-def _fi_tenor_breakdown_rows(risk, fi_rows: list[RiskMetricsRow]) -> list[dict[str, str]]:
-    aggregates: dict[str, dict[str, float]] = {}
-    base_rows = {row.bucket: row for row in getattr(risk, "fi_tenor_breakdown", [])}
-    for row in fi_rows:
-        bucket = row.fi_tenor or "UNASSIGNED"
-        agg = aggregates.setdefault(
-            bucket,
-            {
-                "exposure_usd": 0.0,
-                "gross_exposure_usd": 0.0,
-                "dollar_weight": 0.0,
-                "risk_contribution_5y_realized": 0.0,
-                "risk_contribution_geomean_1m_3m": 0.0,
-                "risk_contribution_forward_looking": 0.0,
-            },
-        )
-        agg["exposure_usd"] += row.exposure_usd
-        agg["gross_exposure_usd"] += row.gross_exposure_usd
-        agg["dollar_weight"] += row.dollar_weight
-        agg["risk_contribution_5y_realized"] += row.risk_contribution_5y_realized
-        agg["risk_contribution_geomean_1m_3m"] += row.risk_contribution_geomean_1m_3m
-        agg["risk_contribution_forward_looking"] += row.risk_contribution_forward_looking
-
-    rows: list[dict[str, str]] = []
-    for bucket in FI_TENOR_BUCKET_ORDER:
-        if bucket not in aggregates and bucket not in base_rows:
-            continue
-        agg = aggregates.get(
-            bucket,
-            {
-                "exposure_usd": 0.0,
-                "gross_exposure_usd": 0.0,
-                "dollar_weight": 0.0,
-                "risk_contribution_5y_realized": 0.0,
-                "risk_contribution_geomean_1m_3m": 0.0,
-                "risk_contribution_forward_looking": 0.0,
-            },
-        )
-        base = base_rows.get(bucket)
-        label = FI_TENOR_BUCKET_LABELS.get(bucket, "")
-        display_bucket = bucket if not label else f"{bucket} ({label})"
-        rows.append(
-            {
-                "bucket": display_bucket,
-                "parent": base.parent if base is not None else "FI",
-                "exposure_usd": format_amount(agg["exposure_usd"]),
-                "gross_exposure_usd": format_amount(agg["gross_exposure_usd"]),
-                "dollar_weight": format_percent(agg["dollar_weight"]),
-                "risk_contribution_5y_realized": format_percent(agg["risk_contribution_5y_realized"]),
-                "risk_contribution_geomean_1m_3m": format_percent(agg["risk_contribution_geomean_1m_3m"]),
-                "risk_contribution_forward_looking": format_percent(agg["risk_contribution_forward_looking"]),
-            }
-        )
-    return rows
-
-
-def _commodity_sector_summary_rows(cm_rows: list[RiskMetricsRow]) -> list[dict[str, str]]:
-    total_exposure = sum(row.exposure_usd for row in cm_rows)
-    sector_rows: dict[str, dict[str, float]] = {}
-    for row in cm_rows:
-        code = (getattr(row, "cm_sector", "") or "").upper()
-        bucket = _CM_SECTOR_LABELS.get(code, "Unmapped") if code else "Unmapped"
-        agg = sector_rows.setdefault(
-            bucket,
-            {
-                "exposure_usd": 0.0,
-                "gross_exposure_usd": 0.0,
-                "risk_contribution_5y_realized": 0.0,
-                "risk_contribution_geomean_1m_3m": 0.0,
-                "risk_contribution_forward_looking": 0.0,
-            },
-        )
-        agg["exposure_usd"] += row.exposure_usd
-        agg["gross_exposure_usd"] += row.gross_exposure_usd
-        agg["risk_contribution_5y_realized"] += row.risk_contribution_5y_realized
-        agg["risk_contribution_geomean_1m_3m"] += row.risk_contribution_geomean_1m_3m
-        agg["risk_contribution_forward_looking"] += row.risk_contribution_forward_looking
-    return [
-        {
-            "bucket": bucket,
-            "exposure_usd": format_amount(agg["exposure_usd"]),
-            "gross_exposure_usd": format_amount(agg["gross_exposure_usd"]),
-            "within_cm_weight": format_percent(agg["exposure_usd"] / total_exposure if total_exposure else 0.0),
-            "risk_contribution_5y_realized": format_percent(agg["risk_contribution_5y_realized"]),
-            "risk_contribution_geomean_1m_3m": format_percent(agg["risk_contribution_geomean_1m_3m"]),
-            "risk_contribution_forward_looking": format_percent(agg["risk_contribution_forward_looking"]),
-        }
-        for bucket, agg in sorted(sector_rows.items(), key=lambda kv: -abs(kv[1]["exposure_usd"]))
-    ]
-
-
-def _build_portfolio_vol_matrix_html(state: PortfolioPageState, risk) -> str:
-    row_labels = (
-        ("corr_0", "Corr = 0"),
-        ("historical", "Historical Corr"),
-        ("corr_1", "Corr = 1"),
-    )
-    col_labels = (
-        ("5y_realized", "Long-Term"),
-        ("geomean_1m_3m", "Fast"),
-        ("forward_looking", "Forward-Looking"),
-    )
-    values = [
-        [float(risk.portfolio_vol_matrix.get(row_key, {}).get(col_key, 0.0)) for col_key, _ in col_labels]
-        for row_key, _ in row_labels
-    ]
-    selected_vol = resolve_vol_method_key(state.artifact_form.vol_method, DEFAULT_VOL_METHOD_LABELS)
-    selected_corr = state.artifact_form.inter_asset_corr
-    flat_values = [value for row in values for value in row]
-    max_value = max(flat_values, default=0.0)
-    min_value = min(flat_values, default=0.0)
-    out = [
-        "<div style='overflow-x:auto'>",
-        "<table style='width:100%;border-collapse:separate;border-spacing:0;border:1px solid #e2e8f0;border-radius:12px;overflow:hidden'>",
-        "<thead><tr>",
-        "<th style='text-align:left;padding:12px 14px;background:#fff7ed;border-bottom:1px solid #fed7aa'>Correlation</th>",
-    ]
-    for col_key, label in col_labels:
-        border = "2px solid #c2410c" if col_key == selected_vol else "1px solid transparent"
-        out.append(
-            f"<th style='padding:12px 14px;background:#fff7ed;border-bottom:1px solid #fed7aa;border-left:1px solid #fed7aa;border-top:{border}'>{html.escape(label)}</th>"
-        )
-    out.append("</tr></thead><tbody>")
-    for row_index, (row_key, row_label) in enumerate(row_labels):
-        out.append("<tr>")
-        label_bg = "#fffaf5" if row_key == selected_corr else "#ffffff"
-        out.append(
-            f"<td style='padding:12px 14px;font-weight:600;background:{label_bg};border-bottom:1px solid #f1f5f9'>{html.escape(row_label)}</td>"
-        )
-        for col_index, value in enumerate(values[row_index]):
-            color = _orange_heat_color(value, min_value=min_value, max_value=max_value)
-            border = "2px solid #c2410c" if row_key == selected_corr and col_labels[col_index][0] == selected_vol else "1px solid #f1f5f9"
-            out.append(
-                f"<td style='padding:12px 14px;text-align:right;font-weight:700;background:{color};border-left:1px solid #f1f5f9;border-bottom:{border}'>{html.escape(format_percent(value))}</td>"
-            )
-        out.append("</tr>")
-    out.append("</tbody></table></div>")
-    return "".join(out)
-
-
-def _build_commodity_corr_table_html(labels: list[str], corr: list[list[float]]) -> str:
-    display_labels = [_CM_SECTOR_LABELS.get(code, code) for code in labels]
-    out = [
-        "<div style='overflow-x:auto'>",
-        "<table style='width:100%;border-collapse:separate;border-spacing:0;border:1px solid #e2e8f0;border-radius:12px;overflow:hidden'>",
-        "<thead><tr><th style='text-align:left;padding:12px 14px;background:#fff5f5;border-bottom:1px solid #fecaca'>Sector</th>",
-    ]
-    for label in display_labels:
-        out.append(
-            f"<th style='padding:12px 14px;background:#fff5f5;border-bottom:1px solid #fecaca;border-left:1px solid #fecaca'>{html.escape(label)}</th>"
-        )
-    out.append("</tr></thead><tbody>")
-    for row_label, row_values in zip(display_labels, corr, strict=False):
-        out.append("<tr>")
-        out.append(
-            f"<td style='padding:12px 14px;font-weight:600;background:#ffffff;border-bottom:1px solid #f1f5f9'>{html.escape(row_label)}</td>"
-        )
-        for value in row_values:
-            out.append(
-                f"<td style='padding:12px 14px;text-align:right;font-weight:700;background:{_red_heat_color(value, min_value=-1.0, max_value=1.0)};border-left:1px solid #f1f5f9;border-bottom:1px solid #f1f5f9'>{html.escape(f'{value:.2f}')}</td>"
-            )
-        out.append("</tr>")
-    out.append("</tbody></table></div>")
-    return "".join(out)
-
-
-def _orange_heat_color(value: float, *, min_value: float, max_value: float) -> str:
-    return _blend_heat_color(value, min_value=min_value, max_value=max_value, start=(255, 247, 237), end=(194, 65, 12))
-
-
-def _red_heat_color(value: float, *, min_value: float, max_value: float) -> str:
-    clipped = max(value, 0.0)
-    return _blend_heat_color(clipped, min_value=0.0, max_value=max(max_value, 1.0), start=(255, 245, 245), end=(153, 27, 27))
-
-
-def _blend_heat_color(
-    value: float,
-    *,
-    min_value: float,
-    max_value: float,
-    start: tuple[int, int, int],
-    end: tuple[int, int, int],
-) -> str:
-    if max_value <= min_value:
-        ratio = 1.0
-    else:
-        ratio = (value - min_value) / (max_value - min_value)
-    ratio = max(0.0, min(1.0, ratio))
-    red = round(start[0] + (end[0] - start[0]) * ratio)
-    green = round(start[1] + (end[1] - start[1]) * ratio)
-    blue = round(start[2] + (end[2] - start[2]) * ratio)
-    return f"rgb({red}, {green}, {blue})"
+def _update_top_tab(state: PortfolioPageState, value: str) -> None:
+    mapping = {"Report": "report", "Artifacts": "artifacts"}
+    key = mapping.get(str(value or "").strip())
+    if key is not None:
+        state.selected_top_tab = key

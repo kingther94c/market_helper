@@ -4,12 +4,19 @@ from pathlib import Path
 
 import pandas as pd
 
+from market_helper.application.portfolio_monitor.contracts import ArtifactMetadata, PortfolioReportData
 import market_helper.domain.portfolio_monitor.pipelines.generate_portfolio_report as pipeline
 from market_helper.reporting.performance_html import (
     build_performance_chart_specs,
     build_performance_report_view_model,
     render_performance_assets,
     render_performance_tab,
+)
+from market_helper.reporting.portfolio_html import render_portfolio_report
+from market_helper.reporting.risk_html import (
+    PortfolioRiskSummary,
+    RiskMetricsRow,
+    RiskReportViewModel,
 )
 
 
@@ -34,18 +41,25 @@ def test_render_performance_tab_contains_plots_and_tables() -> None:
     assert ("cdn.plot.ly/plotly" in assets) or ("plotly.js v" in assets)
 
 
-def test_generate_combined_html_report_builds_snapshot_request_with_performance_overrides(
+def test_generate_combined_html_report_writes_direct_html_and_mirrors_artifact(
     monkeypatch, tmp_path: Path
 ) -> None:
-    captured: dict[str, object] = {}
     mirror_dir = tmp_path / "google-drive"
+    fake_report_data = _fake_report_data(tmp_path)
+    captured: dict[str, object] = {}
 
-    def fake_capture(request):
-        captured["request"] = request
-        request.output_path.write_text("<html>snapshot</html>", encoding="utf-8")
-        return request.output_path
+    def fake_load_report_data(inputs):
+        captured["inputs"] = inputs
+        return fake_report_data
 
-    monkeypatch.setattr(pipeline, "_capture_portfolio_snapshot", fake_capture)
+    def fake_write_report(report_data, output_path):
+        captured["report_data"] = report_data
+        output_path = Path(output_path)
+        output_path.write_text("<html><body>report</body></html>", encoding="utf-8")
+        return output_path
+
+    monkeypatch.setattr(pipeline, "_load_portfolio_report_data", fake_load_report_data)
+    monkeypatch.setattr(pipeline, "write_portfolio_report", fake_write_report)
     monkeypatch.setattr(pipeline, "sync_security_reference_csv", lambda reference_path: Path(reference_path))
     monkeypatch.setattr(pipeline, "_load_artifact_mirror_dir", lambda config_path=None: mirror_dir)
 
@@ -67,26 +81,21 @@ def test_generate_combined_html_report_builds_snapshot_request_with_performance_
     )
 
     assert written == output_path
-    request = captured["request"]
-    assert request.query == "snapshot=1"
-    assert request.output_path == output_path
-    assert request.overrides == {
-        "positions_csv_path": str(tmp_path / "positions.csv"),
-        "security_reference_path": str(tmp_path / "security_reference.csv"),
-        "vol_method": "forward_looking",
-        "inter_asset_corr": "corr_0",
-        "performance_history_path": str(tmp_path / "flex" / "nav_cashflow_history.feather"),
-        "performance_output_dir": str(tmp_path / "flex"),
-        "performance_report_csv_path": str(tmp_path / "flex" / "performance_report_20260331.csv"),
-        "returns_path": str(tmp_path / "returns.json"),
-        "proxy_path": str(tmp_path / "proxy.json"),
-        "regime_path": str(tmp_path / "regime.json"),
-        "risk_config_path": str(tmp_path / "report_config.yaml"),
-        "allocation_policy_path": str(tmp_path / "allocation_policy.yaml"),
-    }
+    assert captured["report_data"] == fake_report_data
+    assert captured["inputs"].positions_csv_path == tmp_path / "positions.csv"
+    assert captured["inputs"].performance_history_path == tmp_path / "flex" / "nav_cashflow_history.feather"
+    assert captured["inputs"].performance_output_dir == tmp_path / "flex"
+    assert captured["inputs"].performance_report_csv_path == tmp_path / "flex" / "performance_report_20260331.csv"
+    assert captured["inputs"].returns_path == tmp_path / "returns.json"
+    assert captured["inputs"].proxy_path == tmp_path / "proxy.json"
+    assert captured["inputs"].regime_path == tmp_path / "regime.json"
+    assert captured["inputs"].risk_config_path == tmp_path / "report_config.yaml"
+    assert captured["inputs"].allocation_policy_path == tmp_path / "allocation_policy.yaml"
+    assert captured["inputs"].vol_method == "forward_looking"
+    assert captured["inputs"].inter_asset_corr == "corr_0"
     mirrored_path = mirror_dir / "portfolio_combined_report.html"
     assert mirrored_path.exists()
-    assert mirrored_path.read_text(encoding="utf-8") == "<html>snapshot</html>"
+    assert mirrored_path.read_text(encoding="utf-8") == "<html><body>report</body></html>"
 
 
 def test_generate_combined_html_report_uses_configured_google_drive_mirror_dir(
@@ -99,11 +108,16 @@ def test_generate_combined_html_report_uses_configured_google_drive_mirror_dir(
         encoding="utf-8",
     )
 
-    def fake_capture(request):
-        request.output_path.write_text("<html>snapshot</html>", encoding="utf-8")
-        return request.output_path
+    fake_report_data = _fake_report_data(tmp_path)
 
-    monkeypatch.setattr(pipeline, "_capture_portfolio_snapshot", fake_capture)
+    monkeypatch.setattr(pipeline, "_load_portfolio_report_data", lambda inputs: fake_report_data)
+
+    def fake_write(report_data, output_path):
+        output_path = Path(output_path)
+        output_path.write_text("<html>report</html>", encoding="utf-8")
+        return output_path
+
+    monkeypatch.setattr(pipeline, "write_portfolio_report", fake_write)
     monkeypatch.setattr(pipeline, "sync_security_reference_csv", lambda reference_path: Path(reference_path))
 
     pipeline.generate_combined_html_report(
@@ -115,7 +129,7 @@ def test_generate_combined_html_report_uses_configured_google_drive_mirror_dir(
 
     mirrored_path = tmp_path / "google-drive" / "portfolio_combined_report.html"
     assert mirrored_path.exists()
-    assert mirrored_path.read_text(encoding="utf-8") == "<html>snapshot</html>"
+    assert mirrored_path.read_text(encoding="utf-8") == "<html>report</html>"
 
 
 def test_build_performance_chart_specs_uses_single_continuous_main_line_with_signed_shading() -> None:
@@ -148,6 +162,18 @@ def test_build_performance_chart_specs_uses_single_continuous_main_line_with_sig
     assert all(value is not None for value in traces[2]["y"])
 
 
+def test_render_portfolio_report_builds_html_shell_without_nicegui_refs(tmp_path: Path) -> None:
+    rendered = render_portfolio_report(_fake_report_data(tmp_path))
+
+    assert "<!doctype html>" in rendered.lower()
+    assert "Market Helper HTML Report" in rendered
+    assert "Performance USD" in rendered
+    assert "Risk" in rendered
+    assert "Artifacts" in rendered
+    assert "report-table" in rendered
+    assert "/_nicegui/" not in rendered
+
+
 def _demo_history_frame() -> pd.DataFrame:
     return pd.DataFrame(
         {
@@ -174,4 +200,100 @@ def _demo_history_frame() -> pd.DataFrame:
             "source_file": ["demo.xml"] * 5,
             "source_as_of": pd.to_datetime(["2026-03-31"] * 5),
         }
+    )
+
+
+def _fake_report_data(tmp_path: Path) -> PortfolioReportData:
+    performance = build_performance_report_view_model(
+        _demo_history_frame(),
+        primary_currency="USD",
+        secondary_currency=None,
+    )
+    risk = RiskReportViewModel(
+        as_of="2026-03-31",
+        risk_rows=[
+            RiskMetricsRow(
+                internal_id="STK:AAPL:SMART",
+                display_ticker="AAPL",
+                display_name="Apple Inc.",
+                symbol="AAPL",
+                canonical_symbol="AAPL",
+                account="U1",
+                asset_class="EQ",
+                category="EQ",
+                instrument_type="Stock",
+                quantity=10.0,
+                multiplier=1.0,
+                market_value=1750.0,
+                exposure_usd=1750.0,
+                gross_exposure_usd=1750.0,
+                weight=1.0,
+                dollar_weight=1.0,
+                duration=None,
+                vol_geomean_1m_3m=0.2,
+                vol_5y_realized=0.18,
+                vol_ewma=0.22,
+                vol_forward_looking=0.24,
+                sparkline_3m_svg="<svg></svg>",
+                risk_contribution_historical=0.2,
+                risk_contribution_estimated=0.2,
+                risk_contribution_geomean_1m_3m=0.2,
+                risk_contribution_5y_realized=0.18,
+                risk_contribution_ewma=0.22,
+                risk_contribution_forward_looking=0.24,
+                mapping_status="mapped",
+                report_scope="included",
+                dir_exposure="L",
+                eq_country="US",
+                eq_sector_proxy="TECH",
+                fi_tenor="",
+            )
+        ],
+        summary=PortfolioRiskSummary(
+            portfolio_vol_geomean_1m_3m=0.2,
+            portfolio_vol_5y_realized=0.18,
+            portfolio_vol_ewma=0.22,
+            portfolio_vol_forward_looking=0.24,
+            funded_aum_usd=1750.0,
+            funded_aum_sgd=2275.0,
+            gross_exposure=1750.0,
+            net_exposure=1750.0,
+            mapped_positions=1,
+            total_positions=1,
+        ),
+        allocation_summary=[],
+        country_breakdown=[],
+        sector_breakdown=[],
+        fi_tenor_breakdown=[],
+        policy_drift_asset_class=[],
+        policy_drift_country=[],
+        policy_drift_sector=[],
+        regime_summary=None,
+        vol_method="geomean_1m_3m",
+        inter_asset_corr="historical",
+        portfolio_vol_matrix={
+            "historical": {"geomean_1m_3m": 0.2, "5y_realized": 0.18, "forward_looking": 0.24},
+            "corr_0": {"geomean_1m_3m": 0.15, "5y_realized": 0.14, "forward_looking": 0.2},
+            "corr_1": {"geomean_1m_3m": 0.27, "5y_realized": 0.25, "forward_looking": 0.3},
+        },
+    )
+    return PortfolioReportData(
+        as_of="2026-03-31T00:00:00+00:00",
+        risk_view_model=risk,
+        performance_usd_view_model=performance,
+        performance_sgd_view_model=performance,
+        artifact_metadata=ArtifactMetadata(
+            positions_csv_path=tmp_path / "positions.csv",
+            performance_output_dir=tmp_path / "flex",
+            performance_history_path=tmp_path / "flex" / "nav_cashflow_history.feather",
+            performance_report_csv_path=tmp_path / "flex" / "performance_report_20260331.csv",
+            returns_path=tmp_path / "returns.json",
+            proxy_path=tmp_path / "proxy.json",
+            regime_path=tmp_path / "regime.json",
+            security_reference_path=tmp_path / "security_reference.csv",
+            risk_config_path=tmp_path / "report_config.yaml",
+            allocation_policy_path=tmp_path / "allocation_policy.yaml",
+            positions_as_of="2026-03-31T00:00:00+00:00",
+        ),
+        warnings=[],
     )

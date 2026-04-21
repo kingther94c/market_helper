@@ -15,6 +15,7 @@ import warnings
 import xml.etree.ElementTree as ET
 import yaml
 
+from market_helper.application.portfolio_monitor.contracts import PortfolioReportInputs
 from market_helper.common.models import (
     DEFAULT_SECURITY_REFERENCE_PATH,
     PortfolioPositionSnapshot,
@@ -71,6 +72,8 @@ from market_helper.presentation.tables.portfolio_report import (
     build_position_report_rows,
 )
 from market_helper.portfolio.ibkr import enrich_security_from_contract_details
+from market_helper.reporting.portfolio_html import write_portfolio_report
+from market_helper.reporting.risk_html import render_html_from_view_model
 
 if TYPE_CHECKING:
     from market_helper.data_sources.yahoo_finance import YahooFinanceClient
@@ -1166,21 +1169,21 @@ def generate_risk_snapshot_report(
     vol_method: str = "geomean_1m_3m",
     inter_asset_corr: str = "historical",
 ) -> Path:
-    """Render the risk report by snapshotting the NiceGUI dashboard headlessly."""
-    request = _build_snapshot_request(
+    risk_view_model = build_risk_report_view_model(
         positions_csv_path=positions_csv_path,
-        output_path=output_path,
         returns_path=returns_path,
         proxy_path=proxy_path,
         regime_path=regime_path,
-        security_reference_path=security_reference_path,
-        risk_config_path=risk_config_path,
+        security_reference_path=_resolve_security_reference_path(security_reference_path),
+        risk_config_path=risk_config_path or DEFAULT_RISK_REPORT_CONFIG_PATH,
         allocation_policy_path=allocation_policy_path,
         vol_method=vol_method,
         inter_asset_corr=inter_asset_corr,
-        tab="risk",
     )
-    return _capture_portfolio_snapshot(request)
+    target = Path(output_path)
+    target.parent.mkdir(parents=True, exist_ok=True)
+    target.write_text(render_html_from_view_model(risk_view_model), encoding="utf-8")
+    return target
 
 
 def generate_combined_html_report(
@@ -1199,22 +1202,23 @@ def generate_combined_html_report(
     vol_method: str = "geomean_1m_3m",
     inter_asset_corr: str = "historical",
 ) -> Path:
-    request = _build_snapshot_request(
-        positions_csv_path=positions_csv_path,
-        output_path=output_path,
-        performance_history_path=performance_history_path,
-        performance_output_dir=performance_output_dir,
-        performance_report_csv_path=performance_report_csv_path,
-        returns_path=returns_path,
-        proxy_path=proxy_path,
-        regime_path=regime_path,
-        security_reference_path=security_reference_path,
-        risk_config_path=risk_config_path,
-        allocation_policy_path=allocation_policy_path,
-        vol_method=vol_method,
-        inter_asset_corr=inter_asset_corr,
+    report_data = _load_portfolio_report_data(
+        PortfolioReportInputs(
+            positions_csv_path=positions_csv_path,
+            performance_history_path=performance_history_path,
+            performance_output_dir=performance_output_dir,
+            performance_report_csv_path=performance_report_csv_path,
+            returns_path=returns_path,
+            proxy_path=proxy_path,
+            regime_path=regime_path,
+            security_reference_path=security_reference_path,
+            risk_config_path=risk_config_path,
+            allocation_policy_path=allocation_policy_path,
+            vol_method=vol_method,
+            inter_asset_corr=inter_asset_corr,
+        )
     )
-    written_path = _capture_portfolio_snapshot(request)
+    written_path = write_portfolio_report(report_data, output_path)
     _mirror_artifact_if_configured(
         written_path,
         config_path=risk_config_path,
@@ -1223,50 +1227,10 @@ def generate_combined_html_report(
     return written_path
 
 
-def _capture_portfolio_snapshot(request) -> Path:
-    from market_helper.presentation.dashboard.snapshot import capture_snapshot
+def _load_portfolio_report_data(inputs: PortfolioReportInputs):
+    from market_helper.application.portfolio_monitor.services import PortfolioMonitorQueryService
 
-    return capture_snapshot(request)
-
-
-def _build_snapshot_request(
-    *,
-    positions_csv_path: str | Path,
-    output_path: str | Path,
-    performance_history_path: str | Path | None = None,
-    performance_output_dir: str | Path | None = None,
-    performance_report_csv_path: str | Path | None = None,
-    returns_path: str | Path | None = None,
-    proxy_path: str | Path | None = None,
-    regime_path: str | Path | None = None,
-    security_reference_path: str | Path | None = None,
-    risk_config_path: str | Path | None = None,
-    allocation_policy_path: str | Path | None = None,
-    vol_method: str = "geomean_1m_3m",
-    inter_asset_corr: str = "historical",
-    tab: str | None = None,
-):
-    from market_helper.presentation.dashboard.snapshot import SnapshotRequest
-
-    reference_path = _resolve_security_reference_path(security_reference_path)
-    overrides = _build_snapshot_overrides(
-        positions_csv_path=positions_csv_path,
-        performance_history_path=performance_history_path,
-        performance_output_dir=performance_output_dir,
-        performance_report_csv_path=performance_report_csv_path,
-        returns_path=returns_path,
-        proxy_path=proxy_path,
-        regime_path=regime_path,
-        security_reference_path=reference_path,
-        risk_config_path=risk_config_path,
-        allocation_policy_path=allocation_policy_path,
-        vol_method=vol_method,
-        inter_asset_corr=inter_asset_corr,
-    )
-    query = "snapshot=1"
-    if tab:
-        query += f"&tab={tab}"
-    return SnapshotRequest(output_path=Path(output_path), query=query, overrides=overrides)
+    return PortfolioMonitorQueryService().load_report_data(inputs)
 
 
 def _resolve_security_reference_path(path: str | Path | None) -> Path:
@@ -1274,42 +1238,6 @@ def _resolve_security_reference_path(path: str | Path | None) -> Path:
     sync_security_reference_csv(reference_path=reference_path)
     return reference_path
 
-
-def _build_snapshot_overrides(
-    *,
-    positions_csv_path: str | Path,
-    performance_history_path: str | Path | None = None,
-    performance_output_dir: str | Path | None = None,
-    performance_report_csv_path: str | Path | None = None,
-    returns_path: str | Path | None = None,
-    proxy_path: str | Path | None = None,
-    regime_path: str | Path | None = None,
-    security_reference_path: str | Path,
-    risk_config_path: str | Path | None = None,
-    allocation_policy_path: str | Path | None = None,
-    vol_method: str = "geomean_1m_3m",
-    inter_asset_corr: str = "historical",
-) -> dict[str, str]:
-    overrides = {
-        "positions_csv_path": str(positions_csv_path),
-        "security_reference_path": str(security_reference_path),
-        "vol_method": vol_method,
-        "inter_asset_corr": inter_asset_corr,
-    }
-    optional_paths = {
-        "performance_history_path": performance_history_path,
-        "performance_output_dir": performance_output_dir,
-        "performance_report_csv_path": performance_report_csv_path,
-        "returns_path": returns_path,
-        "proxy_path": proxy_path,
-        "regime_path": regime_path,
-        "risk_config_path": risk_config_path,
-        "allocation_policy_path": allocation_policy_path,
-    }
-    for key, value in optional_paths.items():
-        if value is not None:
-            overrides[key] = str(value)
-    return overrides
 
 
 def generate_security_reference_sync(

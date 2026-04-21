@@ -41,7 +41,17 @@ class ArtifactMetadata:
 
 
 @dataclass(frozen=True)
-class PortfolioReportSnapshot:
+class GeneratedReportArtifact:
+    report_type: str
+    title: str
+    output_path: Path
+    as_of: str
+    warnings: list[str] = field(default_factory=list)
+    exists: bool = False
+
+
+@dataclass(frozen=True)
+class PortfolioReportData:
     as_of: str
     risk_view_model: RiskReportViewModel
     performance_usd_view_model: PerformanceReportViewModel
@@ -98,4 +108,3 @@ class UiProgressEvent:
 
 class UiProgressSink(Protocol):
     def record(self, event: UiProgressEvent) -> None: ...
-

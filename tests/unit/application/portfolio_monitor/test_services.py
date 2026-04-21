@@ -17,7 +17,7 @@ from market_helper.application.portfolio_monitor import (
 from market_helper.application.portfolio_monitor import services as app_services
 
 
-def test_query_service_load_snapshot_resolves_expected_artifacts(tmp_path: Path) -> None:
+def test_query_service_load_report_data_resolves_expected_artifacts(tmp_path: Path) -> None:
     positions_csv = _write_positions_csv(tmp_path / "positions.csv")
     returns_json = _write_returns_json(tmp_path / "returns.json")
     proxy_json = _write_proxy_json(tmp_path / "proxy.json")
@@ -35,7 +35,7 @@ def test_query_service_load_snapshot_resolves_expected_artifacts(tmp_path: Path)
     )
 
     service = PortfolioMonitorQueryService()
-    snapshot = service.load_snapshot(
+    report_data = service.load_report_data(
         PortfolioReportInputs(
             positions_csv_path=positions_csv,
             performance_output_dir=performance_output_dir,
@@ -44,13 +44,25 @@ def test_query_service_load_snapshot_resolves_expected_artifacts(tmp_path: Path)
         )
     )
 
-    assert snapshot.as_of == "2026-04-08T00:00:00+00:00"
-    assert snapshot.artifact_metadata.positions_csv_path == positions_csv
-    assert snapshot.artifact_metadata.performance_output_dir == performance_output_dir
-    assert snapshot.artifact_metadata.performance_report_csv_path == performance_output_dir / "performance_report_20260408.csv"
-    assert snapshot.performance_usd_view_model.as_of == "2026-04-08"
-    assert snapshot.performance_sgd_view_model.as_of == "2026-04-08"
-    assert snapshot.warnings == []
+    assert report_data.as_of == "2026-04-08T00:00:00+00:00"
+    assert report_data.artifact_metadata.positions_csv_path == positions_csv
+    assert report_data.artifact_metadata.performance_output_dir == performance_output_dir
+    assert report_data.artifact_metadata.performance_report_csv_path == performance_output_dir / "performance_report_20260408.csv"
+    assert report_data.performance_usd_view_model.as_of == "2026-04-08"
+    assert report_data.performance_sgd_view_model.as_of == "2026-04-08"
+    assert report_data.warnings == []
+
+    artifact = service.resolve_report_artifact(
+        inputs=PortfolioReportInputs(
+            positions_csv_path=positions_csv,
+            performance_output_dir=performance_output_dir,
+            returns_path=returns_json,
+            proxy_path=proxy_json,
+        ),
+        report_data=report_data,
+    )
+    assert artifact.output_path == app_services.DEFAULT_COMBINED_REPORT_PATH
+    assert artifact.exists is artifact.output_path.exists()
 
 
 def test_query_service_warns_when_performance_artifacts_are_missing(tmp_path: Path) -> None:
@@ -59,7 +71,7 @@ def test_query_service_warns_when_performance_artifacts_are_missing(tmp_path: Pa
     proxy_json = _write_proxy_json(tmp_path / "proxy.json")
 
     service = PortfolioMonitorQueryService()
-    snapshot = service.load_snapshot(
+    report_data = service.load_report_data(
         PortfolioReportInputs(
             positions_csv_path=positions_csv,
             performance_output_dir=tmp_path / "missing_flex",
@@ -68,10 +80,10 @@ def test_query_service_warns_when_performance_artifacts_are_missing(tmp_path: Pa
         )
     )
 
-    assert snapshot.as_of == "2026-04-08T00:00:00+00:00"
-    assert any("Performance history file not found" in warning for warning in snapshot.warnings)
-    assert any("Dated performance report CSV is missing" in warning for warning in snapshot.warnings)
-    assert snapshot.performance_usd_view_model.as_of == "n/a"
+    assert report_data.as_of == "2026-04-08T00:00:00+00:00"
+    assert any("Performance history file not found" in warning for warning in report_data.warnings)
+    assert any("Dated performance report CSV is missing" in warning for warning in report_data.warnings)
+    assert report_data.performance_usd_view_model.as_of == "n/a"
 
 
 def test_action_service_bridges_workflow_progress(monkeypatch, tmp_path: Path) -> None:
@@ -117,8 +129,33 @@ def test_action_service_normalizes_combined_and_etf_calls(monkeypatch, tmp_path:
 
     monkeypatch.setattr(app_services.report_workflows, "generate_combined_html_report", fake_generate_combined_html_report)
     monkeypatch.setattr(app_services.report_workflows, "generate_etf_sector_sync", fake_generate_etf_sector_sync)
+    query_service = app_services.PortfolioMonitorQueryService()
+    monkeypatch.setattr(
+        query_service,
+        "load_report_data",
+        lambda inputs=None: app_services.PortfolioReportData(
+            as_of="2026-04-08T00:00:00+00:00",
+            artifact_metadata=app_services.ArtifactMetadata(
+                positions_csv_path=tmp_path / "positions.csv",
+                performance_output_dir=tmp_path / "flex",
+                performance_history_path=None,
+                performance_report_csv_path=None,
+                returns_path=None,
+                proxy_path=None,
+                regime_path=None,
+                security_reference_path=None,
+                risk_config_path=None,
+                allocation_policy_path=None,
+                positions_as_of="2026-04-08T00:00:00+00:00",
+            ),
+            performance_usd_view_model=object(),  # type: ignore[arg-type]
+            performance_sgd_view_model=object(),  # type: ignore[arg-type]
+            risk_view_model=object(),  # type: ignore[arg-type]
+            warnings=[],
+        ),
+    )
 
-    service = PortfolioMonitorActionService()
+    service = PortfolioMonitorActionService(query_service=query_service)
     sink = InMemoryUiProgressSink()
     combined_written = service.generate_combined_report(
         GenerateCombinedReportInputs(
@@ -133,7 +170,8 @@ def test_action_service_normalizes_combined_and_etf_calls(monkeypatch, tmp_path:
         sink=sink,
     )
 
-    assert combined_written == tmp_path / "combined.html"
+    assert combined_written.output_path == tmp_path / "combined.html"
+    assert combined_written.report_type == "portfolio_monitor"
     assert combined_calls["output_path"] == tmp_path / "combined.html"
     assert combined_calls["positions_csv_path"] == tmp_path / "positions.csv"
     assert etf_written == tmp_path / "sector.json"
@@ -196,4 +234,3 @@ def _demo_history_frame() -> pd.DataFrame:
             "source_as_of": pd.to_datetime(["2026-04-08"] * 5),
         }
     )
-

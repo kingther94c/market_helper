@@ -5,9 +5,10 @@ from .contracts import (
     EtfSectorSyncInputs,
     FlexPerformanceRefreshInputs,
     GenerateCombinedReportInputs,
+    GeneratedReportArtifact,
     LivePortfolioRefreshInputs,
+    PortfolioReportData,
     PortfolioReportInputs,
-    PortfolioReportSnapshot,
     UiProgressEvent,
     UiProgressSink,
 )
@@ -19,14 +20,14 @@ __all__ = [
     "EtfSectorSyncInputs",
     "FlexPerformanceRefreshInputs",
     "GenerateCombinedReportInputs",
+    "GeneratedReportArtifact",
     "InMemoryUiProgressSink",
     "LivePortfolioRefreshInputs",
+    "PortfolioReportData",
     "PortfolioMonitorActionService",
     "PortfolioMonitorQueryService",
     "PortfolioReportInputs",
-    "PortfolioReportSnapshot",
     "UiProgressEvent",
     "UiProgressReporterAdapter",
     "UiProgressSink",
 ]
-
