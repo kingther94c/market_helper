@@ -1,0 +1,38 @@
+# 4-quadrant policy overrides for the 2D (growth, inflation) regime framework.
+#
+# Any entry listed here is merged onto the in-code defaults from
+# `market_helper.suggest.quadrant_policy.DEFAULT_QUADRANT_POLICY`. Missing
+# entries fall back to those defaults — you don't have to redeclare every
+# quadrant.
+#
+# The crisis overlay applies on top of the base allocation when an ensemble
+# snapshot carries `crisis_flag=True`:
+#   - vol_multiplier *= (1 - vol_multiplier_reduction * intensity)
+#   - `equity_shift_pct * intensity` of EQ weight is redistributed to the
+#     buckets in `shift_allocation` by the listed fractions.
+
+policy:
+  Goldilocks:
+    vol_multiplier: 1.05
+    asset_class_targets: {EQ: 0.80, FI: 0.12, GOLD: 0.03, CM: 0.03, CASH: 0.02}
+    notes: "Goldilocks — allow a modest risk-up tilt."
+  Reflation:
+    vol_multiplier: 0.95
+    asset_class_targets: {EQ: 0.76, FI: 0.10, GOLD: 0.06, CM: 0.05, CASH: 0.03}
+    notes: "Reflation — stay with equities but cap duration."
+  Stagflation:
+    vol_multiplier: 0.70
+    asset_class_targets: {EQ: 0.62, FI: 0.12, GOLD: 0.14, CM: 0.08, CASH: 0.04}
+    notes: "Stagflation — bias to real assets, keep risk controlled."
+  Deflationary Slowdown:
+    vol_multiplier: 0.80
+    asset_class_targets: {EQ: 0.66, FI: 0.22, GOLD: 0.06, CM: 0.02, CASH: 0.04}
+    notes: "Deflationary slowdown — lower beta, preserve defensive ballast."
+
+crisis_overlay:
+  vol_multiplier_reduction: 0.35
+  equity_shift_pct: 0.10
+  shift_allocation:
+    CASH: 0.50
+    GOLD: 0.30
+    FI: 0.20

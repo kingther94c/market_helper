@@ -19,11 +19,22 @@ from market_helper.workflows.generate_report import (
     generate_security_reference_sync,
 )
 from market_helper.workflows.generate_regime import generate_regime_snapshots
+from market_helper.workflows.generate_multi_method_regime import (
+    ALL_METHODS as MULTI_METHOD_ALL,
+    load_multi_method_snapshots,
+    run_multi_method_detection,
+)
+from market_helper.workflows.sync_fred_macro_panel import run_fred_macro_sync
 from market_helper.domain.regime_detection.policies.regime_policy import (
     load_regime_policy,
     resolve_policy,
 )
 from market_helper.domain.regime_detection.services.detection_service import load_regime_snapshots
+from market_helper.suggest.quadrant_policy import (
+    load_crisis_overlay,
+    load_quadrant_policy,
+    resolve_quadrant_policy,
+)
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -188,6 +199,46 @@ def build_parser() -> argparse.ArgumentParser:
         help="Optional Alpha Vantage API key. Falls back to ALPHA_VANTAGE_API_KEY or configs/portfolio_monitor/local.env.",
     )
 
+    fred_macro_sync = subparsers.add_parser(
+        "fred-macro-sync",
+        help="Fetch and cache the FRED macro panel used by the regime macro_rules method.",
+    )
+    fred_macro_sync.add_argument(
+        "--config",
+        default="configs/regime_detection/fred_series.yml",
+        help="Path to the FRED series YAML config. Defaults to configs/regime_detection/fred_series.yml.",
+    )
+    fred_macro_sync.add_argument(
+        "--cache-dir",
+        default="data/interim/fred",
+        help="Directory for per-series feather caches and the joined panel.",
+    )
+    fred_macro_sync.add_argument(
+        "--observation-start",
+        default=None,
+        help="ISO date; first observation to fetch on a cold cache.",
+    )
+    fred_macro_sync.add_argument(
+        "--start-date",
+        default=None,
+        help="Optional panel start date. Defaults to the earliest release date across series.",
+    )
+    fred_macro_sync.add_argument(
+        "--end-date",
+        default=None,
+        help="Optional panel end date. Defaults to the latest release date across series.",
+    )
+    fred_macro_sync.add_argument(
+        "--force",
+        action="store_true",
+        help="Re-download the full history instead of fetching incrementally.",
+    )
+    fred_macro_sync.add_argument(
+        "--api-key",
+        default=None,
+        help="Optional FRED API key. Falls back to FRED_API_KEY env var or configs/portfolio_monitor/local.env.",
+    )
+
     regime_detect = subparsers.add_parser(
         "regime-detect",
         help="Run deterministic rule-based regime detection and write JSON snapshots.",
@@ -202,6 +253,64 @@ def build_parser() -> argparse.ArgumentParser:
         help="Optional regime config YAML path. Example template: configs/regime_detection/regime_config.example.yml.",
     )
     regime_detect.add_argument("--latest-only", action="store_true", help="Write latest snapshot only.")
+
+    regime_detect_multi = subparsers.add_parser(
+        "regime-detect-multi",
+        help="Run multi-method regime detection (macro_rules + legacy_rulebook) and write ensemble JSON.",
+    )
+    regime_detect_multi.add_argument(
+        "--methods",
+        default="all",
+        help=(
+            "Comma-separated subset of methods to enable, or 'all'. "
+            "Options: macro_rules, legacy_rulebook."
+        ),
+    )
+    regime_detect_multi.add_argument(
+        "--macro-panel",
+        default=None,
+        help="Path to the joined FRED panel feather. Defaults to data/interim/fred/macro_panel.feather.",
+    )
+    regime_detect_multi.add_argument(
+        "--fred-series-config",
+        default=None,
+        help="Path to FRED series YAML. Defaults to configs/regime_detection/fred_series.yml.",
+    )
+    regime_detect_multi.add_argument(
+        "--returns",
+        default=None,
+        help="Path to returns JSON (EQ/FI). Required when legacy_rulebook is enabled.",
+    )
+    regime_detect_multi.add_argument(
+        "--proxy",
+        default=None,
+        help="Path to proxy JSON (VIX/MOVE/HY_OAS/UST2Y/UST10Y). Required when legacy_rulebook is enabled.",
+    )
+    regime_detect_multi.add_argument(
+        "--output",
+        required=True,
+        help="Path to output MultiMethodRegimeSnapshot JSON array.",
+    )
+    regime_detect_multi.add_argument(
+        "--latest-only",
+        action="store_true",
+        help="Emit only the most-recent snapshot.",
+    )
+
+    regime_report_multi = subparsers.add_parser(
+        "regime-report-multi",
+        help="Print a human-readable summary of the latest multi-method regime snapshot + quadrant policy.",
+    )
+    regime_report_multi.add_argument(
+        "--regime",
+        required=True,
+        help="Path to multi-method regime snapshots JSON.",
+    )
+    regime_report_multi.add_argument(
+        "--policy",
+        required=False,
+        help="Optional quadrant policy YAML overrides. Example: configs/regime_detection/quadrant_policy.example.yml.",
+    )
 
     regime_report = subparsers.add_parser(
         "regime-report",
@@ -315,6 +424,18 @@ def main(argv: Sequence[str] | None = None) -> int:
             output_path=Path(args.output),
         )
         return 0
+    if args.command == "fred-macro-sync":
+        panel_path = run_fred_macro_sync(
+            config_path=Path(args.config),
+            cache_dir=Path(args.cache_dir),
+            observation_start=args.observation_start,
+            start_date=args.start_date,
+            end_date=args.end_date,
+            force=bool(args.force),
+            api_key=args.api_key,
+        )
+        print(f"panel={panel_path}")
+        return 0
     if args.command == "regime-detect":
         generate_regime_snapshots(
             returns_path=Path(args.returns),
@@ -324,6 +445,50 @@ def main(argv: Sequence[str] | None = None) -> int:
             latest_only=bool(args.latest_only),
             indicator_output_path=Path(args.indicators_output) if args.indicators_output else None,
         )
+        return 0
+    if args.command == "regime-detect-multi":
+        method_list = [m.strip() for m in str(args.methods).split(",") if m.strip()]
+        if not method_list:
+            method_list = list(MULTI_METHOD_ALL)
+        run_multi_method_detection(
+            methods=method_list,
+            macro_panel_path=args.macro_panel,
+            fred_series_config=args.fred_series_config,
+            returns_path=args.returns,
+            proxy_path=args.proxy,
+            output_path=Path(args.output),
+            latest_only=bool(args.latest_only),
+        )
+        return 0
+    if args.command == "regime-report-multi":
+        snapshots = load_multi_method_snapshots(Path(args.regime))
+        if not snapshots:
+            print("No multi-method regime snapshots found.")
+            return 0
+        latest = snapshots[-1]
+        quadrant_policy = load_quadrant_policy(
+            Path(args.policy) if args.policy else None
+        )
+        crisis_overlay = load_crisis_overlay(
+            Path(args.policy) if args.policy else None
+        )
+        decision = resolve_quadrant_policy(
+            latest.ensemble, policy=quadrant_policy, overlay=crisis_overlay
+        )
+        print(f"as_of={latest.as_of}")
+        print(f"ensemble_quadrant={latest.ensemble.quadrant}")
+        print(f"crisis_flag={latest.ensemble.crisis_flag}")
+        print(f"crisis_intensity={latest.ensemble.crisis_intensity:.2f}")
+        print(
+            f"method_agreement={latest.ensemble.diagnostics.get('method_agreement', 0.0):.2f}"
+        )
+        for name, result in latest.per_method.items():
+            native = f" native={result.native_label}" if result.native_label else ""
+            print(f"  method={name} quadrant={result.quadrant.quadrant}{native}")
+        print(f"vol_multiplier={decision.vol_multiplier:.2f}")
+        print(f"asset_class_targets={decision.asset_class_targets}")
+        if decision.notes:
+            print(f"notes={decision.notes}")
         return 0
     if args.command == "regime-report":
         snapshots = load_regime_snapshots(Path(args.regime))
