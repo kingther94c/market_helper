@@ -3,7 +3,9 @@ from __future__ import annotations
 import asyncio
 import csv
 import os
+from copy import deepcopy
 from dataclasses import dataclass, field
+from datetime import datetime
 from functools import lru_cache
 from pathlib import Path
 from typing import Any
@@ -51,6 +53,7 @@ _REGISTERED = False
 _QUERY_SERVICE: PortfolioMonitorQueryService = PortfolioMonitorQueryService()
 _ACTION_SERVICE: PortfolioMonitorActionService = PortfolioMonitorActionService()
 _SNAPSHOT_OVERRIDES: dict[str, str] | None = None
+_STALE_PAGE_CACHE: dict[str, Any] | None = None
 
 
 def set_snapshot_overrides(overrides: dict[str, str] | None) -> None:
@@ -161,6 +164,66 @@ class PortfolioPageState:
             "etf": ActionStatusState(),
         }
     )
+
+
+def _cache_stale_page_state(state: PortfolioPageState) -> None:
+    """Persist the last successful UI snapshot until an explicit refresh replaces it."""
+    global _STALE_PAGE_CACHE
+
+    _STALE_PAGE_CACHE = {
+        "artifact_form": deepcopy(state.artifact_form),
+        "live_form": deepcopy(state.live_form),
+        "flex_form": deepcopy(state.flex_form),
+        "export_form": deepcopy(state.export_form),
+        "reference_form": deepcopy(state.reference_form),
+        "snapshot": deepcopy(state.snapshot),
+        "warnings": list(state.warnings),
+        "status_message": state.status_message,
+        "selected_top_tab": state.selected_top_tab,
+        "selected_perf_mode": dict(state.selected_perf_mode),
+        "selected_perf_window": dict(state.selected_perf_window),
+        "action_statuses": deepcopy(state.action_statuses),
+    }
+
+
+def _restore_stale_page_state(state: PortfolioPageState) -> None:
+    if _STALE_PAGE_CACHE is None:
+        return
+
+    state.artifact_form = deepcopy(_STALE_PAGE_CACHE["artifact_form"])
+    state.live_form = deepcopy(_STALE_PAGE_CACHE["live_form"])
+    state.flex_form = deepcopy(_STALE_PAGE_CACHE["flex_form"])
+    state.export_form = deepcopy(_STALE_PAGE_CACHE["export_form"])
+    state.reference_form = deepcopy(_STALE_PAGE_CACHE["reference_form"])
+    state.snapshot = deepcopy(_STALE_PAGE_CACHE["snapshot"])
+    state.warnings = list(_STALE_PAGE_CACHE["warnings"])
+    state.status_message = str(_STALE_PAGE_CACHE["status_message"])
+    state.selected_top_tab = str(_STALE_PAGE_CACHE["selected_top_tab"])
+    state.selected_perf_mode = dict(_STALE_PAGE_CACHE["selected_perf_mode"])
+    state.selected_perf_window = dict(_STALE_PAGE_CACHE["selected_perf_window"])
+    state.action_statuses = deepcopy(_STALE_PAGE_CACHE["action_statuses"])
+    state.load_error = None
+    state.is_loading = False
+    state.active_job = None
+
+
+def _clear_stale_page_cache() -> None:
+    global _STALE_PAGE_CACHE
+    _STALE_PAGE_CACHE = None
+
+
+def _snapshot_matches_current_local_date(snapshot: Any) -> bool:
+    as_of = str(getattr(snapshot, "as_of", "") or "").strip()
+    if not as_of:
+        return True
+    normalized = as_of.replace("Z", "+00:00")
+    try:
+        snapshot_dt = datetime.fromisoformat(normalized)
+    except ValueError:
+        return True
+    if snapshot_dt.tzinfo is not None:
+        snapshot_dt = snapshot_dt.astimezone()
+    return snapshot_dt.date() == datetime.now().astimezone().date()
 
 
 def _normalize_vol_method_label(value: str) -> str:
@@ -278,6 +341,7 @@ def register_portfolio_page(
         tab: str | None = None,
     ) -> None:  # noqa: ARG001
         state = _build_initial_state(_QUERY_SERVICE)
+        _restore_stale_page_state(state)
         state.snapshot_mode = str(snapshot or "").strip() in {"1", "true", "yes"}
         state.selected_top_tab = _resolve_top_tab_key(tab)
         if state.snapshot_mode:
@@ -288,9 +352,9 @@ def register_portfolio_page(
             _render_portfolio_page(state)
 
         async def load_snapshot() -> None:
+            previous_snapshot = state.snapshot
+            previous_warnings = list(state.warnings)
             if not _positions_csv_ready_for_autoload(state.artifact_form.positions_csv_path):
-                state.snapshot = None
-                state.warnings = []
                 state.load_error = None
                 state.is_loading = False
                 state.status_message = _initial_dashboard_status(state.artifact_form.positions_csv_path)
@@ -304,19 +368,37 @@ def register_portfolio_page(
                 inputs = _artifact_inputs_from_form(state.artifact_form)
                 snapshot = await asyncio.to_thread(_QUERY_SERVICE.load_snapshot, inputs)
             except Exception as exc:
-                state.snapshot = None
-                state.warnings = []
+                state.snapshot = previous_snapshot
+                state.warnings = previous_warnings
                 state.load_error = str(exc)
                 state.status_message = "Snapshot load failed"
             else:
                 state.snapshot = snapshot
                 state.warnings = list(snapshot.warnings)
                 state.status_message = f"Loaded snapshot as of {snapshot.as_of}"
+                _cache_stale_page_state(state)
+                await _persist_html_snapshot(state)
             finally:
                 state.is_loading = False
                 render.refresh()
 
         async def initialize_page() -> None:
+            if state.snapshot is not None:
+                if not _snapshot_matches_current_local_date(state.snapshot):
+                    _clear_stale_page_cache()
+                    state.snapshot = None
+                    state.warnings = []
+                    state.load_error = None
+                    state.is_loading = False
+                    state.status_message = "Snapshot date changed; reloading current artifacts..."
+                    render.refresh()
+                    if _positions_csv_ready_for_autoload(state.artifact_form.positions_csv_path):
+                        await load_snapshot()
+                    return
+                state.load_error = None
+                state.is_loading = False
+                render.refresh()
+                return
             state.snapshot = None
             state.warnings = []
             state.load_error = None
@@ -501,6 +583,21 @@ def _render_feedback(state: PortfolioPageState) -> None:
         ui.label(state.load_error).classes("pm-error w-full")
     for warning in state.warnings:
         ui.label(warning).classes("pm-warning w-full")
+
+
+async def _persist_html_snapshot(state: PortfolioPageState) -> None:
+    try:
+        combined_inputs = _combined_inputs_from_form(state)
+        output_path = await asyncio.to_thread(_ACTION_SERVICE.generate_combined_report, combined_inputs)
+    except Exception as exc:
+        state.warnings.append(f"HTML snapshot export failed: {exc}")
+        return
+
+    combined_status = state.action_statuses["combined"]
+    combined_status.status = "success"
+    combined_status.message = "HTML snapshot exported"
+    combined_status.progress_summary = "Saved after snapshot reload"
+    combined_status.last_output_path = str(output_path)
 
 
 def _render_main_tabs(state: PortfolioPageState) -> None:

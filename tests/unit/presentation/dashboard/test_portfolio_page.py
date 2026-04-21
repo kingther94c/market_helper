@@ -16,6 +16,8 @@ from market_helper.presentation.dashboard.pages.portfolio import (
     ReferenceActionFormState,
     _action_progress_summary,
     _build_initial_state,
+    _cache_stale_page_state,
+    _restore_stale_page_state,
     _artifact_inputs_from_form,
     _combined_inputs_from_form,
     _etf_inputs_from_form,
@@ -23,6 +25,7 @@ from market_helper.presentation.dashboard.pages.portfolio import (
     _initial_dashboard_status,
     _live_inputs_from_form,
     _positions_csv_ready_for_autoload,
+    _snapshot_matches_current_local_date,
 )
 
 
@@ -216,3 +219,102 @@ def test_action_progress_summary_uses_live_x_of_total_while_action_runs() -> Non
     )
 
     assert _action_progress_summary(state, "flex") == "IBKR Flex report: 2 / 5"
+
+
+def test_restore_stale_page_state_rehydrates_cached_snapshot() -> None:
+    cached_state = PortfolioPageState(
+        artifact_form=PortfolioArtifactFormState(
+            positions_csv_path="data/cached_positions.csv",
+            performance_output_dir="data/cached_flex",
+        ),
+        live_form=LiveActionFormState(account_id="U123"),
+        flex_form=FlexActionFormState(query_id="cached-query"),
+        export_form=ExportActionFormState(output_path="outputs/cached.html"),
+        reference_form=ReferenceActionFormState(security_reference_output_path="data/security_reference.csv"),
+        snapshot="cached snapshot",  # type: ignore[arg-type]
+        warnings=["cached warning"],
+        status_message="Loaded cached snapshot",
+        selected_top_tab="risk",
+        selected_perf_mode={"USD": "dollar", "SGD": "percent"},
+        selected_perf_window={"USD": "FULL", "SGD": "YTD"},
+        action_statuses={
+            "live": ActionStatusState(status="success", message="Live positions refreshed"),
+            "flex": ActionStatusState(),
+            "combined": ActionStatusState(),
+            "security-reference": ActionStatusState(),
+            "etf": ActionStatusState(),
+        },
+    )
+    fresh_state = PortfolioPageState(
+        artifact_form=PortfolioArtifactFormState(),
+        live_form=LiveActionFormState(),
+        flex_form=FlexActionFormState(),
+        export_form=ExportActionFormState(),
+        reference_form=ReferenceActionFormState(),
+    )
+
+    _cache_stale_page_state(cached_state)
+    _restore_stale_page_state(fresh_state)
+
+    assert fresh_state.snapshot == "cached snapshot"
+    assert fresh_state.warnings == ["cached warning"]
+    assert fresh_state.status_message == "Loaded cached snapshot"
+    assert fresh_state.selected_top_tab == "risk"
+    assert fresh_state.selected_perf_mode["USD"] == "dollar"
+    assert fresh_state.selected_perf_window["USD"] == "FULL"
+    assert fresh_state.artifact_form.positions_csv_path == "data/cached_positions.csv"
+    assert fresh_state.live_form.account_id == "U123"
+    assert fresh_state.action_statuses["live"].message == "Live positions refreshed"
+
+
+def test_restore_stale_page_state_uses_deep_copy() -> None:
+    cached_state = PortfolioPageState(
+        artifact_form=PortfolioArtifactFormState(positions_csv_path="data/cached_positions.csv"),
+        live_form=LiveActionFormState(),
+        flex_form=FlexActionFormState(),
+        export_form=ExportActionFormState(),
+        reference_form=ReferenceActionFormState(),
+        snapshot={"as_of": "2026-04-21"},  # type: ignore[arg-type]
+        warnings=["cached warning"],
+    )
+    restored_state = PortfolioPageState(
+        artifact_form=PortfolioArtifactFormState(),
+        live_form=LiveActionFormState(),
+        flex_form=FlexActionFormState(),
+        export_form=ExportActionFormState(),
+        reference_form=ReferenceActionFormState(),
+    )
+
+    _cache_stale_page_state(cached_state)
+    _restore_stale_page_state(restored_state)
+
+    restored_state.artifact_form.positions_csv_path = "data/modified.csv"
+    restored_state.warnings.append("new warning")
+    restored_state.snapshot["as_of"] = "changed"  # type: ignore[index]
+
+    second_restore = PortfolioPageState(
+        artifact_form=PortfolioArtifactFormState(),
+        live_form=LiveActionFormState(),
+        flex_form=FlexActionFormState(),
+        export_form=ExportActionFormState(),
+        reference_form=ReferenceActionFormState(),
+    )
+    _restore_stale_page_state(second_restore)
+
+    assert second_restore.artifact_form.positions_csv_path == "data/cached_positions.csv"
+    assert second_restore.warnings == ["cached warning"]
+    assert second_restore.snapshot["as_of"] == "2026-04-21"  # type: ignore[index]
+
+
+def test_snapshot_matches_current_local_date_accepts_same_local_date() -> None:
+    class Snapshot:
+        as_of = "2026-04-21T09:30:00+08:00"
+
+    assert _snapshot_matches_current_local_date(Snapshot()) is True
+
+
+def test_snapshot_matches_current_local_date_rejects_different_local_date() -> None:
+    class Snapshot:
+        as_of = "2026-04-20T23:30:00+08:00"
+
+    assert _snapshot_matches_current_local_date(Snapshot()) is False
