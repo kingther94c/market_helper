@@ -47,6 +47,7 @@ class SnapshotRequest:
     viewport_width: int = 1600
     viewport_height: int = 900
     overrides: Mapping[str, str] | None = None
+    launch_server: bool = True
 
 
 @dataclass
@@ -341,8 +342,10 @@ def capture_snapshot(request: SnapshotRequest) -> Path:
         viewport_width=request.viewport_width,
         viewport_height=request.viewport_height,
         overrides=request.overrides,
+        launch_server=request.launch_server,
     )
-    _start_dashboard(resolved.host, port, overrides=resolved.overrides)
+    if resolved.launch_server:
+        _start_dashboard(resolved.host, port, overrides=resolved.overrides)
     html = asyncio.run(_capture(resolved))
     resolved.output_path.parent.mkdir(parents=True, exist_ok=True)
     resolved.output_path.write_text(html, encoding="utf-8")
