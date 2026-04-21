@@ -129,7 +129,6 @@ def test_load_proxy_defaults_from_yahoo_and_sets_default_semantics() -> None:
     assert proxy["MOVE"] == pytest.approx(104.5)
     assert proxy["OVX"] == pytest.approx(27.1)
     assert proxy["GVZ"] == pytest.approx(21.4)
-    assert proxy["FXVOL"] == 0.0
     assert proxy["DEFAULT"] == pytest.approx(proxy["VIX"])
     assert risk_html_module.estimated_asset_class_vol("FX", proxy) == 0.0
     assert risk_html_module.estimated_asset_class_vol("MACRO", proxy) == pytest.approx(0.192)
@@ -157,7 +156,6 @@ def test_load_proxy_config_resolves_default_alias_to_yahoo_vix(tmp_path: Path) -
     )
 
     assert proxy["DEFAULT"] == pytest.approx(17.8)
-    assert proxy["FXVOL"] == 0.0
     assert proxy["VIX"] == pytest.approx(17.8)
     assert proxy["MOVE"] == pytest.approx(109.0)
 
@@ -171,7 +169,6 @@ def test_load_proxy_uses_unified_risk_report_config_proxy_section(tmp_path: Path
                 "risk_report:",
                 "  proxy:",
                 "    DEFAULT: VIX",
-                "    FXVOL: 7.0",
                 "    defaults:",
                 "      VIX: 21.5",
                 "      MOVE: 99.0",
@@ -185,7 +182,8 @@ def test_load_proxy_uses_unified_risk_report_config_proxy_section(tmp_path: Path
                 "    short_window_days: 22",
                 "    long_window_days: 66",
                 "    long_term_lookback_years: 4",
-                "    cash_vol: 0.02",
+                "    cash_vol_override: 0.02",
+                "    fx_vol_override: 0.07",
                 "  fixed_income:",
                 "    fi_10y_eq_mod_duration: 10.0",
                 "    move_to_yield_vol_factor: 0.0002",
@@ -220,12 +218,12 @@ def test_load_proxy_uses_unified_risk_report_config_proxy_section(tmp_path: Path
     assert loaded.proxy_yahoo.period == "3mo"
     assert loaded.proxy_yahoo.interval == "1wk"
     assert loaded.volatility.trading_days == 260
-    assert loaded.volatility.cash_vol == pytest.approx(0.02)
+    assert loaded.volatility.cash_vol_override == pytest.approx(0.02)
+    assert loaded.volatility.fx_vol_override == pytest.approx(0.07)
     assert loaded.fixed_income.fi_10y_eq_mod_duration == pytest.approx(10.0)
     assert loaded.fixed_income.move_to_yield_vol_factor == pytest.approx(0.0002)
     assert proxy["VIX"] == pytest.approx(18.4)
     assert proxy["DEFAULT"] == pytest.approx(18.4)
-    assert proxy["FXVOL"] == pytest.approx(7.0)
 
 
 def test_load_proxy_rejects_legacy_fi_duration_key(tmp_path: Path) -> None:
@@ -1375,7 +1373,8 @@ def test_security_vol_uses_configured_fixed_income_and_cash_fallbacks() -> None:
         short_window_days=21,
         long_window_days=63,
         long_term_lookback_years=5,
-        cash_vol=0.02,
+        cash_vol_override=0.02,
+        fx_vol_override=0.03,
     )
 
     fi_value = risk_html_module._security_vol(
@@ -1402,6 +1401,50 @@ def test_security_vol_uses_configured_fixed_income_and_cash_fallbacks() -> None:
     )
     assert fi_value == pytest.approx(expected_fi)
     assert cash_value == pytest.approx(0.02)
+
+
+def test_security_vol_uses_fx_override_with_highest_priority() -> None:
+    volatility = risk_html_module.VolatilityMethodologyConfig(
+        trading_days=252,
+        short_window_days=21,
+        long_window_days=63,
+        long_term_lookback_years=5,
+        cash_vol_override=None,
+        fx_vol_override=0.04,
+    )
+
+    value = risk_html_module._security_vol(
+        returns=pd.Series(dtype=float),
+        asset_class="FX",
+        duration=None,
+        proxy={"FXVOL": 9.0, "DEFAULT": 18.0},
+        method="ewma",
+        volatility=volatility,
+    )
+
+    assert value == pytest.approx(0.04)
+
+
+def test_security_vol_uses_legacy_fx_proxy_logic_when_override_is_none() -> None:
+    volatility = risk_html_module.VolatilityMethodologyConfig(
+        trading_days=252,
+        short_window_days=21,
+        long_window_days=63,
+        long_term_lookback_years=5,
+        cash_vol_override=None,
+        fx_vol_override=None,
+    )
+
+    value = risk_html_module._security_vol(
+        returns=pd.Series(dtype=float),
+        asset_class="FX",
+        duration=None,
+        proxy={"FXVOL": 9.0, "DEFAULT": 18.0},
+        method="ewma",
+        volatility=volatility,
+    )
+
+    assert value == pytest.approx(0.09)
 
 
 def test_build_risk_report_view_model_falls_back_to_proxy_when_yahoo_rate_limited(

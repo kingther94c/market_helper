@@ -7,7 +7,6 @@ risk_report:
     us_sector: us_sector_lookthrough.json
   proxy:
     DEFAULT: VIX
-    FXVOL: 0.0
     defaults:
       VIX: 18.0
       MOVE: 110.0
@@ -19,14 +18,15 @@ risk_report:
         MOVE: ^MOVE
         OVX: ^OVX
         GVZ: ^GVZ
-      period: 1mo
+      period: 5d
       interval: 1d
   volatility:
     trading_days: 252
     short_window_days: 21
     long_window_days: 63
     long_term_lookback_years: 5
-    cash_vol: 0.01
+    cash_vol_override: 0
+    fx_vol_override: 0
   # Maps dashboard toggle labels to internal vol-method keys. Order
   # in this mapping defines the toggle option order.
   vol_method_labels:

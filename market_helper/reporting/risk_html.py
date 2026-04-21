@@ -81,7 +81,7 @@ DEFAULT_PROXY_YAHOO_SYMBOLS = {
     "OVX": "^OVX",
     "GVZ": "^GVZ",
 }
-DEFAULT_PROXY_YAHOO_PERIOD = "1mo"
+DEFAULT_PROXY_YAHOO_PERIOD = "5d"
 DEFAULT_PROXY_YAHOO_INTERVAL = "1d"
 DEFAULT_PROXY_FXVOL = 0.0
 _YAHOO_PROXY_LEVEL_CACHE: dict[str, float] = {}
@@ -296,7 +296,8 @@ class VolatilityMethodologyConfig:
     short_window_days: int
     long_window_days: int
     long_term_lookback_years: int
-    cash_vol: float
+    cash_vol_override: float | None
+    fx_vol_override: float | None
 
 
 @dataclass(frozen=True)
@@ -993,7 +994,8 @@ def estimated_asset_class_vol(
     proxy: Mapping[str, float],
     *,
     proxy_defaults: Mapping[str, float] | None = None,
-    cash_vol: float = DEFAULT_CASH_VOL,
+    cash_vol_override: float | None = None,
+    fx_vol_override: float | None = None,
 ) -> float:
     defaults = _merged_proxy_default_levels(proxy_defaults)
     default_vix = defaults["VIX"]
@@ -1007,8 +1009,10 @@ def estimated_asset_class_vol(
     if name == "CM":
         return proxy.get("OVX", proxy.get("GVZ", default_gvz)) / 100.0
     if name == "CASH":
-        return cash_vol
+        return DEFAULT_CASH_VOL if cash_vol_override is None else float(cash_vol_override)
     if name == "FX":
+        if fx_vol_override is not None:
+            return float(fx_vol_override)
         return proxy.get("FXVOL", DEFAULT_PROXY_FXVOL) / 100.0
     if name == "MACRO":
         return proxy.get("DEFAULT", proxy.get("VIX", default_vix)) / 100.0
@@ -1494,7 +1498,8 @@ def _security_vol(
         short_window_days=HIST_1M_DAYS,
         long_window_days=HIST_3M_DAYS,
         long_term_lookback_years=DEFAULT_LONG_TERM_LOOKBACK_YEARS,
-        cash_vol=DEFAULT_CASH_VOL,
+        cash_vol_override=None,
+        fx_vol_override=None,
     )
     series = _coerce_return_series(returns)
     if not series.dropna().empty:
@@ -1537,7 +1542,8 @@ def _security_vol(
         proxy=proxy,
         proxy_defaults=proxy_defaults,
         move_to_yield_vol_factor=move_to_yield_vol_factor,
-        cash_vol=methodology.cash_vol,
+        cash_vol_override=methodology.cash_vol_override,
+        fx_vol_override=methodology.fx_vol_override,
     )
 
 
@@ -1557,7 +1563,8 @@ def _compute_proxy_realized_5y_vols(
         short_window_days=HIST_1M_DAYS,
         long_window_days=HIST_3M_DAYS,
         long_term_lookback_years=DEFAULT_LONG_TERM_LOOKBACK_YEARS,
-        cash_vol=DEFAULT_CASH_VOL,
+        cash_vol_override=None,
+        fx_vol_override=None,
     )
     lookback = config.trading_days * config.long_term_lookback_years
     out: dict[str, float] = {}
@@ -1603,7 +1610,8 @@ def _adjusted_proxy_security_vol(
         short_window_days=HIST_1M_DAYS,
         long_window_days=HIST_3M_DAYS,
         long_term_lookback_years=DEFAULT_LONG_TERM_LOOKBACK_YEARS,
-        cash_vol=DEFAULT_CASH_VOL,
+        cash_vol_override=None,
+        fx_vol_override=None,
     )
     asset_class_key = str(asset_class).upper()
     proxy_symbol = ASSET_CLASS_CORR_PROXY_SYMBOLS.get(asset_class_key)
@@ -1614,7 +1622,8 @@ def _adjusted_proxy_security_vol(
         proxy=proxy,
         proxy_defaults=proxy_defaults,
         move_to_yield_vol_factor=move_to_yield_vol_factor,
-        cash_vol=methodology.cash_vol,
+        cash_vol_override=methodology.cash_vol_override,
+        fx_vol_override=methodology.fx_vol_override,
     )
     # Asset classes without a correlation proxy (MACRO, CASH) have no sensible
     # ratio — return the simple proxy vol directly, no warning needed.
@@ -1673,7 +1682,8 @@ def _proxy_fallback_security_vol(
     proxy: Mapping[str, float],
     proxy_defaults: Mapping[str, float] | None = None,
     move_to_yield_vol_factor: float = DEFAULT_MOVE_TO_YIELD_VOL_FACTOR,
-    cash_vol: float = DEFAULT_CASH_VOL,
+    cash_vol_override: float | None = None,
+    fx_vol_override: float | None = None,
 ) -> float:
     defaults = _merged_proxy_default_levels(proxy_defaults)
     if asset_class.upper() == "FI" and duration is not None and duration > 0:
@@ -1691,7 +1701,8 @@ def _proxy_fallback_security_vol(
         asset_class,
         proxy,
         proxy_defaults=defaults,
-        cash_vol=cash_vol,
+        cash_vol_override=cash_vol_override,
+        fx_vol_override=fx_vol_override,
     )
 
 
@@ -2010,6 +2021,8 @@ def _parse_proxy_yahoo_config(payload: Mapping[str, Any]) -> ProxyYahooConfig:
 def _parse_volatility_config(payload: Mapping[str, Any]) -> VolatilityMethodologyConfig:
     if not isinstance(payload, Mapping):
         raise ValueError("Risk report volatility config must be a mapping")
+    cash_vol_override = payload.get("cash_vol_override")
+    fx_vol_override = payload.get("fx_vol_override")
     return VolatilityMethodologyConfig(
         trading_days=_coerce_positive_int(payload.get("trading_days", TRADING_DAYS), "volatility.trading_days"),
         short_window_days=_coerce_positive_int(
@@ -2024,7 +2037,16 @@ def _parse_volatility_config(payload: Mapping[str, Any]) -> VolatilityMethodolog
             payload.get("long_term_lookback_years", DEFAULT_LONG_TERM_LOOKBACK_YEARS),
             "volatility.long_term_lookback_years",
         ),
-        cash_vol=_coerce_non_negative_float(payload.get("cash_vol", DEFAULT_CASH_VOL), "volatility.cash_vol"),
+        cash_vol_override=(
+            None
+            if cash_vol_override is None
+            else _coerce_non_negative_float(cash_vol_override, "volatility.cash_vol_override")
+        ),
+        fx_vol_override=(
+            None
+            if fx_vol_override is None
+            else _coerce_non_negative_float(fx_vol_override, "volatility.fx_vol_override")
+        ),
     )
 
 
@@ -2791,7 +2813,6 @@ def _load_proxy(
         progress=progress,
     )
     _resolve_proxy_aliases(proxy, aliases)
-    proxy.setdefault("FXVOL", DEFAULT_PROXY_FXVOL)
     proxy.setdefault("DEFAULT", proxy.get("VIX", resolved_defaults["VIX"]))
     if progress is not None:
         progress.done("Proxy levels", detail="ready")
@@ -2876,7 +2897,6 @@ def _populate_proxy_defaults_from_yahoo(
         if progress is not None:
             completed += 1
             progress.update("Proxy Yahoo", completed=completed, total=len(missing_keys), detail=detail)
-    resolved.setdefault("FXVOL", DEFAULT_PROXY_FXVOL)
     resolved.setdefault("DEFAULT", resolved.get("VIX", resolved_defaults["VIX"]))
     return resolved
 
