@@ -155,11 +155,14 @@ _SELF_CLOSING_SCRIPT_RE = re.compile(r"<script\b[^>]*/>", re.IGNORECASE)
 _LINK_TAG_RE = re.compile(r"<link\b[^>]*?/?>", re.IGNORECASE)
 _LINK_HREF_RE = re.compile(r'href="([^"]+)"', re.IGNORECASE)
 _LINK_REL_RE = re.compile(r'rel="([^"]+)"', re.IGNORECASE)
+_META_CHARSET_RE = re.compile(r"<meta\b[^>]*charset=", re.IGNORECASE)
 _CSS_URL_RE = re.compile(r"url\(\s*(['\"]?)(?P<url>/_nicegui/[^)'\"\s]+)\1\s*\)")
 
 
 def _ossify(html: str, assets: Dict[str, _Asset]) -> str:
     """Freeze the rendered DOM: strip all scripts, inline or strip all link tags."""
+
+    html = _ensure_meta_charset(html)
 
     # 1. Strip every <script> tag - the DOM is already hydrated.
     rewritten = _SCRIPT_TAG_RE.sub("", html)
@@ -225,6 +228,7 @@ def _ossify(html: str, assets: Dict[str, _Asset]) -> str:
         combined = "\n".join(css_blocks_to_prepend)
         rewritten = _inject_into_head(rewritten, f"<style>{combined}</style>")
 
+    rewritten = rewritten.replace("\u2212", "-")
     rewritten = _inject_static_tab_runtime(rewritten)
     return rewritten
 
@@ -281,6 +285,12 @@ def _inject_into_head(html: str, fragment: str) -> str:
     return fragment + html
 
 
+def _ensure_meta_charset(html: str) -> str:
+    if _META_CHARSET_RE.search(html):
+        return html
+    return _inject_into_head(html, '<meta charset="utf-8">')
+
+
 def _inject_static_tab_runtime(html: str) -> str:
     if (
         "data-static-tab-buttons" not in html
@@ -326,6 +336,8 @@ def _inject_static_tab_runtime(html: str) -> str:
     const wrappers = document.querySelectorAll('[data-risk-method-table]');
     wrappers.forEach((wrapper) => {
       const map = wrapper.getAttribute('data-vol-column-map') || '';
+      const fixedColumns = Number(wrapper.getAttribute('data-fixed-columns') || '0');
+      const tailColumns = Number(wrapper.getAttribute('data-tail-columns') || '0');
       const table = wrapper.querySelector('table');
       if (!table) return;
       const parts = map.split(';').filter(Boolean);
@@ -340,10 +352,12 @@ def _inject_static_tab_runtime(html: str) -> str:
         if (baseKey === selectedVol) visible.add(index);
       });
       table.querySelectorAll('tr').forEach((row) => {
+        const totalColumns = row.children.length;
         Array.from(row.children).forEach((cell, idx) => {
           const col = idx + 1;
-          if (col < 8) return;
-          const isVisible = visible.has(col) || col === row.children.length;
+          if (col <= fixedColumns) return;
+          if (tailColumns > 0 && col > totalColumns - tailColumns) return;
+          const isVisible = visible.has(col);
           cell.style.display = isVisible ? '' : 'none';
         });
       });
@@ -365,19 +379,6 @@ def _inject_static_tab_runtime(html: str) -> str:
     });
     const initial = buttons.find((button) => button.classList.contains('is-active'));
     if (initial) activate(initial.getAttribute('data-risk-vol-target'));
-  });
-
-  const corrGroups = document.querySelectorAll('[data-risk-corr-buttons]');
-  corrGroups.forEach((group) => {
-    const buttons = Array.from(group.querySelectorAll('[data-risk-corr-target]'));
-    buttons.forEach((button) => {
-      button.addEventListener('click', () => {
-        const target = button.getAttribute('data-risk-corr-target');
-        buttons.forEach((other) => {
-          other.classList.toggle('is-active', other.getAttribute('data-risk-corr-target') === target);
-        });
-      });
-    });
   });
 })();
 </script>

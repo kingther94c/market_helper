@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import csv
+import html
 import os
 from copy import deepcopy
 from dataclasses import dataclass, field
@@ -44,6 +45,8 @@ from market_helper.reporting.performance_html import PerformanceMetricRow, Perfo
 from market_helper.reporting.risk_html import (
     BreakdownRow,
     DEFAULT_VOL_METHOD_LABELS,
+    FI_TENOR_BUCKET_LABELS,
+    FI_TENOR_BUCKET_ORDER,
     PolicyDriftRow,
     RiskMetricsRow,
     resolve_vol_method_key,
@@ -378,7 +381,7 @@ def register_portfolio_page(
             else:
                 state.snapshot = snapshot
                 state.warnings = list(snapshot.warnings)
-                state.status_message = f"Loaded snapshot as of {snapshot.as_of}"
+                state.status_message = f"Loaded snapshot as of {_format_local_timestamp(snapshot.as_of)}"
                 _cache_stale_page_state(state)
                 if not state.snapshot_mode:
                     asyncio.create_task(_persist_html_snapshot(state, request))
@@ -736,11 +739,11 @@ def _render_main_tabs(state: PortfolioPageState) -> None:
                 _render_loading_panel("Performance SGD")
             else:
                 _render_performance_panel(state, state.snapshot.performance_sgd_view_model)
-            with ui.tab_panel(tab_risk):
-                if state.snapshot is None:
-                    _render_loading_panel("Risk")
-                else:
-                    _render_risk_panel(state, state.snapshot)
+        with ui.tab_panel(tab_risk):
+            if state.snapshot is None:
+                _render_loading_panel("Risk")
+            else:
+                _render_risk_panel(state, state.snapshot)
         with ui.tab_panel(tab_artifacts):
             _render_artifact_metadata(state)
 
@@ -921,37 +924,20 @@ def _render_risk_assumption_bar(state: PortfolioPageState, risk, *, interactive:
                     value=state.artifact_form.vol_method,
                     on_change=lambda event: _update_risk_vol_method(state, event.value),
                 )
-                ui.toggle(
-                    {"historical": "Historical Corr", "corr_0": "Corr 0", "corr_1": "Corr 1"},
-                    value=state.artifact_form.inter_asset_corr,
-                    on_change=lambda event: _update_risk_corr(state, event.value),
-                )
             ui.label(
-                "These toggles control which columns are shown and which matrix cell is highlighted. Reload to rebuild the snapshot with new assumptions."
+                "This toggle controls which precomputed vol and contribution columns are shown. Reload to rebuild the snapshot with a different correlation assumption."
             ).classes("pm-muted text-caption")
         else:
             selected_vol = resolve_vol_method_key(state.artifact_form.vol_method, DEFAULT_VOL_METHOD_LABELS)
             with ui.row().classes("items-center gap-3 wrap").props("data-risk-vol-buttons=1"):
                 for label, key in (
-                    ("Fast", "geomean_1m_3m"),
                     ("Long-Term", "5y_realized"),
+                    ("Fast", "geomean_1m_3m"),
                     ("Forward-Looking", "forward_looking"),
                 ):
                     button = ui.element("button").classes("pm-static-tab-button")
                     button.props(f"type=button data-risk-vol-target={key}")
                     if key == selected_vol:
-                        button.classes(add="is-active")
-                    with button:
-                        ui.label(label)
-            with ui.row().classes("items-center gap-3 wrap mt-3").props("data-risk-corr-buttons=1"):
-                for label, key in (
-                    ("Historical Corr", "historical"),
-                    ("Corr 0", "corr_0"),
-                    ("Corr 1", "corr_1"),
-                ):
-                    button = ui.element("button").classes("pm-static-tab-button")
-                    button.props(f"type=button data-risk-corr-target={key}")
-                    if key == state.artifact_form.inter_asset_corr:
                         button.classes(add="is-active")
                     with button:
                         ui.label(label)
@@ -964,9 +950,6 @@ def _render_risk_overview(state: PortfolioPageState, risk) -> None:
             ui.label("Portfolio Summary").classes("text-h6")
             with ui.row().classes("w-full gap-4 wrap"):
                 for label, value in [
-                    ("Vol Long-Term (5Y)", format_percent(risk.summary.portfolio_vol_5y_realized)),
-                    ("Vol Fast (1M/3M)", format_percent(risk.summary.portfolio_vol_geomean_1m_3m)),
-                    ("Vol Forward-Looking", format_percent(risk.summary.portfolio_vol_forward_looking)),
                     ("Funded AUM USD", format_amount(risk.summary.funded_aum_usd, decimals=0)),
                     ("Funded AUM SGD", format_amount(risk.summary.funded_aum_sgd, decimals=0)),
                     ("Gross Exposure", format_amount(risk.summary.gross_exposure, decimals=0)),
@@ -978,38 +961,10 @@ def _render_risk_overview(state: PortfolioPageState, risk) -> None:
         with ui.card().classes("w-full pm-card p-4"):
             ui.label("Portfolio Vol Matrix").classes("text-h6")
             ui.label("Rows are correlation assumptions. Columns are volatility methods.").classes("pm-muted text-caption")
-            render_table(
-                columns=[
-                    {"name": "corr", "label": "Correlation", "field": "corr"},
-                    {"name": "fast", "label": "Fast", "field": "fast"},
-                    {"name": "long", "label": "Long-Term", "field": "long"},
-                    {"name": "forward", "label": "Forward-Looking", "field": "forward"},
-                ],
-                rows=_portfolio_vol_matrix_rows(state, risk),
-                row_key="corr",
-            )
+            ui.html(_build_portfolio_vol_matrix_html(state, risk)).classes("w-full")
         with ui.card().classes("w-full pm-card p-4"):
             ui.label("Asset Class Summary").classes("text-h6")
-            render_table(
-                columns=[
-                    {"name": "asset_class", "label": "Asset Class", "field": "asset_class"},
-                    {"name": "exposure_usd", "label": "Net Exposure ($)", "field": "exposure_usd"},
-                    {"name": "gross_exposure_usd", "label": "Gross Exposure ($)", "field": "gross_exposure_usd"},
-                    {"name": "dollar_weight", "label": "Portfolio Allocation %", "field": "dollar_weight"},
-                    {"name": "risk_contribution_estimated", "label": "Vol Contribution %", "field": "risk_contribution_estimated"},
-                ],
-                rows=[
-                    {
-                        "asset_class": row.asset_class,
-                        "exposure_usd": format_amount(row.exposure_usd),
-                        "gross_exposure_usd": format_amount(row.gross_exposure_usd),
-                        "dollar_weight": format_percent(row.dollar_weight),
-                        "risk_contribution_estimated": format_percent(row.risk_contribution_estimated),
-                    }
-                    for row in risk.allocation_summary
-                ],
-                row_key="asset_class",
-            )
+            _render_allocation_summary_table(state, risk)
         _render_policy_drift_asset_class(risk)
 
 
@@ -1145,61 +1100,21 @@ def _render_risk_fixed_income(state: PortfolioPageState, risk) -> None:
                 render_status_card(title="Position Count", value=str(len(fi_rows)))
         with ui.card().classes("w-full pm-card p-4"):
             ui.label("Tenor Bucket Allocation").classes("text-h6")
-            render_table(
-                columns=_breakdown_columns(),
-                rows=[_breakdown_row_to_table_row(row) for row in risk.fi_tenor_breakdown],
-                row_key="bucket",
-            )
+            _render_fi_tenor_breakdown_table(state, risk, fi_rows)
         _render_position_subtable(state, "FI Instruments", fi_rows)
 
 
 def _render_risk_commodity(state: PortfolioPageState, risk) -> None:
     cm_rows = [r for r in risk.risk_rows if r.asset_class == "CM"]
-    sector_rows: dict[str, dict[str, float]] = {}
-    total_exposure = sum(r.exposure_usd for r in cm_rows)
-    total_risk = sum(r.risk_contribution_estimated for r in cm_rows)
-    for row in cm_rows:
-        code = (getattr(row, "cm_sector", "") or "").upper()
-        bucket = _CM_SECTOR_LABELS.get(code, "Unmapped") if code else "Unmapped"
-        agg = sector_rows.setdefault(
-            bucket, {"exposure_usd": 0.0, "gross_exposure_usd": 0.0, "risk_contribution_estimated": 0.0}
-        )
-        agg["exposure_usd"] += row.exposure_usd
-        agg["gross_exposure_usd"] += row.gross_exposure_usd
-        agg["risk_contribution_estimated"] += row.risk_contribution_estimated
     with ui.column().classes("w-full gap-4"):
         with ui.card().classes("w-full pm-card p-4"):
             ui.label("Commodity Sector Summary").classes("text-h6")
-            if not sector_rows:
-                ui.label("No commodity positions.").classes("pm-muted")
-            else:
-                render_table(
-                    columns=[
-                        {"name": "bucket", "label": "Sector", "field": "bucket"},
-                        {"name": "exposure_usd", "label": "Net Exposure ($)", "field": "exposure_usd"},
-                        {"name": "gross_exposure_usd", "label": "Gross Exposure ($)", "field": "gross_exposure_usd"},
-                        {"name": "within_cm_weight", "label": "Within-CM Weight %", "field": "within_cm_weight"},
-                        {"name": "risk_contribution_estimated", "label": "Vol Contribution %", "field": "risk_contribution_estimated"},
-                    ],
-                    rows=[
-                        {
-                            "bucket": bucket,
-                            "exposure_usd": format_amount(agg["exposure_usd"]),
-                            "gross_exposure_usd": format_amount(agg["gross_exposure_usd"]),
-                            "within_cm_weight": format_percent(
-                                agg["exposure_usd"] / total_exposure if total_exposure else 0.0
-                            ),
-                            "risk_contribution_estimated": format_percent(agg["risk_contribution_estimated"]),
-                        }
-                        for bucket, agg in sorted(sector_rows.items(), key=lambda kv: -kv[1]["exposure_usd"])
-                    ],
-                    row_key="bucket",
-                )
-        _render_commodity_correlation_heatmap()
+            _render_commodity_sector_summary_table(state, cm_rows)
+        _render_commodity_correlation_heatmap_html()
         _render_position_subtable(state, "Commodity Holdings", cm_rows)
 
 
-def _render_commodity_correlation_heatmap() -> None:
+def _render_commodity_correlation_heatmap_html() -> None:
     proxies = _load_commodity_sector_proxies()
     if not proxies:
         return
@@ -1210,32 +1125,9 @@ def _render_commodity_correlation_heatmap() -> None:
             ui.label("Proxy return data unavailable — heatmap skipped.").classes("pm-muted")
         return
     labels, corr = matrix
-    display_labels = [_CM_SECTOR_LABELS.get(code, code) for code in labels]
-    figure = {
-        "data": [
-            {
-                "type": "heatmap",
-                "z": corr,
-                "x": display_labels,
-                "y": display_labels,
-                "zmin": -1,
-                "zmax": 1,
-                "colorscale": "RdBu",
-                "reversescale": True,
-                "hovertemplate": "%{x} vs %{y}<br>corr=%{z:.2f}<extra></extra>",
-            }
-        ],
-        "layout": {
-            "template": "plotly_white",
-            "height": 360,
-            "margin": {"l": 100, "r": 40, "t": 24, "b": 80},
-            "xaxis": {"tickangle": -20},
-        },
-        "config": {"displayModeBar": False, "responsive": True},
-    }
     with ui.card().classes("w-full pm-card p-4"):
         ui.label("Commodity Sector Correlation").classes("text-h6")
-        ui.plotly(figure).classes("w-full h-[380px]")
+        ui.html(_build_commodity_corr_table_html(labels, corr)).classes("w-full")
 
 
 @lru_cache(maxsize=1)
@@ -1360,7 +1252,7 @@ def _render_position_subtable(
                 column_map = f"{column_map};geomean_1m_3m_rc:11;5y_realized_rc:12;forward_looking_rc:13"
             columns.append({"name": "mapping_status", "label": "Mapping", "field": "mapping_status"})
             with ui.element("div").props(
-                f'data-risk-method-table=1 data-selected-vol="{resolve_vol_method_key(state.artifact_form.vol_method, DEFAULT_VOL_METHOD_LABELS)}" data-vol-column-map="{column_map}"'
+                f'data-risk-method-table=1 data-selected-vol="{resolve_vol_method_key(state.artifact_form.vol_method, DEFAULT_VOL_METHOD_LABELS)}" data-fixed-columns="7" data-tail-columns="1" data-vol-column-map="{column_map}"'
             ).classes("w-full"):
                 render_table(
                     columns=columns,
@@ -1789,22 +1681,6 @@ def _selected_risk_contribution_field_name(state: PortfolioPageState) -> str:
     }[key]
 
 
-def _portfolio_vol_matrix_rows(state: PortfolioPageState, risk) -> list[dict[str, str]]:
-    corr_labels = {"historical": "Historical", "corr_0": "Corr 0", "corr_1": "Corr 1"}
-    rows: list[dict[str, str]] = []
-    for corr_key in ("historical", "corr_0", "corr_1"):
-        row = risk.portfolio_vol_matrix.get(corr_key, {})
-        rows.append(
-            {
-                "corr": corr_labels.get(corr_key, corr_key),
-                "fast": format_percent(row.get("geomean_1m_3m", 0.0)),
-                "long": format_percent(row.get("5y_realized", 0.0)),
-                "forward": format_percent(row.get("forward_looking", 0.0)),
-            }
-        )
-    return rows
-
-
 def _breakdown_columns() -> list[dict[str, str]]:
     return [
         {"name": "bucket", "label": "Bucket", "field": "bucket"},
@@ -1884,13 +1760,6 @@ def _update_risk_vol_method(state: PortfolioPageState, value: str) -> None:
         refresh()
 
 
-def _update_risk_corr(state: PortfolioPageState, value: str) -> None:
-    state.artifact_form.inter_asset_corr = str(value)
-    refresh = getattr(state, "_refresh_ui", None)
-    if refresh is not None:
-        refresh()
-
-
 def _format_progress_event(event: Any) -> str:
     if event.completed is not None and event.total is not None:
         return f"{event.completed} / {event.total}"
@@ -1926,3 +1795,373 @@ def _combined_reference_output(state: PortfolioPageState) -> str:
     if reference_output != "n/a":
         return reference_output
     return etf_output
+
+
+def _format_local_timestamp(value: str | None) -> str:
+    normalized = str(value or "").strip()
+    if not normalized:
+        return ""
+    try:
+        dt = datetime.fromisoformat(normalized.replace("Z", "+00:00"))
+    except ValueError:
+        return normalized
+    return dt.astimezone().isoformat(timespec="seconds")
+
+
+def _render_allocation_summary_table(state: PortfolioPageState, risk) -> None:
+    rows = [_allocation_summary_row_to_table_row(row) for row in risk.allocation_summary]
+    selected_field = _selected_summary_risk_field_name(state)
+    selected_label = f"Vol Contribution ({state.artifact_form.vol_method})"
+    if state.snapshot_mode:
+        columns = [
+            {"name": "asset_class", "label": "Asset Class", "field": "asset_class"},
+            {"name": "exposure_usd", "label": "Net Exposure ($)", "field": "exposure_usd"},
+            {"name": "gross_exposure_usd", "label": "Gross Exposure ($)", "field": "gross_exposure_usd"},
+            {"name": "dollar_weight", "label": "Portfolio Allocation %", "field": "dollar_weight"},
+            {
+                "name": "risk_contribution_5y_realized",
+                "label": "Vol Contribution (Long-Term)",
+                "field": "risk_contribution_5y_realized",
+            },
+            {
+                "name": "risk_contribution_geomean_1m_3m",
+                "label": "Vol Contribution (Fast)",
+                "field": "risk_contribution_geomean_1m_3m",
+            },
+            {
+                "name": "risk_contribution_forward_looking",
+                "label": "Vol Contribution (Forward-Looking)",
+                "field": "risk_contribution_forward_looking",
+            },
+        ]
+        with ui.element("div").props(
+            f'data-risk-method-table=1 data-selected-vol="{resolve_vol_method_key(state.artifact_form.vol_method, DEFAULT_VOL_METHOD_LABELS)}" data-fixed-columns="4" data-tail-columns="0" data-vol-column-map="5y_realized:5;geomean_1m_3m:6;forward_looking:7"'
+        ).classes("w-full"):
+            render_table(columns=columns, rows=rows, row_key="asset_class")
+        return
+
+    render_table(
+        columns=[
+            {"name": "asset_class", "label": "Asset Class", "field": "asset_class"},
+            {"name": "exposure_usd", "label": "Net Exposure ($)", "field": "exposure_usd"},
+            {"name": "gross_exposure_usd", "label": "Gross Exposure ($)", "field": "gross_exposure_usd"},
+            {"name": "dollar_weight", "label": "Portfolio Allocation %", "field": "dollar_weight"},
+            {"name": selected_field, "label": selected_label, "field": selected_field},
+        ],
+        rows=rows,
+        row_key="asset_class",
+    )
+
+
+def _render_fi_tenor_breakdown_table(state: PortfolioPageState, risk, fi_rows: list[RiskMetricsRow]) -> None:
+    rows = _fi_tenor_breakdown_rows(risk, fi_rows)
+    selected_field = _selected_summary_risk_field_name(state)
+    selected_label = f"Vol Contribution ({state.artifact_form.vol_method})"
+    if state.snapshot_mode:
+        columns = [
+            {"name": "bucket", "label": "Bucket", "field": "bucket"},
+            {"name": "parent", "label": "Scope", "field": "parent"},
+            {"name": "exposure_usd", "label": "Net Exposure", "field": "exposure_usd"},
+            {"name": "gross_exposure_usd", "label": "Gross Exposure", "field": "gross_exposure_usd"},
+            {"name": "dollar_weight", "label": "Dollar%", "field": "dollar_weight"},
+            {
+                "name": "risk_contribution_5y_realized",
+                "label": "Vol Contribution (Long-Term)",
+                "field": "risk_contribution_5y_realized",
+            },
+            {
+                "name": "risk_contribution_geomean_1m_3m",
+                "label": "Vol Contribution (Fast)",
+                "field": "risk_contribution_geomean_1m_3m",
+            },
+            {
+                "name": "risk_contribution_forward_looking",
+                "label": "Vol Contribution (Forward-Looking)",
+                "field": "risk_contribution_forward_looking",
+            },
+        ]
+        with ui.element("div").props(
+            f'data-risk-method-table=1 data-selected-vol="{resolve_vol_method_key(state.artifact_form.vol_method, DEFAULT_VOL_METHOD_LABELS)}" data-fixed-columns="5" data-tail-columns="0" data-vol-column-map="5y_realized:6;geomean_1m_3m:7;forward_looking:8"'
+        ).classes("w-full"):
+            render_table(columns=columns, rows=rows, row_key="bucket")
+        return
+
+    render_table(
+        columns=[
+            {"name": "bucket", "label": "Bucket", "field": "bucket"},
+            {"name": "parent", "label": "Scope", "field": "parent"},
+            {"name": "exposure_usd", "label": "Net Exposure", "field": "exposure_usd"},
+            {"name": "gross_exposure_usd", "label": "Gross Exposure", "field": "gross_exposure_usd"},
+            {"name": "dollar_weight", "label": "Dollar%", "field": "dollar_weight"},
+            {"name": selected_field, "label": selected_label, "field": selected_field},
+        ],
+        rows=rows,
+        row_key="bucket",
+    )
+
+
+def _render_commodity_sector_summary_table(state: PortfolioPageState, cm_rows: list[RiskMetricsRow]) -> None:
+    rows = _commodity_sector_summary_rows(cm_rows)
+    if not rows:
+        ui.label("No commodity positions.").classes("pm-muted")
+        return
+    selected_field = _selected_summary_risk_field_name(state)
+    selected_label = f"Vol Contribution ({state.artifact_form.vol_method})"
+    if state.snapshot_mode:
+        columns = [
+            {"name": "bucket", "label": "Sector", "field": "bucket"},
+            {"name": "exposure_usd", "label": "Net Exposure ($)", "field": "exposure_usd"},
+            {"name": "gross_exposure_usd", "label": "Gross Exposure ($)", "field": "gross_exposure_usd"},
+            {"name": "within_cm_weight", "label": "Within-CM Weight %", "field": "within_cm_weight"},
+            {
+                "name": "risk_contribution_5y_realized",
+                "label": "Vol Contribution (Long-Term)",
+                "field": "risk_contribution_5y_realized",
+            },
+            {
+                "name": "risk_contribution_geomean_1m_3m",
+                "label": "Vol Contribution (Fast)",
+                "field": "risk_contribution_geomean_1m_3m",
+            },
+            {
+                "name": "risk_contribution_forward_looking",
+                "label": "Vol Contribution (Forward-Looking)",
+                "field": "risk_contribution_forward_looking",
+            },
+        ]
+        with ui.element("div").props(
+            f'data-risk-method-table=1 data-selected-vol="{resolve_vol_method_key(state.artifact_form.vol_method, DEFAULT_VOL_METHOD_LABELS)}" data-fixed-columns="4" data-tail-columns="0" data-vol-column-map="5y_realized:5;geomean_1m_3m:6;forward_looking:7"'
+        ).classes("w-full"):
+            render_table(columns=columns, rows=rows, row_key="bucket")
+        return
+
+    render_table(
+        columns=[
+            {"name": "bucket", "label": "Sector", "field": "bucket"},
+            {"name": "exposure_usd", "label": "Net Exposure ($)", "field": "exposure_usd"},
+            {"name": "gross_exposure_usd", "label": "Gross Exposure ($)", "field": "gross_exposure_usd"},
+            {"name": "within_cm_weight", "label": "Within-CM Weight %", "field": "within_cm_weight"},
+            {"name": selected_field, "label": selected_label, "field": selected_field},
+        ],
+        rows=rows,
+        row_key="bucket",
+    )
+
+
+def _allocation_summary_row_to_table_row(row: Any) -> dict[str, str]:
+    risk_fast = getattr(row, "risk_contribution_geomean_1m_3m", None)
+    risk_long = getattr(row, "risk_contribution_5y_realized", None)
+    risk_forward = getattr(row, "risk_contribution_forward_looking", None)
+    fallback = getattr(row, "risk_contribution_estimated", 0.0)
+    return {
+        "asset_class": row.asset_class,
+        "exposure_usd": format_amount(row.exposure_usd),
+        "gross_exposure_usd": format_amount(row.gross_exposure_usd),
+        "dollar_weight": format_percent(row.dollar_weight),
+        "risk_contribution_5y_realized": format_percent(risk_long if risk_long is not None else fallback),
+        "risk_contribution_geomean_1m_3m": format_percent(risk_fast if risk_fast is not None else fallback),
+        "risk_contribution_forward_looking": format_percent(risk_forward if risk_forward is not None else fallback),
+    }
+
+
+def _selected_summary_risk_field_name(state: PortfolioPageState) -> str:
+    key = resolve_vol_method_key(state.artifact_form.vol_method, DEFAULT_VOL_METHOD_LABELS)
+    return {
+        "5y_realized": "risk_contribution_5y_realized",
+        "geomean_1m_3m": "risk_contribution_geomean_1m_3m",
+        "forward_looking": "risk_contribution_forward_looking",
+    }.get(key, "risk_contribution_geomean_1m_3m")
+
+
+def _fi_tenor_breakdown_rows(risk, fi_rows: list[RiskMetricsRow]) -> list[dict[str, str]]:
+    aggregates: dict[str, dict[str, float]] = {}
+    base_rows = {row.bucket: row for row in getattr(risk, "fi_tenor_breakdown", [])}
+    for row in fi_rows:
+        bucket = row.fi_tenor or "UNASSIGNED"
+        agg = aggregates.setdefault(
+            bucket,
+            {
+                "exposure_usd": 0.0,
+                "gross_exposure_usd": 0.0,
+                "dollar_weight": 0.0,
+                "risk_contribution_5y_realized": 0.0,
+                "risk_contribution_geomean_1m_3m": 0.0,
+                "risk_contribution_forward_looking": 0.0,
+            },
+        )
+        agg["exposure_usd"] += row.exposure_usd
+        agg["gross_exposure_usd"] += row.gross_exposure_usd
+        agg["dollar_weight"] += row.dollar_weight
+        agg["risk_contribution_5y_realized"] += row.risk_contribution_5y_realized
+        agg["risk_contribution_geomean_1m_3m"] += row.risk_contribution_geomean_1m_3m
+        agg["risk_contribution_forward_looking"] += row.risk_contribution_forward_looking
+
+    rows: list[dict[str, str]] = []
+    for bucket in FI_TENOR_BUCKET_ORDER:
+        if bucket not in aggregates and bucket not in base_rows:
+            continue
+        agg = aggregates.get(
+            bucket,
+            {
+                "exposure_usd": 0.0,
+                "gross_exposure_usd": 0.0,
+                "dollar_weight": 0.0,
+                "risk_contribution_5y_realized": 0.0,
+                "risk_contribution_geomean_1m_3m": 0.0,
+                "risk_contribution_forward_looking": 0.0,
+            },
+        )
+        base = base_rows.get(bucket)
+        label = FI_TENOR_BUCKET_LABELS.get(bucket, "")
+        display_bucket = bucket if not label else f"{bucket} ({label})"
+        rows.append(
+            {
+                "bucket": display_bucket,
+                "parent": base.parent if base is not None else "FI",
+                "exposure_usd": format_amount(agg["exposure_usd"]),
+                "gross_exposure_usd": format_amount(agg["gross_exposure_usd"]),
+                "dollar_weight": format_percent(agg["dollar_weight"]),
+                "risk_contribution_5y_realized": format_percent(agg["risk_contribution_5y_realized"]),
+                "risk_contribution_geomean_1m_3m": format_percent(agg["risk_contribution_geomean_1m_3m"]),
+                "risk_contribution_forward_looking": format_percent(agg["risk_contribution_forward_looking"]),
+            }
+        )
+    return rows
+
+
+def _commodity_sector_summary_rows(cm_rows: list[RiskMetricsRow]) -> list[dict[str, str]]:
+    total_exposure = sum(row.exposure_usd for row in cm_rows)
+    sector_rows: dict[str, dict[str, float]] = {}
+    for row in cm_rows:
+        code = (getattr(row, "cm_sector", "") or "").upper()
+        bucket = _CM_SECTOR_LABELS.get(code, "Unmapped") if code else "Unmapped"
+        agg = sector_rows.setdefault(
+            bucket,
+            {
+                "exposure_usd": 0.0,
+                "gross_exposure_usd": 0.0,
+                "risk_contribution_5y_realized": 0.0,
+                "risk_contribution_geomean_1m_3m": 0.0,
+                "risk_contribution_forward_looking": 0.0,
+            },
+        )
+        agg["exposure_usd"] += row.exposure_usd
+        agg["gross_exposure_usd"] += row.gross_exposure_usd
+        agg["risk_contribution_5y_realized"] += row.risk_contribution_5y_realized
+        agg["risk_contribution_geomean_1m_3m"] += row.risk_contribution_geomean_1m_3m
+        agg["risk_contribution_forward_looking"] += row.risk_contribution_forward_looking
+    return [
+        {
+            "bucket": bucket,
+            "exposure_usd": format_amount(agg["exposure_usd"]),
+            "gross_exposure_usd": format_amount(agg["gross_exposure_usd"]),
+            "within_cm_weight": format_percent(agg["exposure_usd"] / total_exposure if total_exposure else 0.0),
+            "risk_contribution_5y_realized": format_percent(agg["risk_contribution_5y_realized"]),
+            "risk_contribution_geomean_1m_3m": format_percent(agg["risk_contribution_geomean_1m_3m"]),
+            "risk_contribution_forward_looking": format_percent(agg["risk_contribution_forward_looking"]),
+        }
+        for bucket, agg in sorted(sector_rows.items(), key=lambda kv: -abs(kv[1]["exposure_usd"]))
+    ]
+
+
+def _build_portfolio_vol_matrix_html(state: PortfolioPageState, risk) -> str:
+    row_labels = (
+        ("corr_0", "Corr = 0"),
+        ("historical", "Historical Corr"),
+        ("corr_1", "Corr = 1"),
+    )
+    col_labels = (
+        ("5y_realized", "Long-Term"),
+        ("geomean_1m_3m", "Fast"),
+        ("forward_looking", "Forward-Looking"),
+    )
+    values = [
+        [float(risk.portfolio_vol_matrix.get(row_key, {}).get(col_key, 0.0)) for col_key, _ in col_labels]
+        for row_key, _ in row_labels
+    ]
+    selected_vol = resolve_vol_method_key(state.artifact_form.vol_method, DEFAULT_VOL_METHOD_LABELS)
+    selected_corr = state.artifact_form.inter_asset_corr
+    flat_values = [value for row in values for value in row]
+    max_value = max(flat_values, default=0.0)
+    min_value = min(flat_values, default=0.0)
+    out = [
+        "<div style='overflow-x:auto'>",
+        "<table style='width:100%;border-collapse:separate;border-spacing:0;border:1px solid #e2e8f0;border-radius:12px;overflow:hidden'>",
+        "<thead><tr>",
+        "<th style='text-align:left;padding:12px 14px;background:#fff7ed;border-bottom:1px solid #fed7aa'>Correlation</th>",
+    ]
+    for col_key, label in col_labels:
+        border = "2px solid #c2410c" if col_key == selected_vol else "1px solid transparent"
+        out.append(
+            f"<th style='padding:12px 14px;background:#fff7ed;border-bottom:1px solid #fed7aa;border-left:1px solid #fed7aa;border-top:{border}'>{html.escape(label)}</th>"
+        )
+    out.append("</tr></thead><tbody>")
+    for row_index, (row_key, row_label) in enumerate(row_labels):
+        out.append("<tr>")
+        label_bg = "#fffaf5" if row_key == selected_corr else "#ffffff"
+        out.append(
+            f"<td style='padding:12px 14px;font-weight:600;background:{label_bg};border-bottom:1px solid #f1f5f9'>{html.escape(row_label)}</td>"
+        )
+        for col_index, value in enumerate(values[row_index]):
+            color = _orange_heat_color(value, min_value=min_value, max_value=max_value)
+            border = "2px solid #c2410c" if row_key == selected_corr and col_labels[col_index][0] == selected_vol else "1px solid #f1f5f9"
+            out.append(
+                f"<td style='padding:12px 14px;text-align:right;font-weight:700;background:{color};border-left:1px solid #f1f5f9;border-bottom:{border}'>{html.escape(format_percent(value))}</td>"
+            )
+        out.append("</tr>")
+    out.append("</tbody></table></div>")
+    return "".join(out)
+
+
+def _build_commodity_corr_table_html(labels: list[str], corr: list[list[float]]) -> str:
+    display_labels = [_CM_SECTOR_LABELS.get(code, code) for code in labels]
+    out = [
+        "<div style='overflow-x:auto'>",
+        "<table style='width:100%;border-collapse:separate;border-spacing:0;border:1px solid #e2e8f0;border-radius:12px;overflow:hidden'>",
+        "<thead><tr><th style='text-align:left;padding:12px 14px;background:#fff5f5;border-bottom:1px solid #fecaca'>Sector</th>",
+    ]
+    for label in display_labels:
+        out.append(
+            f"<th style='padding:12px 14px;background:#fff5f5;border-bottom:1px solid #fecaca;border-left:1px solid #fecaca'>{html.escape(label)}</th>"
+        )
+    out.append("</tr></thead><tbody>")
+    for row_label, row_values in zip(display_labels, corr, strict=False):
+        out.append("<tr>")
+        out.append(
+            f"<td style='padding:12px 14px;font-weight:600;background:#ffffff;border-bottom:1px solid #f1f5f9'>{html.escape(row_label)}</td>"
+        )
+        for value in row_values:
+            out.append(
+                f"<td style='padding:12px 14px;text-align:right;font-weight:700;background:{_red_heat_color(value, min_value=-1.0, max_value=1.0)};border-left:1px solid #f1f5f9;border-bottom:1px solid #f1f5f9'>{html.escape(f'{value:.2f}')}</td>"
+            )
+        out.append("</tr>")
+    out.append("</tbody></table></div>")
+    return "".join(out)
+
+
+def _orange_heat_color(value: float, *, min_value: float, max_value: float) -> str:
+    return _blend_heat_color(value, min_value=min_value, max_value=max_value, start=(255, 247, 237), end=(194, 65, 12))
+
+
+def _red_heat_color(value: float, *, min_value: float, max_value: float) -> str:
+    clipped = max(value, 0.0)
+    return _blend_heat_color(clipped, min_value=0.0, max_value=max(max_value, 1.0), start=(255, 245, 245), end=(153, 27, 27))
+
+
+def _blend_heat_color(
+    value: float,
+    *,
+    min_value: float,
+    max_value: float,
+    start: tuple[int, int, int],
+    end: tuple[int, int, int],
+) -> str:
+    if max_value <= min_value:
+        ratio = 1.0
+    else:
+        ratio = (value - min_value) / (max_value - min_value)
+    ratio = max(0.0, min(1.0, ratio))
+    red = round(start[0] + (end[0] - start[0]) * ratio)
+    green = round(start[1] + (end[1] - start[1]) * ratio)
+    blue = round(start[2] + (end[2] - start[2]) * ratio)
+    return f"rgb({red}, {green}, {blue})"
