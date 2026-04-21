@@ -219,7 +219,29 @@ Build a broker-agnostic, read-only IBKR integration layer for market monitoring 
 - Backtest scaffold uses simple periodic target application and does not model execution costs/slippage/futures carry.
 - Risk report regime integration is intentionally lightweight (banner + scores), without regime-conditioned covariance modeling yet.
 
-## Next Suggested PRs (Regime Track)
+## Regime v2 — Multi-Method 2D Framework (In Progress)
+Redesigns regime detection around a pluggable multi-method architecture that classifies each date into a 2D `(growth × inflation)` quadrant — Goldilocks, Reflation, Stagflation, Deflationary Slowdown — with an orthogonal crisis overlay flag, and lets methods vote through an ensemble layer. v1 ships two methods (macro rule-based + existing legacy 7-regime wrapper); ML and market-voting methods are designed-in but deferred.
+
+### Completed
+- **M1 FRED macro panel pipeline**: `market_helper/data_sources/fred/macro_panel.py` with per-series feather caches, publication-lag-aware forward-fill, `configs/regime_detection/fred_series.example.yml`, `scripts/run_fred_sync.sh`, and the `fred-macro-sync` CLI subcommand.
+- **M2 2D axis engine + macro_rules method**: `market_helper/regimes/axes.py` (quadrant constants, `GrowthInflationAxes`, `QuadrantSnapshot`, sign hysteresis, duration, quadrant mapping) and `market_helper/regimes/methods/macro_rules.py` (rolling z-score per series, per-axis weighted aggregation, hysteresis).
+- **M3 Legacy wrapper + ensemble**: `market_helper/regimes/methods/legacy_rulebook.py` projects each of the 7 legacy regimes onto the 4 quadrants plus a crisis flag; `market_helper/regimes/ensemble.py` aligns method results by common dates, confidence-weighted per-axis voting, OR'd crisis flag with max intensity, reports method agreement.
+- **M4 Quadrant policy + orchestration + serialization**: `market_helper/suggest/quadrant_policy.py` (4-quadrant policy table + crisis overlay that redistributes `equity_shift_pct * intensity` of EQ to CASH/GOLD/FI and reduces vol multiplier), `configs/regime_detection/quadrant_policy.example.yml`, `MultiMethodRegimeSnapshot` dataclass with JSON roundtrip, and `market_helper/regimes/multi_method_service.py` orchestrator.
+- **M5 CLI wire-up**: `regime-detect-multi` subcommand runs enabled methods and writes the ensemble snapshot array; `regime-report-multi` prints ensemble quadrant, per-method verdicts, method agreement, crisis state, and the resolved quadrant policy decision. Legacy `regime-detect` / `regime-report` commands remain untouched for back-compat.
+
+### Outstanding
+- HTML risk-report banner (`market_helper/reporting/risk_html.py`) and NiceGUI dashboard still consume the legacy `RegimeSnapshot` JSON. Next PR should teach both surfaces to auto-detect a multi-method payload and render the ensemble quadrant as the primary banner with a collapsible per-method detail row.
+- Regime v2 schema is covered by unit tests (`tests/unit/regimes/test_axes_quadrant.py`, `test_macro_rules.py`, `test_ensemble.py`, `test_legacy_wrapper.py`, `test_quadrant_policy.py`, `test_multi_method_service.py`) and a CLI e2e (`tests/e2e/test_cli_regime_detect_multi.py`). No manual 15-year backtest sanity check has been run yet (GFC / COVID / 2022 inflation) — to be done once the FRED panel is actually synced on a host with a `FRED_API_KEY`.
+- Known design risks still open: macro series reliance on revised values (no ALFRED vintages — we use `publication_lag_days` per series as a pragmatic proxy); z-score saturation on long-trending inflation series (capped at ±3 by default but worth revisiting); ensemble crisis double-counting is avoided by not applying the quadrant-policy overlay on top of the legacy method's native 7-regime policy.
+
+### Next Suggested PRs (Regime v2)
+1. **HTML + dashboard banner migration** — detect `version="regime-multi-v1"` and render ensemble quadrant + method-agreement chip in the risk report and NiceGUI home.
+2. **Market-voting method** — add a third method driven by multi-asset trend rules (bond↑/stock↑ → inflation↓, copper↑ → growth+inflation, etc.) to diversify the ensemble beyond the current two methods.
+3. **ML method skeleton** — supervised classifier + unsupervised clustering drop-in under `market_helper/regimes/methods/` conforming to the `RegimeMethod` protocol.
+4. **Backtest sanity harness** — rerun the 15-year window and validate against GFC, COVID, 2017 Goldilocks, 2022 Reflation/Stagflation turn; commit fixture snapshots.
+5. **Calibration notebook** — walk-forward tuning of `zscore_window_bdays`, `min_consecutive_days`, and crisis-overlay magnitudes against out-of-sample periods.
+
+## Next Suggested PRs (Regime v1, legacy track)
 1. Add explicit FRED adapter wiring + cached ingestion path for VIX-like, MOVE-like, HY OAS, and Treasury yield series.
 2. Add calibration notebook/tests for threshold sensitivity and persistence settings by market episode.
 3. Extend policy schema with DM_EQ/EM_EQ split and defensive bucket sub-allocation overlays.

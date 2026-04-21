@@ -3,6 +3,9 @@ from __future__ import annotations
 from dataclasses import asdict, dataclass, field
 from typing import Any
 
+from market_helper.regimes.axes import QuadrantSnapshot
+from market_helper.regimes.methods.base import MethodResult
+
 
 @dataclass(frozen=True)
 class IndicatorPoint:
@@ -61,4 +64,48 @@ class RegimeSnapshot:
             version=str(payload.get("version", "regime-v1")),
             diagnostics=dict(payload["diagnostics"]) if isinstance(payload.get("diagnostics"), dict) else None,
             source_info=dict(payload["source_info"]) if isinstance(payload.get("source_info"), dict) else None,
+        )
+
+
+@dataclass(frozen=True)
+class MultiMethodRegimeSnapshot:
+    """Per-date output of the multi-method regime orchestrator.
+
+    ``per_method`` keeps each method's native view (including its richer label,
+    e.g. the legacy 7-regime string) alongside the projected 2D quadrant;
+    ``ensemble`` is the voted consensus. Downstream policy / reporting layers
+    use ``ensemble`` as the primary signal and ``per_method`` to show
+    disagreement.
+    """
+
+    as_of: str
+    per_method: dict[str, MethodResult]
+    ensemble: QuadrantSnapshot
+    source_info: dict[str, Any] = field(default_factory=dict)
+    version: str = "regime-multi-v1"
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "as_of": self.as_of,
+            "per_method": {
+                name: result.to_dict() for name, result in self.per_method.items()
+            },
+            "ensemble": self.ensemble.to_dict(),
+            "source_info": dict(self.source_info),
+            "version": self.version,
+        }
+
+    @classmethod
+    def from_dict(cls, payload: dict[str, Any]) -> "MultiMethodRegimeSnapshot":
+        per_method_raw = dict(payload.get("per_method", {}))
+        per_method = {
+            str(name): MethodResult.from_dict(dict(entry))
+            for name, entry in per_method_raw.items()
+        }
+        return cls(
+            as_of=str(payload["as_of"]),
+            per_method=per_method,
+            ensemble=QuadrantSnapshot.from_dict(dict(payload["ensemble"])),
+            source_info=dict(payload.get("source_info", {})),
+            version=str(payload.get("version", "regime-multi-v1")),
         )
