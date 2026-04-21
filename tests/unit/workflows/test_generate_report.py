@@ -226,6 +226,14 @@ def test_generate_etf_sector_sync_reports_progress(tmp_path: Path) -> None:
     ]
 
 
+def test_previous_weekday_steps_back_one_business_day() -> None:
+    assert portfolio_report_pipeline._previous_weekday(date(2026, 4, 21)) == date(2026, 4, 20)
+
+
+def test_previous_weekday_skips_weekend_from_monday() -> None:
+    assert portfolio_report_pipeline._previous_weekday(date(2026, 4, 20)) == date(2026, 4, 17)
+
+
 def test_generate_ibkr_flex_performance_report_fetches_statement_from_web_service(tmp_path: Path) -> None:
     output_dir = tmp_path / "outputs"
     xml_output_path = tmp_path / "downloaded_flex.xml"
