@@ -553,6 +553,7 @@ def _render_toolbar(state: PortfolioPageState) -> None:
                 value=state.action_statuses["combined"].message,
                 detail=state.action_statuses["combined"].last_output_path,
             )
+        _render_report_quick_link(state)
         with ui.expansion("Artifact Paths", icon="folder", value=False).classes("w-full mt-4"):
             with ui.column().classes("w-full gap-3 p-2"):
                 with ui.grid(columns=2).classes("w-full gap-3"):
@@ -611,11 +612,23 @@ def _render_report_host(state: PortfolioPageState) -> None:
             ui.label(str(report_path)).classes("text-caption pm-muted")
         return
     with ui.card().classes("w-full pm-card p-2"):
+        with ui.row().classes("w-full items-center justify-between px-2 pt-2"):
+            ui.label("Embedded HTML Report").classes("text-subtitle2")
+            ui.link("Open Generated HTML", report_path.as_uri(), new_tab=True).classes("text-primary")
         iframe = ui.element("iframe").props("sandbox=allow-same-origin allow-scripts").classes("w-full").style(
             "width:100%;min-height:78vh;border:0;border-radius:20px;background:#fff"
         )
         iframe._props["title"] = "Portfolio Monitor HTML Report"
         iframe._props["srcdoc"] = report_path.read_text(encoding="utf-8")
+
+
+def _render_report_quick_link(state: PortfolioPageState) -> None:
+    report_path = _current_report_output_path(state)
+    if report_path is None or not report_path.exists():
+        return
+    with ui.row().classes("w-full items-center gap-2 mt-3"):
+        ui.label("Quick Access").classes("text-caption pm-muted")
+        ui.link("Open Generated HTML", report_path.as_uri(), new_tab=True).classes("text-primary")
 
 
 def _render_artifact_metadata(state: PortfolioPageState) -> None:
