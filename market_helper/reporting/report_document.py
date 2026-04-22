@@ -4,6 +4,8 @@ from dataclasses import dataclass, field
 import html
 from typing import Sequence
 
+from market_helper.common.datetime_display import format_local_datetime
+
 
 @dataclass(frozen=True)
 class ReportSection:
@@ -317,7 +319,7 @@ def render_report_document(document: ReportDocument) -> str:
       <p class='report-hero__eyebrow'>Market Helper HTML Report</p>
       <h1>{html.escape(document.title)}</h1>
       {subtitle_html}
-      <p class='report-hero__subtitle'>As of {html.escape(document.as_of)}</p>
+      <p class='report-hero__subtitle'>As of {html.escape(format_local_datetime(document.as_of))}</p>
     </header>
     {warnings_html}
     <nav class='report-nav' aria-label='Report Sections'>

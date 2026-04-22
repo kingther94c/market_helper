@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from market_helper.common.datetime_display import format_local_datetime
+
 
 def format_percent(value: float | None) -> str:
     if value is None:
@@ -31,3 +33,6 @@ def format_text(value: str | None) -> str:
     normalized = (value or "").strip()
     return normalized or "n/a"
 
+
+def format_local_text(value: str | None) -> str:
+    return format_local_datetime(value)

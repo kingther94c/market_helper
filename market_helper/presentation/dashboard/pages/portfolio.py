@@ -22,9 +22,10 @@ from market_helper.application.portfolio_monitor import (
     PortfolioReportData,
     PortfolioReportInputs,
 )
+from market_helper.common.datetime_display import format_local_datetime
 from market_helper.presentation.dashboard.components import render_action_card
 from market_helper.presentation.dashboard.components.common import add_dashboard_styles, render_status_card
-from market_helper.presentation.dashboard.formatters import format_path, format_text
+from market_helper.presentation.dashboard.formatters import format_local_text, format_path, format_text
 
 
 _REGISTERED = False
@@ -309,7 +310,7 @@ def register_portfolio_page(
                     output_path=_required_text(state.export_form.output_path, "Combined report output path"),
                     report_data=report_data,
                 )
-                state.status_message = f"Loaded report data as of {_format_local_timestamp(report_data.as_of)}"
+                state.status_message = f"Loaded report data as of {format_local_datetime(report_data.as_of)}"
                 _cache_stale_page_state(state)
             finally:
                 state.is_loading = False
@@ -545,7 +546,7 @@ def _render_toolbar(state: PortfolioPageState) -> None:
             render_status_card(
                 title="Report Data",
                 value=state.status_message,
-                detail=state.report_data.as_of if state.report_data is not None else None,
+                detail=(format_local_datetime(state.report_data.as_of) if state.report_data is not None else None),
             )
             render_status_card(
                 title="Generated HTML",
@@ -622,7 +623,7 @@ def _render_artifact_metadata(state: PortfolioPageState) -> None:
         metadata = state.report_data.artifact_metadata
         rows = [
             ("Positions CSV", format_path(metadata.positions_csv_path)),
-            ("Positions as of", format_text(metadata.positions_as_of)),
+            ("Positions as of", format_local_text(metadata.positions_as_of)),
             ("Performance output dir", format_path(metadata.performance_output_dir)),
             ("Performance history", format_path(metadata.performance_history_path)),
             ("Performance report CSV", format_path(metadata.performance_report_csv_path)),
@@ -914,17 +915,6 @@ def _format_progress_event(event: Any) -> str:
     if event.current is not None and event.total is not None:
         return f"{event.current} / {event.total}"
     return event.detail or ""
-
-
-def _format_local_timestamp(value: str | None) -> str:
-    normalized = str(value or "").strip()
-    if not normalized:
-        return ""
-    try:
-        dt = datetime.fromisoformat(normalized.replace("Z", "+00:00"))
-    except ValueError:
-        return normalized
-    return dt.astimezone().isoformat(timespec="seconds")
 
 
 def _update_top_tab(state: PortfolioPageState, value: str) -> None:

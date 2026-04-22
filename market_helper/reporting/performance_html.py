@@ -8,6 +8,7 @@ import json
 
 import pandas as pd
 
+from market_helper.common.datetime_display import format_local_datetime
 from market_helper.domain.portfolio_monitor.services.performance_analytics import (
     PerformanceMetricRow,
     annualized_return,
@@ -73,7 +74,7 @@ def build_performance_report_view_model(
 
     _ = _load_report_rows(report_csv_path)
     summary_cards = [
-        PerformanceSummaryCard(label="As of", primary_value=as_of),
+        PerformanceSummaryCard(label="As of", primary_value=format_local_datetime(as_of)),
         PerformanceSummaryCard(
             label="Since inception annualized return",
             primary_value=annualized_return(frame, primary_currency, include_provisional=True),
@@ -145,6 +146,39 @@ def render_performance_assets() -> str:
         else "<script src='https://cdn.plot.ly/plotly-2.35.2.min.js'></script>"
     )
     return (
+        "<style>"
+        ".perf-summary-grid { display:grid; gap:14px; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); }"
+        ".perf-summary-card { position:relative; overflow:hidden; padding:18px 18px 16px; border-radius:20px; border:1px solid rgba(148,163,184,0.18); background:linear-gradient(180deg, rgba(255,255,255,0.98), rgba(248,250,252,0.92)); box-shadow:0 12px 32px rgba(15,23,42,0.05); }"
+        ".perf-summary-card::before { content:''; position:absolute; inset:0 auto auto 0; width:100%; height:4px; background:linear-gradient(90deg, rgba(15,118,110,0.92), rgba(194,65,12,0.72)); }"
+        ".perf-summary-label { display:block; margin-bottom:10px; font-size:12px; font-weight:800; letter-spacing:0.08em; text-transform:uppercase; color:#64748b; }"
+        ".perf-summary-value { display:block; font-family:var(--font-sans, 'Iowan Old Style', Georgia, serif); font-size:32px; line-height:1.02; color:#0f172a; }"
+        ".perf-summary-secondary { display:block; margin-top:10px; padding-top:10px; border-top:1px solid rgba(226,232,240,0.9); color:#475569; font-size:13px; font-weight:600; }"
+        ".perf-chart-shell { display:grid; gap:18px; }"
+        ".perf-chart-toolbar { display:grid; grid-template-columns: minmax(0, 1.2fr) minmax(320px, 0.9fr); gap:18px; align-items:start; }"
+        ".perf-controls { display:grid; gap:12px; justify-items:end; margin:0; }"
+        ".perf-control-row { display:flex; flex-wrap:wrap; align-items:center; justify-content:flex-end; gap:10px; }"
+        ".perf-control-label { font-size:12px; font-weight:800; letter-spacing:0.08em; text-transform:uppercase; color:#475569; min-width:120px; }"
+        ".segmented-control { display:inline-flex; flex-wrap:wrap; gap:8px; padding:6px; border-radius:18px; background:rgba(248,250,252,0.92); border:1px solid rgba(148,163,184,0.18); }"
+        ".segmented-control__button { appearance:none; border:1px solid transparent; border-radius:999px; padding:10px 14px; background:transparent; color:#334155; font-weight:700; cursor:pointer; transition: background 140ms ease, color 140ms ease, transform 140ms ease, border-color 140ms ease; }"
+        ".segmented-control__button:hover { transform:translateY(-1px); border-color:rgba(15,118,110,0.24); background:rgba(255,255,255,0.9); }"
+        ".segmented-control__button.is-active { background:linear-gradient(135deg, #0f766e, #115e59); color:#fff; border-color:transparent; box-shadow:0 10px 24px rgba(15,118,110,0.22); }"
+        ".segmented-control--warm .segmented-control__button { color:#9a3412; }"
+        ".segmented-control--warm .segmented-control__button:hover { border-color:rgba(194,65,12,0.24); }"
+        ".segmented-control--warm .segmented-control__button.is-active { background:linear-gradient(135deg, #c2410c, #9a3412); box-shadow:0 10px 24px rgba(194,65,12,0.22); }"
+        ".perf-card-header { display:grid; gap:6px; }"
+        ".perf-card-header p { margin:0; }"
+        ".perf-card-kicker { margin:0; font-size:12px; font-weight:800; letter-spacing:0.08em; text-transform:uppercase; color:#0f766e; }"
+        ".perf-plot-frame { padding:16px 16px 8px; border-radius:20px; background:linear-gradient(180deg, rgba(248,250,252,0.96), rgba(255,255,255,0.98)); border:1px solid rgba(148,163,184,0.18); }"
+        ".perf-plot { min-height: 520px; }"
+        "@media (max-width: 720px) {"
+        ".perf-chart-toolbar { grid-template-columns: 1fr; }"
+        ".perf-control-row { align-items:flex-start; flex-direction:column; }"
+        ".perf-controls { justify-items:start; }"
+        ".perf-control-row { justify-content:flex-start; }"
+        ".perf-control-label { min-width:0; }"
+        ".segmented-control { width:100%; }"
+        "}"
+        "</style>"
         f"{plotly_loader}"
         "<script>"
         "if (!window.__marketHelperPerfAssetsLoaded) {"
@@ -233,15 +267,20 @@ def render_performance_tab(view_model: PerformanceReportViewModel) -> str:
         "<div class='card'>"
         "<h2>Performance Overview</h2>"
         f"<p>{overview_text}</p>"
-        f"<div class='metrics'>{summary_cards}</div>"
+        f"<div class='perf-summary-grid'>{summary_cards}</div>"
         "</div>"
         "<div class='card'>"
+        "<div class='perf-chart-shell'>"
+        "<div class='perf-chart-toolbar'>"
         "<div class='perf-card-header'>"
+        "<p class='perf-card-kicker'>Interactive Chart</p>"
         "<h2>Cumulative Performance And Drawdown</h2>"
-        "<p>Shared x-axis, stacked for easier reading.</p>"
+        "<p>Shared x-axis, stacked for easier reading. Switch between return and PnL without losing the selected window.</p>"
         "</div>"
         f"{_render_chart_tabs(instance_id)}"
-        f"<div id='{instance_id}' class='perf-plot'></div>"
+        "</div>"
+        f"<div class='perf-plot-frame'><div id='{instance_id}' class='perf-plot'></div></div>"
+        "</div>"
         "<script>"
         f"window.__marketHelperInitPerformanceTab('{instance_id}', {chart_specs}, 'percent', 'MTD');"
         "</script>"
@@ -452,8 +491,8 @@ def _series_to_plot_values(series: pd.Series) -> list[float | None]:
 
 def _render_chart_tabs(target_id: str) -> str:
     mode_buttons = [
-        ("percent", "%"),
-        ("dollar", "$"),
+        ("percent", "Return %"),
+        ("dollar", "PnL $"),
     ]
     window_buttons = [
         ("MTD", "MTD"),
@@ -463,8 +502,8 @@ def _render_chart_tabs(target_id: str) -> str:
     ]
     return (
         "<div class='perf-controls'>"
-        f"<div class='perf-control-row'>{_render_button_row(target_id, 'mode', mode_buttons, 'percent')}</div>"
-        f"<div class='perf-control-row'>{_render_button_row(target_id, 'window', window_buttons, 'MTD')}</div>"
+        f"<div class='perf-control-row'><div class='perf-control-label'>Measure</div>{_render_button_row(target_id, 'mode', mode_buttons, 'percent')}</div>"
+        f"<div class='perf-control-row'><div class='perf-control-label'>Window</div>{_render_button_row(target_id, 'window', window_buttons, 'MTD')}</div>"
         "</div>"
     )
 
@@ -481,7 +520,7 @@ def _render_button_row(
         rendered.append(
             "<button "
             "type='button' "
-            f"class='perf-subtab{' is-active' if is_active else ''}' "
+            f"class='segmented-control__button{' is-active' if is_active else ''}' "
             f"data-perf-target='{target_id}' "
             f"data-perf-group='{group}' "
             f"data-perf-value='{value}' "
@@ -489,19 +528,19 @@ def _render_button_row(
             f"{html.escape(label)}"
             "</button>"
         )
-    return "".join(rendered)
+    return f"<div class='segmented-control'>{''.join(rendered)}</div>"
 
 
 def _render_summary_card(card: PerformanceSummaryCard) -> str:
     secondary = ""
     if card.secondary_label is not None:
         secondary = (
-            f"<small>{html.escape(card.secondary_label)}: {_format_metric_value(card.secondary_value, card.value_kind)}</small>"
+            f"<small class='perf-summary-secondary'>{html.escape(card.secondary_label)}: {_format_metric_value(card.secondary_value, card.value_kind)}</small>"
         )
     return (
-        "<div class='metric'>"
-        f"<span>{html.escape(card.label)}</span>"
-        f"<strong>{_format_metric_value(card.primary_value, card.value_kind)}</strong>"
+        "<div class='perf-summary-card'>"
+        f"<span class='perf-summary-label'>{html.escape(card.label)}</span>"
+        f"<strong class='perf-summary-value'>{_format_metric_value(card.primary_value, card.value_kind)}</strong>"
         f"{secondary}"
         "</div>"
     )

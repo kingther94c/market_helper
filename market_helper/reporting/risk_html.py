@@ -17,6 +17,7 @@ import yaml
 
 logger = logging.getLogger(__name__)
 
+from market_helper.common.datetime_display import format_local_datetime
 from market_helper.common.progress import ProgressReporter, resolve_progress_reporter
 from market_helper.data_sources.yahoo_finance import YahooFinanceClient
 from market_helper.domain.portfolio_monitor.services.etf_sector_lookthrough import (
@@ -1224,29 +1225,33 @@ def render_risk_report_styles() -> str:
     .chart-midline { position: absolute; left: 50%; top: 0; bottom: 0; width: 1px; background: #94a3b8; }
     .chart-fill-pos { position: absolute; left: 50%; top: 0; bottom: 0; background: #16a34a; }
     .chart-fill-neg { position: absolute; top: 0; bottom: 0; background: #dc2626; }
-    .tab-strip { display:flex; flex-wrap:wrap; gap:10px; margin: 0 0 18px; }
-    .tab-button {
-      appearance:none; border:1px solid rgba(15,23,42,0.10); border-radius:999px;
-      padding:10px 16px; background:rgba(255,255,255,0.72); color:#0f172a; font-weight:700; cursor:pointer;
+    .control-toolbar { display:grid; gap:12px; margin:0 0 18px; }
+    .control-row { display:flex; flex-wrap:wrap; align-items:center; gap:10px; }
+    .control-label { font-size:12px; font-weight:800; letter-spacing:0.08em; text-transform:uppercase; color:#475569; min-width:120px; }
+    .segmented-control { display:inline-flex; flex-wrap:wrap; gap:8px; padding:6px; border-radius:18px; background:rgba(248,250,252,0.92); border:1px solid rgba(148,163,184,0.18); }
+    .segmented-control__button {
+      appearance:none; border:1px solid transparent; border-radius:999px; padding:10px 14px;
+      background:transparent; color:#334155; font-weight:700; cursor:pointer;
       transition: background 140ms ease, color 140ms ease, transform 140ms ease, border-color 140ms ease;
     }
-    .tab-button:hover { transform: translateY(-1px); border-color: rgba(15,118,110,0.35); }
-    .tab-button.is-active { background:linear-gradient(135deg, #0f766e, #115e59); color:#fff; border-color:transparent; box-shadow:0 12px 28px rgba(15,118,110,0.22); }
+    .segmented-control__button:hover { transform: translateY(-1px); border-color: rgba(15,118,110,0.24); background: rgba(255,255,255,0.9); }
+    .segmented-control__button.is-active { background:linear-gradient(135deg, #0f766e, #115e59); color:#fff; border-color:transparent; box-shadow:0 10px 24px rgba(15,118,110,0.22); }
+    .segmented-control--warm .segmented-control__button { color:#9a3412; }
+    .segmented-control--warm .segmented-control__button:hover { border-color: rgba(194,65,12,0.24); }
+    .segmented-control--warm .segmented-control__button.is-active { background:linear-gradient(135deg, #c2410c, #9a3412); box-shadow:0 10px 24px rgba(194,65,12,0.22); }
     .tab-panel[hidden] { display: none !important; }
-    .risk-method-strip { display:flex; flex-wrap:wrap; gap:8px; margin-bottom:12px; }
-    .risk-method-button {
-      appearance:none; border:1px solid rgba(194,65,12,0.15); border-radius:999px;
-      padding:9px 14px; background:#ffedd5; color:#9a3412; font-weight:700; cursor:pointer;
-      transition: background 140ms ease, color 140ms ease, transform 140ms ease, border-color 140ms ease;
-    }
-    .risk-method-button:hover { transform: translateY(-1px); border-color: rgba(194,65,12,0.35); }
-    .risk-method-button.is-active { background:#c2410c; color:#fff; border-color:transparent; box-shadow:0 10px 24px rgba(194,65,12,0.22); }
     .heat-table { width:100%; border-collapse:separate; border-spacing:0; border:1px solid #e2e8f0; border-radius:12px; overflow:hidden; }
     .heat-table th, .heat-table td { padding:12px 14px; border-bottom:1px solid #f1f5f9; }
     .heat-table th { background:#fff7ed; border-bottom:1px solid #fed7aa; }
     .heat-table td + td, .heat-table th + th { border-left:1px solid #f1f5f9; }
     .heat-table .is-active-method { box-shadow: inset 0 0 0 2px #c2410c; }
     .report-table .is-hidden-by-method { display:none; }
+    .risk-assumption-copy { margin: 0; color:#475569; }
+    @media (max-width: 720px) {
+      .control-row { align-items:flex-start; flex-direction:column; }
+      .control-label { min-width:0; }
+      .segmented-control { width:100%; }
+    }
     """
 
 
@@ -1418,7 +1423,7 @@ def render_risk_tab(view_model: RiskReportViewModel) -> str:
         regime_block = (
             "<div class='card'>"
             "<h2>Regime Snapshot</h2>"
-            f"<p><strong>{html.escape(regime_summary.regime)}</strong> as of {html.escape(regime_summary.as_of)}</p>"
+            f"<p><strong>{html.escape(regime_summary.regime)}</strong> as of {html.escape(format_local_datetime(regime_summary.as_of))}</p>"
             f"<p>{html.escape(banner)}</p>"
             f"<div class='scores'>{score_list}</div>"
             "</div>"
@@ -1550,13 +1555,18 @@ def render_risk_tab(view_model: RiskReportViewModel) -> str:
 
   {_render_risk_assumption_bar_html(vol_method)}
 
-  <div class='tab-strip' data-report-tab-group='risk'>
-    <button type='button' class='tab-button is-active' data-report-tab-target='overview'>Overview</button>
-    <button type='button' class='tab-button' data-report-tab-target='equity'>Equity</button>
-    <button type='button' class='tab-button' data-report-tab-target='fixed-income'>Fixed Income</button>
-    <button type='button' class='tab-button' data-report-tab-target='commodity'>Commodity</button>
-    <button type='button' class='tab-button' data-report-tab-target='fx'>FX</button>
-    <button type='button' class='tab-button' data-report-tab-target='macro'>Macro</button>
+  <div class='control-toolbar'>
+    <div class='control-row'>
+      <div class='control-label'>Section</div>
+      <div class='segmented-control' data-report-tab-group='risk'>
+        <button type='button' class='segmented-control__button is-active' data-report-tab-target='overview'>Overview</button>
+        <button type='button' class='segmented-control__button' data-report-tab-target='equity'>Equity</button>
+        <button type='button' class='segmented-control__button' data-report-tab-target='fixed-income'>Fixed Income</button>
+        <button type='button' class='segmented-control__button' data-report-tab-target='commodity'>Commodity</button>
+        <button type='button' class='segmented-control__button' data-report-tab-target='fx'>FX</button>
+        <button type='button' class='segmented-control__button' data-report-tab-target='macro'>Macro</button>
+      </div>
+    </div>
   </div>
 
   {overview_panel}
@@ -1894,15 +1904,18 @@ def _render_risk_assumption_bar_html(vol_method: str) -> str:
     for label, key in DEFAULT_VOL_METHOD_LABELS.items():
         active = " is-active" if key == vol_method else ""
         buttons.append(
-            f"<button type='button' class='risk-method-button{active}' data-risk-vol-target='{html.escape(key)}'>{html.escape(label)}</button>"
+            f"<button type='button' class='segmented-control__button{active}' data-risk-vol-target='{html.escape(key)}'>{html.escape(label)}</button>"
         )
     return (
         "<div class='card'>"
         "<h2>Risk Assumptions</h2>"
-        "<div class='risk-method-strip' data-risk-vol-buttons='1'>"
+        "<div class='control-row'>"
+        "<div class='control-label'>Vol Method</div>"
+        "<div class='segmented-control segmented-control--warm' data-risk-vol-buttons='1'>"
         + "".join(buttons)
         + "</div>"
-        "<p>This toggle controls which precomputed vol and contribution columns are shown. Correlation stays fixed to the report snapshot.</p>"
+        "</div>"
+        "<p class='risk-assumption-copy'>This toggle controls which precomputed vol and contribution columns are shown. Correlation stays fixed to the report snapshot.</p>"
         "</div>"
     )
 

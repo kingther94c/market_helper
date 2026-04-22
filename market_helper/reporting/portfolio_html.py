@@ -5,6 +5,7 @@ import html
 from pathlib import Path
 from typing import TYPE_CHECKING
 
+from market_helper.common.datetime_display import format_local_datetime
 from market_helper.reporting.html_tables import HtmlTableColumn, HtmlTableRow, render_html_table
 from market_helper.reporting.performance_html import render_performance_assets, render_performance_tab
 from market_helper.reporting.report_document import ReportDocument, ReportSection, render_report_document
@@ -92,7 +93,7 @@ def _render_artifact_section(metadata: "ArtifactMetadata") -> str:
             HtmlTableRow(
                 cells={
                     "name": key.replace("_", " ").title(),
-                    "value": _format_artifact_value(value),
+                    "value": _format_artifact_value(key, value),
                 }
             )
         )
@@ -112,9 +113,11 @@ def _artifact_columns() -> list[HtmlTableColumn]:
     ]
 
 
-def _format_artifact_value(value: object) -> str:
+def _format_artifact_value(key: str, value: object) -> str:
     if value is None:
         return "<span class='tone-muted'>n/a</span>"
+    if key.endswith("as_of"):
+        return html.escape(format_local_datetime(str(value)))
     if isinstance(value, Path):
         return html.escape(str(value))
     return html.escape(str(value))
