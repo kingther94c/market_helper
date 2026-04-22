@@ -8,7 +8,7 @@ from typing import TYPE_CHECKING
 from market_helper.reporting.html_tables import HtmlTableColumn, HtmlTableRow, render_html_table
 from market_helper.reporting.performance_html import render_performance_assets, render_performance_tab
 from market_helper.reporting.report_document import ReportDocument, ReportSection, render_report_document
-from market_helper.reporting.risk_html import render_risk_tab
+from market_helper.reporting.risk_html import render_risk_report_script, render_risk_report_styles, render_risk_tab
 
 if TYPE_CHECKING:
     from market_helper.application.portfolio_monitor.contracts import (
@@ -51,7 +51,8 @@ def build_portfolio_report_document(report_data: "PortfolioReportData") -> Repor
         as_of=report_data.as_of,
         sections=sections,
         warning_messages=tuple(report_data.warnings),
-        head_html=render_performance_assets(),
+        head_html=f"<style>{render_risk_report_styles()}</style>{render_performance_assets()}",
+        body_end_html=render_risk_report_script(),
     )
 
 

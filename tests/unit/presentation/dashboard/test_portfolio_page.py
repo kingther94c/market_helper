@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from datetime import datetime, timedelta
+
 from market_helper.application.portfolio_monitor import (
     GenerateCombinedReportInputs,
     InMemoryUiProgressSink,
@@ -304,14 +306,18 @@ def test_restore_stale_page_state_uses_deep_copy() -> None:
 
 
 def test_report_data_matches_current_local_date_accepts_same_local_date() -> None:
+    today = datetime.now().astimezone().date().isoformat()
+
     class ReportData:
-        as_of = "2026-04-21T09:30:00+08:00"
+        as_of = f"{today}T09:30:00+08:00"
 
     assert _report_data_matches_current_local_date(ReportData()) is True
 
 
 def test_report_data_matches_current_local_date_rejects_different_local_date() -> None:
+    yesterday = (datetime.now().astimezone().date() - timedelta(days=1)).isoformat()
+
     class ReportData:
-        as_of = "2026-04-20T23:30:00+08:00"
+        as_of = f"{yesterday}T23:30:00+08:00"
 
     assert _report_data_matches_current_local_date(ReportData()) is False

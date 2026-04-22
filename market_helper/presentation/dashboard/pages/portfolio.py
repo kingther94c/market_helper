@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import asyncio
-import html
 import os
 from copy import deepcopy
 from dataclasses import dataclass, field
@@ -271,6 +270,16 @@ def register_portfolio_page(
         def render() -> None:
             _render_portfolio_page(state)
 
+        def reload_embedded_report() -> None:
+            report_path = _current_report_output_path(state)
+            if report_path is None:
+                state.status_message = "No HTML report output path is configured"
+            elif not report_path.exists():
+                state.status_message = "No generated HTML report is available to reload"
+            else:
+                state.status_message = f"Reloaded embedded HTML from {report_path}"
+            render.refresh()
+
         async def load_report_data() -> None:
             previous_data = state.report_data
             previous_warnings = list(state.warnings)
@@ -431,6 +440,7 @@ def register_portfolio_page(
                 render.refresh()
 
         state._load_report_data = load_report_data  # type: ignore[attr-defined]
+        state._reload_embedded_report = reload_embedded_report  # type: ignore[attr-defined]
         state._run_action = run_action  # type: ignore[attr-defined]
         render()
         ui.timer(0.1, lambda: asyncio.create_task(initialize_page()), once=True)
@@ -502,17 +512,22 @@ def _render_header(state: PortfolioPageState) -> None:
 
 def _render_toolbar(state: PortfolioPageState) -> None:
     load_report_data = getattr(state, "_load_report_data", None)
+    reload_embedded_report = getattr(state, "_reload_embedded_report", None)
     run_action = getattr(state, "_run_action", None)
     with ui.card().classes("w-full pm-card p-4"):
         ui.label("Report Controls").classes("text-h6")
         ui.label(
-            "Load current report data without mutating artifacts, or explicitly generate the self-contained HTML report."
+            "Recompute report data when inputs changed, reload the embedded HTML artifact when only the display needs refreshing, or explicitly generate the self-contained HTML report."
         ).classes("pm-muted")
         with ui.row().classes("items-center gap-3 mt-4 wrap"):
             load_button = ui.button(
-                "Load Latest Data",
+                "Recompute Report Data",
                 on_click=lambda: asyncio.create_task(load_report_data()),
             ).props("color=primary")
+            reload_button = ui.button(
+                "Reload Embedded HTML",
+                on_click=reload_embedded_report,
+            ).props("outline color=primary")
             refresh_button = ui.button(
                 "Refresh Pipeline + Generate",
                 on_click=lambda: asyncio.create_task(run_action("refresh")),
@@ -523,6 +538,7 @@ def _render_toolbar(state: PortfolioPageState) -> None:
             ).props("color=accent")
             if state.is_loading or state.active_job is not None:
                 load_button.props("disable")
+                reload_button.props("disable")
                 refresh_button.props("disable")
                 generate_button.props("disable")
         with ui.row().classes("w-full gap-3 wrap mt-4"):
@@ -593,16 +609,12 @@ def _render_report_host(state: PortfolioPageState) -> None:
             ).classes("pm-muted")
             ui.label(str(report_path)).classes("text-caption pm-muted")
         return
-    report_html = report_path.read_text(encoding="utf-8")
-    iframe_html = (
-        "<iframe "
-        "title='Portfolio Monitor HTML Report' "
-        "sandbox='allow-same-origin allow-scripts' "
-        "style='width:100%;min-height:78vh;border:0;border-radius:20px;background:#fff' "
-        f"srcdoc='{html.escape(report_html, quote=True)}'></iframe>"
-    )
     with ui.card().classes("w-full pm-card p-2"):
-        ui.html(iframe_html).classes("w-full")
+        iframe = ui.element("iframe").props("sandbox=allow-same-origin allow-scripts").classes("w-full").style(
+            "width:100%;min-height:78vh;border:0;border-radius:20px;background:#fff"
+        )
+        iframe._props["title"] = "Portfolio Monitor HTML Report"
+        iframe._props["srcdoc"] = report_path.read_text(encoding="utf-8")
 
 
 def _render_artifact_metadata(state: PortfolioPageState) -> None:
