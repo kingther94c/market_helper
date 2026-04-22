@@ -1202,103 +1202,112 @@ def render_html_from_view_model(view_model: RiskReportViewModel) -> str:
   <meta charset='utf-8' />
   <title>Portfolio Risk Report</title>
   <style>
-    body {{ font-family: -apple-system, BlinkMacSystemFont, Segoe UI, sans-serif; margin: 24px; color: #0f172a; background: #f8fafc; }}
-    .card {{ background: white; border-radius: 12px; box-shadow: 0 1px 3px rgba(15,23,42,0.1); padding: 16px; margin-bottom: 16px; }}
-    h1,h2 {{ margin: 0 0 12px 0; }}
-    table {{ width: 100%; border-collapse: collapse; font-size: 14px; }}
-    th, td {{ border-bottom: 1px solid #e2e8f0; padding: 8px; text-align: left; }}
-    th {{ background: #f1f5f9; }}
-    .num {{ text-align: right; font-variant-numeric: tabular-nums; }}
-    .metrics {{ display: flex; gap: 12px; flex-wrap: wrap; }}
-    .metric {{ background: #f1f5f9; padding: 10px 12px; border-radius: 8px; min-width: 220px; }}
-    .metric span {{ display: block; color: #475569; font-size: 12px; }}
-    .metric strong {{ font-size: 20px; }}
-    .scores {{ display: flex; gap: 12px; flex-wrap: wrap; color: #334155; }}
-    .sparkline {{ width: 120px; height: 28px; }}
-    .chart {{ display: grid; gap: 8px; margin-bottom: 12px; }}
-    .chart-row {{ display: grid; grid-template-columns: 140px 1fr 72px; gap: 10px; align-items: center; }}
-    .chart-track {{ position: relative; height: 14px; border-radius: 999px; background: #e2e8f0; overflow: hidden; }}
-    .chart-midline {{ position: absolute; left: 50%; top: 0; bottom: 0; width: 1px; background: #94a3b8; }}
-    .chart-fill-pos {{ position: absolute; left: 50%; top: 0; bottom: 0; background: #16a34a; }}
-    .chart-fill-neg {{ position: absolute; top: 0; bottom: 0; background: #dc2626; }}
-    .chart-value {{ text-align: right; color: #334155; font-size: 12px; font-variant-numeric: tabular-nums; }}
-    .excluded-row {{ background: #fff7ed; }}
-    .tab-strip {{ display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 16px; }}
-    .tab-button {{ appearance: none; border: 0; border-radius: 999px; padding: 10px 14px; background: #e2e8f0; color: #0f172a; font-weight: 700; cursor: pointer; }}
-    .tab-button.is-active {{ background: #0f172a; color: #fff; }}
-    .tab-panel[hidden] {{ display: none !important; }}
-    .risk-method-strip {{ display:flex; flex-wrap:wrap; gap:8px; margin-bottom:12px; }}
-    .risk-method-button {{ appearance:none; border:0; border-radius:999px; padding:9px 14px; background:#dbe4ee; color:#0f172a; font-weight:700; cursor:pointer; }}
-    .risk-method-button.is-active {{ background:#9a3412; color:#fff; }}
-    .heat-table {{ width:100%; border-collapse:separate; border-spacing:0; border:1px solid #e2e8f0; border-radius:12px; overflow:hidden; }}
-    .heat-table th, .heat-table td {{ padding:12px 14px; border-bottom:1px solid #f1f5f9; }}
-    .heat-table th {{ background:#fff7ed; border-bottom:1px solid #fed7aa; }}
-    .heat-table td + td, .heat-table th + th {{ border-left:1px solid #f1f5f9; }}
-    .heat-table .is-active-method {{ box-shadow: inset 0 0 0 2px #c2410c; }}
-    .report-table .is-hidden-by-method {{ display:none; }}
+    {render_risk_report_styles()}
   </style>
 </head>
 <body data-selected-risk-vol='{html.escape(view_model.vol_method)}'>
   <h1>Portfolio Risk Report</h1>
   {render_risk_tab(view_model)}
+  {render_risk_report_script()}
+</body>
+</html>
+"""
+
+
+def render_risk_report_styles() -> str:
+    return """
+    .scores { display: flex; gap: 12px; flex-wrap: wrap; color: #334155; }
+    .sparkline { width: 120px; height: 28px; }
+    .chart { display: grid; gap: 8px; margin-bottom: 12px; }
+    .chart-row { display: grid; grid-template-columns: 140px 1fr 72px; gap: 10px; align-items: center; }
+    .chart-track { position: relative; height: 14px; border-radius: 999px; background: #e2e8f0; overflow: hidden; }
+    .chart-midline { position: absolute; left: 50%; top: 0; bottom: 0; width: 1px; background: #94a3b8; }
+    .chart-fill-pos { position: absolute; left: 50%; top: 0; bottom: 0; background: #16a34a; }
+    .chart-fill-neg { position: absolute; top: 0; bottom: 0; background: #dc2626; }
+    .tab-strip { display:flex; flex-wrap:wrap; gap:10px; margin: 0 0 18px; }
+    .tab-button {
+      appearance:none; border:1px solid rgba(15,23,42,0.10); border-radius:999px;
+      padding:10px 16px; background:rgba(255,255,255,0.72); color:#0f172a; font-weight:700; cursor:pointer;
+      transition: background 140ms ease, color 140ms ease, transform 140ms ease, border-color 140ms ease;
+    }
+    .tab-button:hover { transform: translateY(-1px); border-color: rgba(15,118,110,0.35); }
+    .tab-button.is-active { background:linear-gradient(135deg, #0f766e, #115e59); color:#fff; border-color:transparent; box-shadow:0 12px 28px rgba(15,118,110,0.22); }
+    .tab-panel[hidden] { display: none !important; }
+    .risk-method-strip { display:flex; flex-wrap:wrap; gap:8px; margin-bottom:12px; }
+    .risk-method-button {
+      appearance:none; border:1px solid rgba(194,65,12,0.15); border-radius:999px;
+      padding:9px 14px; background:#ffedd5; color:#9a3412; font-weight:700; cursor:pointer;
+      transition: background 140ms ease, color 140ms ease, transform 140ms ease, border-color 140ms ease;
+    }
+    .risk-method-button:hover { transform: translateY(-1px); border-color: rgba(194,65,12,0.35); }
+    .risk-method-button.is-active { background:#c2410c; color:#fff; border-color:transparent; box-shadow:0 10px 24px rgba(194,65,12,0.22); }
+    .heat-table { width:100%; border-collapse:separate; border-spacing:0; border:1px solid #e2e8f0; border-radius:12px; overflow:hidden; }
+    .heat-table th, .heat-table td { padding:12px 14px; border-bottom:1px solid #f1f5f9; }
+    .heat-table th { background:#fff7ed; border-bottom:1px solid #fed7aa; }
+    .heat-table td + td, .heat-table th + th { border-left:1px solid #f1f5f9; }
+    .heat-table .is-active-method { box-shadow: inset 0 0 0 2px #c2410c; }
+    .report-table .is-hidden-by-method { display:none; }
+    """
+
+
+def render_risk_report_script() -> str:
+    return """
   <script>
-  (function () {{
+  (function () {
     const groups = document.querySelectorAll('[data-report-tab-group]');
-    groups.forEach((group) => {{
+    groups.forEach((group) => {
       const name = group.getAttribute('data-report-tab-group');
       const buttons = Array.from(group.querySelectorAll('[data-report-tab-target]'));
       const panels = Array.from(document.querySelectorAll('[data-report-tab-panel="' + name + '"]'));
-      const activate = (target) => {{
-        buttons.forEach((button) => {{
+      const activate = (target) => {
+        buttons.forEach((button) => {
           button.classList.toggle('is-active', button.getAttribute('data-report-tab-target') === target);
-        }});
-        panels.forEach((panel) => {{
-          if (panel.getAttribute('data-report-tab-key') === target) {{
+        });
+        panels.forEach((panel) => {
+          if (panel.getAttribute('data-report-tab-key') === target) {
             panel.removeAttribute('hidden');
-          }} else {{
+          } else {
             panel.setAttribute('hidden', '');
-          }}
-        }});
-      }};
-      buttons.forEach((button) => {{
+          }
+        });
+      };
+      buttons.forEach((button) => {
         button.addEventListener('click', () => activate(button.getAttribute('data-report-tab-target')));
-      }});
+      });
       const initial = buttons.find((button) => button.classList.contains('is-active')) || buttons[0];
-      if (initial) {{
+      if (initial) {
         activate(initial.getAttribute('data-report-tab-target'));
-      }}
-    }});
+      }
+    });
 
-    const applyVolMethod = (selectedVol) => {{
-      document.querySelectorAll('[data-risk-method-table]').forEach((wrapper) => {{
-        wrapper.querySelectorAll('.vol-col, .rc-col').forEach((node) => {{
+    const applyVolMethod = (selectedVol) => {
+      document.querySelectorAll('[data-risk-method-table]').forEach((wrapper) => {
+        wrapper.querySelectorAll('.vol-col, .rc-col').forEach((node) => {
           const visible =
             node.classList.contains('vol-col--' + selectedVol) ||
             node.classList.contains('rc-col--' + selectedVol);
           node.classList.toggle('is-hidden-by-method', !visible);
-        }});
-      }});
-      document.querySelectorAll('[data-risk-vol-buttons]').forEach((group) => {{
-        group.querySelectorAll('[data-risk-vol-target]').forEach((button) => {{
+        });
+      });
+      document.querySelectorAll('[data-risk-vol-buttons]').forEach((group) => {
+        group.querySelectorAll('[data-risk-vol-target]').forEach((button) => {
           button.classList.toggle('is-active', button.getAttribute('data-risk-vol-target') === selectedVol);
-        }});
-      }});
-      document.querySelectorAll('[data-risk-vol-matrix] [data-vol-key]').forEach((cell) => {{
+        });
+      });
+      document.querySelectorAll('[data-risk-vol-matrix] [data-vol-key]').forEach((cell) => {
         cell.classList.toggle('is-active-method', cell.getAttribute('data-vol-key') === selectedVol);
-      }});
-    }};
+      });
+    };
 
-    document.querySelectorAll('[data-risk-vol-buttons]').forEach((group) => {{
-      group.querySelectorAll('[data-risk-vol-target]').forEach((button) => {{
+    document.querySelectorAll('[data-risk-vol-buttons]').forEach((group) => {
+      group.querySelectorAll('[data-risk-vol-target]').forEach((button) => {
         button.addEventListener('click', () => applyVolMethod(button.getAttribute('data-risk-vol-target')));
-      }});
-    }});
+      });
+    });
 
     applyVolMethod(document.body.getAttribute('data-selected-risk-vol') || '5y_realized');
-  }})();
+  })();
   </script>
-</body>
-</html>
 """
 
 
