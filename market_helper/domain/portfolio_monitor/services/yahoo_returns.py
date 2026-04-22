@@ -8,15 +8,14 @@ from urllib.parse import quote
 
 import pandas as pd
 
+from market_helper.app.paths import PORTFOLIO_ARTIFACTS_DIR
 from market_helper.common.progress import ProgressReporter
 from market_helper.data_sources.yahoo_finance import YahooFinanceClient, YahooFinanceTransientError
 
 from .volatility import compute_returns
 
 
-DEFAULT_YAHOO_RETURNS_CACHE_DIR = (
-    Path(__file__).resolve().parents[4] / "data" / "artifacts" / "portfolio_monitor" / "yahoo_returns"
-)
+DEFAULT_YAHOO_RETURNS_CACHE_DIR = PORTFOLIO_ARTIFACTS_DIR / "yahoo_returns"
 DEFAULT_YAHOO_RETURN_METHOD = "log"
 DEFAULT_YAHOO_PERIOD = "5y"
 DEFAULT_YAHOO_INTERVAL = "1d"
