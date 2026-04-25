@@ -219,7 +219,9 @@ def test_load_proxy_defaults_from_yahoo_and_sets_default_semantics() -> None:
     assert proxy["GVZ"] == pytest.approx(21.4)
     assert proxy["DEFAULT"] == pytest.approx(proxy["VIX"])
     assert risk_html_module.estimated_asset_class_vol("FX", proxy) == 0.0
-    assert risk_html_module.estimated_asset_class_vol("MACRO", proxy) == pytest.approx(0.192)
+    assert risk_html_module.estimated_asset_class_vol("MACRO", proxy) == pytest.approx(0.13)
+    assert risk_html_module.estimated_asset_class_vol("CM", proxy) == pytest.approx(0.214)
+    assert risk_html_module.estimated_asset_class_vol("CM", {"OVX": 40.0}) == pytest.approx(0.25)
 
 
 def test_load_proxy_config_resolves_default_alias_to_yahoo_vix(tmp_path: Path) -> None:
