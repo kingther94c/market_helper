@@ -105,6 +105,7 @@ def refresh_current_year_latest_flex_xml(
     poll_interval_seconds: float = 5.0,
     max_attempts: int = 10,
     client: object | None = None,
+    progress: ProgressReporter | None = None,
 ):
     return _refresh_current_year_latest_flex_xml(
         output_dir=output_dir,
@@ -114,6 +115,7 @@ def refresh_current_year_latest_flex_xml(
         poll_interval_seconds=poll_interval_seconds,
         max_attempts=max_attempts,
         client=client,
+        progress=progress,
     )
 
 

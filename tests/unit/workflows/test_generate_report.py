@@ -11,7 +11,7 @@ import market_helper.domain.portfolio_monitor.pipelines.generate_portfolio_repor
 import market_helper.data_sources.ibkr.flex.performance as flex_performance_module
 from market_helper.data_sources.yahoo_finance import YahooFinanceClient
 from market_helper.domain.portfolio_monitor.services.nav_cashflow_history import load_nav_cashflow_history
-from market_helper.providers.flex import FlexWebServicePendingError
+from market_helper.providers.flex import FlexWebServicePendingError, FlexWebServiceRequestPendingError
 from market_helper.workflows.generate_report import (
     FlexBackfillBatchError,
     backfill_ibkr_flex_full_years,
@@ -232,6 +232,11 @@ def test_previous_weekday_steps_back_one_business_day() -> None:
 
 def test_previous_weekday_skips_weekend_from_monday() -> None:
     assert portfolio_report_pipeline._previous_weekday(date(2026, 4, 20)) == date(2026, 4, 17)
+
+
+def test_default_current_flex_to_date_uses_et_t_minus_one_then_weekday() -> None:
+    assert portfolio_report_pipeline._default_current_flex_to_date(today=date(2026, 4, 25)) == date(2026, 4, 24)
+    assert portfolio_report_pipeline._default_current_flex_to_date(today=date(2026, 4, 27)) == date(2026, 4, 24)
 
 
 def test_generate_ibkr_flex_performance_report_fetches_statement_from_web_service(tmp_path: Path) -> None:
@@ -622,7 +627,7 @@ def test_backfill_ibkr_flex_full_years_aggregates_nonretryable_failures_and_keep
 
 
 def test_refresh_current_year_latest_flex_xml_writes_latest_file(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr(portfolio_report_pipeline, "_current_local_date", lambda: date(2026, 4, 10))
+    monkeypatch.setattr(portfolio_report_pipeline, "_current_et_date", lambda: date(2026, 4, 10))
     captured: dict[str, object] = {}
 
     class FakeFlexClient:
@@ -645,8 +650,8 @@ def test_refresh_current_year_latest_flex_xml_writes_latest_file(tmp_path: Path,
             return """
 <FlexQueryResponse>
   <FlexStatements>
-    <FlexStatement accountId="U2935967" fromDate="20260101" toDate="20260410" whenGenerated="20260410;010101">
-      <ChangeInNAV reportDate="2026-04-10" startingValue="100" endingValue="110" depositWithdrawal="0"/>
+    <FlexStatement accountId="U2935967" fromDate="20260101" toDate="20260409" whenGenerated="20260409;010101">
+      <ChangeInNAV reportDate="2026-04-09" startingValue="100" endingValue="110" depositWithdrawal="0"/>
       <PerformanceSummary ytdMoneyWeightedUsdPnl="10" ytdMoneyWeightedUsdReturn="0.10" />
     </FlexStatement>
   </FlexStatements>
@@ -665,16 +670,67 @@ def test_refresh_current_year_latest_flex_xml_writes_latest_file(tmp_path: Path,
     assert captured == {
         "query_id": "1462703",
         "from_date": date(2026, 1, 1),
-        "to_date": date(2026, 4, 10),
+        "to_date": date(2026, 4, 9),
         "period": None,
         "poll_interval_seconds": 5.0,
         "max_attempts": 10,
     }
 
 
+def test_refresh_current_year_latest_flex_xml_falls_back_one_weekday_after_missing_statement(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(portfolio_report_pipeline, "_current_et_date", lambda: date(2026, 4, 25))
+    calls: list[date] = []
+
+    class FakeFlexClient:
+        def fetch_statement(
+            self,
+            query_id: str,
+            *,
+            from_date,
+            to_date,
+            period=None,
+            poll_interval_seconds: float,
+            max_attempts: int,
+        ) -> str:
+            calls.append(to_date)
+            if len(calls) == 1:
+                raise FlexWebServiceRequestPendingError("Flex Web Service response Fail: code=1004")
+            return """
+<FlexQueryResponse>
+  <FlexStatements>
+    <FlexStatement accountId="U2935967" fromDate="20260101" toDate="20260423" whenGenerated="20260423;010101">
+      <ChangeInNAV reportDate="2026-04-23" startingValue="100" endingValue="110" depositWithdrawal="0"/>
+      <PerformanceSummary ytdMoneyWeightedUsdPnl="10" ytdMoneyWeightedUsdReturn="0.10" />
+    </FlexStatement>
+  </FlexStatements>
+</FlexQueryResponse>
+""".strip()
+
+    progress = RecordingProgressReporter()
+    record = refresh_current_year_latest_flex_xml(
+        output_dir=tmp_path / "outputs",
+        query_id="1462703",
+        token="secret-token",
+        client=FakeFlexClient(),
+        progress=progress,
+    )
+
+    assert calls == [date(2026, 4, 24), date(2026, 4, 23)]
+    assert record.xml_to_date == date(2026, 4, 23)
+    assert any(
+        event["kind"] == "spinner"
+        and event["label"] == "IBKR Flex warning"
+        and "falling back from to_date=2026-04-24" in str(event["detail"])
+        for event in progress.events
+    )
+
+
 def test_generate_ibkr_flex_performance_report_default_live_flow_adds_previous_full_year(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     output_dir = tmp_path / "outputs"
-    monkeypatch.setattr(portfolio_report_pipeline, "_current_local_date", lambda: date(2026, 4, 10))
+    monkeypatch.setattr(portfolio_report_pipeline, "_current_et_date", lambda: date(2026, 4, 10))
     monkeypatch.setattr(portfolio_report_pipeline, "DEFAULT_IBKR_FLEX_ARCHIVE_START_YEAR", 2025)
     calls: list[dict[str, object]] = []
 
@@ -717,12 +773,12 @@ def test_generate_ibkr_flex_performance_report_default_live_flow_adds_previous_f
             return """
 <FlexQueryResponse>
   <FlexStatements>
-    <FlexStatement accountId="U2935967" fromDate="20260101" toDate="20260410" whenGenerated="20260410;010101">
+    <FlexStatement accountId="U2935967" fromDate="20260101" toDate="20260409" whenGenerated="20260409;010101">
       <EquitySummaryInBase>
         <EquitySummaryByReportDateInBase currency="USD" reportDate="2025-12-31" total="120" />
-        <EquitySummaryByReportDateInBase currency="USD" reportDate="2026-04-10" total="220" />
+        <EquitySummaryByReportDateInBase currency="USD" reportDate="2026-04-09" total="220" />
       </EquitySummaryInBase>
-      <ChangeInNAV reportDate="2026-04-10" startingValue="200" endingValue="220" depositWithdrawal="0"/>
+      <ChangeInNAV reportDate="2026-04-09" startingValue="200" endingValue="220" depositWithdrawal="0"/>
       <PerformanceSummary
         mtdMoneyWeightedUsdPnl="4"
         mtdMoneyWeightedUsdReturn="0.02"
@@ -753,13 +809,13 @@ def test_generate_ibkr_flex_performance_report_default_live_flow_adds_previous_f
                 [
                     ("2024-12-31", 1.30),
                     ("2025-12-31", 1.31),
-                    ("2026-04-10", 1.32),
+                    ("2026-04-09", 1.32),
                 ]
             ),
         )
     assert recorded == []
 
-    assert written_path.name == "performance_report_20260410.csv"
+    assert written_path.name == "performance_report_20260409.csv"
     assert (output_dir / "raw" / "ibkr_flex_2025_full.xml").exists()
     assert (output_dir / "raw" / "ibkr_flex_2026_latest.xml").exists()
     history = load_nav_cashflow_history(output_dir / "nav_cashflow_history.feather")
@@ -778,12 +834,12 @@ def test_generate_ibkr_flex_performance_report_default_live_flow_adds_previous_f
             "to_date": date(2025, 12, 31),
             "period": None,
             "poll_interval_seconds": 5.0,
-            "max_attempts": 10,
+            "max_attempts": 20,
         },
         {
             "query_id": "1462703",
             "from_date": date(2026, 1, 1),
-            "to_date": date(2026, 4, 10),
+            "to_date": date(2026, 4, 9),
             "period": None,
             "poll_interval_seconds": 5.0,
             "max_attempts": 10,

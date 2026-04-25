@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from collections import deque
 from dataclasses import dataclass
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta
 import json
 from pathlib import Path
 import shutil
@@ -13,6 +13,7 @@ import time
 from typing import TYPE_CHECKING
 import warnings
 import xml.etree.ElementTree as ET
+from zoneinfo import ZoneInfo
 import yaml
 
 from market_helper.application.portfolio_monitor.contracts import PortfolioReportInputs
@@ -45,6 +46,7 @@ from market_helper.providers.flex import (
     DEFAULT_IBKR_FLEX_POLL_INTERVAL_SECONDS,
     FlexWebServiceClient,
     FlexWebServicePendingError,
+    FlexWebServiceRequestPendingError,
 )
 from market_helper.data_sources.ibkr.tws import (
     TwsIbAsyncClient,
@@ -166,7 +168,7 @@ def generate_ibkr_flex_performance_report(
             token=token,
         )
         flex_client = client or FlexWebServiceClient(token=normalized_token)
-        resolved_today = _current_local_date()
+        resolved_today = _current_et_date()
         if _uses_default_current_ytd_request(from_date=from_date, to_date=to_date, period=period):
             previous_year = resolved_today.year - 1
             if previous_year >= DEFAULT_IBKR_FLEX_ARCHIVE_START_YEAR:
@@ -188,6 +190,7 @@ def generate_ibkr_flex_performance_report(
                 max_attempts=max_attempts,
                 client=flex_client,
                 today=resolved_today,
+                progress=reporter,
             )
             resolved_flex_xml_path = latest_record.target_path
         else:
@@ -618,13 +621,14 @@ def refresh_current_year_latest_flex_xml(
     max_attempts: int = DEFAULT_IBKR_FLEX_MAX_ATTEMPTS,
     client: object | None = None,
     today: date | None = None,
+    progress: ProgressReporter | None = None,
 ) -> FlexArchiveRecord:
     normalized_query_id, normalized_token = _normalize_live_flex_credentials(
         query_id=query_id,
         token=token,
     )
-    resolved_today = today or _current_local_date()
-    resolved_to_date = _previous_weekday(resolved_today)
+    reporter = resolve_progress_reporter(progress)
+    resolved_to_date = _default_current_flex_to_date(today=today)
     year = resolved_to_date.year
     target_path = (
         Path(xml_output_path)
@@ -632,14 +636,14 @@ def refresh_current_year_latest_flex_xml(
         else _latest_year_archive_path(_flex_raw_archive_dir(output_dir), year)
     )
     flex_client = client or FlexWebServiceClient(token=normalized_token)
-    statement_xml = str(
-        getattr(flex_client, "fetch_statement")(
-            normalized_query_id,
-            from_date=date(year, 1, 1),
-            to_date=resolved_to_date,
-            poll_interval_seconds=poll_interval_seconds,
-            max_attempts=max_attempts,
-        )
+    statement_xml, resolved_to_date = _fetch_current_year_statement_with_fallback(
+        flex_client=flex_client,
+        query_id=normalized_query_id,
+        from_date=date(year, 1, 1),
+        to_date=resolved_to_date,
+        poll_interval_seconds=poll_interval_seconds,
+        max_attempts=max_attempts,
+        progress=reporter,
     )
     metadata = _parse_statement_metadata(statement_xml)
     _write_statement_xml(target_path, statement_xml)
@@ -667,12 +671,75 @@ def _current_local_date() -> date:
     return date.today()
 
 
+def _current_et_date() -> date:
+    return datetime.now(ZoneInfo("America/New_York")).date()
+
+
+def _default_current_flex_to_date(*, today: date | None = None) -> date:
+    et_today = today or _current_et_date()
+    return _previous_or_same_weekday(et_today - timedelta(days=1))
+
+
+def _previous_or_same_weekday(value: date) -> date:
+    resolved = value
+    while resolved.weekday() >= 5:
+        resolved -= timedelta(days=1)
+    return resolved
+
+
 def _previous_weekday(value: date) -> date:
     resolved = value
     while True:
         resolved = resolved - timedelta(days=1)
         if resolved.weekday() < 5:
             return resolved
+
+
+def _fetch_current_year_statement_with_fallback(
+    *,
+    flex_client: object,
+    query_id: str,
+    from_date: date,
+    to_date: date,
+    poll_interval_seconds: float,
+    max_attempts: int,
+    progress: ProgressReporter,
+) -> tuple[str, date]:
+    fetch_statement = getattr(flex_client, "fetch_statement")
+    try:
+        return (
+            str(
+                fetch_statement(
+                    query_id,
+                    from_date=from_date,
+                    to_date=to_date,
+                    poll_interval_seconds=poll_interval_seconds,
+                    max_attempts=max_attempts,
+                )
+            ),
+            to_date,
+        )
+    except FlexWebServiceRequestPendingError as error:
+        fallback_to_date = _previous_weekday(to_date)
+        progress.spinner(
+            "IBKR Flex warning",
+            detail=(
+                f"{error}; falling back from to_date={to_date.isoformat()} "
+                f"to previous weekday {fallback_to_date.isoformat()}"
+            ),
+        )
+        return (
+            str(
+                fetch_statement(
+                    query_id,
+                    from_date=from_date,
+                    to_date=fallback_to_date,
+                    poll_interval_seconds=poll_interval_seconds,
+                    max_attempts=max_attempts,
+                )
+            ),
+            fallback_to_date,
+        )
 
 
 def _uses_default_current_ytd_request(
