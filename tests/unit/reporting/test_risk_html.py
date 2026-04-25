@@ -13,6 +13,10 @@ import market_helper.domain.portfolio_monitor.services.yahoo_returns as yahoo_re
 from market_helper.portfolio import SecurityReference, export_security_reference_csv
 import market_helper.reporting.risk_html as risk_html_module
 from market_helper.reporting.risk_html import (
+    BreakdownRow,
+    PolicyDriftRow,
+    PortfolioRiskSummary,
+    RiskReportViewModel,
     RiskInputRow,
     _funded_aum_from_dicts,
     annualized_vol,
@@ -23,6 +27,51 @@ from market_helper.reporting.risk_html import (
 
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
+
+
+def _html_between(source: str, start: str, end: str) -> str:
+    start_index = source.index(start)
+    end_index = source.index(end, start_index + len(start))
+    return source[start_index:end_index]
+
+
+def _minimal_risk_summary() -> PortfolioRiskSummary:
+    return PortfolioRiskSummary(
+        portfolio_vol_geomean_1m_3m=0.10,
+        portfolio_vol_5y_realized=0.12,
+        portfolio_vol_ewma=0.11,
+        portfolio_vol_forward_looking=0.13,
+        funded_aum_usd=100_000.0,
+        funded_aum_sgd=None,
+        gross_exposure=100_000.0,
+        net_exposure=100_000.0,
+        mapped_positions=0,
+        total_positions=0,
+    )
+
+
+def _minimal_risk_view_model(
+    *,
+    country_breakdown: list[BreakdownRow] | None = None,
+    policy_drift_sector: list[PolicyDriftRow] | None = None,
+    vol_method: str = "geomean_1m_3m",
+) -> RiskReportViewModel:
+    return RiskReportViewModel(
+        as_of="2026-04-25",
+        risk_rows=[],
+        summary=_minimal_risk_summary(),
+        allocation_summary=[],
+        country_breakdown=list(country_breakdown or []),
+        sector_breakdown=[],
+        fi_tenor_breakdown=[],
+        policy_drift_asset_class=[],
+        policy_drift_country=[],
+        policy_drift_sector=list(policy_drift_sector or []),
+        regime_summary=None,
+        vol_method=vol_method,
+        inter_asset_corr="historical",
+        portfolio_vol_matrix={},
+    )
 
 
 def _single_price_chart(level: float) -> dict[str, object]:
@@ -69,6 +118,45 @@ def test_funded_aum_counts_only_stk_like_and_cash_rows() -> None:
     )
 
     assert funded_aum == 8200.0
+
+
+def test_render_risk_tab_country_breakdown_orders_dm_em_totals_and_selected_vol_only() -> None:
+    html = risk_html_module.render_risk_tab(
+        _minimal_risk_view_model(
+            vol_method="forward_looking",
+            country_breakdown=[
+                BreakdownRow("EM-CN", "", "EQ", 20.0, 20.0, 0.20, 0.01, 0.02, 0.03, 0.04),
+                BreakdownRow("DM-US", "", "EQ", 40.0, 40.0, 0.40, 0.02, 0.03, 0.04, 0.05),
+                BreakdownRow("EM-IN", "", "EQ", 10.0, 10.0, 0.10, 0.01, 0.01, 0.02, 0.03),
+                BreakdownRow("DM-JP", "", "EQ", 30.0, 30.0, 0.30, 0.02, 0.02, 0.03, 0.04),
+            ],
+        )
+    )
+
+    country_section = _html_between(html, "<h2>EQ Country Breakdown</h2>", "<h2>Policy Drift - Equity Country")
+    assert "Vol (Forward-Looking)" in country_section
+    assert "Vol Contribution (Forward-Looking)" in country_section
+    assert "Vol Contribution (Long-Term)" not in country_section
+    assert "Vol Contribution (Fast)" not in country_section
+    ordered = ["DM-JP", "DM-US", "DM Total", "EM-CN", "EM-IN", "EM Total", "Grand Total"]
+    positions = [country_section.index(value) for value in ordered]
+    assert positions == sorted(positions)
+
+
+def test_render_risk_tab_sorts_us_sector_policy_drift_by_active_weight_desc() -> None:
+    html = risk_html_module.render_risk_tab(
+        _minimal_risk_view_model(
+            policy_drift_sector=[
+                PolicyDriftRow("Utilities", "US_EQ", 0.10, 0.25, -0.15, 0.01),
+                PolicyDriftRow("Technology", "US_EQ", 0.50, 0.30, 0.20, 0.04),
+                PolicyDriftRow("Health Care", "US_EQ", 0.20, 0.15, 0.05, 0.02),
+            ],
+        )
+    )
+
+    policy_section = _html_between(html, "<h2>Policy Drift - US Sector", "<h2>Equity Positions</h2>")
+    table_body = policy_section.split("<tbody>", 1)[1]
+    assert table_body.index("Technology") < table_body.index("Health Care") < table_body.index("Utilities")
 
 
 def test_funded_aum_dual_converts_sgd_cash_into_usd_and_sgd_views() -> None:

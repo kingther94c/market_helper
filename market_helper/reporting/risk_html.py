@@ -348,6 +348,7 @@ DEFAULT_VOL_METHOD_LABELS: dict[str, str] = {
     "Fast": "geomean_1m_3m",
     "Forward-Looking": "forward_looking",
 }
+VOL_METHOD_DISPLAY_LABELS: dict[str, str] = {value: key for key, value in DEFAULT_VOL_METHOD_LABELS.items()}
 DEFAULT_FX_EXCLUDED_ASSET_CLASSES: tuple[str, ...] = ("FX", "CASH")
 
 
@@ -1320,7 +1321,7 @@ def render_risk_tab(view_model: RiskReportViewModel) -> str:
     risk_rows = view_model.risk_rows
     summary = view_model.summary
     allocation_summary = view_model.allocation_summary
-    country_breakdown = view_model.country_breakdown
+    country_breakdown = _country_breakdown_with_totals(view_model.country_breakdown)
     sector_breakdown = view_model.sector_breakdown
     fi_tenor_breakdown = view_model.fi_tenor_breakdown
     policy_drift_asset_class = view_model.policy_drift_asset_class
@@ -1342,34 +1343,34 @@ def render_risk_tab(view_model: RiskReportViewModel) -> str:
     macro_rows = [row for row in risk_rows if row.asset_class == "MACRO"]
 
     country_table = render_html_table(
-        columns=_breakdown_columns(include_bucket_label=False),
-        rows=_breakdown_table_rows(country_breakdown, include_bucket_label=False),
+        columns=_breakdown_columns(include_bucket_label=False, vol_method=vol_method),
+        rows=_breakdown_table_rows(country_breakdown, include_bucket_label=False, vol_method=vol_method),
         empty_message="No country breakdown data",
     )
     sector_table = render_html_table(
-        columns=_breakdown_columns(include_bucket_label=False),
-        rows=_breakdown_table_rows(sector_breakdown, include_bucket_label=False),
+        columns=_breakdown_columns(include_bucket_label=False, vol_method=vol_method),
+        rows=_breakdown_table_rows(sector_breakdown, include_bucket_label=False, vol_method=vol_method),
         empty_message="No sector breakdown data",
     )
     tenor_table = render_html_table(
-        columns=_breakdown_columns(include_bucket_label=True),
-        rows=_breakdown_table_rows(fi_tenor_breakdown, include_bucket_label=True),
+        columns=_breakdown_columns(include_bucket_label=True, vol_method=vol_method),
+        rows=_breakdown_table_rows(fi_tenor_breakdown, include_bucket_label=True, vol_method=vol_method),
         empty_message="No tenor breakdown data",
         data_attributes={"risk-method-table": "1"},
     )
     policy_asset_table = render_html_table(
-        columns=_policy_drift_columns(),
+        columns=_policy_drift_columns(vol_method=vol_method),
         rows=_policy_drift_table_rows(policy_drift_asset_class),
         empty_message="No policy drift data",
     )
     policy_country_table = render_html_table(
-        columns=_policy_drift_columns(),
+        columns=_policy_drift_columns(vol_method=vol_method),
         rows=_policy_drift_table_rows(policy_drift_country),
         empty_message="No policy drift data",
     )
     policy_sector_table = render_html_table(
-        columns=_policy_drift_columns(),
-        rows=_policy_drift_table_rows(policy_drift_sector),
+        columns=_policy_drift_columns(vol_method=vol_method),
+        rows=_policy_drift_table_rows(sorted(policy_drift_sector, key=lambda item: item.active_weight, reverse=True)),
         empty_message="No policy drift data",
     )
     eq_position_table = render_html_table(
@@ -1631,6 +1632,37 @@ def _allocation_summary_rows(rows: Iterable[CategorySummaryRow]) -> list[HtmlTab
     ]
 
 
+def _vol_method_label(vol_method: str) -> str:
+    return VOL_METHOD_DISPLAY_LABELS.get(vol_method, vol_method)
+
+
+def _vol_contribution_label(vol_method: str) -> str:
+    return f"Vol Contribution ({_vol_method_label(vol_method)})"
+
+
+def _risk_contribution_key_for_vol_method(vol_method: str) -> str:
+    if vol_method == "5y_realized":
+        return "risk_contribution_5y_realized"
+    if vol_method == "forward_looking":
+        return "risk_contribution_forward_looking"
+    return "risk_contribution_geomean_1m_3m"
+
+
+def _risk_contribution_value(row: BreakdownRow, vol_method: str) -> float:
+    if vol_method == "5y_realized":
+        return row.risk_contribution_5y_realized
+    if vol_method == "forward_looking":
+        return row.risk_contribution_forward_looking
+    return row.risk_contribution_geomean_1m_3m
+
+
+def _breakdown_selected_vol(row: BreakdownRow, vol_method: str) -> float:
+    denominator = abs(row.dollar_weight)
+    if denominator <= 0:
+        return 0.0
+    return _risk_contribution_value(row, vol_method) / denominator
+
+
 def _is_report_included(row: RiskInputRow | RiskMetricsRow) -> bool:
     if row.mapping_status == "outside_scope":
         return False
@@ -1649,7 +1681,8 @@ def _is_vol_included(row: RiskInputRow | RiskMetricsRow) -> bool:
     return _is_report_included(row) and row.mapping_status == "mapped"
 
 
-def _breakdown_columns(*, include_bucket_label: bool) -> list[HtmlTableColumn]:
+def _breakdown_columns(*, include_bucket_label: bool, vol_method: str) -> list[HtmlTableColumn]:
+    risk_key = _risk_contribution_key_for_vol_method(vol_method)
     columns = [HtmlTableColumn("bucket", "Bucket")]
     if include_bucket_label:
         columns.append(HtmlTableColumn("bucket_label", "Label"))
@@ -1659,26 +1692,13 @@ def _breakdown_columns(*, include_bucket_label: bool) -> list[HtmlTableColumn]:
             HtmlTableColumn("exposure_usd", "Net Exposure", align="num"),
             HtmlTableColumn("gross_exposure_usd", "Gross Exposure", align="num"),
             HtmlTableColumn("dollar_weight", "Dollar%", align="num"),
+            HtmlTableColumn("selected_vol", f"Vol ({_vol_method_label(vol_method)})", align="num"),
             HtmlTableColumn(
-                "risk_contribution_5y_realized",
-                "Vol Contribution (Long-Term)",
+                risk_key,
+                _vol_contribution_label(vol_method),
                 align="num",
-                header_class="rc-col rc-col--5y_realized",
-                cell_class="rc-col rc-col--5y_realized",
-            ),
-            HtmlTableColumn(
-                "risk_contribution_geomean_1m_3m",
-                "Vol Contribution (Fast)",
-                align="num",
-                header_class="rc-col rc-col--geomean_1m_3m",
-                cell_class="rc-col rc-col--geomean_1m_3m",
-            ),
-            HtmlTableColumn(
-                "risk_contribution_forward_looking",
-                "Vol Contribution (Forward-Looking)",
-                align="num",
-                header_class="rc-col rc-col--forward_looking",
-                cell_class="rc-col rc-col--forward_looking",
+                header_class=f"rc-col rc-col--{html.escape(vol_method)}",
+                cell_class=f"rc-col rc-col--{html.escape(vol_method)}",
             ),
         ]
     )
@@ -1689,8 +1709,10 @@ def _breakdown_table_rows(
     rows: Iterable[BreakdownRow],
     *,
     include_bucket_label: bool,
+    vol_method: str,
 ) -> list[HtmlTableRow]:
     output: list[HtmlTableRow] = []
+    risk_key = _risk_contribution_key_for_vol_method(vol_method)
     for row in rows:
         cells = {
             "bucket": row.bucket,
@@ -1698,9 +1720,8 @@ def _breakdown_table_rows(
             "exposure_usd": f"{row.exposure_usd:,.2f}",
             "gross_exposure_usd": f"{row.gross_exposure_usd:,.2f}",
             "dollar_weight": f"{row.dollar_weight:.2%}",
-            "risk_contribution_5y_realized": f"{row.risk_contribution_5y_realized:.2%}",
-            "risk_contribution_geomean_1m_3m": f"{row.risk_contribution_geomean_1m_3m:.2%}",
-            "risk_contribution_forward_looking": f"{row.risk_contribution_forward_looking:.2%}",
+            "selected_vol": f"{_breakdown_selected_vol(row, vol_method):.2%}",
+            risk_key: f"{_risk_contribution_value(row, vol_method):.2%}",
         }
         if include_bucket_label:
             cells["bucket_label"] = row.bucket_label
@@ -1708,14 +1729,14 @@ def _breakdown_table_rows(
     return output
 
 
-def _policy_drift_columns() -> list[HtmlTableColumn]:
+def _policy_drift_columns(*, vol_method: str) -> list[HtmlTableColumn]:
     return [
         HtmlTableColumn("bucket", "Bucket"),
         HtmlTableColumn("scope", "Scope"),
         HtmlTableColumn("current_weight", "Current Weight", align="num"),
         HtmlTableColumn("policy_weight", "Policy Weight", align="num"),
         HtmlTableColumn("active_weight", "Active (OW/UW)", align="num"),
-        HtmlTableColumn("current_risk_contribution", "Vol Contribution", align="num"),
+        HtmlTableColumn("current_risk_contribution", _vol_contribution_label(vol_method), align="num"),
     ]
 
 
@@ -2903,7 +2924,7 @@ def _build_eq_country_breakdown(
     lookthrough_path: Path = DEFAULT_EQ_COUNTRY_LOOKTHROUGH_PATH,
 ) -> list[BreakdownRow]:
     lookthrough = _load_weight_table(lookthrough_path, "eq_country", "country_bucket")
-    return _build_breakdown(
+    breakdown = _build_breakdown(
         rows=rows,
         estimated_loadings=estimated_loadings,
         geomean_loadings=geomean_loadings,
@@ -2912,6 +2933,7 @@ def _build_eq_country_breakdown(
         expander=lambda row: _expand_country_allocations(row, lookthrough),
         parent="EQ",
     )
+    return sorted(breakdown, key=_eq_country_breakdown_sort_key)
 
 
 def _build_us_sector_breakdown(
@@ -3014,6 +3036,55 @@ def _build_breakdown(
                 ),
             )
     return sorted(aggregated.values(), key=lambda item: item.gross_exposure_usd, reverse=True)
+
+
+def _eq_country_breakdown_sort_key(row: BreakdownRow) -> tuple[int, str, float, str]:
+    bucket = row.bucket.upper()
+    region_order = {name: index for index, name in enumerate(EQ_COUNTRY_POLICY_REGION_ORDER)}
+    prefix, separator, _suffix = bucket.partition("-")
+    region = prefix if separator else bucket
+    return (
+        region_order.get(region, len(region_order)),
+        bucket,
+        -row.gross_exposure_usd,
+        row.bucket,
+    )
+
+
+def _country_breakdown_with_totals(rows: Iterable[BreakdownRow]) -> list[BreakdownRow]:
+    detail_rows = sorted(rows, key=_eq_country_breakdown_sort_key)
+    output: list[BreakdownRow] = []
+    for region in EQ_COUNTRY_POLICY_REGION_ORDER:
+        region_rows = [row for row in detail_rows if _eq_country_region(row.bucket) == region]
+        output.extend(region_rows)
+        if region_rows:
+            output.append(_sum_breakdown_rows(region_rows, bucket=f"{region} Total", parent="EQ"))
+    output.extend(row for row in detail_rows if _eq_country_region(row.bucket) not in EQ_COUNTRY_POLICY_REGION_ORDER)
+    if detail_rows:
+        output.append(_sum_breakdown_rows(detail_rows, bucket="Grand Total", parent="EQ"))
+    return output
+
+
+def _eq_country_region(bucket: str) -> str:
+    normalized = str(bucket).upper()
+    prefix, separator, _suffix = normalized.partition("-")
+    return prefix if separator else normalized
+
+
+def _sum_breakdown_rows(rows: Iterable[BreakdownRow], *, bucket: str, parent: str) -> BreakdownRow:
+    materialized = list(rows)
+    return BreakdownRow(
+        bucket=bucket,
+        bucket_label="",
+        parent=parent,
+        exposure_usd=sum(row.exposure_usd for row in materialized),
+        gross_exposure_usd=sum(row.gross_exposure_usd for row in materialized),
+        dollar_weight=sum(row.dollar_weight for row in materialized),
+        risk_contribution_estimated=sum(row.risk_contribution_estimated for row in materialized),
+        risk_contribution_geomean_1m_3m=sum(row.risk_contribution_geomean_1m_3m for row in materialized),
+        risk_contribution_5y_realized=sum(row.risk_contribution_5y_realized for row in materialized),
+        risk_contribution_forward_looking=sum(row.risk_contribution_forward_looking for row in materialized),
+    )
 
 
 def _fi_tenor_bucket_label(bucket: str) -> str:
