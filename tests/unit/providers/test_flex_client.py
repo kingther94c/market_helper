@@ -1,7 +1,13 @@
 import pytest
 
 import market_helper.providers.flex.client as client_module
-from market_helper.providers.flex import FlexWebServiceClient, FlexWebServiceError, FlexWebServicePendingError
+from market_helper.providers.flex import (
+    FlexWebServiceClient,
+    FlexWebServiceError,
+    FlexWebServicePendingError,
+    FlexWebServiceRequestPendingError,
+    FlexWebServiceStatementPendingError,
+)
 
 
 def test_flex_web_service_client_send_request_returns_reference_code() -> None:
@@ -65,6 +71,27 @@ def test_flex_web_service_client_send_request_normalizes_weekend_boundaries_to_w
     assert reference_code == "ABC123"
     assert "fd=20250303" in seen_urls[0]
     assert "td=20250303" in seen_urls[0]
+
+
+def test_flex_web_service_client_send_request_normalizes_saturday_end_date_to_friday() -> None:
+    seen_urls: list[str] = []
+
+    def downloader(url: str) -> str:
+        seen_urls.append(url)
+        return """
+<FlexStatementResponse>
+  <Status>Success</Status>
+  <ReferenceCode>ABC123</ReferenceCode>
+</FlexStatementResponse>
+""".strip()
+
+    client = FlexWebServiceClient(token="secret-token", downloader=downloader)
+
+    reference_code = client.send_request("1462703", from_date="2026-01-01", to_date="2026-04-25")
+
+    assert reference_code == "ABC123"
+    assert "fd=20260101" in seen_urls[0]
+    assert "td=20260424" in seen_urls[0]
 
 
 def test_flex_web_service_client_send_request_rejects_inverted_range_after_weekday_normalization() -> None:
@@ -140,7 +167,7 @@ def test_flex_web_service_client_get_statement_raises_pending_error_for_retryabl
 """.strip(),
     )
 
-    with pytest.raises(FlexWebServicePendingError):
+    with pytest.raises(FlexWebServiceStatementPendingError):
         client.get_statement("ABC123")
 
 
@@ -156,7 +183,7 @@ def test_flex_web_service_client_get_statement_treats_error_1003_as_pending() ->
 """.strip(),
     )
 
-    with pytest.raises(FlexWebServicePendingError):
+    with pytest.raises(FlexWebServiceStatementPendingError):
         client.get_statement("ABC123")
 
 
@@ -233,7 +260,39 @@ def test_flex_web_service_client_fetch_statement_retries_pending_send_request() 
     payload = client.fetch_statement("1462703", poll_interval_seconds=4.0, max_attempts=3)
 
     assert "<FlexQueryResponse>" in payload
-    assert sleeps == [4.0]
+    assert sleeps == [10.0]
+
+
+def test_flex_web_service_client_fetch_statement_retries_send_request_once() -> None:
+    responses = iter(
+        [
+            """
+<FlexStatementResponse>
+  <Status>Fail</Status>
+  <ErrorCode>1004</ErrorCode>
+  <ErrorMessage>Statement is incomplete at this time. Please try again shortly.</ErrorMessage>
+</FlexStatementResponse>
+""".strip(),
+            """
+<FlexStatementResponse>
+  <Status>Fail</Status>
+  <ErrorCode>1004</ErrorCode>
+  <ErrorMessage>Statement is incomplete at this time. Please try again shortly.</ErrorMessage>
+</FlexStatementResponse>
+""".strip(),
+        ]
+    )
+    sleeps: list[float] = []
+    client = FlexWebServiceClient(
+        token="secret-token",
+        downloader=lambda _url: next(responses),
+        sleep=sleeps.append,
+    )
+
+    with pytest.raises(FlexWebServiceRequestPendingError, match="after one retry"):
+        client.fetch_statement("1462703", poll_interval_seconds=4.0, max_attempts=3)
+
+    assert sleeps == [10.0]
 
 
 def test_flex_web_service_client_fetch_statement_surfaces_polling_guidance_on_timeout() -> None:

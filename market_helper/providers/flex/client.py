@@ -11,6 +11,7 @@ from market_helper.data_sources.base import DEFAULT_TIMEOUT, build_url, download
 DEFAULT_IBKR_FLEX_BASE_URL = "https://ndcdyn.interactivebrokers.com/AccountManagement/FlexWebService"
 DEFAULT_IBKR_FLEX_API_VERSION = "3"
 DEFAULT_IBKR_FLEX_POLL_INTERVAL_SECONDS = 5.0
+DEFAULT_IBKR_FLEX_SEND_REQUEST_RETRY_SECONDS = 10.0
 DEFAULT_IBKR_FLEX_WAIT_TIMEOUT_SECONDS = 60.0
 DEFAULT_IBKR_FLEX_MAX_ATTEMPTS = int(DEFAULT_IBKR_FLEX_WAIT_TIMEOUT_SECONDS / DEFAULT_IBKR_FLEX_POLL_INTERVAL_SECONDS) + 1
 SEND_REQUEST_PATH = "SendRequest"
@@ -44,6 +45,14 @@ class FlexWebServiceError(RuntimeError):
 
 class FlexWebServicePendingError(FlexWebServiceError):
     """Raised when IBKR reports that the statement is not ready yet."""
+
+
+class FlexWebServiceRequestPendingError(FlexWebServicePendingError):
+    """Raised when SendRequest reports no ready statement/reference yet."""
+
+
+class FlexWebServiceStatementPendingError(FlexWebServicePendingError):
+    """Raised when GetStatement reports a referenced statement is still generating."""
 
 
 @dataclass(frozen=True)
@@ -93,7 +102,7 @@ class FlexWebServiceClient:
         if response is None:
             raise FlexWebServiceError("Flex SendRequest did not return a status response")
         if response.status.lower() != "success":
-            raise _build_flex_error(response)
+            raise _build_flex_error(response, phase="send_request")
         if not response.reference_code:
             raise FlexWebServiceError("Flex SendRequest succeeded but did not include ReferenceCode")
         return response.reference_code
@@ -113,7 +122,7 @@ class FlexWebServiceClient:
         response = _parse_status_response(payload)
         if response is None:
             return payload
-        raise _build_flex_error(response)
+        raise _build_flex_error(response, phase="get_statement")
 
     def fetch_statement(
         self,
@@ -130,19 +139,34 @@ class FlexWebServiceClient:
         if poll_interval_seconds < 0:
             raise ValueError("poll_interval_seconds must be >= 0")
 
+        try:
+            reference_code = self.send_request(
+                query_id,
+                from_date=from_date,
+                to_date=to_date,
+                period=period,
+            )
+        except FlexWebServiceRequestPendingError as error:
+            self.sleep(DEFAULT_IBKR_FLEX_SEND_REQUEST_RETRY_SECONDS)
+            try:
+                reference_code = self.send_request(
+                    query_id,
+                    from_date=from_date,
+                    to_date=to_date,
+                    period=period,
+                )
+            except FlexWebServiceRequestPendingError as retry_error:
+                raise FlexWebServiceRequestPendingError(
+                    f"{retry_error}. SendRequest still did not return a reference code after one "
+                    f"retry (~{DEFAULT_IBKR_FLEX_SEND_REQUEST_RETRY_SECONDS:.0f}s wait). "
+                    "Try an earlier Flex to_date."
+                ) from error
+
         last_error: FlexWebServicePendingError | None = None
-        reference_code: str | None = None
         for attempt in range(max_attempts):
             try:
-                if reference_code is None:
-                    reference_code = self.send_request(
-                        query_id,
-                        from_date=from_date,
-                        to_date=to_date,
-                        period=period,
-                    )
                 return self.get_statement(reference_code)
-            except FlexWebServicePendingError as error:
+            except FlexWebServiceStatementPendingError as error:
                 last_error = error
                 if attempt < max_attempts - 1:
                     self.sleep(poll_interval_seconds)
@@ -183,7 +207,7 @@ def _parse_status_response(payload: str) -> FlexStatusResponse | None:
     )
 
 
-def _build_flex_error(response: FlexStatusResponse) -> FlexWebServiceError:
+def _build_flex_error(response: FlexStatusResponse, *, phase: str) -> FlexWebServiceError:
     status = response.status or "Unknown"
     details = []
     if response.error_code:
@@ -195,6 +219,10 @@ def _build_flex_error(response: FlexStatusResponse) -> FlexWebServiceError:
         message = "{message}: {details}".format(message=message, details="; ".join(details))
 
     if _is_retryable_flex_error(response):
+        if phase == "send_request":
+            return FlexWebServiceRequestPendingError(message)
+        if phase == "get_statement":
+            return FlexWebServiceStatementPendingError(message)
         return FlexWebServicePendingError(message)
     return FlexWebServiceError(message)
 

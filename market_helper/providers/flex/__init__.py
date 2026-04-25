@@ -5,6 +5,8 @@ from .client import (
     FlexWebServiceClient,
     FlexWebServiceError,
     FlexWebServicePendingError,
+    FlexWebServiceRequestPendingError,
+    FlexWebServiceStatementPendingError,
 )
 
 __all__ = [
@@ -14,4 +16,6 @@ __all__ = [
     "FlexWebServiceClient",
     "FlexWebServiceError",
     "FlexWebServicePendingError",
+    "FlexWebServiceRequestPendingError",
+    "FlexWebServiceStatementPendingError",
 ]
