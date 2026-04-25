@@ -12,6 +12,7 @@ risk_report:
       MOVE: 110.0
       OVX: 25.0
       GVZ: 25.0
+      MACRO: 13.0
     yahoo:
       symbols:
         VIX: ^VIX

@@ -69,6 +69,7 @@ DEFAULT_PROXY_LEVELS = {
     "MOVE": 110.0,
     "OVX": 25.0,
     "GVZ": 25.0,
+    "MACRO": 13.0,
 }
 ASSET_CLASS_CORR_PROXY_SYMBOLS: dict[str, str | None] = {
     "EQ": "ACWI",
@@ -1078,13 +1079,14 @@ def estimated_asset_class_vol(
     default_vix = defaults["VIX"]
     default_move = defaults["MOVE"]
     default_gvz = defaults["GVZ"]
+    default_macro = defaults["MACRO"]
     name = asset_class.upper()
     if name == "EQ":
         return proxy.get("VIX", default_vix) / 100.0
     if name == "FI":
         return proxy.get("MOVE", default_move) / 100.0
     if name == "CM":
-        return proxy.get("OVX", proxy.get("GVZ", default_gvz)) / 100.0
+        return proxy.get("GVZ", default_gvz) / 100.0
     if name == "CASH":
         return DEFAULT_CASH_VOL if cash_vol_override is None else float(cash_vol_override)
     if name == "FX":
@@ -1092,7 +1094,7 @@ def estimated_asset_class_vol(
             return float(fx_vol_override)
         return proxy.get("FXVOL", DEFAULT_PROXY_FXVOL) / 100.0
     if name == "MACRO":
-        return proxy.get("DEFAULT", proxy.get("VIX", default_vix)) / 100.0
+        return proxy.get("MACRO", default_macro) / 100.0
     return proxy.get("DEFAULT", proxy.get("VIX", default_vix)) / 100.0
 
 
@@ -3631,6 +3633,7 @@ def _populate_proxy_defaults_from_yahoo(
     progress: ProgressReporter | None = None,
 ) -> dict[str, float]:
     resolved_defaults = _merged_proxy_default_levels(default_levels)
+    resolved_yahoo_symbols = _merged_proxy_yahoo_symbols(yahoo_symbols)
     resolved = dict(proxy)
     missing_keys = [key for key in resolved_defaults if key not in resolved]
     completed = 0
@@ -3639,11 +3642,18 @@ def _populate_proxy_defaults_from_yahoo(
     for key, fallback in resolved_defaults.items():
         if key in resolved:
             continue
+        if key not in resolved_yahoo_symbols:
+            resolved[key] = fallback
+            detail = f"{key} default"
+            if progress is not None:
+                completed += 1
+                progress.update("Proxy Yahoo", completed=completed, total=len(missing_keys), detail=detail)
+            continue
         try:
             resolved[key] = _fetch_proxy_level_from_yahoo(
                 key,
                 yahoo_client=yahoo_client,
-                yahoo_symbols=yahoo_symbols,
+                yahoo_symbols=resolved_yahoo_symbols,
                 yahoo_period=yahoo_period,
                 yahoo_interval=yahoo_interval,
             )
