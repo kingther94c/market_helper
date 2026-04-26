@@ -1249,6 +1249,17 @@ def render_risk_report_styles() -> str:
     .heat-table td + td, .heat-table th + th { border-left:1px solid #f1f5f9; }
     .heat-table .is-active-method { box-shadow: inset 0 0 0 2px #c2410c; }
     .report-table .is-hidden-by-method { display:none; }
+    .report-table--country-breakdown .report-table__row.is-country-dm .report-table__cell:first-child { border-left:4px solid #0f766e; }
+    .report-table--country-breakdown .report-table__row.is-country-em .report-table__cell:first-child { border-left:4px solid #c2410c; }
+    .report-table--country-breakdown .report-table__row.is-country-dm .report-table__cell { background:#f0fdfa; }
+    .report-table--country-breakdown .report-table__row.is-country-em .report-table__cell { background:#fff7ed; }
+    .report-table--country-breakdown .report-table__row.is-country-other-slice .report-table__cell:first-child { font-style:italic; }
+    .report-table--country-breakdown .report-table__row.is-country-total .report-table__cell {
+      background:#e0f2fe; border-top:2px solid #38bdf8; border-bottom:2px solid #38bdf8; font-weight:800;
+    }
+    .report-table--country-breakdown .report-table__row.is-country-grand-total .report-table__cell {
+      background:#0f172a; border-color:#0f172a; color:#fff; font-weight:900;
+    }
     .risk-assumption-copy { margin: 0; color:#475569; }
     @media (max-width: 720px) {
       .control-row { align-items:flex-start; flex-direction:column; }
@@ -1348,6 +1359,7 @@ def render_risk_tab(view_model: RiskReportViewModel) -> str:
         columns=_breakdown_columns(include_bucket_label=False, vol_method=vol_method),
         rows=_breakdown_table_rows(country_breakdown, include_bucket_label=False, vol_method=vol_method),
         empty_message="No country breakdown data",
+        table_class="report-table report-table--country-breakdown",
     )
     sector_table = render_html_table(
         columns=_breakdown_columns(include_bucket_label=False, vol_method=vol_method),
@@ -1727,8 +1739,25 @@ def _breakdown_table_rows(
         }
         if include_bucket_label:
             cells["bucket_label"] = row.bucket_label
-        output.append(HtmlTableRow(cells=cells))
+        output.append(HtmlTableRow(cells=cells, row_class=_country_breakdown_row_class(row.bucket)))
     return output
+
+
+def _country_breakdown_row_class(bucket: str) -> str:
+    normalized = str(bucket).upper()
+    classes: list[str] = []
+    region = _eq_country_region(normalized)
+    if region == "DM":
+        classes.append("is-country-dm")
+    elif region == "EM":
+        classes.append("is-country-em")
+    if normalized.endswith(" TOTAL"):
+        classes.append("is-country-total")
+    if normalized == "GRAND TOTAL":
+        classes.append("is-country-grand-total")
+    if _is_eq_country_other_bucket(normalized):
+        classes.append("is-country-other-slice")
+    return " ".join(classes)
 
 
 def _policy_drift_columns(*, vol_method: str) -> list[HtmlTableColumn]:
@@ -3040,13 +3069,14 @@ def _build_breakdown(
     return sorted(aggregated.values(), key=lambda item: item.gross_exposure_usd, reverse=True)
 
 
-def _eq_country_breakdown_sort_key(row: BreakdownRow) -> tuple[int, str, float, str]:
+def _eq_country_breakdown_sort_key(row: BreakdownRow) -> tuple[int, int, str, float, str]:
     bucket = row.bucket.upper()
     region_order = {name: index for index, name in enumerate(EQ_COUNTRY_POLICY_REGION_ORDER)}
     prefix, separator, _suffix = bucket.partition("-")
     region = prefix if separator else bucket
     return (
         region_order.get(region, len(region_order)),
+        1 if _is_eq_country_other_bucket(bucket) else 0,
         bucket,
         -row.gross_exposure_usd,
         row.bucket,
@@ -3594,6 +3624,8 @@ def _load_proxy_payload(
 def _is_eq_country_other_bucket(bucket: str) -> bool:
     normalized_bucket = str(bucket).upper()
     if normalized_bucket in EQ_COUNTRY_OTHER_BUCKETS:
+        return True
+    if "OTHER" in normalized_bucket:
         return True
     if normalized_bucket.endswith("-OTHER") or normalized_bucket.endswith("-OTHERS"):
         return True

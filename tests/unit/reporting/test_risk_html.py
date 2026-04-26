@@ -126,7 +126,9 @@ def test_render_risk_tab_country_breakdown_orders_dm_em_totals_and_selected_vol_
             vol_method="forward_looking",
             country_breakdown=[
                 BreakdownRow("EM-CN", "", "EQ", 20.0, 20.0, 0.20, 0.01, 0.02, 0.03, 0.04),
+                BreakdownRow("EM-Other EM", "", "EQ", 5.0, 5.0, 0.05, 0.01, 0.01, 0.02, 0.03),
                 BreakdownRow("DM-US", "", "EQ", 40.0, 40.0, 0.40, 0.02, 0.03, 0.04, 0.05),
+                BreakdownRow("DM-Other DM", "", "EQ", 15.0, 15.0, 0.15, 0.01, 0.01, 0.02, 0.03),
                 BreakdownRow("EM-IN", "", "EQ", 10.0, 10.0, 0.10, 0.01, 0.01, 0.02, 0.03),
                 BreakdownRow("DM-JP", "", "EQ", 30.0, 30.0, 0.30, 0.02, 0.02, 0.03, 0.04),
             ],
@@ -138,7 +140,21 @@ def test_render_risk_tab_country_breakdown_orders_dm_em_totals_and_selected_vol_
     assert "Vol Contribution (Forward-Looking)" in country_section
     assert "Vol Contribution (Long-Term)" not in country_section
     assert "Vol Contribution (Fast)" not in country_section
-    ordered = ["DM-JP", "DM-US", "DM Total", "EM-CN", "EM-IN", "EM Total", "Grand Total"]
+    assert "report-table--country-breakdown" in country_section
+    assert "is-country-total" in country_section
+    assert "is-country-grand-total" in country_section
+    assert "is-country-other-slice" in country_section
+    ordered = [
+        "DM-JP",
+        "DM-US",
+        "DM-Other DM",
+        "DM Total",
+        "EM-CN",
+        "EM-IN",
+        "EM-Other EM",
+        "EM Total",
+        "Grand Total",
+    ]
     positions = [country_section.index(value) for value in ordered]
     assert positions == sorted(positions)
 
