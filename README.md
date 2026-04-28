@@ -342,6 +342,35 @@ For regime v2 sanity review, use
 `notebooks/regime_detection/regime_v2_sanity_review.ipynb` to inspect latest
 ensemble output, historical checkpoint windows, and the generated HTML report.
 
+Regime v2 has two high-level entry points for normal use:
+
+1. Refresh stale source data, run all enabled regime methods, and render HTML.
+   This defaults to a 7-day freshness window, so source data is not fetched
+   again when local artifacts are already recent.
+
+```bash
+conda run -n py313 python -m market_helper.cli.main regime-refresh-report \
+  --methods all \
+  --max-age-days 7 \
+  --output-regime data/artifacts/regime_detection/regime_multi_snapshots.json \
+  --output-html data/artifacts/regime_detection/regime_report.html
+```
+
+2. Reuse existing local source artifacts, run regime detection, and render HTML.
+   Use this when the source data was already refreshed recently.
+
+```bash
+conda run -n py313 python -m market_helper.cli.main regime-run-report \
+  --methods all \
+  --output-regime data/artifacts/regime_detection/regime_multi_snapshots.json \
+  --output-html data/artifacts/regime_detection/regime_report.html
+```
+
+The refresh entry point writes:
+- `data/processed/regime_returns.json` from Yahoo `SPY`/`AGG` by default.
+- `data/processed/regime_proxies.json` from FRED `VIXCLS`, `BAMLH0A0HYM2`, `DGS2`, `DGS10`, plus Yahoo `^MOVE`.
+- `data/interim/fred/macro_panel.feather` from the FRED macro panel config.
+
 Input expectations:
 - Proxy JSON keys: `VIX`, `MOVE`, `HY_OAS`, `UST2Y`, `UST10Y`
 - Returns JSON keys: `EQ`, `FI`

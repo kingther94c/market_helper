@@ -26,7 +26,12 @@ from market_helper.workflows.generate_multi_method_regime import (
     load_multi_method_snapshots,
     run_multi_method_detection,
 )
+from market_helper.workflows.run_regime_report import (
+    refresh_data_and_run_regime_report,
+    run_regime_report_from_existing_data,
+)
 from market_helper.workflows.sync_fred_macro_panel import run_fred_macro_sync
+from market_helper.workflows.sync_regime_inputs import sync_regime_inputs
 from market_helper.domain.regime_detection.policies.regime_policy import (
     load_regime_policy,
     resolve_policy,
@@ -241,6 +246,36 @@ def build_parser() -> argparse.ArgumentParser:
         help="Optional FRED API key. Falls back to FRED_API_KEY env var or configs/portfolio_monitor/local.env.",
     )
 
+    regime_input_sync = subparsers.add_parser(
+        "regime-input-sync",
+        help="Fetch online inputs for the legacy regime rulebook and write processed JSON.",
+    )
+    regime_input_sync.add_argument(
+        "--returns-output",
+        default="data/processed/regime_returns.json",
+        help="Path to output EQ/FI returns JSON.",
+    )
+    regime_input_sync.add_argument(
+        "--proxy-output",
+        default="data/processed/regime_proxies.json",
+        help="Path to output VIX/MOVE/HY_OAS/UST2Y/UST10Y proxy JSON.",
+    )
+    regime_input_sync.add_argument("--eq-symbol", default="SPY", help="Yahoo symbol for EQ returns.")
+    regime_input_sync.add_argument("--fi-symbol", default="AGG", help="Yahoo symbol for FI returns.")
+    regime_input_sync.add_argument("--move-symbol", default="^MOVE", help="Yahoo symbol for MOVE levels.")
+    regime_input_sync.add_argument("--yahoo-period", default="max", help="Yahoo history period.")
+    regime_input_sync.add_argument("--yahoo-interval", default="1d", help="Yahoo history interval.")
+    regime_input_sync.add_argument(
+        "--fred-observation-start",
+        default=None,
+        help="Optional first FRED observation date.",
+    )
+    regime_input_sync.add_argument(
+        "--fred-api-key",
+        default=None,
+        help="Optional FRED API key. Falls back to FRED_API_KEY env var or configs/portfolio_monitor/local.env.",
+    )
+
     regime_detect = subparsers.add_parser(
         "regime-detect",
         help="Run deterministic rule-based regime detection and write JSON snapshots.",
@@ -297,6 +332,54 @@ def build_parser() -> argparse.ArgumentParser:
         "--latest-only",
         action="store_true",
         help="Emit only the most-recent snapshot.",
+    )
+
+    regime_run_report = subparsers.add_parser(
+        "regime-run-report",
+        help="Run multi-method regime detection from existing local data and generate HTML.",
+    )
+    _add_regime_report_run_args(regime_run_report)
+
+    regime_refresh_report = subparsers.add_parser(
+        "regime-refresh-report",
+        help="Refresh stale online regime inputs, run all regimes, and generate HTML.",
+    )
+    _add_regime_report_run_args(regime_refresh_report)
+    regime_refresh_report.add_argument(
+        "--max-age-days",
+        type=int,
+        default=7,
+        help="Skip source-data refresh when required artifacts are newer than this many days. Defaults to 7.",
+    )
+    regime_refresh_report.add_argument(
+        "--force-refresh",
+        action="store_true",
+        help="Refresh online source data regardless of artifact age.",
+    )
+    regime_refresh_report.add_argument("--eq-symbol", default="SPY", help="Yahoo symbol for EQ returns.")
+    regime_refresh_report.add_argument("--fi-symbol", default="AGG", help="Yahoo symbol for FI returns.")
+    regime_refresh_report.add_argument("--move-symbol", default="^MOVE", help="Yahoo symbol for MOVE levels.")
+    regime_refresh_report.add_argument("--yahoo-period", default="max", help="Yahoo history period.")
+    regime_refresh_report.add_argument("--yahoo-interval", default="1d", help="Yahoo history interval.")
+    regime_refresh_report.add_argument(
+        "--fred-observation-start",
+        default=None,
+        help="Optional first FRED observation date for source sync.",
+    )
+    regime_refresh_report.add_argument(
+        "--macro-start-date",
+        default=None,
+        help="Optional macro panel start date.",
+    )
+    regime_refresh_report.add_argument(
+        "--macro-end-date",
+        default=None,
+        help="Optional macro panel end date.",
+    )
+    regime_refresh_report.add_argument(
+        "--fred-api-key",
+        default=None,
+        help="Optional FRED API key. Falls back to FRED_API_KEY env var or configs/portfolio_monitor/local.env.",
     )
 
     regime_report_multi = subparsers.add_parser(
@@ -361,6 +444,59 @@ def build_parser() -> argparse.ArgumentParser:
     )
 
     return parser
+
+
+def _add_regime_report_run_args(parser: argparse.ArgumentParser) -> None:
+    parser.add_argument(
+        "--methods",
+        default="all",
+        help="Comma-separated subset of methods to enable, or 'all'.",
+    )
+    parser.add_argument(
+        "--macro-panel",
+        default=None,
+        help="Path to FRED macro panel feather. Defaults to data/interim/fred/macro_panel.feather.",
+    )
+    parser.add_argument(
+        "--fred-cache-dir",
+        default="data/interim/fred",
+        help="Directory for FRED macro panel caches.",
+    )
+    parser.add_argument(
+        "--fred-series-config",
+        default=None,
+        help="Path to FRED series YAML. Defaults to configs/regime_detection/fred_series.yml, falling back to the example file.",
+    )
+    parser.add_argument(
+        "--returns",
+        default="data/processed/regime_returns.json",
+        help="Path to processed EQ/FI returns JSON.",
+    )
+    parser.add_argument(
+        "--proxy",
+        default="data/processed/regime_proxies.json",
+        help="Path to processed proxy JSON.",
+    )
+    parser.add_argument(
+        "--output-regime",
+        default="data/artifacts/regime_detection/regime_multi_snapshots.json",
+        help="Path to output multi-method regime JSON.",
+    )
+    parser.add_argument(
+        "--output-html",
+        default="data/artifacts/regime_detection/regime_report.html",
+        help="Path to output standalone regime HTML.",
+    )
+    parser.add_argument(
+        "--policy",
+        required=False,
+        help="Optional quadrant policy YAML overrides.",
+    )
+    parser.add_argument(
+        "--latest-only",
+        action="store_true",
+        help="Emit only the latest regime snapshot.",
+    )
 
 
 def main(argv: Sequence[str] | None = None) -> int:
@@ -458,6 +594,25 @@ def main(argv: Sequence[str] | None = None) -> int:
         )
         print(f"panel={panel_path}")
         return 0
+    if args.command == "regime-input-sync":
+        try:
+            result = sync_regime_inputs(
+                returns_output_path=Path(args.returns_output),
+                proxy_output_path=Path(args.proxy_output),
+                eq_symbol=args.eq_symbol,
+                fi_symbol=args.fi_symbol,
+                move_symbol=args.move_symbol,
+                yahoo_period=args.yahoo_period,
+                yahoo_interval=args.yahoo_interval,
+                fred_observation_start=args.fred_observation_start,
+                fred_api_key=args.fred_api_key,
+            )
+        except (RuntimeError, ValueError) as exc:
+            print(f"regime-input-sync: {exc}", file=sys.stderr)
+            return 2
+        print(f"returns={result.returns_path}")
+        print(f"proxy={result.proxy_path}")
+        return 0
     if args.command == "regime-detect":
         generate_regime_snapshots(
             returns_path=Path(args.returns),
@@ -485,6 +640,67 @@ def main(argv: Sequence[str] | None = None) -> int:
         except ValueError as exc:
             print(f"regime-detect-multi: {exc}", file=sys.stderr)
             return 2
+        return 0
+    if args.command == "regime-run-report":
+        method_list = [m.strip() for m in str(args.methods).split(",") if m.strip()]
+        if not method_list:
+            method_list = list(MULTI_METHOD_ALL)
+        try:
+            result = run_regime_report_from_existing_data(
+                methods=method_list,
+                macro_panel_path=args.macro_panel,
+                fred_series_config=args.fred_series_config,
+                returns_path=Path(args.returns),
+                proxy_path=Path(args.proxy),
+                output_regime_path=Path(args.output_regime),
+                output_html_path=Path(args.output_html),
+                policy_path=Path(args.policy) if args.policy else None,
+                latest_only=bool(args.latest_only),
+            )
+        except (FileNotFoundError, RuntimeError, ValueError) as exc:
+            print(f"regime-run-report: {exc}", file=sys.stderr)
+            return 2
+        print(f"regime={result.regime_path}")
+        print(f"html={result.html_path}")
+        return 0
+    if args.command == "regime-refresh-report":
+        method_list = [m.strip() for m in str(args.methods).split(",") if m.strip()]
+        if not method_list:
+            method_list = list(MULTI_METHOD_ALL)
+        try:
+            result = refresh_data_and_run_regime_report(
+                methods=method_list,
+                max_age_days=args.max_age_days,
+                force_refresh=bool(args.force_refresh),
+                macro_panel_path=args.macro_panel,
+                fred_cache_dir=Path(args.fred_cache_dir),
+                fred_series_config=args.fred_series_config,
+                returns_path=Path(args.returns),
+                proxy_path=Path(args.proxy),
+                output_regime_path=Path(args.output_regime),
+                output_html_path=Path(args.output_html),
+                policy_path=Path(args.policy) if args.policy else None,
+                fred_observation_start=args.fred_observation_start,
+                macro_start_date=args.macro_start_date,
+                macro_end_date=args.macro_end_date,
+                fred_api_key=args.fred_api_key,
+                eq_symbol=args.eq_symbol,
+                fi_symbol=args.fi_symbol,
+                move_symbol=args.move_symbol,
+                yahoo_period=args.yahoo_period,
+                yahoo_interval=args.yahoo_interval,
+                latest_only=bool(args.latest_only),
+            )
+        except (FileNotFoundError, RuntimeError, ValueError) as exc:
+            print(f"regime-refresh-report: {exc}", file=sys.stderr)
+            return 2
+        print(f"returns={result.returns_path}")
+        print(f"proxy={result.proxy_path}")
+        print(f"macro_panel={result.macro_panel_path}")
+        print(f"regime={result.regime_path}")
+        print(f"html={result.html_path}")
+        print(f"refreshed_inputs={result.refreshed_inputs}")
+        print(f"refreshed_macro_panel={result.refreshed_macro_panel}")
         return 0
     if args.command == "regime-report-multi":
         snapshots = load_multi_method_snapshots(Path(args.regime))
