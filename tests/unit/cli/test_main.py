@@ -393,6 +393,131 @@ def test_cli_regime_html_report_dispatches_to_workflow(monkeypatch, tmp_path) ->
     assert str(captured["policy_path"]).endswith("quadrant_policy.yml")
 
 
+def test_cli_regime_input_sync_dispatches_to_workflow(monkeypatch, tmp_path) -> None:
+    captured: dict[str, object] = {}
+
+    class Result:
+        returns_path = tmp_path / "regime_returns.json"
+        proxy_path = tmp_path / "regime_proxies.json"
+
+    def fake_sync_regime_inputs(**kwargs):
+        captured.update(kwargs)
+        return Result()
+
+    monkeypatch.setattr(
+        "market_helper.cli.main.sync_regime_inputs",
+        fake_sync_regime_inputs,
+    )
+
+    exit_code = main(
+        [
+            "regime-input-sync",
+            "--returns-output",
+            str(tmp_path / "regime_returns.json"),
+            "--proxy-output",
+            str(tmp_path / "regime_proxies.json"),
+            "--eq-symbol",
+            "ACWI",
+            "--fi-symbol",
+            "AGG",
+            "--move-symbol",
+            "^MOVE",
+            "--fred-api-key",
+            "test-key",
+        ]
+    )
+
+    assert exit_code == 0
+    assert str(captured["returns_output_path"]).endswith("regime_returns.json")
+    assert str(captured["proxy_output_path"]).endswith("regime_proxies.json")
+    assert captured["eq_symbol"] == "ACWI"
+    assert captured["fred_api_key"] == "test-key"
+
+
+def test_cli_regime_run_report_dispatches_to_existing_data_workflow(monkeypatch, tmp_path) -> None:
+    captured: dict[str, object] = {}
+
+    class Result:
+        regime_path = tmp_path / "regime_multi.json"
+        html_path = tmp_path / "regime_report.html"
+
+    def fake_run_regime_report_from_existing_data(**kwargs):
+        captured.update(kwargs)
+        return Result()
+
+    monkeypatch.setattr(
+        "market_helper.cli.main.run_regime_report_from_existing_data",
+        fake_run_regime_report_from_existing_data,
+    )
+
+    exit_code = main(
+        [
+            "regime-run-report",
+            "--methods",
+            "macro_rules",
+            "--returns",
+            str(tmp_path / "returns.json"),
+            "--proxy",
+            str(tmp_path / "proxy.json"),
+            "--output-regime",
+            str(tmp_path / "regime_multi.json"),
+            "--output-html",
+            str(tmp_path / "regime_report.html"),
+        ]
+    )
+
+    assert exit_code == 0
+    assert captured["methods"] == ["macro_rules"]
+    assert str(captured["returns_path"]).endswith("returns.json")
+    assert str(captured["proxy_path"]).endswith("proxy.json")
+    assert str(captured["output_html_path"]).endswith("regime_report.html")
+
+
+def test_cli_regime_refresh_report_dispatches_to_refresh_workflow(monkeypatch, tmp_path) -> None:
+    captured: dict[str, object] = {}
+
+    class Result:
+        returns_path = tmp_path / "returns.json"
+        proxy_path = tmp_path / "proxy.json"
+        macro_panel_path = tmp_path / "macro_panel.feather"
+        regime_path = tmp_path / "regime_multi.json"
+        html_path = tmp_path / "regime_report.html"
+        refreshed_inputs = True
+        refreshed_macro_panel = False
+
+    def fake_refresh_data_and_run_regime_report(**kwargs):
+        captured.update(kwargs)
+        return Result()
+
+    monkeypatch.setattr(
+        "market_helper.cli.main.refresh_data_and_run_regime_report",
+        fake_refresh_data_and_run_regime_report,
+    )
+
+    exit_code = main(
+        [
+            "regime-refresh-report",
+            "--methods",
+            "all",
+            "--max-age-days",
+            "7",
+            "--force-refresh",
+            "--eq-symbol",
+            "SPY",
+            "--fi-symbol",
+            "AGG",
+            "--fred-api-key",
+            "test-key",
+        ]
+    )
+
+    assert exit_code == 0
+    assert captured["methods"] == ["all"]
+    assert captured["max_age_days"] == 7
+    assert captured["force_refresh"] is True
+    assert captured["fred_api_key"] == "test-key"
+
+
 def test_cli_etf_sector_sync_dispatches_to_workflow(monkeypatch, tmp_path) -> None:
     captured: dict[str, object] = {}
 
