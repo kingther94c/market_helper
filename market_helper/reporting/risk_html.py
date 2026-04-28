@@ -296,6 +296,11 @@ class RegimeReportSummary:
     as_of: str
     regime: str
     scores: dict[str, float]
+    version: str = "regime-v1"
+    method_agreement: float | None = None
+    crisis_flag: bool | None = None
+    crisis_intensity: float | None = None
+    per_method: list[dict[str, str]] | None = None
 
 
 @dataclass(frozen=True)
@@ -1430,17 +1435,52 @@ def render_risk_tab(view_model: RiskReportViewModel) -> str:
     regime_block = ""
     if regime_summary is not None:
         banner = REGIME_INTERPRETATIONS.get(regime_summary.regime, "Regime-aware view active.")
+        regime_badges = []
+        if regime_summary.method_agreement is not None:
+            regime_badges.append(
+                f"<span><strong>Agreement</strong>: {regime_summary.method_agreement:.0%}</span>"
+            )
+        if regime_summary.crisis_flag is not None:
+            crisis_label = "on" if regime_summary.crisis_flag else "off"
+            regime_badges.append(
+                f"<span><strong>Crisis</strong>: {html.escape(crisis_label)}</span>"
+            )
+        if regime_summary.crisis_intensity is not None:
+            regime_badges.append(
+                f"<span><strong>Intensity</strong>: {regime_summary.crisis_intensity:.2f}</span>"
+            )
         score_list = " ".join(
             f"<span><strong>{html.escape(name)}</strong>: {value:.2f}</span>"
             for name, value in sorted(regime_summary.scores.items())
-            if name in {"VOL", "CREDIT", "RATES", "GROWTH", "TREND", "STRESS"}
+            if name in {"VOL", "CREDIT", "RATES", "GROWTH", "TREND", "STRESS", "INFLATION"}
         )
+        badge_list = " ".join(regime_badges)
+        method_rows = ""
+        if regime_summary.per_method:
+            method_items = []
+            for method in regime_summary.per_method:
+                native_label = method.get("native_label") or "n/a"
+                method_items.append(
+                    "<tr>"
+                    f"<td>{html.escape(method.get('method', 'unknown'))}</td>"
+                    f"<td>{html.escape(method.get('quadrant', 'Unknown'))}</td>"
+                    f"<td>{html.escape(native_label)}</td>"
+                    "</tr>"
+                )
+            method_rows = (
+                "<table class='report-table'>"
+                "<thead><tr><th>Method</th><th>Quadrant</th><th>Native Label</th></tr></thead>"
+                f"<tbody>{''.join(method_items)}</tbody>"
+                "</table>"
+            )
         regime_block = (
             "<div class='card'>"
             "<h2>Regime Snapshot</h2>"
             f"<p><strong>{html.escape(regime_summary.regime)}</strong> as of {html.escape(format_local_datetime(regime_summary.as_of))}</p>"
             f"<p>{html.escape(banner)}</p>"
+            f"<div class='scores'>{badge_list}</div>"
             f"<div class='scores'>{score_list}</div>"
+            f"{method_rows}"
             "</div>"
         )
 
@@ -3814,11 +3854,66 @@ def _load_regime_summary(path: str | Path | None) -> RegimeReportSummary | None:
     row = loaded[-1]
     if not isinstance(row, dict):
         return None
+    if str(row.get("version") or "") == "regime-multi-v1" or isinstance(row.get("ensemble"), dict):
+        return _load_multi_method_regime_summary(row)
     scores = row.get("scores") if isinstance(row.get("scores"), dict) else {}
     return RegimeReportSummary(
         as_of=str(row.get("as_of") or ""),
         regime=str(row.get("regime") or "Unknown"),
         scores={str(k): float(v) for k, v in scores.items()},
+        version=str(row.get("version") or "regime-v1"),
+    )
+
+
+def _load_multi_method_regime_summary(row: dict[str, Any]) -> RegimeReportSummary:
+    ensemble = row.get("ensemble") if isinstance(row.get("ensemble"), dict) else {}
+    axes = ensemble.get("axes") if isinstance(ensemble.get("axes"), dict) else {}
+    diagnostics = (
+        ensemble.get("diagnostics")
+        if isinstance(ensemble.get("diagnostics"), dict)
+        else {}
+    )
+    scores: dict[str, float] = {}
+    if axes.get("growth_score") is not None:
+        scores["GROWTH"] = float(axes.get("growth_score") or 0.0)
+    if axes.get("inflation_score") is not None:
+        scores["INFLATION"] = float(axes.get("inflation_score") or 0.0)
+
+    method_summaries: list[dict[str, str]] = []
+    per_method = row.get("per_method") if isinstance(row.get("per_method"), dict) else {}
+    for name, payload in sorted(per_method.items()):
+        if not isinstance(payload, dict):
+            continue
+        quadrant = payload.get("quadrant") if isinstance(payload.get("quadrant"), dict) else {}
+        method_summaries.append(
+            {
+                "method": str(name),
+                "quadrant": str(quadrant.get("quadrant") or "Unknown"),
+                "native_label": str(payload.get("native_label") or ""),
+            }
+        )
+
+    return RegimeReportSummary(
+        as_of=str(row.get("as_of") or ensemble.get("as_of") or ""),
+        regime=str(ensemble.get("quadrant") or "Unknown"),
+        scores=scores,
+        version=str(row.get("version") or "regime-multi-v1"),
+        method_agreement=(
+            float(diagnostics["method_agreement"])
+            if diagnostics.get("method_agreement") is not None
+            else None
+        ),
+        crisis_flag=(
+            bool(ensemble["crisis_flag"])
+            if ensemble.get("crisis_flag") is not None
+            else None
+        ),
+        crisis_intensity=(
+            float(ensemble["crisis_intensity"])
+            if ensemble.get("crisis_intensity") is not None
+            else None
+        ),
+        per_method=method_summaries,
     )
 
 

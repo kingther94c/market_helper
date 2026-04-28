@@ -46,12 +46,20 @@ def run_multi_method_detection(
     enabled = {m.strip().lower() for m in methods if m}
     if "all" in enabled:
         enabled = set(ALL_METHODS)
+    unknown = enabled.difference(ALL_METHODS)
+    if unknown:
+        raise ValueError(
+            f"Unknown regime methods: {sorted(unknown)}. Expected one of {list(ALL_METHODS)} or 'all'."
+        )
+    if not enabled:
+        raise ValueError("No regime methods selected.")
 
     cfg = MultiMethodConfig(
         enable_macro_rules="macro_rules" in enabled,
         enable_legacy_rulebook="legacy_rulebook" in enabled,
     )
 
+    missing_inputs: list[str] = []
     macro_panel = None
     macro_specs = None
     if cfg.enable_macro_rules:
@@ -68,15 +76,42 @@ def run_multi_method_detection(
         if specs_path.exists() and panel_path.exists():
             macro_specs = load_series_specs(specs_path)
             macro_panel = load_panel(panel_path)
-        # If either is missing, the orchestrator logs a "skipped" status in
-        # the manifest — caller can inspect to decide whether that's OK.
+        else:
+            if not specs_path.exists():
+                missing_inputs.append(f"macro_rules missing FRED series config: {specs_path}")
+            if not panel_path.exists():
+                missing_inputs.append(f"macro_rules missing macro panel: {panel_path}")
 
     market_bundle = None
-    if cfg.enable_legacy_rulebook and returns_path and proxy_path:
-        market_bundle = load_regime_inputs(
-            proxy_path=Path(proxy_path),
-            returns_path=Path(returns_path),
-        )
+    if cfg.enable_legacy_rulebook:
+        returns_input_path = Path(returns_path) if returns_path else None
+        proxy_input_path = Path(proxy_path) if proxy_path else None
+        if returns_input_path is None:
+            missing_inputs.append("legacy_rulebook missing --returns")
+        elif not returns_input_path.exists():
+            missing_inputs.append(f"legacy_rulebook missing returns file: {returns_input_path}")
+        if proxy_input_path is None:
+            missing_inputs.append("legacy_rulebook missing --proxy")
+        elif not proxy_input_path.exists():
+            missing_inputs.append(f"legacy_rulebook missing proxy file: {proxy_input_path}")
+        if (
+            returns_input_path is not None
+            and proxy_input_path is not None
+            and returns_input_path.exists()
+            and proxy_input_path.exists()
+        ):
+            market_bundle = load_regime_inputs(
+                proxy_path=proxy_input_path,
+                returns_path=returns_input_path,
+            )
+
+    runnable_methods = [
+        cfg.enable_macro_rules and macro_panel is not None and macro_specs is not None,
+        cfg.enable_legacy_rulebook and market_bundle is not None,
+    ]
+    if not any(runnable_methods):
+        detail = "; ".join(missing_inputs) if missing_inputs else "no method inputs were available"
+        raise ValueError(f"No enabled regime methods can run: {detail}")
 
     source_info: dict[str, Any] = {
         "fred_config": str(fred_series_config) if fred_series_config else None,
@@ -95,6 +130,9 @@ def run_multi_method_detection(
 
     if latest_only and snapshots:
         snapshots = [snapshots[-1]]
+
+    if not snapshots:
+        raise ValueError("Multi-method regime detection produced no snapshots.")
 
     if output_path is not None:
         out = Path(output_path)

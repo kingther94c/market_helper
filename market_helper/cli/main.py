@@ -3,6 +3,7 @@ from __future__ import annotations
 """CLI entrypoint for the read-only market_helper workflows."""
 
 import argparse
+import sys
 from pathlib import Path
 from typing import Sequence
 
@@ -19,6 +20,7 @@ from market_helper.workflows.generate_report import (
     generate_security_reference_sync,
 )
 from market_helper.workflows.generate_regime import generate_regime_snapshots
+from market_helper.workflows.generate_regime_html import generate_regime_html_report
 from market_helper.workflows.generate_multi_method_regime import (
     ALL_METHODS as MULTI_METHOD_ALL,
     load_multi_method_snapshots,
@@ -312,6 +314,26 @@ def build_parser() -> argparse.ArgumentParser:
         help="Optional quadrant policy YAML overrides. Example: configs/regime_detection/quadrant_policy.example.yml.",
     )
 
+    regime_html_report = subparsers.add_parser(
+        "regime-html-report",
+        help="Generate a standalone HTML report from legacy or multi-method regime snapshots.",
+    )
+    regime_html_report.add_argument(
+        "--regime",
+        required=True,
+        help="Path to regime snapshots JSON.",
+    )
+    regime_html_report.add_argument(
+        "--output",
+        required=True,
+        help="Path to output HTML.",
+    )
+    regime_html_report.add_argument(
+        "--policy",
+        required=False,
+        help="Optional legacy or quadrant policy YAML overrides.",
+    )
+
     regime_report = subparsers.add_parser(
         "regime-report",
         help="Print human-readable summary of latest regime plus policy suggestion.",
@@ -450,15 +472,19 @@ def main(argv: Sequence[str] | None = None) -> int:
         method_list = [m.strip() for m in str(args.methods).split(",") if m.strip()]
         if not method_list:
             method_list = list(MULTI_METHOD_ALL)
-        run_multi_method_detection(
-            methods=method_list,
-            macro_panel_path=args.macro_panel,
-            fred_series_config=args.fred_series_config,
-            returns_path=args.returns,
-            proxy_path=args.proxy,
-            output_path=Path(args.output),
-            latest_only=bool(args.latest_only),
-        )
+        try:
+            run_multi_method_detection(
+                methods=method_list,
+                macro_panel_path=args.macro_panel,
+                fred_series_config=args.fred_series_config,
+                returns_path=args.returns,
+                proxy_path=args.proxy,
+                output_path=Path(args.output),
+                latest_only=bool(args.latest_only),
+            )
+        except ValueError as exc:
+            print(f"regime-detect-multi: {exc}", file=sys.stderr)
+            return 2
         return 0
     if args.command == "regime-report-multi":
         snapshots = load_multi_method_snapshots(Path(args.regime))
@@ -489,6 +515,17 @@ def main(argv: Sequence[str] | None = None) -> int:
         print(f"asset_class_targets={decision.asset_class_targets}")
         if decision.notes:
             print(f"notes={decision.notes}")
+        return 0
+    if args.command == "regime-html-report":
+        try:
+            generate_regime_html_report(
+                regime_path=Path(args.regime),
+                output_path=Path(args.output),
+                policy_path=Path(args.policy) if args.policy else None,
+            )
+        except (FileNotFoundError, ValueError) as exc:
+            print(f"regime-html-report: {exc}", file=sys.stderr)
+            return 2
         return 0
     if args.command == "regime-report":
         snapshots = load_regime_snapshots(Path(args.regime))

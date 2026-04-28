@@ -361,6 +361,38 @@ def test_cli_regime_detect_dispatches_to_workflow(monkeypatch, tmp_path) -> None
     assert str(captured["returns_path"]).endswith("returns.json")
 
 
+def test_cli_regime_html_report_dispatches_to_workflow(monkeypatch, tmp_path) -> None:
+    captured: dict[str, object] = {}
+
+    def fake_generate_regime_html_report(*, regime_path, output_path, policy_path):
+        captured["regime_path"] = regime_path
+        captured["output_path"] = output_path
+        captured["policy_path"] = policy_path
+        return output_path
+
+    monkeypatch.setattr(
+        "market_helper.cli.main.generate_regime_html_report",
+        fake_generate_regime_html_report,
+    )
+
+    exit_code = main(
+        [
+            "regime-html-report",
+            "--regime",
+            str(tmp_path / "regime_multi.json"),
+            "--output",
+            str(tmp_path / "regime_report.html"),
+            "--policy",
+            str(tmp_path / "quadrant_policy.yml"),
+        ]
+    )
+
+    assert exit_code == 0
+    assert str(captured["regime_path"]).endswith("regime_multi.json")
+    assert str(captured["output_path"]).endswith("regime_report.html")
+    assert str(captured["policy_path"]).endswith("quadrant_policy.yml")
+
+
 def test_cli_etf_sector_sync_dispatches_to_workflow(monkeypatch, tmp_path) -> None:
     captured: dict[str, object] = {}
 
