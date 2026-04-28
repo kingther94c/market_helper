@@ -63,6 +63,22 @@ def test_cli_regime_detect_multi_legacy_only_writes_valid_schema(tmp_path: Path)
     assert manifest["methods"]["legacy_rulebook"]["status"] == "ok"
 
 
+def test_cli_regime_detect_multi_fails_when_no_enabled_method_can_run(
+    tmp_path: Path, capsys
+) -> None:
+    output_path = tmp_path / "regime_multi.json"
+
+    exit_code = main(["regime-detect-multi", "--output", str(output_path)])
+
+    assert exit_code == 2
+    assert not output_path.exists()
+    captured = capsys.readouterr()
+    assert "No enabled regime methods can run" in captured.err
+    assert "macro_rules missing" in captured.err
+    assert "legacy_rulebook missing --returns" in captured.err
+    assert "legacy_rulebook missing --proxy" in captured.err
+
+
 def test_cli_regime_report_multi_prints_policy(tmp_path: Path, capsys) -> None:
     proxy_path, returns_path = _write_legacy_fixtures(tmp_path)
     output_path = tmp_path / "regime_multi.json"
@@ -91,3 +107,42 @@ def test_cli_regime_report_multi_prints_policy(tmp_path: Path, capsys) -> None:
     assert "method=legacy_rulebook" in captured
     assert "vol_multiplier=" in captured
     assert "asset_class_targets=" in captured
+
+
+def test_cli_regime_html_report_writes_html_from_multi_payload(tmp_path: Path) -> None:
+    proxy_path, returns_path = _write_legacy_fixtures(tmp_path)
+    regime_path = tmp_path / "regime_multi.json"
+    html_path = tmp_path / "regime_report.html"
+    assert (
+        main(
+            [
+                "regime-detect-multi",
+                "--methods",
+                "legacy_rulebook",
+                "--returns",
+                str(returns_path),
+                "--proxy",
+                str(proxy_path),
+                "--output",
+                str(regime_path),
+                "--latest-only",
+            ]
+        )
+        == 0
+    )
+
+    exit_code = main(
+        [
+            "regime-html-report",
+            "--regime",
+            str(regime_path),
+            "--output",
+            str(html_path),
+        ]
+    )
+
+    assert exit_code == 0
+    html = html_path.read_text(encoding="utf-8")
+    assert "Regime Detection" in html
+    assert "Policy Suggestion" in html
+    assert "Method Votes" in html

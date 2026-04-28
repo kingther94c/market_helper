@@ -329,6 +329,19 @@ conda run -n py313 python -m market_helper.cli.main regime-report \
   --policy configs/regime_detection/regime_policy.example.yml
 ```
 
+Standalone HTML artifact for legacy or multi-method regime snapshots:
+
+```bash
+conda run -n py313 python -m market_helper.cli.main regime-html-report \
+  --regime data/artifacts/regime_detection/regime_multi_snapshots.json \
+  --output data/artifacts/regime_detection/regime_report.html \
+  --policy configs/regime_detection/quadrant_policy.example.yml
+```
+
+For regime v2 sanity review, use
+`notebooks/regime_detection/regime_v2_sanity_review.ipynb` to inspect latest
+ensemble output, historical checkpoint windows, and the generated HTML report.
+
 Input expectations:
 - Proxy JSON keys: `VIX`, `MOVE`, `HY_OAS`, `UST2Y`, `UST10Y`
 - Returns JSON keys: `EQ`, `FI`

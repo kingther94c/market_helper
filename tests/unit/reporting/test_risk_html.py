@@ -55,6 +55,7 @@ def _minimal_risk_view_model(
     country_breakdown: list[BreakdownRow] | None = None,
     policy_drift_sector: list[PolicyDriftRow] | None = None,
     vol_method: str = "geomean_1m_3m",
+    regime_summary=None,
 ) -> RiskReportViewModel:
     return RiskReportViewModel(
         as_of="2026-04-25",
@@ -67,7 +68,7 @@ def _minimal_risk_view_model(
         policy_drift_asset_class=[],
         policy_drift_country=[],
         policy_drift_sector=list(policy_drift_sector or []),
-        regime_summary=None,
+        regime_summary=regime_summary,
         vol_method=vol_method,
         inter_asset_corr="historical",
         portfolio_vol_matrix={},
@@ -574,6 +575,88 @@ def test_build_risk_report_view_model_renders_summary_and_tables(tmp_path: Path)
     assert any(row.display_ticker == "SPY" for row in view_model.risk_rows)
     assert any(row.display_name == "10Y US" for row in view_model.risk_rows)
     assert any("svg" in row.sparkline_3m_svg for row in view_model.risk_rows)
+
+
+def test_load_regime_summary_accepts_multi_method_payload(tmp_path: Path) -> None:
+    regime_json = tmp_path / "regime_multi.json"
+    regime_json.write_text(
+        json.dumps(
+            [
+                {
+                    "as_of": "2026-03-26",
+                    "version": "regime-multi-v1",
+                    "ensemble": {
+                        "as_of": "2026-03-26",
+                        "quadrant": "Goldilocks",
+                        "axes": {
+                            "as_of": "2026-03-26",
+                            "growth_score": 0.7,
+                            "inflation_score": -0.4,
+                            "growth_drivers": {},
+                            "inflation_drivers": {},
+                            "confidence": 0.5,
+                        },
+                        "crisis_flag": False,
+                        "crisis_intensity": 0.0,
+                        "duration_days": 12,
+                        "diagnostics": {
+                            "method_agreement": 0.5,
+                            "per_method_quadrant": {
+                                "macro_rules": "Goldilocks",
+                                "legacy_rulebook": "Reflation",
+                            },
+                        },
+                    },
+                    "per_method": {
+                        "legacy_rulebook": {
+                            "as_of": "2026-03-26",
+                            "method_name": "legacy_rulebook",
+                            "quadrant": {"quadrant": "Reflation"},
+                            "native_label": "Recovery Pivot",
+                            "native_detail": {},
+                        },
+                        "macro_rules": {
+                            "as_of": "2026-03-26",
+                            "method_name": "macro_rules",
+                            "quadrant": {"quadrant": "Goldilocks"},
+                            "native_label": "Goldilocks",
+                            "native_detail": {},
+                        },
+                    },
+                }
+            ]
+        ),
+        encoding="utf-8",
+    )
+
+    summary = risk_html_module._load_regime_summary(regime_json)
+    assert summary is not None
+    assert summary.version == "regime-multi-v1"
+    assert summary.regime == "Goldilocks"
+    assert summary.scores == {"GROWTH": 0.7, "INFLATION": -0.4}
+    assert summary.method_agreement == 0.5
+    assert summary.crisis_flag is False
+    assert summary.crisis_intensity == 0.0
+    assert summary.per_method == [
+        {
+            "method": "legacy_rulebook",
+            "quadrant": "Reflation",
+            "native_label": "Recovery Pivot",
+        },
+        {
+            "method": "macro_rules",
+            "quadrant": "Goldilocks",
+            "native_label": "Goldilocks",
+        },
+    ]
+
+    html = risk_html_module.render_risk_tab(
+        _minimal_risk_view_model(regime_summary=summary)
+    )
+    assert "Goldilocks" in html
+    assert "Agreement" in html
+    assert "legacy_rulebook" in html
+    assert "Unknown" not in html
 
 
 def test_build_risk_report_view_model_accepts_configurable_allocation_policy(tmp_path: Path) -> None:
