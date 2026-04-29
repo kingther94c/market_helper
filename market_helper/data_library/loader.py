@@ -4,6 +4,7 @@ import csv
 import io
 import json
 import re
+import subprocess
 import xml.etree.ElementTree as ET
 from datetime import datetime
 from email.utils import parsedate_to_datetime
@@ -21,6 +22,7 @@ DEFAULT_HEADERS = {
     "User-Agent": "market-helper/0.1",
 }
 FRED_OBSERVATIONS_URL = "https://api.stlouisfed.org/fred/series/observations"
+FRED_GRAPH_CSV_URL = "https://fred.stlouisfed.org/graph/fredgraph.csv"
 
 
 class DownloadError(RuntimeError):
@@ -128,6 +130,76 @@ def download_csv(
     csv_text = download_text(url, params=params, headers=headers, timeout=timeout)
     reader = csv.DictReader(io.StringIO(csv_text))
     return [dict(row) for row in reader]
+
+
+def download_fred_series_csv(
+    series_id: str,
+    *,
+    title: Optional[str] = None,
+    observation_start: Optional[str] = None,
+    observation_end: Optional[str] = None,
+    timeout: int = 30,
+) -> EconomicSeries:
+    rows = _download_fred_graph_csv_rows(series_id, timeout=timeout)
+    observations: List[Observation] = []
+    for row in rows:
+        raw_date = row.get("observation_date") or row.get("DATE") or row.get("date")
+        raw_value = row.get(series_id)
+        if not raw_date or raw_value in (None, "", "."):
+            continue
+        if observation_start is not None and str(raw_date) < str(observation_start):
+            continue
+        if observation_end is not None and str(raw_date) > str(observation_end):
+            continue
+        try:
+            numeric_value = float(raw_value)
+        except (TypeError, ValueError):
+            continue
+        observations.append(Observation(date=str(raw_date), value=numeric_value))
+
+    if not observations:
+        raise SourceParseError(
+            "FRED CSV response for {series_id} did not include usable observations".format(
+                series_id=series_id
+            )
+        )
+
+    observations = sorted(observations, key=lambda obs: obs.date)
+    return EconomicSeries(
+        series_id=series_id,
+        title=title or series_id,
+        units="lin",
+        frequency="",
+        observations=observations,
+        metadata={
+            "observation_start": observations[0].date,
+            "observation_end": observations[-1].date,
+            "source": "fred_graph_csv",
+        },
+    )
+
+
+def _download_fred_graph_csv_rows(
+    series_id: str,
+    *,
+    timeout: int,
+) -> List[Dict[str, str]]:
+    url = build_url(FRED_GRAPH_CSV_URL, {"id": series_id})
+    try:
+        result = subprocess.run(
+            ["curl", "-fL", "--max-time", str(timeout), "-sS", url],
+            check=True,
+            capture_output=True,
+            text=True,
+            timeout=timeout + 5,
+        )
+        return [dict(row) for row in csv.DictReader(io.StringIO(result.stdout))]
+    except (FileNotFoundError, subprocess.CalledProcessError, subprocess.TimeoutExpired):
+        return download_csv(
+            FRED_GRAPH_CSV_URL,
+            params={"id": series_id},
+            timeout=timeout,
+        )
 
 
 def download_fred_series(

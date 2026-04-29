@@ -47,12 +47,12 @@ def test_sync_regime_inputs_writes_returns_and_proxy_json(monkeypatch, tmp_path:
             ],
         )
 
-    def fake_download_fred_csv_rows(series_id):
+    def fake_download_fred_series_csv(series_id, **kwargs):
         raise sync_module.DownloadError("csv unavailable")
 
     monkeypatch.setattr(sync_module, "_resolve_fred_api_key", fake_resolve_fred_api_key)
     monkeypatch.setattr(sync_module, "download_fred_series", fake_download_fred_series)
-    monkeypatch.setattr(sync_module, "_download_fred_csv_rows", fake_download_fred_csv_rows)
+    monkeypatch.setattr(sync_module, "download_fred_series_csv", fake_download_fred_series_csv)
 
     result = sync_module.sync_regime_inputs(
         returns_output_path=tmp_path / "regime_returns.json",
@@ -77,12 +77,12 @@ def test_sync_regime_inputs_wraps_fred_timeout(monkeypatch, tmp_path: Path) -> N
     def fake_download_fred_series(series_id, api_key, observation_start=None):
         raise TimeoutError("read timed out")
 
-    def fake_download_fred_csv_rows(series_id):
+    def fake_download_fred_series_csv(series_id, **kwargs):
         raise sync_module.DownloadError("csv failed")
 
     monkeypatch.setattr(sync_module, "_resolve_fred_api_key", fake_resolve_fred_api_key)
     monkeypatch.setattr(sync_module, "download_fred_series", fake_download_fred_series)
-    monkeypatch.setattr(sync_module, "_download_fred_csv_rows", fake_download_fred_csv_rows)
+    monkeypatch.setattr(sync_module, "download_fred_series_csv", fake_download_fred_series_csv)
     monkeypatch.setattr(sync_module.time, "sleep", lambda seconds: None)
 
     with pytest.raises(RuntimeError, match="FRED download failed for BAMLH0A0HYM2"):
@@ -101,15 +101,21 @@ def test_sync_regime_inputs_uses_fred_csv_fallback(monkeypatch, tmp_path: Path) 
     def fake_download_fred_series(series_id, api_key, observation_start=None):
         raise TimeoutError("read timed out")
 
-    def fake_download_fred_csv_rows(series_id):
-        return [
-            {"observation_date": "2024-01-01", series_id: "1.5"},
-            {"observation_date": "2024-01-02", series_id: "1.6"},
-        ]
+    def fake_download_fred_series_csv(series_id, **kwargs):
+        return EconomicSeries(
+            series_id=series_id,
+            title=series_id,
+            units="lin",
+            frequency="D",
+            observations=[
+                Observation(date="2024-01-01", value=1.5),
+                Observation(date="2024-01-02", value=1.6),
+            ],
+        )
 
     monkeypatch.setattr(sync_module, "_resolve_fred_api_key", fake_resolve_fred_api_key)
     monkeypatch.setattr(sync_module, "download_fred_series", fake_download_fred_series)
-    monkeypatch.setattr(sync_module, "_download_fred_csv_rows", fake_download_fred_csv_rows)
+    monkeypatch.setattr(sync_module, "download_fred_series_csv", fake_download_fred_series_csv)
     monkeypatch.setattr(sync_module.time, "sleep", lambda seconds: None)
 
     result = sync_module.sync_regime_inputs(
@@ -147,14 +153,14 @@ def test_sync_regime_inputs_merges_and_updates_hy_oas_history(monkeypatch, tmp_p
             observations=[Observation(date="2024-01-03", value=4.0)],
         )
 
-    def fake_download_fred_csv_rows(series_id):
+    def fake_download_fred_series_csv(series_id, **kwargs):
         raise sync_module.DownloadError("csv unavailable")
 
     history_path = tmp_path / "hy_oas_history.csv"
     history_path.write_text("Date,Value\n2024-01-01,1.0\n2024-01-02,1.5\n", encoding="utf-8")
     monkeypatch.setattr(sync_module, "_resolve_fred_api_key", fake_resolve_fred_api_key)
     monkeypatch.setattr(sync_module, "download_fred_series", fake_download_fred_series)
-    monkeypatch.setattr(sync_module, "_download_fred_csv_rows", fake_download_fred_csv_rows)
+    monkeypatch.setattr(sync_module, "download_fred_series_csv", fake_download_fred_series_csv)
 
     result = sync_module.sync_regime_inputs(
         returns_output_path=tmp_path / "regime_returns.json",

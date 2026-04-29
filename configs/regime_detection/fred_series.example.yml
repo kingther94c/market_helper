@@ -4,7 +4,7 @@
 #
 # Transforms:
 #   level                  raw observation value
-#   centered(c)            value - c (e.g. NAPM centered at 50)
+#   centered(c)            value - c
 #   yoy_pct                100 * (v_t / v_{t-12m} - 1)
 #   yoy_diff               v_t - v_{t-12m} (arithmetic)
 #   inverted_yoy_diff      -(v_t - v_{t-12m})       # rising unemployment hurts growth
@@ -16,15 +16,6 @@
 
 series:
   # --- Growth axis ---
-  - series_id: NAPM
-    axis: growth
-    transform: centered
-    transform_param: 50.0
-    weight: 1.0
-    publication_lag_days: 3
-    title: ISM Manufacturing PMI
-    frequency_hint: monthly
-
   - series_id: UNRATE
     axis: growth
     transform: inverted_yoy_diff

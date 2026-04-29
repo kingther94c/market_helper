@@ -142,7 +142,11 @@ def test_sync_series_incremental_merges(
             observations=observations,
         )
 
+    def _fake_download_csv(series_id: str, **kwargs):
+        raise mp.DownloadError("csv unavailable")
+
     monkeypatch.setattr(mp, "download_fred_series", _fake_download)
+    monkeypatch.setattr(mp, "download_fred_series_csv", _fake_download_csv)
     spec = SeriesSpec(series_id="TEST", axis="growth", transform="level")
 
     first = sync_series(spec, "key", cache_dir=tmp_path)
@@ -174,12 +178,48 @@ def test_sync_series_force_replaces_history(
             observations=[Observation(date="2020-01-01", value=99.0)],
         )
 
+    def _fake_download_csv(series_id: str, **kwargs):
+        raise mp.DownloadError("csv unavailable")
+
     monkeypatch.setattr(mp, "download_fred_series", _fake_download)
+    monkeypatch.setattr(mp, "download_fred_series_csv", _fake_download_csv)
     spec = SeriesSpec(series_id="TEST", axis="growth", transform="level")
     sync_series(spec, "key", cache_dir=tmp_path)
     sync_series(spec, "key", cache_dir=tmp_path, force=True)
     # force=True sends observation_start=None on the second call
     assert calls[1]["observation_start"] is None
+
+
+def test_sync_series_uses_fred_csv_before_api(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    api_calls: List[dict] = []
+
+    def _fake_download(series_id: str, api_key: str, **kwargs):
+        api_calls.append({"series_id": series_id, **kwargs})
+        raise mp.DownloadError("api timed out")
+
+    def _fake_download_csv(series_id: str, **kwargs):
+        return EconomicSeries(
+            series_id=series_id,
+            title=series_id,
+            units="lin",
+            frequency="m",
+            observations=[
+                Observation(date="2020-01-01", value=1.0),
+                Observation(date="2020-02-01", value=2.0),
+            ],
+        )
+
+    monkeypatch.setattr(mp, "download_fred_series", _fake_download)
+    monkeypatch.setattr(mp, "download_fred_series_csv", _fake_download_csv)
+    monkeypatch.setattr(mp.time, "sleep", lambda seconds: None)
+
+    spec = SeriesSpec(series_id="NAPM", axis="growth", transform="level")
+    synced = sync_series(spec, "key", cache_dir=tmp_path)
+
+    assert api_calls == []
+    assert synced["value"].tolist() == [1.0, 2.0]
 
 
 # ---------------------------------------------------------------------------

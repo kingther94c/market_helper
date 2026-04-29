@@ -15,6 +15,7 @@ columns ``_axis:{series_id}`` (not stored) exposed via :func:`load_series_meta`.
 """
 from __future__ import annotations
 
+import time
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Dict, Iterable, List, Mapping, Optional, Sequence
@@ -22,7 +23,11 @@ from typing import Dict, Iterable, List, Mapping, Optional, Sequence
 import pandas as pd
 import yaml
 
-from market_helper.data_library.loader import download_fred_series
+from market_helper.data_library.loader import (
+    DownloadError,
+    download_fred_series,
+    download_fred_series_csv,
+)
 from market_helper.models import EconomicSeries
 
 DEFAULT_CACHE_DIR = Path("data/interim/fred")
@@ -153,12 +158,7 @@ def sync_series(
         last_date = cached["date"].max()
         start = (last_date + pd.Timedelta(days=1)).strftime("%Y-%m-%d")
 
-    series = download_fred_series(
-        series_id=spec.series_id,
-        api_key=api_key,
-        title=spec.title,
-        observation_start=start,
-    )
+    series = _download_series_for_sync(spec, api_key, observation_start=start)
     fresh = _series_to_frame(series)
 
     if cached.empty:
@@ -175,6 +175,43 @@ def sync_series(
 
     write_cached_series(cache_dir, spec.series_id, merged)
     return merged
+
+
+def _download_series_for_sync(
+    spec: SeriesSpec,
+    api_key: str,
+    *,
+    observation_start: Optional[str],
+) -> EconomicSeries:
+    csv_error: Exception | None = None
+    try:
+        return download_fred_series_csv(
+            spec.series_id,
+            title=spec.title,
+            observation_start=observation_start,
+        )
+    except (DownloadError, ValueError) as exc:
+        csv_error = exc
+
+    attempts = 3
+    last_error: Exception | None = None
+    for attempt in range(1, attempts + 1):
+        try:
+            return download_fred_series(
+                series_id=spec.series_id,
+                api_key=api_key,
+                title=spec.title,
+                observation_start=observation_start,
+            )
+        except (DownloadError, TimeoutError, OSError) as exc:
+            last_error = exc
+            if attempt >= attempts:
+                break
+            time.sleep(float(attempt))
+    raise RuntimeError(
+        f"FRED download failed for {spec.series_id} after CSV fallback and "
+        f"{attempts} API attempts. CSV error: {csv_error}. Last API error: {last_error}"
+    ) from last_error
 
 
 def sync_all_series(

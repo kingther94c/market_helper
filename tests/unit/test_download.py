@@ -1,11 +1,13 @@
 from __future__ import annotations
 
+from types import SimpleNamespace
 import unittest
 from unittest.mock import patch
 
 from market_helper.download import (
     build_url,
     download_feed_collection,
+    download_fred_series_csv,
     download_fred_series,
     download_json,
     download_news_feed,
@@ -77,6 +79,23 @@ class DownloadTests(unittest.TestCase):
         request = mock_urlopen.call_args[0][0]
         self.assertIn("series_id=INDPRO", request.full_url)
         self.assertIn("file_type=json", request.full_url)
+
+    @patch("market_helper.data_library.loader.subprocess.run")
+    def test_download_fred_series_csv_parses_graph_csv(self, mock_run) -> None:
+        mock_run.return_value = SimpleNamespace(
+            stdout="observation_date,INDPRO\n2024-01-01,100.0\n2024-02-01,.\n2024-03-01,101.5\n"
+        )
+
+        series = download_fred_series_csv(
+            series_id="INDPRO",
+            observation_start="2024-02-01",
+        )
+
+        self.assertEqual(series.series_id, "INDPRO")
+        self.assertEqual(len(series.observations), 1)
+        self.assertEqual(series.observations[0].date, "2024-03-01")
+        self.assertEqual(series.observations[0].value, 101.5)
+        self.assertIn("fredgraph.csv?id=INDPRO", mock_run.call_args[0][0][-1])
 
     @patch("market_helper.data_library.loader.urlopen")
     def test_download_news_feed_parses_rss_items(self, mock_urlopen) -> None:
