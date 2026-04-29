@@ -262,6 +262,7 @@ def build_parser() -> argparse.ArgumentParser:
     )
     regime_input_sync.add_argument("--eq-symbol", default="SPY", help="Yahoo symbol for EQ returns.")
     regime_input_sync.add_argument("--fi-symbol", default="AGG", help="Yahoo symbol for FI returns.")
+    regime_input_sync.add_argument("--vix-symbol", default="^VIX", help="Yahoo symbol for VIX levels.")
     regime_input_sync.add_argument("--move-symbol", default="^MOVE", help="Yahoo symbol for MOVE levels.")
     regime_input_sync.add_argument("--yahoo-period", default="max", help="Yahoo history period.")
     regime_input_sync.add_argument("--yahoo-interval", default="1d", help="Yahoo history interval.")
@@ -274,6 +275,11 @@ def build_parser() -> argparse.ArgumentParser:
         "--fred-api-key",
         default=None,
         help="Optional FRED API key. Falls back to FRED_API_KEY env var or configs/portfolio_monitor/local.env.",
+    )
+    regime_input_sync.add_argument(
+        "--hy-oas-history",
+        default="data/external/regime_detection/hy_oas_history.csv",
+        help="Optional Date/Value CSV used to seed and update long HY OAS history.",
     )
 
     regime_detect = subparsers.add_parser(
@@ -358,6 +364,7 @@ def build_parser() -> argparse.ArgumentParser:
     )
     regime_refresh_report.add_argument("--eq-symbol", default="SPY", help="Yahoo symbol for EQ returns.")
     regime_refresh_report.add_argument("--fi-symbol", default="AGG", help="Yahoo symbol for FI returns.")
+    regime_refresh_report.add_argument("--vix-symbol", default="^VIX", help="Yahoo symbol for VIX levels.")
     regime_refresh_report.add_argument("--move-symbol", default="^MOVE", help="Yahoo symbol for MOVE levels.")
     regime_refresh_report.add_argument("--yahoo-period", default="max", help="Yahoo history period.")
     regime_refresh_report.add_argument("--yahoo-interval", default="1d", help="Yahoo history interval.")
@@ -380,6 +387,11 @@ def build_parser() -> argparse.ArgumentParser:
         "--fred-api-key",
         default=None,
         help="Optional FRED API key. Falls back to FRED_API_KEY env var or configs/portfolio_monitor/local.env.",
+    )
+    regime_refresh_report.add_argument(
+        "--hy-oas-history",
+        default="data/external/regime_detection/hy_oas_history.csv",
+        help="Optional Date/Value CSV used to seed and update long HY OAS history.",
     )
 
     regime_report_multi = subparsers.add_parser(
@@ -601,11 +613,13 @@ def main(argv: Sequence[str] | None = None) -> int:
                 proxy_output_path=Path(args.proxy_output),
                 eq_symbol=args.eq_symbol,
                 fi_symbol=args.fi_symbol,
+                vix_symbol=args.vix_symbol,
                 move_symbol=args.move_symbol,
                 yahoo_period=args.yahoo_period,
                 yahoo_interval=args.yahoo_interval,
                 fred_observation_start=args.fred_observation_start,
                 fred_api_key=args.fred_api_key,
+                hy_oas_history_path=Path(args.hy_oas_history) if args.hy_oas_history else None,
             )
         except (RuntimeError, ValueError) as exc:
             print(f"regime-input-sync: {exc}", file=sys.stderr)
@@ -686,9 +700,11 @@ def main(argv: Sequence[str] | None = None) -> int:
                 fred_api_key=args.fred_api_key,
                 eq_symbol=args.eq_symbol,
                 fi_symbol=args.fi_symbol,
+                vix_symbol=args.vix_symbol,
                 move_symbol=args.move_symbol,
                 yahoo_period=args.yahoo_period,
                 yahoo_interval=args.yahoo_interval,
+                hy_oas_history_path=Path(args.hy_oas_history) if args.hy_oas_history else None,
                 latest_only=bool(args.latest_only),
             )
         except (FileNotFoundError, RuntimeError, ValueError) as exc:

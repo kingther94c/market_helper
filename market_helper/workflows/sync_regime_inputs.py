@@ -3,19 +3,28 @@ from __future__ import annotations
 """Sync online inputs used by the legacy regime rulebook."""
 
 import json
+import csv
+import io
+import shutil
+import subprocess
+import time
 from dataclasses import dataclass
+from datetime import datetime
 from pathlib import Path
 from typing import Mapping
+from urllib.parse import urlencode
 
 import pandas as pd
 
-from market_helper.data_library.loader import download_fred_series
+from market_helper.data_library.loader import DownloadError, download_csv, download_fred_series
 from market_helper.data_sources.yahoo_finance import YahooFinanceClient
 from market_helper.workflows.sync_fred_macro_panel import _resolve_fred_api_key
 
 
 DEFAULT_REGIME_RETURNS_PATH = Path("data/processed/regime_returns.json")
 DEFAULT_REGIME_PROXY_PATH = Path("data/processed/regime_proxies.json")
+DEFAULT_FRED_OBSERVATION_START = "2000-01-01"
+DEFAULT_HY_OAS_HISTORY_PATH = Path("data/external/regime_detection/hy_oas_history.csv")
 
 
 @dataclass(frozen=True)
@@ -30,11 +39,13 @@ def sync_regime_inputs(
     proxy_output_path: str | Path = DEFAULT_REGIME_PROXY_PATH,
     eq_symbol: str = "SPY",
     fi_symbol: str = "AGG",
+    vix_symbol: str = "^VIX",
     move_symbol: str = "^MOVE",
     yahoo_period: str = "max",
     yahoo_interval: str = "1d",
-    fred_observation_start: str | None = None,
+    fred_observation_start: str | None = DEFAULT_FRED_OBSERVATION_START,
     fred_api_key: str | None = None,
+    hy_oas_history_path: str | Path | None = DEFAULT_HY_OAS_HISTORY_PATH,
     yahoo_client: YahooFinanceClient | None = None,
 ) -> RegimeInputSyncResult:
     """Fetch and write processed JSON inputs for ``legacy_rulebook``.
@@ -65,11 +76,25 @@ def sync_regime_inputs(
             interval=yahoo_interval,
         ),
     }
+    hy_oas = _fred_series_dict(
+        "BAMLH0A0HYM2",
+        api_key=resolved_fred_key,
+        observation_start=fred_observation_start,
+    )
+    if hy_oas_history_path is not None:
+        hy_oas_seed_path = Path(hy_oas_history_path)
+        hy_oas = _merge_series_dicts(
+            _load_date_value_csv(hy_oas_seed_path),
+            hy_oas,
+        )
+        _write_date_value_csv_with_backup(hy_oas_seed_path, hy_oas)
+
     proxy_payload = {
-        "VIX": _fred_series_dict(
-            "VIXCLS",
-            api_key=resolved_fred_key,
-            observation_start=fred_observation_start,
+        "VIX": _yahoo_levels(
+            yahoo,
+            vix_symbol,
+            period=yahoo_period,
+            interval=yahoo_interval,
         ),
         "MOVE": _yahoo_levels(
             yahoo,
@@ -77,11 +102,7 @@ def sync_regime_inputs(
             period=yahoo_period,
             interval=yahoo_interval,
         ),
-        "HY_OAS": _fred_series_dict(
-            "BAMLH0A0HYM2",
-            api_key=resolved_fred_key,
-            observation_start=fred_observation_start,
-        ),
+        "HY_OAS": hy_oas,
         "UST2Y": _fred_series_dict(
             "DGS2",
             api_key=resolved_fred_key,
@@ -177,15 +198,74 @@ def _fred_series_dict(
     api_key: str,
     observation_start: str | None,
 ) -> dict[str, float]:
-    series = download_fred_series(
-        series_id=series_id,
-        api_key=api_key,
-        observation_start=observation_start,
+    try:
+        return _fred_csv_series_dict(series_id, observation_start=observation_start)
+    except (DownloadError, ValueError):
+        pass
+
+    attempts = 3
+    last_error: Exception | None = None
+    for attempt in range(1, attempts + 1):
+        try:
+            series = download_fred_series(
+                series_id=series_id,
+                api_key=api_key,
+                observation_start=observation_start,
+            )
+            return {
+                obs.date: float(obs.value)
+                for obs in series.observations
+            }
+        except (DownloadError, TimeoutError, OSError) as exc:
+            last_error = exc
+            if attempt >= attempts:
+                break
+            time.sleep(float(attempt))
+    raise RuntimeError(
+        f"FRED download failed for {series_id} after CSV fallback and "
+        f"{attempts} API attempts. Last API error: {last_error}"
     )
+
+
+def _fred_csv_series_dict(
+    series_id: str,
+    *,
+    observation_start: str | None,
+) -> dict[str, float]:
+    rows = _download_fred_csv_rows(series_id)
+    out: dict[str, float] = {}
+    for row in rows:
+        as_of = row.get("observation_date") or row.get("DATE") or row.get("date")
+        raw_value = row.get(series_id)
+        if not as_of or raw_value in (None, "", "."):
+            continue
+        if observation_start is not None and str(as_of) < str(observation_start):
+            continue
+        out[str(as_of)] = float(raw_value)
+    if not out:
+        raise ValueError(f"FRED CSV fallback returned no usable rows for {series_id}")
     return {
-        obs.date: float(obs.value)
-        for obs in series.observations
+        date: out[date]
+        for date in sorted(out)
     }
+
+
+def _download_fred_csv_rows(series_id: str) -> list[dict[str, str]]:
+    url = "https://fred.stlouisfed.org/graph/fredgraph.csv?" + urlencode({"id": series_id})
+    try:
+        result = subprocess.run(
+            ["curl", "-L", "--max-time", "30", "-sS", url],
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+        return list(csv.DictReader(io.StringIO(result.stdout)))
+    except (FileNotFoundError, subprocess.CalledProcessError):
+        return download_csv(
+            "https://fred.stlouisfed.org/graph/fredgraph.csv",
+            params={"id": series_id},
+            timeout=30,
+        )
 
 
 def _series_to_json_dict(series: pd.Series) -> dict[str, float]:
@@ -197,9 +277,54 @@ def _series_to_json_dict(series: pd.Series) -> dict[str, float]:
     return out
 
 
+def _load_date_value_csv(path: Path) -> dict[str, float]:
+    if not path.exists():
+        return {}
+    frame = pd.read_csv(path, encoding="utf-8-sig")
+    if not {"Date", "Value"}.issubset(frame.columns):
+        raise ValueError(f"{path} must have Date and Value columns")
+    frame["Date"] = pd.to_datetime(frame["Date"], errors="coerce")
+    frame["Value"] = pd.to_numeric(frame["Value"], errors="coerce")
+    if frame["Date"].isna().any() or frame["Value"].isna().any():
+        raise ValueError(f"{path} contains invalid Date or Value rows")
+    frame = frame.sort_values("Date").drop_duplicates("Date", keep="last")
+    return {
+        row.Date.date().isoformat(): float(row.Value)
+        for row in frame.itertuples(index=False)
+    }
+
+
+def _write_date_value_csv_with_backup(path: Path, values: Mapping[str, float]) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    if path.exists():
+        backup_path = path.with_suffix(
+            path.suffix + f".bak-{datetime.now().strftime('%Y%m%dT%H%M%S')}"
+        )
+        shutil.copy2(path, backup_path)
+    rows = [
+        {"Date": date, "Value": float(values[date])}
+        for date in sorted(values)
+    ]
+    pd.DataFrame(rows).to_csv(path, index=False)
+
+
+def _merge_series_dicts(
+    base: Mapping[str, float],
+    override: Mapping[str, float],
+) -> dict[str, float]:
+    merged = {str(k): float(v) for k, v in base.items()}
+    merged.update({str(k): float(v) for k, v in override.items()})
+    return {
+        date: merged[date]
+        for date in sorted(merged)
+    }
+
+
 __all__ = [
     "DEFAULT_REGIME_PROXY_PATH",
     "DEFAULT_REGIME_RETURNS_PATH",
+    "DEFAULT_FRED_OBSERVATION_START",
+    "DEFAULT_HY_OAS_HISTORY_PATH",
     "RegimeInputSyncResult",
     "sync_regime_inputs",
 ]
