@@ -54,6 +54,7 @@ def _request_bytes(
     timeout: int = DEFAULT_TIMEOUT,
 ) -> bytes:
     request_url = build_url(url, params)
+    safe_request_url = _redact_url_secrets(request_url)
     merged_headers = dict(DEFAULT_HEADERS)
     if headers:
         merged_headers.update(headers)
@@ -66,7 +67,7 @@ def _request_bytes(
         message = exc.read().decode("utf-8", errors="replace")
         raise DownloadError(
             "HTTP error while requesting {url}: {status} {reason}. {message}".format(
-                url=request_url,
+                url=safe_request_url,
                 status=exc.code,
                 reason=exc.reason,
                 message=message.strip(),
@@ -75,10 +76,18 @@ def _request_bytes(
     except URLError as exc:
         raise DownloadError(
             "Network error while requesting {url}: {reason}".format(
-                url=request_url,
+                url=safe_request_url,
                 reason=exc.reason,
             )
         ) from exc
+    except TimeoutError as exc:
+        raise DownloadError(
+            "Timeout while requesting {url}".format(url=safe_request_url)
+        ) from exc
+
+
+def _redact_url_secrets(url: str) -> str:
+    return re.sub(r"([?&]api_key=)[^&]+", r"\1<redacted>", url)
 
 
 def download_text(

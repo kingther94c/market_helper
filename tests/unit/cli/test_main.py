@@ -420,10 +420,14 @@ def test_cli_regime_input_sync_dispatches_to_workflow(monkeypatch, tmp_path) -> 
             "ACWI",
             "--fi-symbol",
             "AGG",
+            "--vix-symbol",
+            "^VIX",
             "--move-symbol",
             "^MOVE",
             "--fred-api-key",
             "test-key",
+            "--hy-oas-history",
+            str(tmp_path / "hy_oas_history.csv"),
         ]
     )
 
@@ -431,7 +435,9 @@ def test_cli_regime_input_sync_dispatches_to_workflow(monkeypatch, tmp_path) -> 
     assert str(captured["returns_output_path"]).endswith("regime_returns.json")
     assert str(captured["proxy_output_path"]).endswith("regime_proxies.json")
     assert captured["eq_symbol"] == "ACWI"
+    assert captured["vix_symbol"] == "^VIX"
     assert captured["fred_api_key"] == "test-key"
+    assert str(captured["hy_oas_history_path"]).endswith("hy_oas_history.csv")
 
 
 def test_cli_regime_run_report_dispatches_to_existing_data_workflow(monkeypatch, tmp_path) -> None:
@@ -506,8 +512,12 @@ def test_cli_regime_refresh_report_dispatches_to_refresh_workflow(monkeypatch, t
             "SPY",
             "--fi-symbol",
             "AGG",
+            "--vix-symbol",
+            "^VIX",
             "--fred-api-key",
             "test-key",
+            "--hy-oas-history",
+            str(tmp_path / "hy_oas_history.csv"),
         ]
     )
 
@@ -515,7 +525,9 @@ def test_cli_regime_refresh_report_dispatches_to_refresh_workflow(monkeypatch, t
     assert captured["methods"] == ["all"]
     assert captured["max_age_days"] == 7
     assert captured["force_refresh"] is True
+    assert captured["vix_symbol"] == "^VIX"
     assert captured["fred_api_key"] == "test-key"
+    assert str(captured["hy_oas_history_path"]).endswith("hy_oas_history.csv")
 
 
 def test_cli_etf_sector_sync_dispatches_to_workflow(monkeypatch, tmp_path) -> None:

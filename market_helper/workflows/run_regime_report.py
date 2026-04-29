@@ -15,6 +15,7 @@ from market_helper.workflows.generate_multi_method_regime import (
 from market_helper.workflows.generate_regime_html import generate_regime_html_report
 from market_helper.workflows.sync_fred_macro_panel import run_fred_macro_sync
 from market_helper.workflows.sync_regime_inputs import (
+    DEFAULT_HY_OAS_HISTORY_PATH,
     DEFAULT_REGIME_PROXY_PATH,
     DEFAULT_REGIME_RETURNS_PATH,
     sync_regime_inputs,
@@ -96,11 +97,13 @@ def refresh_data_and_run_regime_report(
     output_html_path: str | Path = DEFAULT_REGIME_HTML_PATH,
     policy_path: str | Path | None = None,
     fred_observation_start: str | None = None,
+    hy_oas_history_path: str | Path | None = DEFAULT_HY_OAS_HISTORY_PATH,
     macro_start_date: str | None = None,
     macro_end_date: str | None = None,
     fred_api_key: str | None = None,
     eq_symbol: str = "SPY",
     fi_symbol: str = "AGG",
+    vix_symbol: str = "^VIX",
     move_symbol: str = "^MOVE",
     yahoo_period: str = "max",
     yahoo_interval: str = "1d",
@@ -131,11 +134,13 @@ def refresh_data_and_run_regime_report(
             proxy_output_path=proxy,
             eq_symbol=eq_symbol,
             fi_symbol=fi_symbol,
+            vix_symbol=vix_symbol,
             move_symbol=move_symbol,
             yahoo_period=yahoo_period,
             yahoo_interval=yahoo_interval,
             fred_observation_start=fred_observation_start,
             fred_api_key=fred_api_key,
+            hy_oas_history_path=hy_oas_history_path,
         )
         refreshed_inputs = True
 
