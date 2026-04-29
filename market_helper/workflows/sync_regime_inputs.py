@@ -3,20 +3,20 @@ from __future__ import annotations
 """Sync online inputs used by the legacy regime rulebook."""
 
 import json
-import csv
-import io
 import shutil
-import subprocess
 import time
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
 from typing import Mapping
-from urllib.parse import urlencode
 
 import pandas as pd
 
-from market_helper.data_library.loader import DownloadError, download_csv, download_fred_series
+from market_helper.data_library.loader import (
+    DownloadError,
+    download_fred_series,
+    download_fred_series_csv,
+)
 from market_helper.data_sources.yahoo_finance import YahooFinanceClient
 from market_helper.workflows.sync_fred_macro_panel import _resolve_fred_api_key
 
@@ -199,7 +199,14 @@ def _fred_series_dict(
     observation_start: str | None,
 ) -> dict[str, float]:
     try:
-        return _fred_csv_series_dict(series_id, observation_start=observation_start)
+        series = download_fred_series_csv(
+            series_id,
+            observation_start=observation_start,
+        )
+        return {
+            obs.date: float(obs.value)
+            for obs in series.observations
+        }
     except (DownloadError, ValueError):
         pass
 
@@ -225,47 +232,6 @@ def _fred_series_dict(
         f"FRED download failed for {series_id} after CSV fallback and "
         f"{attempts} API attempts. Last API error: {last_error}"
     )
-
-
-def _fred_csv_series_dict(
-    series_id: str,
-    *,
-    observation_start: str | None,
-) -> dict[str, float]:
-    rows = _download_fred_csv_rows(series_id)
-    out: dict[str, float] = {}
-    for row in rows:
-        as_of = row.get("observation_date") or row.get("DATE") or row.get("date")
-        raw_value = row.get(series_id)
-        if not as_of or raw_value in (None, "", "."):
-            continue
-        if observation_start is not None and str(as_of) < str(observation_start):
-            continue
-        out[str(as_of)] = float(raw_value)
-    if not out:
-        raise ValueError(f"FRED CSV fallback returned no usable rows for {series_id}")
-    return {
-        date: out[date]
-        for date in sorted(out)
-    }
-
-
-def _download_fred_csv_rows(series_id: str) -> list[dict[str, str]]:
-    url = "https://fred.stlouisfed.org/graph/fredgraph.csv?" + urlencode({"id": series_id})
-    try:
-        result = subprocess.run(
-            ["curl", "-L", "--max-time", "30", "-sS", url],
-            check=True,
-            capture_output=True,
-            text=True,
-        )
-        return list(csv.DictReader(io.StringIO(result.stdout)))
-    except (FileNotFoundError, subprocess.CalledProcessError):
-        return download_csv(
-            "https://fred.stlouisfed.org/graph/fredgraph.csv",
-            params={"id": series_id},
-            timeout=30,
-        )
 
 
 def _series_to_json_dict(series: pd.Series) -> dict[str, float]:

@@ -17,6 +17,7 @@ data/artifacts/portfolio_monitor/target_report.xlsx
 data/artifacts/portfolio_monitor/target_report_mapping.json
 data/backups/**
 data/external/regime_detection/*.bak-*
+data/interim/fred/**
 data/processed/*.json
 notebooks/dev_lab/**
 !notebooks/dev_lab/.gitkeep
