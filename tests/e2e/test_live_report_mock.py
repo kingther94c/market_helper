@@ -142,6 +142,10 @@ def test_cli_live_report_mock_e2e_matches_expected_csv(monkeypatch, tmp_path) ->
         "market_helper.workflows.generate_report.TwsIbAsyncClient",
         FakeTwsIbAsyncClient,
     )
+    monkeypatch.setattr(
+        "market_helper.domain.portfolio_monitor.pipelines.generate_portfolio_report._load_artifact_mirror_dir",
+        lambda config_path=None: None,
+    )
 
     output_path = tmp_path / "outputs" / "live_ibkr_position_report.csv"
 
