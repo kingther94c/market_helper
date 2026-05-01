@@ -602,22 +602,22 @@ def test_load_regime_summary_accepts_multi_method_payload(tmp_path: Path) -> Non
                         "diagnostics": {
                             "method_agreement": 0.5,
                             "per_method_quadrant": {
-                                "macro_rules": "Goldilocks",
-                                "legacy_rulebook": "Reflation",
+                                "macro_regime": "Goldilocks",
+                                "market_regime": "Reflation",
                             },
                         },
                     },
                     "per_method": {
-                        "legacy_rulebook": {
+                        "market_regime": {
                             "as_of": "2026-03-26",
-                            "method_name": "legacy_rulebook",
+                            "method_name": "market_regime",
                             "quadrant": {"quadrant": "Reflation"},
-                            "native_label": "Recovery Pivot",
+                            "native_label": "Reflation / neutral",
                             "native_detail": {},
                         },
-                        "macro_rules": {
+                        "macro_regime": {
                             "as_of": "2026-03-26",
-                            "method_name": "macro_rules",
+                            "method_name": "macro_regime",
                             "quadrant": {"quadrant": "Goldilocks"},
                             "native_label": "Goldilocks",
                             "native_detail": {},
@@ -639,14 +639,14 @@ def test_load_regime_summary_accepts_multi_method_payload(tmp_path: Path) -> Non
     assert summary.crisis_intensity == 0.0
     assert summary.per_method == [
         {
-            "method": "legacy_rulebook",
-            "quadrant": "Reflation",
-            "native_label": "Recovery Pivot",
-        },
-        {
-            "method": "macro_rules",
+            "method": "macro_regime",
             "quadrant": "Goldilocks",
             "native_label": "Goldilocks",
+        },
+        {
+            "method": "market_regime",
+            "quadrant": "Reflation",
+            "native_label": "Reflation / neutral",
         },
     ]
 
@@ -655,7 +655,7 @@ def test_load_regime_summary_accepts_multi_method_payload(tmp_path: Path) -> Non
     )
     assert "Goldilocks" in html
     assert "Agreement" in html
-    assert "legacy_rulebook" in html
+    assert "market_regime" in html
     assert "Unknown" not in html
 
 

@@ -48,7 +48,7 @@ def sync_regime_inputs(
     hy_oas_history_path: str | Path | None = DEFAULT_HY_OAS_HISTORY_PATH,
     yahoo_client: YahooFinanceClient | None = None,
 ) -> RegimeInputSyncResult:
-    """Fetch and write processed JSON inputs for ``legacy_rulebook``.
+    """Deprecated: fetch and write processed JSON inputs for old rulebook flows.
 
     Returns:
       - returns JSON with ``EQ`` and ``FI`` daily returns from Yahoo prices.

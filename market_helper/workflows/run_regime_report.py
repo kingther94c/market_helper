@@ -8,35 +8,36 @@ from pathlib import Path
 from typing import Sequence
 
 from market_helper.data_sources.fred.macro_panel import DEFAULT_PANEL_FILENAME
+from market_helper.data_sources.yahoo_finance.market_panel import (
+    DEFAULT_MARKET_CACHE_DIR,
+    DEFAULT_MARKET_PANEL_FILENAME,
+)
 from market_helper.workflows.generate_multi_method_regime import (
     ALL_METHODS,
     run_multi_method_detection,
 )
 from market_helper.workflows.generate_regime_html import generate_regime_html_report
 from market_helper.workflows.sync_fred_macro_panel import run_fred_macro_sync
-from market_helper.workflows.sync_regime_inputs import (
-    DEFAULT_HY_OAS_HISTORY_PATH,
-    DEFAULT_REGIME_PROXY_PATH,
-    DEFAULT_REGIME_RETURNS_PATH,
-    sync_regime_inputs,
-)
+from market_helper.workflows.sync_market_regime_panel import run_market_regime_sync
 
 
-DEFAULT_REGIME_ARTIFACT_PATH = Path("data/artifacts/regime_detection/regime_multi_snapshots.json")
+DEFAULT_REGIME_ARTIFACT_PATH = Path("data/artifacts/regime_detection/regime_snapshots.json")
 DEFAULT_REGIME_HTML_PATH = Path("data/artifacts/regime_detection/regime_report.html")
 DEFAULT_FRED_CACHE_DIR = Path("data/interim/fred")
 DEFAULT_FRED_SERIES_CONFIG = Path("configs/regime_detection/fred_series.yml")
 DEFAULT_FRED_SERIES_EXAMPLE_CONFIG = Path("configs/regime_detection/fred_series.example.yml")
+DEFAULT_MARKET_REGIME_CONFIG = Path("configs/regime_detection/market_regime.yml")
+DEFAULT_MARKET_REGIME_EXAMPLE_CONFIG = Path("configs/regime_detection/market_regime.example.yml")
 
 
 @dataclass(frozen=True)
 class RegimeReportRunResult:
     regime_path: Path
     html_path: Path
-    returns_path: Path
-    proxy_path: Path
     macro_panel_path: Path
-    refreshed_inputs: bool = False
+    market_panel_path: Path
+    market_config_path: Path
+    refreshed_market_panel: bool = False
     refreshed_macro_panel: bool = False
 
 
@@ -45,8 +46,8 @@ def run_regime_report_from_existing_data(
     methods: Sequence[str] = ALL_METHODS,
     macro_panel_path: str | Path | None = None,
     fred_series_config: str | Path | None = None,
-    returns_path: str | Path = DEFAULT_REGIME_RETURNS_PATH,
-    proxy_path: str | Path = DEFAULT_REGIME_PROXY_PATH,
+    market_panel_path: str | Path | None = None,
+    market_regime_config: str | Path | None = None,
     output_regime_path: str | Path = DEFAULT_REGIME_ARTIFACT_PATH,
     output_html_path: str | Path = DEFAULT_REGIME_HTML_PATH,
     policy_path: str | Path | None = None,
@@ -55,17 +56,21 @@ def run_regime_report_from_existing_data(
     """Run regime detection + HTML from already-synced local inputs."""
     resolved_config = _resolve_fred_series_config(fred_series_config)
     resolved_macro_panel = Path(macro_panel_path) if macro_panel_path else DEFAULT_FRED_CACHE_DIR / DEFAULT_PANEL_FILENAME
+    resolved_market_config = _resolve_market_regime_config(market_regime_config)
+    resolved_market_panel = (
+        Path(market_panel_path)
+        if market_panel_path
+        else DEFAULT_MARKET_CACHE_DIR / DEFAULT_MARKET_PANEL_FILENAME
+    )
     output_regime = Path(output_regime_path)
     output_html = Path(output_html_path)
-    returns = Path(returns_path)
-    proxy = Path(proxy_path)
 
     run_multi_method_detection(
         methods=methods,
         macro_panel_path=resolved_macro_panel,
         fred_series_config=resolved_config,
-        returns_path=returns,
-        proxy_path=proxy,
+        market_panel_path=resolved_market_panel,
+        market_regime_config=resolved_market_config,
         output_path=output_regime,
         latest_only=latest_only,
     )
@@ -77,9 +82,9 @@ def run_regime_report_from_existing_data(
     return RegimeReportRunResult(
         regime_path=output_regime,
         html_path=output_html,
-        returns_path=returns,
-        proxy_path=proxy,
         macro_panel_path=resolved_macro_panel,
+        market_panel_path=resolved_market_panel,
+        market_config_path=resolved_market_config,
     )
 
 
@@ -91,20 +96,18 @@ def refresh_data_and_run_regime_report(
     macro_panel_path: str | Path | None = None,
     fred_cache_dir: str | Path = DEFAULT_FRED_CACHE_DIR,
     fred_series_config: str | Path | None = None,
-    returns_path: str | Path = DEFAULT_REGIME_RETURNS_PATH,
-    proxy_path: str | Path = DEFAULT_REGIME_PROXY_PATH,
+    market_panel_path: str | Path | None = None,
+    market_cache_dir: str | Path = DEFAULT_MARKET_CACHE_DIR,
+    market_regime_config: str | Path | None = None,
     output_regime_path: str | Path = DEFAULT_REGIME_ARTIFACT_PATH,
     output_html_path: str | Path = DEFAULT_REGIME_HTML_PATH,
     policy_path: str | Path | None = None,
     fred_observation_start: str | None = None,
-    hy_oas_history_path: str | Path | None = DEFAULT_HY_OAS_HISTORY_PATH,
     macro_start_date: str | None = None,
     macro_end_date: str | None = None,
+    market_start_date: str | None = None,
+    market_end_date: str | None = None,
     fred_api_key: str | None = None,
-    eq_symbol: str = "SPY",
-    fi_symbol: str = "AGG",
-    vix_symbol: str = "^VIX",
-    move_symbol: str = "^MOVE",
     yahoo_period: str = "max",
     yahoo_interval: str = "1d",
     latest_only: bool = False,
@@ -112,6 +115,7 @@ def refresh_data_and_run_regime_report(
     """Refresh stale online inputs, then run regime detection + HTML."""
     enabled = _normalize_methods(methods)
     resolved_config = _resolve_fred_series_config(fred_series_config)
+    resolved_market_config = _resolve_market_regime_config(market_regime_config)
     if macro_panel_path is not None:
         resolved_macro_panel = Path(macro_panel_path)
         if resolved_macro_panel.name != DEFAULT_PANEL_FILENAME:
@@ -122,30 +126,19 @@ def refresh_data_and_run_regime_report(
     else:
         cache_dir = Path(fred_cache_dir)
         resolved_macro_panel = cache_dir / DEFAULT_PANEL_FILENAME
-    returns = Path(returns_path)
-    proxy = Path(proxy_path)
-
-    refreshed_inputs = False
-    if "legacy_rulebook" in enabled and (
-        force_refresh or not _all_fresh([returns, proxy], max_age_days=max_age_days)
-    ):
-        sync_regime_inputs(
-            returns_output_path=returns,
-            proxy_output_path=proxy,
-            eq_symbol=eq_symbol,
-            fi_symbol=fi_symbol,
-            vix_symbol=vix_symbol,
-            move_symbol=move_symbol,
-            yahoo_period=yahoo_period,
-            yahoo_interval=yahoo_interval,
-            fred_observation_start=fred_observation_start,
-            fred_api_key=fred_api_key,
-            hy_oas_history_path=hy_oas_history_path,
-        )
-        refreshed_inputs = True
+    if market_panel_path is not None:
+        resolved_market_panel = Path(market_panel_path)
+        if resolved_market_panel.name != DEFAULT_MARKET_PANEL_FILENAME:
+            raise ValueError(
+                f"refresh mode requires --market-panel to be named {DEFAULT_MARKET_PANEL_FILENAME!r}"
+            )
+        market_cache = resolved_market_panel.parent
+    else:
+        market_cache = Path(market_cache_dir)
+        resolved_market_panel = market_cache / DEFAULT_MARKET_PANEL_FILENAME
 
     refreshed_macro_panel = False
-    if "macro_rules" in enabled and (
+    if "macro_regime" in enabled and (
         force_refresh or not _all_fresh([resolved_macro_panel], max_age_days=max_age_days)
     ):
         run_fred_macro_sync(
@@ -159,12 +152,26 @@ def refresh_data_and_run_regime_report(
         )
         refreshed_macro_panel = True
 
+    refreshed_market_panel = False
+    if "market_regime" in enabled and (
+        force_refresh or not _all_fresh([resolved_market_panel], max_age_days=max_age_days)
+    ):
+        run_market_regime_sync(
+            config_path=resolved_market_config,
+            cache_dir=market_cache,
+            period=yahoo_period,
+            interval=yahoo_interval,
+            start_date=market_start_date,
+            end_date=market_end_date,
+        )
+        refreshed_market_panel = True
+
     result = run_regime_report_from_existing_data(
         methods=tuple(enabled),
         macro_panel_path=resolved_macro_panel,
         fred_series_config=resolved_config,
-        returns_path=returns,
-        proxy_path=proxy,
+        market_panel_path=resolved_market_panel,
+        market_regime_config=resolved_market_config,
         output_regime_path=output_regime_path,
         output_html_path=output_html_path,
         policy_path=policy_path,
@@ -173,10 +180,10 @@ def refresh_data_and_run_regime_report(
     return RegimeReportRunResult(
         regime_path=result.regime_path,
         html_path=result.html_path,
-        returns_path=returns,
-        proxy_path=proxy,
         macro_panel_path=resolved_macro_panel,
-        refreshed_inputs=refreshed_inputs,
+        market_panel_path=resolved_market_panel,
+        market_config_path=resolved_market_config,
+        refreshed_market_panel=refreshed_market_panel,
         refreshed_macro_panel=refreshed_macro_panel,
     )
 
@@ -187,6 +194,14 @@ def _resolve_fred_series_config(path: str | Path | None) -> Path:
     if DEFAULT_FRED_SERIES_CONFIG.exists():
         return DEFAULT_FRED_SERIES_CONFIG
     return DEFAULT_FRED_SERIES_EXAMPLE_CONFIG
+
+
+def _resolve_market_regime_config(path: str | Path | None) -> Path:
+    if path is not None:
+        return Path(path)
+    if DEFAULT_MARKET_REGIME_CONFIG.exists():
+        return DEFAULT_MARKET_REGIME_CONFIG
+    return DEFAULT_MARKET_REGIME_EXAMPLE_CONFIG
 
 
 def _normalize_methods(methods: Sequence[str]) -> tuple[str, ...]:
@@ -209,6 +224,8 @@ def _all_fresh(paths: Sequence[Path], *, max_age_days: int) -> bool:
 __all__ = [
     "DEFAULT_FRED_CACHE_DIR",
     "DEFAULT_FRED_SERIES_CONFIG",
+    "DEFAULT_MARKET_CACHE_DIR",
+    "DEFAULT_MARKET_REGIME_CONFIG",
     "DEFAULT_REGIME_ARTIFACT_PATH",
     "DEFAULT_REGIME_HTML_PATH",
     "RegimeReportRunResult",

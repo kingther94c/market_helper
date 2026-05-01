@@ -11,7 +11,7 @@ which methods actually voted.
 """
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any, Dict, List, Mapping, Sequence
 
 import pandas as pd
@@ -19,26 +19,25 @@ import pandas as pd
 from market_helper.regimes.axes import QuadrantSnapshot
 from market_helper.regimes.ensemble import EnsembleConfig, aggregate
 from market_helper.regimes.methods.base import MethodResult
-from market_helper.regimes.methods.legacy_rulebook import (
-    LegacyRulebookConfig,
-    LegacyRulebookMethod,
+from market_helper.regimes.methods.macro_regime import (
+    MacroRegimeConfig,
+    MacroRegimeMethod,
 )
-from market_helper.regimes.methods.macro_rules import (
-    MacroRulesConfig,
-    MacroRulesMethod,
+from market_helper.regimes.methods.market_regime import (
+    MarketRegimeConfig,
+    MarketRegimeMethod,
 )
 from market_helper.regimes.models import MultiMethodRegimeSnapshot
-from market_helper.regimes.sources import RegimeInputBundle
 from market_helper.data_sources.fred.macro_panel import SeriesSpec
 
 
 @dataclass(frozen=True)
 class MultiMethodConfig:
-    enable_macro_rules: bool = True
-    enable_legacy_rulebook: bool = True
-    macro_rules: MacroRulesConfig = MacroRulesConfig()
-    legacy_rulebook: LegacyRulebookConfig = LegacyRulebookConfig()
-    ensemble: EnsembleConfig = EnsembleConfig()
+    enable_macro_regime: bool = True
+    enable_market_regime: bool = True
+    macro_regime: MacroRegimeConfig = field(default_factory=MacroRegimeConfig)
+    market_regime: MarketRegimeConfig | None = None
+    ensemble: EnsembleConfig = field(default_factory=EnsembleConfig)
 
 
 def run_multi_method(
@@ -46,7 +45,7 @@ def run_multi_method(
     config: MultiMethodConfig | None = None,
     macro_panel: pd.DataFrame | None = None,
     macro_specs: Sequence[SeriesSpec] | None = None,
-    market_bundle: RegimeInputBundle | None = None,
+    market_panel: pd.DataFrame | None = None,
     source_info: Mapping[str, Any] | None = None,
 ) -> List[MultiMethodRegimeSnapshot]:
     """Run enabled methods and ensemble-aggregate into dated snapshots.
@@ -59,32 +58,32 @@ def run_multi_method(
     per_method: Dict[str, List[MethodResult]] = {}
     manifest: Dict[str, Any] = {"methods": {}}
 
-    if cfg.enable_macro_rules:
+    if cfg.enable_macro_regime:
         if macro_panel is None or macro_specs is None:
-            manifest["methods"]["macro_rules"] = {
+            manifest["methods"]["macro_regime"] = {
                 "status": "skipped",
                 "reason": "macro_panel or macro_specs not provided",
             }
         else:
-            method = MacroRulesMethod(list(macro_specs), config=cfg.macro_rules)
+            method = MacroRegimeMethod(list(macro_specs), config=cfg.macro_regime)
             results = method.classify(macro_panel)
             per_method[method.name] = results
-            manifest["methods"]["macro_rules"] = {
+            manifest["methods"]["macro_regime"] = {
                 "status": "ok",
                 "n_results": len(results),
             }
 
-    if cfg.enable_legacy_rulebook:
-        if market_bundle is None:
-            manifest["methods"]["legacy_rulebook"] = {
+    if cfg.enable_market_regime:
+        if market_panel is None or cfg.market_regime is None:
+            manifest["methods"]["market_regime"] = {
                 "status": "skipped",
-                "reason": "market_bundle not provided",
+                "reason": "market_panel or market config not provided",
             }
         else:
-            method = LegacyRulebookMethod(cfg.legacy_rulebook)
-            results = method.classify(market_bundle)
+            method = MarketRegimeMethod(cfg.market_regime)
+            results = method.classify(market_panel)
             per_method[method.name] = results
-            manifest["methods"]["legacy_rulebook"] = {
+            manifest["methods"]["market_regime"] = {
                 "status": "ok",
                 "n_results": len(results),
             }

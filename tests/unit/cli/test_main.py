@@ -460,11 +460,11 @@ def test_cli_regime_run_report_dispatches_to_existing_data_workflow(monkeypatch,
         [
             "regime-run-report",
             "--methods",
-            "macro_rules",
-            "--returns",
-            str(tmp_path / "returns.json"),
-            "--proxy",
-            str(tmp_path / "proxy.json"),
+            "macro_regime",
+            "--market-panel",
+            str(tmp_path / "market_panel.feather"),
+            "--market-regime-config",
+            str(tmp_path / "market_regime.yml"),
             "--output-regime",
             str(tmp_path / "regime_multi.json"),
             "--output-html",
@@ -473,9 +473,9 @@ def test_cli_regime_run_report_dispatches_to_existing_data_workflow(monkeypatch,
     )
 
     assert exit_code == 0
-    assert captured["methods"] == ["macro_rules"]
-    assert str(captured["returns_path"]).endswith("returns.json")
-    assert str(captured["proxy_path"]).endswith("proxy.json")
+    assert captured["methods"] == ["macro_regime"]
+    assert str(captured["market_panel_path"]).endswith("market_panel.feather")
+    assert str(captured["market_regime_config"]).endswith("market_regime.yml")
     assert str(captured["output_html_path"]).endswith("regime_report.html")
 
 
@@ -483,13 +483,13 @@ def test_cli_regime_refresh_report_dispatches_to_refresh_workflow(monkeypatch, t
     captured: dict[str, object] = {}
 
     class Result:
-        returns_path = tmp_path / "returns.json"
-        proxy_path = tmp_path / "proxy.json"
         macro_panel_path = tmp_path / "macro_panel.feather"
+        market_panel_path = tmp_path / "market_panel.feather"
+        market_config_path = tmp_path / "market_regime.yml"
         regime_path = tmp_path / "regime_multi.json"
         html_path = tmp_path / "regime_report.html"
-        refreshed_inputs = True
         refreshed_macro_panel = False
+        refreshed_market_panel = True
 
     def fake_refresh_data_and_run_regime_report(**kwargs):
         captured.update(kwargs)
@@ -508,16 +508,10 @@ def test_cli_regime_refresh_report_dispatches_to_refresh_workflow(monkeypatch, t
             "--max-age-days",
             "7",
             "--force-refresh",
-            "--eq-symbol",
-            "SPY",
-            "--fi-symbol",
-            "AGG",
-            "--vix-symbol",
-            "^VIX",
+            "--market-regime-config",
+            str(tmp_path / "market_regime.yml"),
             "--fred-api-key",
             "test-key",
-            "--hy-oas-history",
-            str(tmp_path / "hy_oas_history.csv"),
         ]
     )
 
@@ -525,9 +519,8 @@ def test_cli_regime_refresh_report_dispatches_to_refresh_workflow(monkeypatch, t
     assert captured["methods"] == ["all"]
     assert captured["max_age_days"] == 7
     assert captured["force_refresh"] is True
-    assert captured["vix_symbol"] == "^VIX"
+    assert str(captured["market_regime_config"]).endswith("market_regime.yml")
     assert captured["fred_api_key"] == "test-key"
-    assert str(captured["hy_oas_history_path"]).endswith("hy_oas_history.csv")
 
 
 def test_cli_etf_sector_sync_dispatches_to_workflow(monkeypatch, tmp_path) -> None:

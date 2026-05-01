@@ -55,9 +55,9 @@ def _write_multi_payload(path: Path) -> None:
                         "diagnostics": {"method_agreement": 0.5},
                     },
                     "per_method": {
-                        "legacy_rulebook": {
+                        "market_regime": {
                             "as_of": "2026-01-03",
-                            "method_name": "legacy_rulebook",
+                            "method_name": "market_regime",
                             "quadrant": {
                                 "as_of": "2026-01-03",
                                 "quadrant": "Reflation",
@@ -71,12 +71,12 @@ def _write_multi_payload(path: Path) -> None:
                                 "duration_days": 2,
                                 "diagnostics": {},
                             },
-                            "native_label": "Recovery Pivot",
+                            "native_label": "Reflation / neutral",
                             "native_detail": {},
                         },
-                        "macro_rules": {
+                        "macro_regime": {
                             "as_of": "2026-01-03",
-                            "method_name": "macro_rules",
+                            "method_name": "macro_regime",
                             "quadrant": {
                                 "as_of": "2026-01-03",
                                 "quadrant": "Goldilocks",
@@ -115,8 +115,8 @@ def test_build_regime_html_view_model_accepts_multi_payload(tmp_path: Path) -> N
     assert view_model.crisis_intensity == 0.25
     assert view_model.scores == {"GROWTH": 0.7, "INFLATION": -0.3}
     assert [row.method for row in view_model.methods] == [
-        "legacy_rulebook",
-        "macro_rules",
+        "macro_regime",
+        "market_regime",
     ]
     assert view_model.regime_counts == {"Reflation": 1, "Goldilocks": 1}
 

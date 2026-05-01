@@ -1,4 +1,4 @@
-# FRED macro panel for the regime-detection macro_rules method.
+# FRED macro panel for the regime-detection macro_regime method.
 # Each series is fetched, transformed into a signal comparable across series,
 # and contributes to either the growth or inflation axis.
 #
@@ -13,12 +13,21 @@
 # and public release. Applied as: the value for period P is visible on
 # period_end(P) + lag_days. Prevents lookahead bias during backtest without
 # needing the ALFRED vintage API.
+#
+# bucket separates fast and slow macro evidence. The macro_regime method
+# weights fast=70% and slow=30% per axis by default.
+# direction maps raw transformed values into the axis sign. Use negative when a
+# higher transformed value is bad for the axis, e.g. rising unemployment hurts
+# growth.
 
 series:
   # --- Growth axis ---
   - series_id: UNRATE
     axis: growth
     transform: inverted_yoy_diff
+    bucket: fast
+    direction: positive
+    normalization: none
     weight: 1.0
     publication_lag_days: 7
     title: Unemployment rate (inverted YoY change)
@@ -27,6 +36,9 @@ series:
   - series_id: PAYEMS
     axis: growth
     transform: yoy_pct
+    bucket: fast
+    direction: positive
+    normalization: none
     weight: 1.0
     publication_lag_days: 7
     title: Non-farm payrolls (YoY %)
@@ -35,6 +47,9 @@ series:
   - series_id: INDPRO
     axis: growth
     transform: yoy_pct
+    bucket: slow
+    direction: positive
+    normalization: none
     weight: 1.0
     publication_lag_days: 18
     title: Industrial production (YoY %)
@@ -43,6 +58,9 @@ series:
   - series_id: RSAFS
     axis: growth
     transform: yoy_pct
+    bucket: fast
+    direction: positive
+    normalization: none
     weight: 1.0
     publication_lag_days: 16
     title: Retail sales (YoY %)
@@ -51,6 +69,9 @@ series:
   - series_id: USSLIND
     axis: growth
     transform: level
+    bucket: fast
+    direction: positive
+    normalization: none
     weight: 1.0
     publication_lag_days: 28
     title: State coincident leading index (diffusion)
@@ -60,6 +81,9 @@ series:
   - series_id: CPIAUCSL
     axis: inflation
     transform: yoy_pct
+    bucket: slow
+    direction: positive
+    normalization: none
     weight: 1.0
     publication_lag_days: 14
     title: CPI all items (YoY %)
@@ -68,6 +92,9 @@ series:
   - series_id: CPILFESL
     axis: inflation
     transform: yoy_pct
+    bucket: slow
+    direction: positive
+    normalization: none
     weight: 1.0
     publication_lag_days: 14
     title: Core CPI (YoY %)
@@ -76,6 +103,9 @@ series:
   - series_id: PCEPI
     axis: inflation
     transform: yoy_pct
+    bucket: slow
+    direction: positive
+    normalization: none
     weight: 1.0
     publication_lag_days: 30
     title: PCE price index (YoY %)
@@ -84,6 +114,9 @@ series:
   - series_id: PCEPILFE
     axis: inflation
     transform: yoy_pct
+    bucket: slow
+    direction: positive
+    normalization: none
     weight: 1.0
     publication_lag_days: 30
     title: Core PCE (YoY %)
@@ -92,6 +125,9 @@ series:
   - series_id: CORESTICKM159SFRBATL
     axis: inflation
     transform: level
+    bucket: slow
+    direction: positive
+    normalization: none
     weight: 1.0
     publication_lag_days: 14
     title: Sticky-price CPI (YoY %, as published)
@@ -100,6 +136,9 @@ series:
   - series_id: T5YIFR
     axis: inflation
     transform: level
+    bucket: fast
+    direction: positive
+    normalization: none
     weight: 1.0
     publication_lag_days: 1
     title: 5y5y forward inflation expectation
@@ -108,6 +147,9 @@ series:
   - series_id: AHETPI
     axis: inflation
     transform: yoy_pct
+    bucket: fast
+    direction: positive
+    normalization: none
     weight: 0.5
     publication_lag_days: 7
     title: Average hourly earnings (YoY %)

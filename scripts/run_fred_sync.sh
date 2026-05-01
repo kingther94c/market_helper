@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Sync the FRED macro panel used by the regime-detection macro_rules method.
+# Sync the FRED macro panel used by the regime-detection macro_regime method.
 #
 # Reads series definitions from configs/regime_detection/fred_series.yml
 # (override with FRED_SERIES_CONFIG). Writes per-series feather caches and

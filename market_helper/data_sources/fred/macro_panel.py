@@ -1,5 +1,5 @@
 """FRED macro panel: fetch, cache, transform, and join macro series to a
-daily panel used by the regime-detection macro_rules method.
+daily panel used by the regime-detection macro_regime method.
 
 Data flow:
     configs/regime_detection/fred_series.yml
@@ -53,6 +53,11 @@ class SeriesSpec:
     publication_lag_days: int = 0
     title: Optional[str] = None
     frequency_hint: Optional[str] = None
+    bucket: str = "fast"  # "fast" | "slow"
+    direction: str = "positive"  # "positive" | "negative"
+    neutral_level: Optional[float] = None
+    threshold: Optional[float] = None
+    normalization: str = "none"  # "none" | "centered" | "threshold" | "zscore"
 
     def validate(self) -> None:
         if self.axis not in {"growth", "inflation"}:
@@ -71,6 +76,20 @@ class SeriesSpec:
             raise ValueError(
                 f"{self.series_id}: publication_lag_days must be non-negative"
             )
+        if self.bucket not in {"fast", "slow"}:
+            raise ValueError(
+                f"{self.series_id}: bucket must be 'fast' or 'slow', got {self.bucket!r}"
+            )
+        if self.direction not in {"positive", "negative"}:
+            raise ValueError(
+                f"{self.series_id}: direction must be 'positive' or 'negative', got {self.direction!r}"
+            )
+        if self.normalization not in {"none", "centered", "threshold", "zscore"}:
+            raise ValueError(
+                f"{self.series_id}: unsupported normalization {self.normalization!r}"
+            )
+        if self.threshold is not None and self.threshold < 0:
+            raise ValueError(f"{self.series_id}: threshold must be non-negative")
 
 
 def load_series_specs(config_path: str | Path) -> List[SeriesSpec]:
@@ -92,6 +111,19 @@ def load_series_specs(config_path: str | Path) -> List[SeriesSpec]:
             publication_lag_days=int(entry.get("publication_lag_days", 0)),
             title=entry.get("title"),
             frequency_hint=entry.get("frequency_hint"),
+            bucket=str(entry.get("bucket", "fast")),
+            direction=str(entry.get("direction", "positive")),
+            neutral_level=(
+                float(entry["neutral_level"])
+                if entry.get("neutral_level") is not None
+                else None
+            ),
+            threshold=(
+                float(entry["threshold"])
+                if entry.get("threshold") is not None
+                else None
+            ),
+            normalization=str(entry.get("normalization", "none")),
         )
         spec.validate()
         specs.append(spec)
@@ -404,6 +436,11 @@ def write_series_meta(
                 "publication_lag_days": s.publication_lag_days,
                 "title": s.title,
                 "frequency_hint": s.frequency_hint,
+                "bucket": s.bucket,
+                "direction": s.direction,
+                "neutral_level": s.neutral_level,
+                "threshold": s.threshold,
+                "normalization": s.normalization,
             }
             for s in specs
         ]

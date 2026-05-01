@@ -31,6 +31,7 @@ from market_helper.workflows.run_regime_report import (
     run_regime_report_from_existing_data,
 )
 from market_helper.workflows.sync_fred_macro_panel import run_fred_macro_sync
+from market_helper.workflows.sync_market_regime_panel import run_market_regime_sync
 from market_helper.workflows.sync_regime_inputs import sync_regime_inputs
 from market_helper.domain.regime_detection.policies.regime_policy import (
     load_regime_policy,
@@ -208,7 +209,7 @@ def build_parser() -> argparse.ArgumentParser:
 
     fred_macro_sync = subparsers.add_parser(
         "fred-macro-sync",
-        help="Fetch and cache the FRED macro panel used by the regime macro_rules method.",
+        help="Fetch and cache the FRED macro panel used by the macro_regime method.",
     )
     fred_macro_sync.add_argument(
         "--config",
@@ -284,7 +285,7 @@ def build_parser() -> argparse.ArgumentParser:
 
     regime_detect = subparsers.add_parser(
         "regime-detect",
-        help="Run deterministic rule-based regime detection and write JSON snapshots.",
+        help="Deprecated: run deterministic legacy rule-based regime detection and write JSON snapshots.",
     )
     regime_detect.add_argument("--returns", required=True, help="Path to returns JSON with EQ/FI series.")
     regime_detect.add_argument("--proxy", required=True, help="Path to proxy JSON with VIX/MOVE/HY_OAS/UST2Y/UST10Y.")
@@ -299,14 +300,14 @@ def build_parser() -> argparse.ArgumentParser:
 
     regime_detect_multi = subparsers.add_parser(
         "regime-detect-multi",
-        help="Run multi-method regime detection (macro_rules + legacy_rulebook) and write ensemble JSON.",
+        help="Run multi-method regime detection (macro_regime + market_regime) and write ensemble JSON.",
     )
     regime_detect_multi.add_argument(
         "--methods",
         default="all",
         help=(
             "Comma-separated subset of methods to enable, or 'all'. "
-            "Options: macro_rules, legacy_rulebook."
+            "Options: macro_regime, market_regime."
         ),
     )
     regime_detect_multi.add_argument(
@@ -320,14 +321,14 @@ def build_parser() -> argparse.ArgumentParser:
         help="Path to FRED series YAML. Defaults to configs/regime_detection/fred_series.yml.",
     )
     regime_detect_multi.add_argument(
-        "--returns",
+        "--market-panel",
         default=None,
-        help="Path to returns JSON (EQ/FI). Required when legacy_rulebook is enabled.",
+        help="Path to the joined market price panel feather. Defaults to data/interim/market_regime/market_panel.feather.",
     )
     regime_detect_multi.add_argument(
-        "--proxy",
+        "--market-regime-config",
         default=None,
-        help="Path to proxy JSON (VIX/MOVE/HY_OAS/UST2Y/UST10Y). Required when legacy_rulebook is enabled.",
+        help="Path to market regime YAML. Defaults to configs/regime_detection/market_regime.yml.",
     )
     regime_detect_multi.add_argument(
         "--output",
@@ -362,10 +363,6 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Refresh online source data regardless of artifact age.",
     )
-    regime_refresh_report.add_argument("--eq-symbol", default="SPY", help="Yahoo symbol for EQ returns.")
-    regime_refresh_report.add_argument("--fi-symbol", default="AGG", help="Yahoo symbol for FI returns.")
-    regime_refresh_report.add_argument("--vix-symbol", default="^VIX", help="Yahoo symbol for VIX levels.")
-    regime_refresh_report.add_argument("--move-symbol", default="^MOVE", help="Yahoo symbol for MOVE levels.")
     regime_refresh_report.add_argument("--yahoo-period", default="max", help="Yahoo history period.")
     regime_refresh_report.add_argument("--yahoo-interval", default="1d", help="Yahoo history interval.")
     regime_refresh_report.add_argument(
@@ -384,15 +381,38 @@ def build_parser() -> argparse.ArgumentParser:
         help="Optional macro panel end date.",
     )
     regime_refresh_report.add_argument(
+        "--market-start-date",
+        default=None,
+        help="Optional market panel start date.",
+    )
+    regime_refresh_report.add_argument(
+        "--market-end-date",
+        default=None,
+        help="Optional market panel end date.",
+    )
+    regime_refresh_report.add_argument(
         "--fred-api-key",
         default=None,
         help="Optional FRED API key. Falls back to FRED_API_KEY env var or configs/portfolio_monitor/local.env.",
     )
-    regime_refresh_report.add_argument(
-        "--hy-oas-history",
-        default="data/external/regime_detection/hy_oas_history.csv",
-        help="Optional Date/Value CSV used to seed and update long HY OAS history.",
+    market_regime_sync = subparsers.add_parser(
+        "market-regime-sync",
+        help="Fetch and cache the Yahoo Finance market panel used by market_regime.",
     )
+    market_regime_sync.add_argument(
+        "--config",
+        default="configs/regime_detection/market_regime.yml",
+        help="Path to the market regime YAML config. Defaults to configs/regime_detection/market_regime.yml.",
+    )
+    market_regime_sync.add_argument(
+        "--cache-dir",
+        default="data/interim/market_regime",
+        help="Directory for per-symbol feather caches and the joined market panel.",
+    )
+    market_regime_sync.add_argument("--period", default="max", help="Yahoo history period.")
+    market_regime_sync.add_argument("--interval", default="1d", help="Yahoo history interval.")
+    market_regime_sync.add_argument("--start-date", default=None, help="Optional panel start date.")
+    market_regime_sync.add_argument("--end-date", default=None, help="Optional panel end date.")
 
     regime_report_multi = subparsers.add_parser(
         "regime-report-multi",
@@ -411,7 +431,7 @@ def build_parser() -> argparse.ArgumentParser:
 
     regime_html_report = subparsers.add_parser(
         "regime-html-report",
-        help="Generate a standalone HTML report from legacy or multi-method regime snapshots.",
+        help="Generate a standalone HTML report from multi-method regime snapshots.",
     )
     regime_html_report.add_argument(
         "--regime",
@@ -426,7 +446,7 @@ def build_parser() -> argparse.ArgumentParser:
     regime_html_report.add_argument(
         "--policy",
         required=False,
-        help="Optional legacy or quadrant policy YAML overrides.",
+        help="Optional quadrant policy YAML overrides.",
     )
 
     regime_report = subparsers.add_parser(
@@ -480,18 +500,23 @@ def _add_regime_report_run_args(parser: argparse.ArgumentParser) -> None:
         help="Path to FRED series YAML. Defaults to configs/regime_detection/fred_series.yml, falling back to the example file.",
     )
     parser.add_argument(
-        "--returns",
-        default="data/processed/regime_returns.json",
-        help="Path to processed EQ/FI returns JSON.",
+        "--market-panel",
+        default=None,
+        help="Path to market price panel feather. Defaults to data/interim/market_regime/market_panel.feather.",
     )
     parser.add_argument(
-        "--proxy",
-        default="data/processed/regime_proxies.json",
-        help="Path to processed proxy JSON.",
+        "--market-cache-dir",
+        default="data/interim/market_regime",
+        help="Directory for market price panel caches.",
+    )
+    parser.add_argument(
+        "--market-regime-config",
+        default=None,
+        help="Path to market regime YAML. Defaults to configs/regime_detection/market_regime.yml, falling back to the example file.",
     )
     parser.add_argument(
         "--output-regime",
-        default="data/artifacts/regime_detection/regime_multi_snapshots.json",
+        default="data/artifacts/regime_detection/regime_snapshots.json",
         help="Path to output multi-method regime JSON.",
     )
     parser.add_argument(
@@ -606,6 +631,21 @@ def main(argv: Sequence[str] | None = None) -> int:
         )
         print(f"panel={panel_path}")
         return 0
+    if args.command == "market-regime-sync":
+        try:
+            panel_path = run_market_regime_sync(
+                config_path=Path(args.config),
+                cache_dir=Path(args.cache_dir),
+                period=args.period,
+                interval=args.interval,
+                start_date=args.start_date,
+                end_date=args.end_date,
+            )
+        except (RuntimeError, ValueError) as exc:
+            print(f"market-regime-sync: {exc}", file=sys.stderr)
+            return 2
+        print(f"panel={panel_path}")
+        return 0
     if args.command == "regime-input-sync":
         try:
             result = sync_regime_inputs(
@@ -646,8 +686,8 @@ def main(argv: Sequence[str] | None = None) -> int:
                 methods=method_list,
                 macro_panel_path=args.macro_panel,
                 fred_series_config=args.fred_series_config,
-                returns_path=args.returns,
-                proxy_path=args.proxy,
+                market_panel_path=args.market_panel,
+                market_regime_config=args.market_regime_config,
                 output_path=Path(args.output),
                 latest_only=bool(args.latest_only),
             )
@@ -664,8 +704,8 @@ def main(argv: Sequence[str] | None = None) -> int:
                 methods=method_list,
                 macro_panel_path=args.macro_panel,
                 fred_series_config=args.fred_series_config,
-                returns_path=Path(args.returns),
-                proxy_path=Path(args.proxy),
+                market_panel_path=args.market_panel,
+                market_regime_config=args.market_regime_config,
                 output_regime_path=Path(args.output_regime),
                 output_html_path=Path(args.output_html),
                 policy_path=Path(args.policy) if args.policy else None,
@@ -689,34 +729,32 @@ def main(argv: Sequence[str] | None = None) -> int:
                 macro_panel_path=args.macro_panel,
                 fred_cache_dir=Path(args.fred_cache_dir),
                 fred_series_config=args.fred_series_config,
-                returns_path=Path(args.returns),
-                proxy_path=Path(args.proxy),
+                market_panel_path=args.market_panel,
+                market_cache_dir=Path(args.market_cache_dir),
+                market_regime_config=args.market_regime_config,
                 output_regime_path=Path(args.output_regime),
                 output_html_path=Path(args.output_html),
                 policy_path=Path(args.policy) if args.policy else None,
                 fred_observation_start=args.fred_observation_start,
                 macro_start_date=args.macro_start_date,
                 macro_end_date=args.macro_end_date,
+                market_start_date=args.market_start_date,
+                market_end_date=args.market_end_date,
                 fred_api_key=args.fred_api_key,
-                eq_symbol=args.eq_symbol,
-                fi_symbol=args.fi_symbol,
-                vix_symbol=args.vix_symbol,
-                move_symbol=args.move_symbol,
                 yahoo_period=args.yahoo_period,
                 yahoo_interval=args.yahoo_interval,
-                hy_oas_history_path=Path(args.hy_oas_history) if args.hy_oas_history else None,
                 latest_only=bool(args.latest_only),
             )
         except (FileNotFoundError, RuntimeError, ValueError) as exc:
             print(f"regime-refresh-report: {exc}", file=sys.stderr)
             return 2
-        print(f"returns={result.returns_path}")
-        print(f"proxy={result.proxy_path}")
         print(f"macro_panel={result.macro_panel_path}")
+        print(f"market_panel={result.market_panel_path}")
+        print(f"market_config={result.market_config_path}")
         print(f"regime={result.regime_path}")
         print(f"html={result.html_path}")
-        print(f"refreshed_inputs={result.refreshed_inputs}")
         print(f"refreshed_macro_panel={result.refreshed_macro_panel}")
+        print(f"refreshed_market_panel={result.refreshed_market_panel}")
         return 0
     if args.command == "regime-report-multi":
         snapshots = load_multi_method_snapshots(Path(args.regime))
