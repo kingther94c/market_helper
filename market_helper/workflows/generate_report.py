@@ -14,7 +14,9 @@ from typing import TYPE_CHECKING
 from market_helper.common.progress import ProgressReporter
 from market_helper.data_sources.ibkr.tws import TwsIbAsyncClient
 from market_helper.domain.portfolio_monitor.pipelines.generate_portfolio_report import (
+    DEFAULT_GOOGLE_DRIVE_COMBINED_REPORT_FILENAME,
     FlexBackfillBatchError,
+    _mirror_artifact_if_configured,
     backfill_ibkr_flex_full_years as _backfill_ibkr_flex_full_years,
     generate_combined_html_report as _generate_combined_html_report,
     generate_etf_sector_sync as _generate_etf_sector_sync,
@@ -320,6 +322,19 @@ def generate_report_mapping_table(
     )
 
 
+def ensure_google_drive_artifact_mirror(
+    *,
+    source_path: str | Path,
+    target_name: str = DEFAULT_GOOGLE_DRIVE_COMBINED_REPORT_FILENAME,
+    config_path: str | Path | None = None,
+) -> Path | None:
+    return _mirror_artifact_if_configured(
+        source_path=source_path,
+        target_name=target_name,
+        config_path=config_path,
+    )
+
+
 __all__ = [
     "FlexBackfillBatchError",
     "TwsIbAsyncClient",
@@ -333,6 +348,7 @@ __all__ = [
     "generate_report_mapping_table",
     "generate_risk_html_report",
     "generate_security_reference_sync",
+    "ensure_google_drive_artifact_mirror",
     "rebuild_ibkr_flex_nav_cashflow_history",
     "refresh_current_year_latest_flex_xml",
 ]

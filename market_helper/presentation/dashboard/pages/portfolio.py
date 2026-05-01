@@ -7,6 +7,7 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
 from typing import Any
+from urllib.parse import urlencode
 
 from nicegui import ui
 
@@ -373,7 +374,10 @@ def register_portfolio_page(
                         sink=state.progress_sink,
                     )
                     state.generated_report = artifact
-                    _set_action_success(state, "combined", message="HTML report generated", output_path=str(artifact.output_path))
+                    combined_message = "HTML report generated"
+                    if artifact.mirrored_output_path is not None:
+                        combined_message = "HTML report generated and mirrored to Google Drive"
+                    _set_action_success(state, "combined", message=combined_message, output_path=str(artifact.output_path))
                 elif action_name == "security-reference":
                     output_path = await asyncio.to_thread(
                         _ACTION_SERVICE.sync_security_reference,
@@ -427,8 +431,13 @@ def register_portfolio_page(
                         sink=state.progress_sink,
                     )
                     state.generated_report = artifact
-                    _set_action_success(state, "combined", message="HTML report generated", output_path=str(artifact.output_path))
-                    _set_action_success(state, "refresh", message="Refresh completed", output_path=str(artifact.output_path))
+                    combined_message = "HTML report generated"
+                    refresh_message = "Refresh completed"
+                    if artifact.mirrored_output_path is not None:
+                        combined_message = "HTML report generated and mirrored to Google Drive"
+                        refresh_message = "Refresh completed and mirrored to Google Drive"
+                    _set_action_success(state, "combined", message=combined_message, output_path=str(artifact.output_path))
+                    _set_action_success(state, "refresh", message=refresh_message, output_path=str(artifact.output_path))
                 else:
                     raise ValueError(f"Unsupported action: {action_name}")
                 state.status_message = state.action_statuses[action_name].message
@@ -614,7 +623,7 @@ def _render_report_host(state: PortfolioPageState) -> None:
     with ui.card().classes("w-full pm-card p-2"):
         with ui.row().classes("w-full items-center justify-between px-2 pt-2"):
             ui.label("Embedded HTML Report").classes("text-subtitle2")
-            ui.link("Open Generated HTML", report_path.as_uri(), new_tab=True).classes("text-primary")
+            ui.link("Open Generated HTML", _generated_html_route(report_path), new_tab=True).classes("text-primary")
         iframe = ui.element("iframe").props("sandbox=allow-same-origin allow-scripts").classes("w-full").style(
             "width:100%;min-height:78vh;border:0;border-radius:20px;background:#fff"
         )
@@ -628,7 +637,11 @@ def _render_report_quick_link(state: PortfolioPageState) -> None:
         return
     with ui.row().classes("w-full items-center gap-2 mt-3"):
         ui.label("Quick Access").classes("text-caption pm-muted")
-        ui.link("Open Generated HTML", report_path.as_uri(), new_tab=True).classes("text-primary")
+        ui.link("Open Generated HTML", _generated_html_route(report_path), new_tab=True).classes("text-primary")
+
+
+def _generated_html_route(report_path: Path) -> str:
+    return f"/portfolio/generated-html?{urlencode({'path': str(report_path)})}"
 
 
 def _render_artifact_metadata(state: PortfolioPageState) -> None:

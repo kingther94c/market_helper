@@ -34,6 +34,7 @@
 - Overhauled `performance_html.py` and `performance_analytics.py`: the Performance tab now renders separate USD and SGD currency tabs, each with a cumulative-return chart, drawdown chart, trailing-window metrics (MTD/YTD/1Y/3Y/5Y covering TWR/MWR, annualized vol, Sharpe, max drawdown), and historical-year summary rows.
 - Fixed Flex cashflow date extraction to use `reportDate` instead of `settleDate`, so cashflows are attributed to the correct accounting period.
 - Added `scripts/launch_ui.sh` to start the NiceGUI dashboard (`market_helper/presentation/dashboard/`) with TCP-readiness probing, server liveness checks, and browser auto-open once the port is up.
+- Tightened dashboard export ownership in `PortfolioMonitorActionService`: GUI-triggered combined-report generation now explicitly ensures the configured Google Drive mirror is refreshed and carries that mirror result back into the UI state, instead of relying on the lower-level workflow side effect staying coupled to the current renderer path.
 
 
 - Added a combined static HTML portfolio report with `Performance` and `Risk` tabs, using `USD` as the primary performance view, `SGD` as auxiliary display, and `TWR` as the headline return basis while preserving `MWR` alongside key metrics.

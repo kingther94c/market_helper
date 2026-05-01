@@ -46,6 +46,7 @@ class GeneratedReportArtifact:
     title: str
     output_path: Path
     as_of: str
+    mirrored_output_path: Path | None = None
     warnings: list[str] = field(default_factory=list)
     exists: bool = False
 

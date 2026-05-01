@@ -49,6 +49,7 @@ def test_create_app_registers_dashboard_routes() -> None:
 
     assert "/" in paths
     assert "/portfolio" in paths
+    assert "/portfolio/generated-html" in paths
 
 
 def test_patch_nicegui_process_pool_setup_handles_permission_error(monkeypatch) -> None:
