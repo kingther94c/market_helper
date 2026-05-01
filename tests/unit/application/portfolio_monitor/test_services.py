@@ -120,6 +120,11 @@ def test_action_service_normalizes_combined_and_etf_calls(monkeypatch, tmp_path:
         combined_calls.update(kwargs)
         return Path(kwargs["output_path"])
 
+    def fake_ensure_google_drive_artifact_mirror(**kwargs):
+        assert kwargs["source_path"] == tmp_path / "combined.html"
+        assert kwargs["target_name"] == "portfolio_combined_report.html"
+        return tmp_path / "google-drive" / "portfolio_combined_report.html"
+
     def fake_generate_etf_sector_sync(**kwargs):
         etf_calls.update(kwargs)
         progress = kwargs["progress"]
@@ -128,6 +133,7 @@ def test_action_service_normalizes_combined_and_etf_calls(monkeypatch, tmp_path:
         return tmp_path / "sector.json"
 
     monkeypatch.setattr(app_services.report_workflows, "generate_combined_html_report", fake_generate_combined_html_report)
+    monkeypatch.setattr(app_services.report_workflows, "ensure_google_drive_artifact_mirror", fake_ensure_google_drive_artifact_mirror)
     monkeypatch.setattr(app_services.report_workflows, "generate_etf_sector_sync", fake_generate_etf_sector_sync)
     query_service = app_services.PortfolioMonitorQueryService()
     monkeypatch.setattr(
@@ -171,6 +177,7 @@ def test_action_service_normalizes_combined_and_etf_calls(monkeypatch, tmp_path:
     )
 
     assert combined_written.output_path == tmp_path / "combined.html"
+    assert combined_written.mirrored_output_path == tmp_path / "google-drive" / "portfolio_combined_report.html"
     assert combined_written.report_type == "portfolio_monitor"
     assert combined_calls["output_path"] == tmp_path / "combined.html"
     assert combined_calls["positions_csv_path"] == tmp_path / "positions.csv"

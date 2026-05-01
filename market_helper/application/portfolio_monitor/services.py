@@ -209,6 +209,7 @@ class PortfolioMonitorQueryService:
         output_path: str | Path | None = None,
         report_data: PortfolioReportData | None = None,
         as_of: str = "n/a",
+        mirrored_output_path: Path | None = None,
         warnings: list[str] | None = None,
     ) -> GeneratedReportArtifact:
         resolved = self.resolve_inputs(inputs)
@@ -221,6 +222,7 @@ class PortfolioMonitorQueryService:
             title="Portfolio Monitor HTML Report",
             output_path=target_path,
             as_of=as_of,
+            mirrored_output_path=mirrored_output_path,
             warnings=list(warnings or []),
             exists=target_path.exists(),
         )
@@ -368,12 +370,18 @@ class PortfolioMonitorActionService:
             vol_method=resolved.vol_method,
             inter_asset_corr=resolved.inter_asset_corr,
         )
+        mirrored = report_workflows.ensure_google_drive_artifact_mirror(
+            source_path=written,
+            target_name="portfolio_combined_report.html",
+            config_path=Path(str(resolved.risk_config_path)) if resolved.risk_config_path is not None else None,
+        )
         _record_manual_event(sink, kind="done", label="Combined HTML", detail=f"wrote {written}")
         report_data = self._query_service.load_report_data(resolved)
         return self._query_service.resolve_report_artifact(
             inputs=resolved,
             output_path=written,
             report_data=report_data,
+            mirrored_output_path=mirrored,
         )
 
     def sync_security_reference(
