@@ -1,0 +1,841 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>market_helper · Redesign mockup</title>
+<style>
+/* =====================================================================
+   TOKENS  — single source for both dashboard chrome and report content
+   ===================================================================== */
+:root {
+  /* Palette — neutral cool, single accent (teal), warm reserved for risk/warn */
+  --bg:           #f7f8fa;
+  --surface:      #ffffff;
+  --surface-2:    #f1f3f6;
+  --border:       #e4e7ec;
+  --border-soft:  #eef0f4;
+  --ink:          #0f172a;
+  --ink-2:        #334155;
+  --muted:        #64748b;
+  --muted-2:      #94a3b8;
+
+  --accent:       #0f766e;   /* teal — single brand accent */
+  --accent-soft:  #ccfbf1;
+  --accent-ink:   #064e3b;
+
+  --pos:          #15803d;   /* semantic only, not decorative */
+  --pos-soft:     #dcfce7;
+  --neg:          #b91c1c;
+  --neg-soft:     #fee2e2;
+  --warn:         #b45309;
+  --warn-soft:    #fef3c7;
+  --info:         #1d4ed8;
+  --info-soft:    #dbeafe;
+
+  /* Scale — 4-based spacing, smaller radius */
+  --s-1: 4px;  --s-2: 8px;  --s-3: 12px; --s-4: 16px;
+  --s-5: 20px; --s-6: 24px; --s-7: 32px; --s-8: 48px;
+  --r-1: 6px;  --r-2: 10px; --r-3: 14px; --r-4: 18px;
+
+  /* Type — single sans, density-first, no editorial serif */
+  --font: ui-sans-serif, -apple-system, "SF Pro Text", "Inter",
+          "Helvetica Neue", Helvetica, Arial, sans-serif;
+  --font-num: ui-monospace, "SF Mono", "JetBrains Mono", Menlo, monospace;
+
+  --shadow-1: 0 1px 0 rgba(15,23,42,0.04), 0 1px 2px rgba(15,23,42,0.04);
+  --shadow-2: 0 1px 0 rgba(15,23,42,0.04), 0 4px 12px rgba(15,23,42,0.06);
+}
+
+* { box-sizing: border-box; }
+html, body { margin: 0; padding: 0; }
+body {
+  background: var(--bg);
+  color: var(--ink);
+  font-family: var(--font);
+  font-size: 14px;
+  line-height: 1.45;
+  -webkit-font-smoothing: antialiased;
+}
+.num { font-variant-numeric: tabular-nums; font-feature-settings: "tnum"; }
+.pos { color: var(--pos); }
+.neg { color: var(--neg); }
+.muted { color: var(--muted); }
+
+/* =====================================================================
+   APP BAR  — single-row header replaces oversized hero
+   ===================================================================== */
+.app-bar {
+  position: sticky; top: 0; z-index: 30;
+  background: rgba(255,255,255,0.85);
+  backdrop-filter: saturate(140%) blur(8px);
+  border-bottom: 1px solid var(--border);
+}
+.app-bar__row {
+  max-width: 1480px; margin: 0 auto;
+  padding: var(--s-3) var(--s-6);
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: var(--s-5);
+}
+.brand { display: flex; align-items: center; gap: var(--s-2); font-weight: 700; }
+.brand__dot {
+  width: 8px; height: 8px; border-radius: 999px; background: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-soft);
+}
+.brand__name { font-size: 13px; letter-spacing: 0.02em; }
+.brand__sep { color: var(--muted-2); }
+.brand__title { font-weight: 600; }
+
+.section-nav {
+  display: flex; gap: var(--s-1); justify-self: center;
+  background: var(--surface-2);
+  padding: 4px; border-radius: 999px;
+  border: 1px solid var(--border-soft);
+}
+.section-nav a {
+  padding: 6px 12px; font-size: 13px; font-weight: 600;
+  color: var(--ink-2); text-decoration: none;
+  border-radius: 999px;
+}
+.section-nav a.is-active { background: var(--ink); color: #fff; }
+.section-nav a:hover:not(.is-active) { background: rgba(15,23,42,0.05); }
+
+.app-bar__actions { display: flex; gap: var(--s-2); align-items: center; }
+.btn {
+  appearance: none; border: 1px solid var(--border);
+  background: var(--surface); color: var(--ink);
+  font: inherit; font-weight: 600; font-size: 13px;
+  padding: 6px 12px; border-radius: var(--r-2); cursor: pointer;
+}
+.btn:hover { background: var(--surface-2); }
+.btn--primary { background: var(--ink); border-color: var(--ink); color: #fff; }
+.btn--primary:hover { background: #1e293b; }
+.btn--ghost { background: transparent; border-color: transparent; color: var(--muted); }
+.btn--ghost:hover { background: var(--surface-2); color: var(--ink); }
+.btn .kbd {
+  margin-left: 6px; font-family: var(--font-num); font-size: 11px; opacity: 0.7;
+}
+
+/* =====================================================================
+   REGIME RIBBON  — sticky context, single line
+   ===================================================================== */
+.regime-ribbon {
+  position: sticky; top: 49px; z-index: 20;
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+}
+.regime-ribbon__row {
+  max-width: 1480px; margin: 0 auto;
+  padding: var(--s-2) var(--s-6);
+  display: flex; align-items: center; gap: var(--s-5);
+  font-size: 13px;
+}
+.regime-pill {
+  display: inline-flex; align-items: center; gap: var(--s-2);
+  padding: 4px 10px; border-radius: 999px;
+  background: var(--accent-soft); color: var(--accent-ink);
+  font-weight: 700; font-size: 12px; letter-spacing: 0.02em;
+}
+.regime-pill__dot {
+  width: 6px; height: 6px; border-radius: 999px; background: var(--accent);
+}
+.regime-meta { display: flex; gap: var(--s-5); color: var(--muted); }
+.regime-meta b { color: var(--ink-2); font-weight: 600; }
+.crisis-flag {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 2px 8px; border-radius: 999px;
+  background: var(--surface-2); color: var(--muted);
+  font-size: 12px; font-weight: 600;
+}
+.crisis-flag.is-on { background: var(--neg-soft); color: var(--neg); }
+.transition-log { margin-left: auto; color: var(--muted); font-size: 12px; }
+
+/* =====================================================================
+   SHELL  — content container
+   ===================================================================== */
+.shell { max-width: 1480px; margin: 0 auto; padding: var(--s-6); }
+.h-section {
+  display: flex; align-items: baseline; justify-content: space-between;
+  margin: var(--s-7) 0 var(--s-3);
+}
+.h-section h2 { margin: 0; font-size: 15px; font-weight: 700; letter-spacing: 0.02em; }
+.h-section .h-meta { font-size: 12px; color: var(--muted); }
+.h-section:first-child { margin-top: 0; }
+
+/* =====================================================================
+   KPI STRIP  — above-the-fold answers
+   ===================================================================== */
+.kpi-strip {
+  display: grid;
+  grid-template-columns: repeat(8, 1fr);
+  gap: 1px;
+  background: var(--border);
+  border: 1px solid var(--border);
+  border-radius: var(--r-3);
+  overflow: hidden;
+  box-shadow: var(--shadow-1);
+}
+.kpi {
+  background: var(--surface);
+  padding: var(--s-3) var(--s-4);
+  display: flex; flex-direction: column; gap: 2px;
+}
+.kpi__label {
+  font-size: 11px; letter-spacing: 0.04em; text-transform: uppercase;
+  color: var(--muted); font-weight: 600;
+}
+.kpi__value {
+  font-size: 20px; font-weight: 600; line-height: 1.1;
+}
+.kpi__sub { font-size: 11px; color: var(--muted); display: flex; gap: 4px; }
+.kpi__sub .delta-pos { color: var(--pos); }
+.kpi__sub .delta-neg { color: var(--neg); }
+.kpi.is-warn .kpi__value { color: var(--warn); }
+
+/* =====================================================================
+   PANELS  — flat cards, lighter than current
+   ===================================================================== */
+.panel {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--r-3);
+  box-shadow: var(--shadow-1);
+}
+.panel__header {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: var(--s-3) var(--s-4);
+  border-bottom: 1px solid var(--border-soft);
+}
+.panel__title { font-size: 13px; font-weight: 700; }
+.panel__body { padding: var(--s-4); }
+.panel__body--flush { padding: 0; }
+
+.grid-2 { display: grid; grid-template-columns: 1.5fr 1fr; gap: var(--s-4); }
+.grid-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: var(--s-4); }
+@media (max-width: 1100px) { .grid-2, .grid-3 { grid-template-columns: 1fr; } }
+
+/* Segmented control — unified */
+.seg {
+  display: inline-flex; padding: 3px; gap: 2px;
+  background: var(--surface-2); border: 1px solid var(--border-soft);
+  border-radius: var(--r-2);
+}
+.seg button {
+  appearance: none; border: 0; background: transparent;
+  font: inherit; font-size: 12px; font-weight: 600; color: var(--muted);
+  padding: 4px 10px; border-radius: 6px; cursor: pointer;
+}
+.seg button:hover { color: var(--ink); }
+.seg button.is-active { background: var(--surface); color: var(--ink); box-shadow: var(--shadow-1); }
+
+/* =====================================================================
+   PLOT placeholder  — Plotly target box (mock)
+   ===================================================================== */
+.plot {
+  height: 280px; background:
+    linear-gradient(180deg, transparent 0%, transparent 50%, rgba(15,118,110,0.04) 100%),
+    repeating-linear-gradient(0deg, transparent 0 39px, var(--border-soft) 39px 40px);
+  border-radius: var(--r-2);
+  position: relative; overflow: hidden;
+}
+.plot svg { width: 100%; height: 100%; display: block; }
+.plot-mini { height: 56px; }
+
+/* =====================================================================
+   TABLES
+   ===================================================================== */
+.table {
+  width: 100%; border-collapse: separate; border-spacing: 0;
+  font-size: 13px;
+}
+.table th {
+  text-align: left; padding: 10px var(--s-4);
+  font-size: 11px; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase;
+  color: var(--muted);
+  background: var(--surface-2);
+  border-bottom: 1px solid var(--border);
+  position: sticky; top: 0;
+}
+.table td {
+  padding: 10px var(--s-4);
+  border-bottom: 1px solid var(--border-soft);
+  vertical-align: middle;
+}
+.table tr:last-child td { border-bottom: 0; }
+.table .right { text-align: right; }
+.table .ticker { font-family: var(--font-num); font-weight: 600; }
+.table tr.is-total td {
+  background: var(--ink); color: #fff; font-weight: 700;
+}
+.table tr.is-subtotal td {
+  background: var(--surface-2); font-weight: 600;
+}
+
+/* Bar in cell — single component, replaces .chart-row variants */
+.bar { position: relative; height: 6px; border-radius: 999px; background: var(--border-soft); overflow: hidden; }
+.bar > i { position: absolute; top: 0; bottom: 0; display: block; }
+.bar > i.pos { background: var(--pos); }
+.bar > i.neg { background: var(--neg); }
+.bar > i.acc { background: var(--accent); }
+.bar > i.warn { background: var(--warn); }
+
+.drift-row { display: grid; grid-template-columns: 1fr 110px 80px; gap: var(--s-3); align-items: center; padding: 6px 0; }
+.drift-row .lbl { font-size: 13px; }
+.drift-row .val { text-align: right; font-family: var(--font-num); font-size: 13px; font-weight: 600; }
+
+/* Heat cell */
+.heat td { padding: 8px 10px; font-family: var(--font-num); font-size: 12px; text-align: right; }
+.heat th.lbl, .heat td.lbl { text-align: left; font-family: var(--font); font-weight: 600; background: var(--surface); }
+
+/* Tag pill */
+.tag {
+  display: inline-flex; align-items: center; padding: 2px 8px;
+  border-radius: 999px; font-size: 11px; font-weight: 600;
+}
+.tag--info { background: var(--info-soft); color: var(--info); }
+.tag--warn { background: var(--warn-soft); color: var(--warn); }
+.tag--pos  { background: var(--pos-soft);  color: var(--pos); }
+.tag--neg  { background: var(--neg-soft);  color: var(--neg); }
+.tag--mute { background: var(--surface-2); color: var(--muted); }
+
+/* =====================================================================
+   REGIME — score grid, crisis intensity, method-vote heat strip
+   ===================================================================== */
+.score-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: var(--s-4); }
+.score {
+  display: grid; gap: 4px;
+  padding: var(--s-3); border: 1px solid var(--border-soft); border-radius: var(--r-2);
+}
+.score__label { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.04em; font-weight: 600; }
+.score__value { font-size: 22px; font-weight: 600; font-family: var(--font-num); line-height: 1; }
+.score__spark { height: 28px; }
+
+.method-strip {
+  display: grid; grid-template-columns: 140px repeat(30, 1fr); gap: 1px;
+  background: var(--border-soft); padding: 1px;
+  border-radius: var(--r-2); overflow: hidden;
+}
+.method-strip .lbl { background: var(--surface); padding: 6px 10px; font-size: 12px; font-weight: 600; }
+.method-strip .cell { background: var(--surface); }
+.method-strip .cell.q1 { background: #ccfbf1; }   /* Goldilocks-ish */
+.method-strip .cell.q2 { background: #fde68a; }   /* Reflation */
+.method-strip .cell.q3 { background: #fed7aa; }   /* Stagflation */
+.method-strip .cell.q4 { background: #bfdbfe; }   /* Slowdown */
+.method-strip .cell.cr { background: #fecaca; }   /* Crisis */
+.method-strip .head { background: transparent; font-size: 10px; color: var(--muted); padding: 2px 0; text-align: center; }
+
+.timeline {
+  display: grid; gap: 2px;
+}
+.timeline__row {
+  display: grid; grid-template-columns: 96px 1fr 110px;
+  align-items: center; gap: var(--s-3);
+  padding: 6px 0; border-bottom: 1px dashed var(--border-soft);
+  font-size: 13px;
+}
+.timeline__date { color: var(--muted); font-family: var(--font-num); font-size: 12px; }
+.timeline__arrow { color: var(--muted-2); margin: 0 6px; }
+
+/* =====================================================================
+   FOOTER
+   ===================================================================== */
+.foot {
+  margin: var(--s-8) 0 var(--s-5);
+  font-size: 12px; color: var(--muted);
+  display: flex; justify-content: space-between;
+}
+
+/* Focus-visible across components */
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 4px; }
+</style>
+</head>
+<body>
+
+<!-- =====================================================================
+     APP BAR
+     ===================================================================== -->
+<header class="app-bar">
+  <div class="app-bar__row">
+    <div class="brand">
+      <span class="brand__dot" aria-hidden="true"></span>
+      <span class="brand__name">market_helper</span>
+      <span class="brand__sep">/</span>
+      <span class="brand__title">Portfolio</span>
+    </div>
+    <nav class="section-nav" aria-label="Sections">
+      <a href="#overview" class="is-active">Overview</a>
+      <a href="#performance">Performance</a>
+      <a href="#risk">Risk</a>
+      <a href="#regime">Regime</a>
+      <a href="#positions">Positions</a>
+    </nav>
+    <div class="app-bar__actions">
+      <span class="muted num" style="font-size:12px">As of 2026-05-01 · 17:42 SGT</span>
+      <button class="btn btn--ghost" title="Operate">⚙ Operate</button>
+      <button class="btn btn--primary">Refresh<span class="kbd">⌘R</span></button>
+    </div>
+  </div>
+</header>
+
+<!-- =====================================================================
+     REGIME RIBBON
+     ===================================================================== -->
+<div class="regime-ribbon">
+  <div class="regime-ribbon__row">
+    <span class="regime-pill"><span class="regime-pill__dot"></span>GOLDILOCKS</span>
+    <div class="regime-meta">
+      <span>Agreement <b>83%</b></span>
+      <span>Duration <b class="num">42d</b></span>
+      <span>Vol mult <b class="num">0.95×</b></span>
+    </div>
+    <span class="crisis-flag">Crisis off</span>
+    <span class="transition-log">Last change <b class="num">2026-03-20</b> · Slowdown → Goldilocks</span>
+  </div>
+</div>
+
+<main class="shell">
+
+  <!-- =====================================================================
+       OVERVIEW — KPI strip above the fold
+       ===================================================================== -->
+  <section id="overview">
+    <div class="h-section">
+      <h2>Overview</h2>
+      <span class="h-meta">USD primary · SGD auxiliary · TWR basis</span>
+    </div>
+
+    <div class="kpi-strip">
+      <div class="kpi">
+        <span class="kpi__label">NAV (USD)</span>
+        <span class="kpi__value num">$1,284,902</span>
+        <span class="kpi__sub"><span class="num">SGD 1,743,205</span></span>
+      </div>
+      <div class="kpi">
+        <span class="kpi__label">MTD</span>
+        <span class="kpi__value num pos">+1.42%</span>
+        <span class="kpi__sub"><span class="delta-pos num">+$18,019</span></span>
+      </div>
+      <div class="kpi">
+        <span class="kpi__label">YTD</span>
+        <span class="kpi__value num pos">+6.84%</span>
+        <span class="kpi__sub"><span class="delta-pos num">+$82,156</span></span>
+      </div>
+      <div class="kpi">
+        <span class="kpi__label">1Y</span>
+        <span class="kpi__value num pos">+11.92%</span>
+        <span class="kpi__sub"><span class="num muted">vs ACWI +9.4%</span></span>
+      </div>
+      <div class="kpi">
+        <span class="kpi__label">Ann. Vol</span>
+        <span class="kpi__value num">9.7%</span>
+        <span class="kpi__sub"><span class="num muted">EWMA 1m/3m blend</span></span>
+      </div>
+      <div class="kpi">
+        <span class="kpi__label">Sharpe</span>
+        <span class="kpi__value num">1.23</span>
+        <span class="kpi__sub"><span class="num muted">Since inception</span></span>
+      </div>
+      <div class="kpi">
+        <span class="kpi__label">Max DD (1Y)</span>
+        <span class="kpi__value num neg">−4.6%</span>
+        <span class="kpi__sub"><span class="num muted">Recovered 2026-02-11</span></span>
+      </div>
+      <div class="kpi is-warn">
+        <span class="kpi__label">Policy drift</span>
+        <span class="kpi__value num">+3.8pp EQ</span>
+        <span class="kpi__sub"><span class="num">2 sleeves above target</span></span>
+      </div>
+    </div>
+  </section>
+
+  <!-- =====================================================================
+       PERFORMANCE
+       ===================================================================== -->
+  <section id="performance">
+    <div class="h-section">
+      <h2>Performance</h2>
+      <div class="seg" role="tablist">
+        <button class="is-active">MTD</button>
+        <button>YTD</button>
+        <button>1Y</button>
+        <button>Full</button>
+        <span style="width:1px;background:var(--border);margin:0 4px"></span>
+        <button class="is-active">% return</button>
+        <button>$ PnL</button>
+      </div>
+    </div>
+
+    <div class="grid-2">
+      <div class="panel">
+        <div class="panel__header">
+          <span class="panel__title">Cumulative return & drawdown</span>
+          <span class="muted" style="font-size:12px">USD · TWR</span>
+        </div>
+        <div class="panel__body">
+          <div class="plot" aria-label="Cumulative return chart">
+            <svg viewBox="0 0 600 240" preserveAspectRatio="none">
+              <!-- cumulative return -->
+              <path d="M0,170 C40,165 80,140 120,135 C160,130 200,120 240,108 C280,96 320,90 360,80 C400,70 440,72 480,55 C520,40 560,38 600,30"
+                    stroke="#0f766e" stroke-width="2" fill="none"/>
+              <path d="M0,170 C40,165 80,140 120,135 C160,130 200,120 240,108 C280,96 320,90 360,80 C400,70 440,72 480,55 C520,40 560,38 600,30 L600,200 L0,200 Z"
+                    fill="rgba(15,118,110,0.08)"/>
+              <!-- drawdown band, lower -->
+              <path d="M0,210 L60,210 L80,225 L120,228 L160,222 L200,215 L260,212 L320,232 L380,220 L460,212 L520,210 L600,210"
+                    stroke="#b91c1c" stroke-width="1.5" fill="none" opacity="0.85"/>
+            </svg>
+          </div>
+        </div>
+      </div>
+
+      <div class="panel">
+        <div class="panel__header"><span class="panel__title">Horizon metrics</span></div>
+        <div class="panel__body panel__body--flush">
+          <table class="table">
+            <thead><tr>
+              <th>Window</th>
+              <th class="right">Return</th>
+              <th class="right">Ann.</th>
+              <th class="right">Vol</th>
+              <th class="right">Sharpe</th>
+            </tr></thead>
+            <tbody>
+              <tr><td>MTD</td>      <td class="right num pos">+1.42%</td><td class="right num">—</td>     <td class="right num">8.9%</td><td class="right num">—</td></tr>
+              <tr><td>YTD</td>      <td class="right num pos">+6.84%</td><td class="right num">+17.4%</td><td class="right num">9.1%</td><td class="right num">1.41</td></tr>
+              <tr><td>1Y</td>       <td class="right num pos">+11.92%</td><td class="right num">+11.9%</td><td class="right num">9.7%</td><td class="right num">1.05</td></tr>
+              <tr class="is-total"><td>Full</td><td class="right num pos">+38.5%</td><td class="right num">+8.4%</td><td class="right num">10.2%</td><td class="right num">1.23</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- =====================================================================
+       RISK
+       ===================================================================== -->
+  <section id="risk">
+    <div class="h-section">
+      <h2>Risk</h2>
+      <span class="h-meta">Vol method: EWMA + 1m/3m blend · ρ: historical · FI: 10Y-eq notional</span>
+    </div>
+
+    <div class="grid-2">
+      <div class="panel">
+        <div class="panel__header"><span class="panel__title">Asset-class allocation & policy drift</span></div>
+        <div class="panel__body">
+          <!-- bar rows: actual vs target, drift -->
+          <div class="drift-row">
+            <span class="lbl">Equity <span class="muted">(actual 58.8% / target 55.0%)</span></span>
+            <div class="bar"><i class="acc" style="left:0;width:58.8%"></i></div>
+            <span class="val pos">+3.8pp</span>
+          </div>
+          <div class="drift-row">
+            <span class="lbl">Fixed income <span class="muted">(28.4% / 30.0%)</span></span>
+            <div class="bar"><i class="acc" style="left:0;width:28.4%"></i></div>
+            <span class="val muted">−1.6pp</span>
+          </div>
+          <div class="drift-row">
+            <span class="lbl">Commodity <span class="muted">(7.2% / 8.0%)</span></span>
+            <div class="bar"><i class="acc" style="left:0;width:7.2%"></i></div>
+            <span class="val muted">−0.8pp</span>
+          </div>
+          <div class="drift-row">
+            <span class="lbl">Cash / Macro <span class="muted">(5.6% / 7.0%)</span></span>
+            <div class="bar"><i class="acc" style="left:0;width:5.6%"></i></div>
+            <span class="val muted">−1.4pp</span>
+          </div>
+          <p class="muted" style="margin:14px 0 0; font-size:12px">
+            Regime overlay (Goldilocks → 0.95× vol multiplier) suggests EQ +2pp / FI −1pp vs static target.
+          </p>
+        </div>
+      </div>
+
+      <div class="panel">
+        <div class="panel__header"><span class="panel__title">Equity country breakdown</span></div>
+        <div class="panel__body panel__body--flush">
+          <table class="table">
+            <thead><tr><th>Region</th><th class="right">Weight</th><th class="right">Vol</th><th class="right">Contribution</th></tr></thead>
+            <tbody>
+              <tr class="is-subtotal"><td>DM</td><td class="right num">42.1%</td><td class="right num">12.4%</td><td class="right num">68%</td></tr>
+              <tr><td style="padding-left:28px">United States</td><td class="right num">31.2%</td><td class="right num">13.1%</td><td class="right num">52%</td></tr>
+              <tr><td style="padding-left:28px">Japan</td>          <td class="right num">6.4%</td> <td class="right num">11.0%</td><td class="right num">9%</td></tr>
+              <tr><td style="padding-left:28px">Europe ex-UK</td>   <td class="right num">4.5%</td> <td class="right num">12.8%</td><td class="right num">7%</td></tr>
+              <tr class="is-subtotal"><td>EM</td><td class="right num">16.7%</td><td class="right num">15.6%</td><td class="right num">32%</td></tr>
+              <tr><td style="padding-left:28px">China</td>          <td class="right num">8.2%</td> <td class="right num">17.4%</td><td class="right num">19%</td></tr>
+              <tr><td style="padding-left:28px">India</td>          <td class="right num">5.1%</td> <td class="right num">14.2%</td><td class="right num">9%</td></tr>
+              <tr><td style="padding-left:28px">Other</td>          <td class="right num">3.4%</td> <td class="right num">14.0%</td><td class="right num">4%</td></tr>
+              <tr class="is-total"><td>Total EQ</td><td class="right num">58.8%</td><td class="right num">13.5%</td><td class="right num">100%</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <div class="grid-2" style="margin-top: var(--s-4)">
+      <div class="panel">
+        <div class="panel__header">
+          <span class="panel__title">Portfolio vol matrix</span>
+          <span class="muted" style="font-size:12px">vs. ACWI · AGG · GLD</span>
+        </div>
+        <div class="panel__body panel__body--flush">
+          <table class="table heat">
+            <thead><tr><th class="lbl">&nbsp;</th><th>1m</th><th>3m</th><th>6m</th><th>1y</th><th>EWMA</th><th>Long-term</th></tr></thead>
+            <tbody>
+              <tr><td class="lbl">Portfolio</td>
+                <td style="background:#fef3c7">10.2%</td>
+                <td style="background:#fde68a">9.7%</td>
+                <td style="background:#fde68a">9.5%</td>
+                <td style="background:#fcd34d">9.7%</td>
+                <td style="background:#fde68a">9.6%</td>
+                <td style="background:#fcd34d">10.4%</td></tr>
+              <tr><td class="lbl">EQ sleeve</td>
+                <td style="background:#fb923c;color:#fff">14.1%</td>
+                <td style="background:#fdba74">13.5%</td>
+                <td style="background:#fdba74">13.3%</td>
+                <td style="background:#fb923c;color:#fff">13.5%</td>
+                <td style="background:#fdba74">13.4%</td>
+                <td style="background:#fb923c;color:#fff">14.7%</td></tr>
+              <tr><td class="lbl">FI sleeve</td>
+                <td style="background:#fef3c7">5.1%</td>
+                <td style="background:#fef3c7">5.4%</td>
+                <td style="background:#fef3c7">5.6%</td>
+                <td style="background:#fef3c7">5.5%</td>
+                <td style="background:#fef3c7">5.4%</td>
+                <td style="background:#fef3c7">5.8%</td></tr>
+              <tr><td class="lbl">CM sleeve</td>
+                <td style="background:#fdba74">17.8%</td>
+                <td style="background:#fdba74">16.9%</td>
+                <td style="background:#fdba74">16.4%</td>
+                <td style="background:#fb923c;color:#fff">17.0%</td>
+                <td style="background:#fdba74">16.6%</td>
+                <td style="background:#fb923c;color:#fff">18.2%</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="panel">
+        <div class="panel__header">
+          <span class="panel__title">Top contributors to portfolio vol</span>
+          <span class="muted" style="font-size:12px">EWMA, position-level</span>
+        </div>
+        <div class="panel__body panel__body--flush">
+          <table class="table">
+            <thead><tr><th>Position</th><th class="right">Weight</th><th class="right">Pos. vol</th><th class="right">Contribution</th></tr></thead>
+            <tbody>
+              <tr><td><span class="ticker">SPY</span> · S&amp;P 500 ETF</td>     <td class="right num">14.8%</td><td class="right num">14.1%</td><td class="right num pos">22%</td></tr>
+              <tr><td><span class="ticker">QQQ</span> · Nasdaq 100 ETF</td>      <td class="right num">8.4%</td> <td class="right num">17.6%</td><td class="right num pos">17%</td></tr>
+              <tr><td><span class="ticker">FXI</span> · China LCap</td>         <td class="right num">5.1%</td> <td class="right num">22.3%</td><td class="right num pos">13%</td></tr>
+              <tr><td><span class="ticker">GLD</span> · Gold ETF</td>           <td class="right num">5.6%</td> <td class="right num">14.8%</td><td class="right num pos">8%</td></tr>
+              <tr><td><span class="ticker">TLT</span> · 20+ UST ETF</td>        <td class="right num">7.2%</td> <td class="right num">13.4%</td><td class="right num pos">7%</td></tr>
+              <tr><td colspan="4" class="muted" style="text-align:center; padding:14px">+ 18 positions · 33% remaining</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- =====================================================================
+       REGIME
+       ===================================================================== -->
+  <section id="regime">
+    <div class="h-section">
+      <h2>Regime</h2>
+      <span class="h-meta">Schema regime-multi-v1 · 4 methods · crisis hysteresis on</span>
+    </div>
+
+    <div class="grid-2">
+      <div class="panel">
+        <div class="panel__header">
+          <span class="panel__title">Factor scores</span>
+          <span class="muted" style="font-size:12px">last 6 months</span>
+        </div>
+        <div class="panel__body">
+          <div class="score-grid">
+            <div class="score">
+              <span class="score__label">Growth</span>
+              <span class="score__value pos">+0.62</span>
+              <svg class="score__spark" viewBox="0 0 100 30" preserveAspectRatio="none">
+                <path d="M0,20 L10,18 L20,16 L30,14 L40,12 L50,10 L60,12 L70,9 L80,7 L90,8 L100,5"
+                      stroke="#15803d" stroke-width="1.5" fill="none"/>
+              </svg>
+            </div>
+            <div class="score">
+              <span class="score__label">Inflation</span>
+              <span class="score__value">−0.18</span>
+              <svg class="score__spark" viewBox="0 0 100 30" preserveAspectRatio="none">
+                <path d="M0,8 L10,10 L20,12 L30,14 L40,16 L50,18 L60,17 L70,18 L80,17 L90,18 L100,18"
+                      stroke="#64748b" stroke-width="1.5" fill="none"/>
+              </svg>
+            </div>
+            <div class="score">
+              <span class="score__label">Liquidity</span>
+              <span class="score__value pos">+0.41</span>
+              <svg class="score__spark" viewBox="0 0 100 30" preserveAspectRatio="none">
+                <path d="M0,22 L10,20 L20,16 L30,18 L40,14 L50,12 L60,11 L70,13 L80,10 L90,9 L100,8"
+                      stroke="#15803d" stroke-width="1.5" fill="none"/>
+              </svg>
+            </div>
+            <div class="score">
+              <span class="score__label">Vol</span>
+              <span class="score__value">−0.05</span>
+              <svg class="score__spark" viewBox="0 0 100 30" preserveAspectRatio="none">
+                <path d="M0,14 L10,16 L20,18 L30,20 L40,22 L50,18 L60,15 L70,16 L80,14 L90,13 L100,15"
+                      stroke="#64748b" stroke-width="1.5" fill="none"/>
+              </svg>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="panel">
+        <div class="panel__header">
+          <span class="panel__title">Crisis intensity</span>
+          <span class="muted" style="font-size:12px">threshold 0.6 · current 0.18</span>
+        </div>
+        <div class="panel__body">
+          <div class="plot plot-mini" style="height:96px">
+            <svg viewBox="0 0 600 96" preserveAspectRatio="none">
+              <line x1="0" y1="38" x2="600" y2="38" stroke="#fecaca" stroke-dasharray="3 3"/>
+              <text x="6" y="34" font-size="10" fill="#b91c1c" font-family="ui-monospace, monospace">0.6 trigger</text>
+              <path d="M0,80 L40,78 L80,76 L120,72 L160,55 L180,38 L200,20 L220,28 L260,52 L300,68 L340,76 L380,80 L420,82 L460,80 L500,76 L540,78 L580,80 L600,82"
+                    stroke="#b91c1c" stroke-width="1.5" fill="none"/>
+              <path d="M0,80 L40,78 L80,76 L120,72 L160,55 L180,38 L200,20 L220,28 L260,52 L300,68 L340,76 L380,80 L420,82 L460,80 L500,76 L540,78 L580,80 L600,82 L600,96 L0,96 Z"
+                    fill="rgba(185,28,28,0.08)"/>
+              <circle cx="600" cy="82" r="3" fill="#b91c1c"/>
+            </svg>
+          </div>
+          <p class="muted" style="margin:8px 0 0; font-size:12px">
+            Last triggered <b class="num">2026-02-08</b> (peak 0.74) during the rate-vol spike; reverted after 9 sessions.
+          </p>
+        </div>
+      </div>
+    </div>
+
+    <div class="grid-2" style="margin-top: var(--s-4)">
+      <div class="panel">
+        <div class="panel__header">
+          <span class="panel__title">Method-vote heat strip</span>
+          <span class="muted" style="font-size:12px">last 30 sessions</span>
+        </div>
+        <div class="panel__body">
+          <div class="method-strip" aria-label="Method vote heat strip">
+            <div class="lbl">VIX/MOVE quad</div>
+            <!-- 30 cells -->
+            <div class="cell q4"></div><div class="cell q4"></div><div class="cell q4"></div><div class="cell q4"></div><div class="cell q4"></div>
+            <div class="cell q4"></div><div class="cell cr"></div><div class="cell cr"></div><div class="cell cr"></div><div class="cell q4"></div>
+            <div class="cell q4"></div><div class="cell q4"></div><div class="cell q1"></div><div class="cell q1"></div><div class="cell q1"></div>
+            <div class="cell q1"></div><div class="cell q1"></div><div class="cell q1"></div><div class="cell q1"></div><div class="cell q1"></div>
+            <div class="cell q1"></div><div class="cell q1"></div><div class="cell q1"></div><div class="cell q1"></div><div class="cell q1"></div>
+            <div class="cell q1"></div><div class="cell q1"></div><div class="cell q1"></div><div class="cell q1"></div><div class="cell q1"></div>
+
+            <div class="lbl">Growth/Infl quad</div>
+            <div class="cell q4"></div><div class="cell q4"></div><div class="cell q4"></div><div class="cell q4"></div><div class="cell q4"></div>
+            <div class="cell q4"></div><div class="cell q4"></div><div class="cell q3"></div><div class="cell q3"></div><div class="cell q3"></div>
+            <div class="cell q4"></div><div class="cell q4"></div><div class="cell q1"></div><div class="cell q1"></div><div class="cell q1"></div>
+            <div class="cell q1"></div><div class="cell q1"></div><div class="cell q1"></div><div class="cell q1"></div><div class="cell q1"></div>
+            <div class="cell q1"></div><div class="cell q1"></div><div class="cell q1"></div><div class="cell q1"></div><div class="cell q1"></div>
+            <div class="cell q1"></div><div class="cell q1"></div><div class="cell q1"></div><div class="cell q1"></div><div class="cell q1"></div>
+
+            <div class="lbl">HY OAS</div>
+            <div class="cell q4"></div><div class="cell q4"></div><div class="cell q4"></div><div class="cell q4"></div><div class="cell q4"></div>
+            <div class="cell q4"></div><div class="cell cr"></div><div class="cell cr"></div><div class="cell q4"></div><div class="cell q4"></div>
+            <div class="cell q4"></div><div class="cell q1"></div><div class="cell q1"></div><div class="cell q1"></div><div class="cell q1"></div>
+            <div class="cell q1"></div><div class="cell q1"></div><div class="cell q1"></div><div class="cell q1"></div><div class="cell q1"></div>
+            <div class="cell q1"></div><div class="cell q1"></div><div class="cell q1"></div><div class="cell q1"></div><div class="cell q1"></div>
+            <div class="cell q1"></div><div class="cell q1"></div><div class="cell q1"></div><div class="cell q1"></div><div class="cell q1"></div>
+
+            <div class="lbl">Crisis overlay</div>
+            <div class="cell"></div><div class="cell"></div><div class="cell"></div><div class="cell"></div><div class="cell"></div>
+            <div class="cell"></div><div class="cell cr"></div><div class="cell cr"></div><div class="cell cr"></div><div class="cell"></div>
+            <div class="cell"></div><div class="cell"></div><div class="cell"></div><div class="cell"></div><div class="cell"></div>
+            <div class="cell"></div><div class="cell"></div><div class="cell"></div><div class="cell"></div><div class="cell"></div>
+            <div class="cell"></div><div class="cell"></div><div class="cell"></div><div class="cell"></div><div class="cell"></div>
+            <div class="cell"></div><div class="cell"></div><div class="cell"></div><div class="cell"></div><div class="cell"></div>
+          </div>
+          <div style="display:flex; gap:14px; margin-top:10px; font-size:11px; color:var(--muted)">
+            <span><span style="display:inline-block;width:10px;height:10px;background:#ccfbf1;border-radius:2px;vertical-align:middle"></span> Goldilocks</span>
+            <span><span style="display:inline-block;width:10px;height:10px;background:#fde68a;border-radius:2px;vertical-align:middle"></span> Reflation</span>
+            <span><span style="display:inline-block;width:10px;height:10px;background:#fed7aa;border-radius:2px;vertical-align:middle"></span> Stagflation</span>
+            <span><span style="display:inline-block;width:10px;height:10px;background:#bfdbfe;border-radius:2px;vertical-align:middle"></span> Slowdown</span>
+            <span><span style="display:inline-block;width:10px;height:10px;background:#fecaca;border-radius:2px;vertical-align:middle"></span> Crisis</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="panel">
+        <div class="panel__header"><span class="panel__title">Regime transition log</span></div>
+        <div class="panel__body">
+          <div class="timeline">
+            <div class="timeline__row">
+              <span class="timeline__date">2026-03-20</span>
+              <span><b>Slowdown</b> <span class="timeline__arrow">→</span> <b>Goldilocks</b> <span class="muted" style="font-size:12px">on growth + liquidity rebound</span></span>
+              <span class="tag tag--pos">+42d active</span>
+            </div>
+            <div class="timeline__row">
+              <span class="timeline__date">2026-02-08</span>
+              <span><b>Goldilocks</b> <span class="timeline__arrow">→</span> <b>Slowdown</b> <span class="muted" style="font-size:12px">crisis overlay 9-day</span></span>
+              <span class="tag tag--neg">crisis 0.74</span>
+            </div>
+            <div class="timeline__row">
+              <span class="timeline__date">2025-11-04</span>
+              <span><b>Reflation</b> <span class="timeline__arrow">→</span> <b>Goldilocks</b> <span class="muted" style="font-size:12px">inflation cooling</span></span>
+              <span class="tag tag--mute">96d</span>
+            </div>
+            <div class="timeline__row">
+              <span class="timeline__date">2025-08-12</span>
+              <span><b>Goldilocks</b> <span class="timeline__arrow">→</span> <b>Reflation</b></span>
+              <span class="tag tag--mute">84d</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="panel" style="margin-top: var(--s-4)">
+      <div class="panel__header">
+        <span class="panel__title">Method votes (latest)</span>
+        <span class="muted" style="font-size:12px">ensemble agreement 83%</span>
+      </div>
+      <div class="panel__body panel__body--flush">
+        <table class="table">
+          <thead><tr><th>Method</th><th>Quadrant</th><th>Native label</th><th class="right">Confidence</th></tr></thead>
+          <tbody>
+            <tr><td>VIX/MOVE quadrant</td>     <td><span class="tag tag--pos">Goldilocks</span></td><td>low-vol risk-on</td><td class="right num">0.88</td></tr>
+            <tr><td>Growth/Inflation quadrant</td><td><span class="tag tag--pos">Goldilocks</span></td><td>growth+ infl−</td>  <td class="right num">0.81</td></tr>
+            <tr><td>HY OAS regime</td>          <td><span class="tag tag--pos">Goldilocks</span></td><td>tight-spread</td>  <td class="right num">0.79</td></tr>
+            <tr><td>Crisis overlay</td>         <td><span class="tag tag--mute">off</span></td>     <td>intensity 0.18</td>  <td class="right num">—</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
+  <footer class="foot">
+    <span>market_helper · read-only research dashboard</span>
+    <span class="num">Build 2026-05-01 · regime-multi-v1 · TWR/MWR USD/SGD</span>
+  </footer>
+
+</main>
+
+<script>
+  // Section nav — hash-routed scroll spy (replaces hidden-attr toggle)
+  (function () {
+    const links = Array.from(document.querySelectorAll('.section-nav a'));
+    const sections = links
+      .map(a => document.querySelector(a.getAttribute('href')))
+      .filter(Boolean);
+    function setActive(id) {
+      links.forEach(a => a.classList.toggle('is-active', a.getAttribute('href') === '#' + id));
+    }
+    const io = new IntersectionObserver(entries => {
+      entries.forEach(e => { if (e.isIntersecting) setActive(e.target.id); });
+    }, { rootMargin: '-40% 0px -55% 0px' });
+    sections.forEach(s => io.observe(s));
+  })();
+</script>
+</body>
+</html>

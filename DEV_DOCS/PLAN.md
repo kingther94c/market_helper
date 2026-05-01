@@ -260,3 +260,118 @@ Redesigns regime detection around a pluggable multi-method architecture that cla
 3. Extend policy schema with DM_EQ/EM_EQ split and defensive bucket sub-allocation overlays.
 4. Expand backtest scaffold into scenario validation with walk-forward windows and robustness checks.
 5. Add report panels for regime transition history and drawdown behavior by regime segment.
+
+## UI / Reports Redesign (In Progress)
+Unifies the NiceGUI dashboard and the three HTML report surfaces (`combined`, `regime`) under one design system. Driven by a design critique that flagged three unrelated visual systems composed via iframe (dashboard slate+blue Material; combined report warm-paper editorial serif; regime report plain sans on cool gray) plus an oversized hero, decorative gradients with no semantic meaning, redeclared CSS across `performance_html.py` / `risk_html.py` / `regime_html.py`, and an action-runner UI mixed into the report viewer. Reference visual target: `design_mockup.html` at the worktree root (single-file mock with the proposed tokens, app-bar, KPI strip, regime ribbon, and section treatments). Per-phase implementation guide: [`DEV_DOCS/docs/devplans/ui_redesign_devplan.md`](docs/devplans/ui_redesign_devplan.md).
+
+### Goals
+- One token set (color, spacing, radius, type) consumed by both the NiceGUI dashboard and the HTML reports.
+- Replace the oversized serif hero with a sticky app-bar + above-the-fold KPI strip so daily-use answers are visible without scrolling.
+- Add a sticky regime ribbon so macro context follows the user across Performance / Risk / Positions sections.
+- Bring the regime report into the combined report shell so there is one deliverable instead of two; add factor-score sparklines, a crisis-intensity timeline, a method-vote heat strip, and a regime-transition log.
+- Separate "operate" (refresh pipeline, sync references, edit artifact paths) from "view" so the report page is a clean reader; daily UX should be a single primary refresh action.
+- Replace decorative gradients on summary cards with semantic color (positive/negative/warning) and keep the editorial flavor in *content* rather than chrome.
+- Replace the `report-nav` button row + `hidden`-attr toggling with hash-routed sections plus `IntersectionObserver` scroll-spy so views are bookmarkable and keyboard-navigable.
+
+### Interaction with Playwright snapshot track
+The dashboard NiceGUI view is what gets ossified into the static HTML report by `capture_snapshot()`. The redesign therefore lands *behind* the snapshot pipeline — every dashboard chrome change automatically flows into the snapshot output, and the legacy `risk_html.py` / `performance_html.py` template renderers can be deleted faster once the dashboard owns the canonical look. Phases below are sequenced so the dashboard and report converge before the legacy template code is removed.
+
+### Phases (incremental, each independently shippable)
+
+1. **P1 — Token extraction (pure refactor, no visual change).**
+   Add `market_helper/reporting/_design_tokens.py` returning a `<style>` block with `:root` custom properties (color, spacing scale 4/8/12/16/20/24/32/48, radius scale 6/10/14/18, type scale, font stacks, semantic positive/negative/warn/info, shadow). Have `report_document.py`, `performance_html.py`, `risk_html.py`, `regime_html.py` consume it instead of redeclaring `:root` and `.segmented-control` / `.chart-row` / `.chart-track` literals. Add a parallel `add_design_tokens()` helper for `presentation/dashboard/components/common.py` so the NiceGUI dashboard reads the same vars via `ui.add_head_html`. No DOM or layout changes in this phase — only deduplication and centralization. Acceptance: byte-for-byte identical rendered output verified via existing risk-html unit tests + a snapshot diff against a saved baseline.
+
+2. **P2 — Component primitives (extract, do not yet restyle).**
+   Move shared component CSS into the token module: `Button`, `SegmentedControl`, `KpiCard`, `Tag`, `StatusChip`, `Table`, `BarRow` (the `.chart-row`/`.chart-track` pattern), `HeatCell`. Keep current visuals; just give each component one canonical CSS source. Update `performance_html.py` summary cards, `risk_html.py` drift bars, and `regime_html.py` status cards to reference the shared classes. This phase is the largest CSS deletion — risk_html alone redeclares the segmented-control block. Acceptance: visual parity, but per-file CSS character count drops materially (target 30–50% reduction in inline `<style>` blocks across the four files).
+
+3. **P3 — Visual reset on the combined report (token re-skin).**
+   Apply the new design language: neutral cool `--bg` (#f7f8fa), drop the editorial warm-paper background, drop the decorative teal-to-orange gradient bar on `.perf-summary-card`, swap display serif for the unified sans, tighten radius (22px → 14px) and spacing scale, replace card double-shadow with single `--shadow-1`. Encode meaning in color: KPI cards use `pos`/`neg`/`warn` semantic tokens for delta values. Hero is still present but slimmer (single row, no `clamp(34px, 4vw, 56px)` H1). Acceptance: side-by-side visual review against `design_mockup.html`; KPI cards no longer carry decorative gradient; positive/negative deltas are color-coded.
+
+4. **P4 — App-bar, KPI strip, hash-routed nav.**
+   Replace the existing hero + `.report-nav` + `<section hidden>` toggle with: (a) sticky `<header class="app-bar">` showing brand + section nav + as-of + Operate + Refresh; (b) 8-column KPI strip immediately below (NAV, MTD, YTD, 1Y, vol, Sharpe, max DD, policy drift) — values come from `PerformanceReportViewModel` + new `RiskTopline` view-model fields; (c) hash-routed sections with `IntersectionObserver` scroll-spy replacing the JS `hidden` swap. Section nav becomes deep-linkable (`#performance`, `#risk`, `#regime`). Acceptance: `?section=risk` and `#risk` both land directly on the Risk panel; back/forward browser buttons restore prior section; tab order through nav is keyboard-accessible with visible `:focus-visible` rings.
+
+5. **P5 — Regime ribbon + regime fold-in.**
+   Add the sticky compact regime ribbon directly under the app-bar (single line: regime pill, agreement, duration, vol multiplier, crisis flag, last transition). Migrate `regime_html.py` content into the combined report as a third section alongside Performance / Risk. Add the new regime visuals from the mockup: factor-score grid with inline SVG sparklines (Growth/Inflation/Liquidity/Vol over last ~6 months), crisis-intensity area chart with threshold band, method-vote heat strip (last 30 sessions × N methods, color-coded by quadrant + crisis), regime-transition log. The standalone `render_regime_html_report()` becomes a thin wrapper that wraps the same section in a minimal shell for the `regime-html-report` CLI path. Acceptance: combined report contains a `#regime` section; ribbon visible on every section; standalone regime CLI artifact still byte-identical-content (same view-model, just rendered through the unified shell).
+
+6. **P6 — Dashboard chrome alignment.**
+   Apply shared tokens to `presentation/dashboard/components/common.py` and replace the dashboard's slate-to-blue gradient hero + Quasar-default sans with the unified app-bar pattern. The dashboard `_render_header` / `_render_toolbar` / `_render_feedback` / `_render_action_console` in `pages/portfolio.py` re-skinned to use shared `KpiCard` / `Button` / `StatusChip` / `Tag` primitives. Embedded iframe wrapper styled to bleed seamlessly into the surrounding chrome (no double-frame). Acceptance: dashboard chrome and embedded report share visual language; no visible "seam" at the iframe boundary; existing `pm-status-*` chip semantics preserved.
+
+7. **P7 — Split operate from view.**
+   Move the action console (Refresh Pipeline, Live Refresh, Flex Refresh, HTML Report, Reference Sync), artifact-paths inputs, and progress log out of the `/portfolio` route. Two patterns to choose between (decision in P7 design doc, default = drawer):
+   - **Drawer**: keep `/portfolio` as the only route; the Operate button in the app-bar opens a slide-over `<aside>` containing the action cards and artifact paths. Progress log becomes a toast queue + an expandable log inside the drawer.
+   - **Separate route**: add `/operations` route hosting the full action console; `/portfolio` keeps only the Refresh button + status chip.
+   Decision criteria: drawer keeps user in context (better for daily glance + quick refresh), route is cleaner architecturally. Default to drawer for V1, leave the route option as a follow-up if the drawer gets too crowded.
+   Acceptance: `/portfolio` page first-paint contains zero form inputs and zero file paths; "Refresh" button performs the previous "Refresh Pipeline + Generate" action with no extra clicks.
+
+8. **P8 — Legacy template deletion + test migration.**
+   Once P1–P7 are stable, delete: `_render_summary_card` decorative gradient CSS in `performance_html.py`, redundant `<style>` blocks across the three reporting modules, the standalone `regime_html.py` shell (keep view-model builders), the `_styles()` function, and the duplicated segmented-control / chart-row CSS. Migrate `tests/unit/reporting/test_*.py` HTML-string assertions to view-model-level assertions where possible, and add a small suite of CSS-presence tests against the shared token module so future regressions are caught. This phase pairs naturally with the snapshot-retirement Phase D (legacy `render_html` / `render_risk_tab` deletion already in PLAN.md).
+
+### Content preservation contract (no-removal, additions allowed)
+The redesign is a **chrome / layout / typography** change. Every data element currently rendered in Performance and Risk must remain reachable in the redesigned layout — polishing format and presentation is allowed; removing computed values, columns, or breakdown sections is not. New additions are allowed when they make sense (e.g. KPI strip, regime ribbon, sparklines, top-vol-contributors). Treat the following as a checklist that must pass before P3 lands.
+
+**Performance — must remain (every item enumerated from `render_performance_tab` + `PerformanceReportViewModel`):**
+- Lead text noting **primary basis** (TWR/MWR) and **primary currency**, with auxiliary-currency note when secondary is present.
+- Four since-inception summary cards: **As of**, **Annualized return**, **Annualized vol**, **Sharpe** — each carrying primary (USD) + secondary (SGD) values.
+- Cumulative-return + drawdown stacked Plotly chart with shared x-axis.
+- **Window** segmented control: `MTD / YTD / 1Y / FULL` — selection persists across mode toggle.
+- **Mode** segmented control: `percent (return) / dollar (PnL)` — selection persists across window toggle.
+- **Horizon Metrics** table — one row per `MTD / YTD / 1Y / Full History`; columns must include **TWR Return, MWR Return, Ann Return, Ann Vol, Sharpe, Max Drawdown** (six metrics, do not collapse TWR/MWR into a single "Return" column).
+- **Historical Years** table — one row per calendar year; columns: TWR Return, MWR Return, Ann Vol, Sharpe, Max Drawdown (no annualized return per the current contract).
+- **Separate USD and SGD currency tabs** — the whole performance section renders twice, once per currency. The redesigned shell may use a tab/segmented switch instead of two top-level tabs, but both currencies must remain first-class.
+
+**Risk — must remain (every card enumerated from `render_risk_tab`, in current order; numbering is for reference, the redesign may regroup):**
+1. **Risk Assumptions** bar — vol-method label, FI methodology copy, regime cross-reference, vol-method and inter-asset-correlation selectors (`Long-Term / Fast / Forward-Looking`; `historical / corr_0 / corr_1`).
+2. **Regime Snapshot** — current regime label + interpretation copy (more than just the ribbon pill; the rule-book text must remain accessible).
+3. **Portfolio Summary** — total exposure, AUM, gross, net, vol, beta-equivalent, plus the `FX excluded` portfolio-vol note.
+4. **Portfolio Vol Matrix** — heat-shaded multi-window vol table (orange scale).
+5. **Asset Class Summary** — columns must keep their current names: `Net Exposure ($)`, `Portfolio Allocation %`, `Vol Contribution %`.
+6. **Policy Drift — Asset Class (Dollar Weight Active)** — actual vs target with horizontal bar chart.
+7. **EQ Country Breakdown** — DM rows tinted, EM rows tinted, group subtotal rows, grand-total row treatment must remain distinguishable.
+8. **Policy Drift — Equity Country (within EQ scope)**.
+9. **US Sector Breakdown** — 11 GICS sectors.
+10. **Policy Drift — US Sector (within US EQ scope)**.
+11. **Equity Positions** table — including the sparkline column.
+12. **FI Tenor Breakdown** — 8 buckets (`0-1Y / 1-3Y / 3-5Y / 5-7Y / 7-10Y / 10-20Y / 20Y+ / UNASSIGNED`) with readable labels (`Cash / ultra-short`, `Front end`, `Short belly`, `Belly`, `Long belly`, `Long end`, `Ultra-long`).
+13. **Fixed Income Positions** — including the `FI dollar exposures shown as 10Y-equivalent USD notional` disclosure.
+14. **Commodity Sector Summary** — PM / IM / EN / AG.
+15. **Commodity Sector Correlation** heat table (red scale).
+16. **Commodity Positions**.
+17. **FX Positions** (note: `Vol Contribution %` intentionally omitted in current build — preserve that omission).
+18. **Macro Positions**.
+
+**Dashboard structural elements that must remain:**
+- Main Overview + 5 detail sub-tabs (`Equity`, `Fixed Income`, `Commodity`, `FX`, `Macro`) — the redesign may reshape the navigation but each sub-tab's specific content (EQ DM/EM stacked bars, FI weighted-avg-duration summary, CM correlation heatmap, etc.) must remain reachable.
+- Equity DM/EM summary block: small table + two 100% stacked bars (portfolio vs policy).
+- Fixed Income summary cards above tenor table: total FI net exposure, weighted-avg duration, position count.
+- Commodity cross-sector correlation heatmap (Plotly RdBu, [-1,1]) using `commodity_sector_proxies` config.
+
+**Allowed additions in the redesign (additive, must not displace anything above):**
+- 8-column KPI strip above the fold (NAV, MTD, YTD, 1Y, vol, Sharpe, Max DD 1Y, Policy drift summary).
+- Sticky regime ribbon (regime pill + agreement + duration + vol multiplier + crisis flag + last transition).
+- Regime section folded into the combined report: factor-score grid with 6-month sparklines, crisis-intensity area chart with threshold band, method-vote heat strip (last 30 sessions × N methods), regime-transition log.
+- Optional **Top contributors to portfolio vol** table on the Risk overview — a pre-sorted view of #11/#13/#16/#17/#18 by vol contribution. Additive only; does not replace the per-asset-class position tables.
+- Hash-routed deep links for every section.
+
+**Acceptance check before P3 ships:**
+A line-by-line diff between the previous combined report HTML and the redesigned HTML must show every bullet in the "must remain" lists above is still present. Run with: capture a baseline HTML before P3, capture the redesigned HTML after P3, and grep both for each card title / column header / key disclosure string. The redesign may rewrite the surrounding markup — but the data points themselves must round-trip.
+
+### Out of scope for this redesign track
+- Mobile responsiveness (single user, desktop-only — current `@media (max-width: 840px)` rules remain as no-op safety net but will not be actively designed against).
+- Dark mode (single user, daytime use; not worth the contrast-pair maintenance overhead now).
+- Multi-user / role-based variations (project remains single-user read-only).
+- Print stylesheet (could be a small follow-up if PDF export becomes a goal — not in V1).
+- Replacing Plotly with another charting lib — keep Plotly for charts; only the chrome around them changes.
+
+### Risks / open questions
+- **Iframe seam** — Even with shared tokens, `srcdoc` iframes inherit no parent CSS by default. P6 must verify the inlined `<style>` block in the report copy includes the shared tokens; otherwise the dashboard chrome and the iframe content will drift again. Mitigation: token module emits a single `<style>` string used by both.
+- **Snapshot-pipeline interaction** — If the dashboard restyle lands before snapshot perf-parity (`Performance USD/SGD` Plotly tabs), the static snapshot artifact will look different from the live dashboard during the transition window. Sequence option: complete snapshot Phase B-C-perf first (already in flight), then start P3 so the snapshot output and the live UI move together.
+- **KPI provenance** — The 8-column KPI strip needs values that don't all exist as a single view-model today: `NAV (USD)`, `Policy drift summary`, `Max DD (1Y)`. P4 includes adding a `RiskTopline` view-model field aggregating these from existing `PerformanceReportViewModel` + `RiskReportViewModel` outputs; no new computation, just a fanout helper.
+- **Regime fold-in vs. standalone** — Some users (read: cron jobs / external readers) may rely on the standalone regime HTML being a self-contained file. P5 keeps `regime-html-report` CLI emitting a self-contained file (same DOM, minimal shell) so external consumers don't break.
+
+### Acceptance for the redesign track as a whole
+- One `:root` token module imported by all four reporting modules + the dashboard.
+- Daily-use entry point (`/portfolio`) shows answers above the fold within 600px viewport height (KPI strip + regime ribbon + first chart visible).
+- Hash-routed sections; bookmarkable; keyboard-accessible with visible focus rings.
+- Combined HTML report file contains Performance + Risk + Regime sections; standalone regime CLI still works for headless consumers.
+- Dashboard `/portfolio` first-paint contains no form inputs (operate moved to drawer or separate route).
+- CSS character count across `performance_html.py` + `risk_html.py` + `regime_html.py` drops by ~40% (deduplication target).
