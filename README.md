@@ -329,11 +329,11 @@ conda run -n py313 python -m market_helper.cli.main regime-report \
   --policy configs/regime_detection/regime_policy.example.yml
 ```
 
-Standalone HTML artifact for legacy or multi-method regime snapshots:
+Standalone HTML artifact for multi-method regime snapshots:
 
 ```bash
 conda run -n py313 python -m market_helper.cli.main regime-html-report \
-  --regime data/artifacts/regime_detection/regime_multi_snapshots.json \
+  --regime data/artifacts/regime_detection/regime_snapshots.json \
   --output data/artifacts/regime_detection/regime_report.html \
   --policy configs/regime_detection/quadrant_policy.example.yml
 ```
@@ -352,7 +352,7 @@ Regime v2 has two high-level entry points for normal use:
 conda run -n py313 python -m market_helper.cli.main regime-refresh-report \
   --methods all \
   --max-age-days 7 \
-  --output-regime data/artifacts/regime_detection/regime_multi_snapshots.json \
+  --output-regime data/artifacts/regime_detection/regime_snapshots.json \
   --output-html data/artifacts/regime_detection/regime_report.html
 ```
 
@@ -362,22 +362,20 @@ conda run -n py313 python -m market_helper.cli.main regime-refresh-report \
 ```bash
 conda run -n py313 python -m market_helper.cli.main regime-run-report \
   --methods all \
-  --output-regime data/artifacts/regime_detection/regime_multi_snapshots.json \
+  --output-regime data/artifacts/regime_detection/regime_snapshots.json \
   --output-html data/artifacts/regime_detection/regime_report.html
 ```
 
 The refresh entry point writes:
-- `data/processed/regime_returns.json` from Yahoo `SPY`/`AGG` by default.
-- `data/processed/regime_proxies.json` from FRED `VIXCLS`, `BAMLH0A0HYM2`, `DGS2`, `DGS10`, plus Yahoo `^MOVE`.
-- `data/interim/fred/macro_panel.feather` from the FRED macro panel config.
+- `data/interim/fred/macro_panel.feather` from the FRED macro panel config for `macro_regime`.
+- `data/interim/market_regime/market_panel.feather` from Yahoo Finance symbols in `configs/regime_detection/market_regime.yml` for `market_regime`.
 
 Input expectations:
-- Proxy JSON keys: `VIX`, `MOVE`, `HY_OAS`, `UST2Y`, `UST10Y`
-- Returns JSON keys: `EQ`, `FI`
-- Each series can be `{date: value}` or a list form with `{as_of/date, value}` entries.
+- `macro_regime` reads the FRED panel and `fred_series.yml`; macro sources are split into configurable `fast` and `slow` buckets, defaulting to 70%/30% per axis.
+- `market_regime` reads the market panel and `market_regime.yml`; market growth/inflation/risk signals are configurable by ticker, transform, direction, and weight.
 
 Outputs:
-- `regime_snapshots.json` contains `RegimeSnapshot` rows with scores, flags, and diagnostics.
+- `regime_snapshots.json` contains `MultiMethodRegimeSnapshot` rows with `macro_regime`, `market_regime`, ensemble scores, risk overlay flags, and diagnostics.
 - `indicator_snapshots.json` contains factor snapshot history for validation and future backtests.
 
 Policy layer (`market_helper/suggest/regime_policy.py`) maps regime -> `vol_multiplier` and asset-class target buckets (`EQ`, `FI`, `GOLD`, `CM`, `CASH`) for read/analyze/report suggestions only (no execution).

@@ -1,12 +1,11 @@
 """CLI-facing workflow: run the multi-method regime orchestrator.
 
-Handles optional input loading (FRED macro panel, market-stress returns/proxy
+Handles optional input loading (FRED macro panel, market-price panel
 bundle), invokes :func:`market_helper.regimes.multi_method_service.run_multi_method`,
 and persists the resulting :class:`MultiMethodRegimeSnapshot` list as JSON.
 
-The workflow is intentionally lenient about missing inputs so operators can
-run in degraded modes: legacy-only (no FRED sync yet) or macro-only (no
-market bundle). The orchestrator records which methods actually voted in the
+The workflow is intentionally lenient about missing inputs so operators can run
+in degraded modes. The orchestrator records which methods actually voted in the
 snapshot's ``source_info.manifest``.
 """
 from __future__ import annotations
@@ -21,15 +20,20 @@ from market_helper.data_sources.fred.macro_panel import (
     load_panel,
     load_series_specs,
 )
+from market_helper.data_sources.yahoo_finance.market_panel import (
+    DEFAULT_MARKET_CACHE_DIR,
+    DEFAULT_MARKET_PANEL_FILENAME,
+    load_market_panel,
+)
+from market_helper.regimes.methods.market_regime import load_market_regime_config
 from market_helper.regimes.models import MultiMethodRegimeSnapshot
 from market_helper.regimes.multi_method_service import (
     MultiMethodConfig,
     run_multi_method,
 )
-from market_helper.regimes.sources import load_regime_inputs
 
 
-ALL_METHODS = ("macro_rules", "legacy_rulebook")
+ALL_METHODS = ("macro_regime", "market_regime")
 
 
 def run_multi_method_detection(
@@ -37,8 +41,8 @@ def run_multi_method_detection(
     methods: Sequence[str] = ALL_METHODS,
     macro_panel_path: str | Path | None = None,
     fred_series_config: str | Path | None = None,
-    returns_path: str | Path | None = None,
-    proxy_path: str | Path | None = None,
+    market_panel_path: str | Path | None = None,
+    market_regime_config: str | Path | None = None,
     output_path: str | Path | None = None,
     latest_only: bool = False,
 ) -> List[MultiMethodRegimeSnapshot]:
@@ -55,14 +59,14 @@ def run_multi_method_detection(
         raise ValueError("No regime methods selected.")
 
     cfg = MultiMethodConfig(
-        enable_macro_rules="macro_rules" in enabled,
-        enable_legacy_rulebook="legacy_rulebook" in enabled,
+        enable_macro_regime="macro_regime" in enabled,
+        enable_market_regime="market_regime" in enabled,
     )
 
     missing_inputs: list[str] = []
     macro_panel = None
     macro_specs = None
-    if cfg.enable_macro_rules:
+    if cfg.enable_macro_regime:
         specs_path = (
             Path(fred_series_config)
             if fred_series_config
@@ -78,36 +82,44 @@ def run_multi_method_detection(
             macro_panel = load_panel(panel_path)
         else:
             if not specs_path.exists():
-                missing_inputs.append(f"macro_rules missing FRED series config: {specs_path}")
+                missing_inputs.append(f"macro_regime missing FRED series config: {specs_path}")
             if not panel_path.exists():
-                missing_inputs.append(f"macro_rules missing macro panel: {panel_path}")
+                missing_inputs.append(f"macro_regime missing macro panel: {panel_path}")
 
-    market_bundle = None
-    if cfg.enable_legacy_rulebook:
-        returns_input_path = Path(returns_path) if returns_path else None
-        proxy_input_path = Path(proxy_path) if proxy_path else None
-        if returns_input_path is None:
-            missing_inputs.append("legacy_rulebook missing --returns")
-        elif not returns_input_path.exists():
-            missing_inputs.append(f"legacy_rulebook missing returns file: {returns_input_path}")
-        if proxy_input_path is None:
-            missing_inputs.append("legacy_rulebook missing --proxy")
-        elif not proxy_input_path.exists():
-            missing_inputs.append(f"legacy_rulebook missing proxy file: {proxy_input_path}")
-        if (
-            returns_input_path is not None
-            and proxy_input_path is not None
-            and returns_input_path.exists()
-            and proxy_input_path.exists()
-        ):
-            market_bundle = load_regime_inputs(
-                proxy_path=proxy_input_path,
-                returns_path=returns_input_path,
+    market_panel = None
+    market_config = None
+    if cfg.enable_market_regime:
+        market_cfg_path = (
+            Path(market_regime_config)
+            if market_regime_config
+            else Path("configs/regime_detection/market_regime.yml")
+        )
+        if market_regime_config is None and not market_cfg_path.exists():
+            market_cfg_path = Path("configs/regime_detection/market_regime.example.yml")
+        market_panel_input = (
+            Path(market_panel_path)
+            if market_panel_path
+            else Path(DEFAULT_MARKET_CACHE_DIR) / DEFAULT_MARKET_PANEL_FILENAME
+        )
+        if market_cfg_path.exists() and market_panel_input.exists():
+            market_config = load_market_regime_config(market_cfg_path)
+            market_panel = load_market_panel(market_panel_input)
+            cfg = MultiMethodConfig(
+                enable_macro_regime=cfg.enable_macro_regime,
+                enable_market_regime=cfg.enable_market_regime,
+                macro_regime=cfg.macro_regime,
+                market_regime=market_config,
+                ensemble=cfg.ensemble,
             )
+        else:
+            if not market_cfg_path.exists():
+                missing_inputs.append(f"market_regime missing config: {market_cfg_path}")
+            if not market_panel_input.exists():
+                missing_inputs.append(f"market_regime missing market panel: {market_panel_input}")
 
     runnable_methods = [
-        cfg.enable_macro_rules and macro_panel is not None and macro_specs is not None,
-        cfg.enable_legacy_rulebook and market_bundle is not None,
+        cfg.enable_macro_regime and macro_panel is not None and macro_specs is not None,
+        cfg.enable_market_regime and market_panel is not None and market_config is not None,
     ]
     if not any(runnable_methods):
         detail = "; ".join(missing_inputs) if missing_inputs else "no method inputs were available"
@@ -116,15 +128,15 @@ def run_multi_method_detection(
     source_info: dict[str, Any] = {
         "fred_config": str(fred_series_config) if fred_series_config else None,
         "macro_panel": str(macro_panel_path) if macro_panel_path else None,
-        "returns_path": str(returns_path) if returns_path else None,
-        "proxy_path": str(proxy_path) if proxy_path else None,
+        "market_config": str(market_regime_config) if market_regime_config else None,
+        "market_panel": str(market_panel_path) if market_panel_path else None,
     }
 
     snapshots = run_multi_method(
         config=cfg,
         macro_panel=macro_panel,
         macro_specs=macro_specs,
-        market_bundle=market_bundle,
+        market_panel=market_panel,
         source_info=source_info,
     )
 

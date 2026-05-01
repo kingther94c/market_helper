@@ -3,42 +3,118 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+import pandas as pd
+import yaml
+
 from market_helper.cli.main import main
 
 
-def _write_legacy_fixtures(tmp_path: Path) -> tuple[Path, Path]:
-    dates = [f"2026-01-{idx+1:02d}" for idx in range(30)]
-    proxy = {
-        "VIX": {d: 18 + (idx % 4) for idx, d in enumerate(dates)},
-        "MOVE": {d: 100 + (idx % 5) for idx, d in enumerate(dates)},
-        "HY_OAS": {d: 3.5 + (idx % 3) * 0.02 for idx, d in enumerate(dates)},
-        "UST2Y": {d: 0.03 + idx * 0.0001 for idx, d in enumerate(dates)},
-        "UST10Y": {d: 0.04 + idx * 0.0001 for idx, d in enumerate(dates)},
-    }
-    returns = {
-        "EQ": {d: 0.001 * ((idx % 5) - 2) for idx, d in enumerate(dates)},
-        "FI": {d: 0.0006 * ((idx % 3) - 1) for idx, d in enumerate(dates)},
-    }
-    proxy_path = tmp_path / "proxy.json"
-    returns_path = tmp_path / "returns.json"
-    proxy_path.write_text(json.dumps(proxy), encoding="utf-8")
-    returns_path.write_text(json.dumps(returns), encoding="utf-8")
-    return proxy_path, returns_path
+def _write_macro_fixtures(tmp_path: Path) -> tuple[Path, Path]:
+    panel_path = tmp_path / "macro_panel.feather"
+    config_path = tmp_path / "fred_series.yml"
+    pd.DataFrame(
+        {
+            "date": pd.bdate_range("2026-01-01", periods=30),
+            "G": [1.0] * 30,
+            "I": [-1.0] * 30,
+        }
+    ).to_feather(panel_path)
+    config_path.write_text(
+        yaml.safe_dump(
+            {
+                "series": [
+                    {
+                        "series_id": "G",
+                        "axis": "growth",
+                        "transform": "level",
+                        "bucket": "fast",
+                    },
+                    {
+                        "series_id": "I",
+                        "axis": "inflation",
+                        "transform": "level",
+                        "bucket": "fast",
+                    },
+                ]
+            }
+        ),
+        encoding="utf-8",
+    )
+    return panel_path, config_path
 
 
-def test_cli_regime_detect_multi_legacy_only_writes_valid_schema(tmp_path: Path) -> None:
-    proxy_path, returns_path = _write_legacy_fixtures(tmp_path)
+def _write_market_fixtures(tmp_path: Path) -> tuple[Path, Path]:
+    panel_path = tmp_path / "market_panel.feather"
+    config_path = tmp_path / "market_regime.yml"
+    pd.DataFrame(
+        {
+            "date": pd.bdate_range("2026-01-01", periods=30),
+            "SPY": [100.0 + idx for idx in range(30)],
+            "USO": [100.0 - idx for idx in range(30)],
+            "VIX": [20.0] * 30,
+        }
+    ).to_feather(panel_path)
+    config_path.write_text(
+        yaml.safe_dump(
+            {
+                "growth": {
+                    "signals": [
+                        {
+                            "name": "spy",
+                            "axis": "growth",
+                            "symbol": "SPY",
+                            "transform": "raw_sign",
+                            "lookback_days": 1,
+                        }
+                    ]
+                },
+                "inflation": {
+                    "signals": [
+                        {
+                            "name": "oil",
+                            "axis": "inflation",
+                            "symbol": "USO",
+                            "transform": "raw_sign",
+                            "lookback_days": 1,
+                        }
+                    ]
+                },
+                "risk_overlay": {
+                    "signals": [
+                        {
+                            "name": "vix",
+                            "axis": "risk",
+                            "symbol": "VIX",
+                            "transform": "raw_sign",
+                            "lookback_days": 1,
+                        }
+                    ]
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+    return panel_path, config_path
+
+
+def test_cli_regime_detect_multi_all_writes_valid_schema(tmp_path: Path) -> None:
+    macro_panel, fred_config = _write_macro_fixtures(tmp_path)
+    market_panel, market_config = _write_market_fixtures(tmp_path)
     output_path = tmp_path / "regime_multi.json"
 
     exit_code = main(
         [
             "regime-detect-multi",
             "--methods",
-            "legacy_rulebook",
-            "--returns",
-            str(returns_path),
-            "--proxy",
-            str(proxy_path),
+            "all",
+            "--macro-panel",
+            str(macro_panel),
+            "--fred-series-config",
+            str(fred_config),
+            "--market-panel",
+            str(market_panel),
+            "--market-regime-config",
+            str(market_config),
             "--output",
             str(output_path),
             "--latest-only",
@@ -51,16 +127,36 @@ def test_cli_regime_detect_multi_legacy_only_writes_valid_schema(tmp_path: Path)
     snap = payload[0]
     assert snap["as_of"]
     assert snap["version"] == "regime-multi-v1"
-    assert "legacy_rulebook" in snap["per_method"]
-    ensemble = snap["ensemble"]
-    assert ensemble["quadrant"] in {
+    assert set(snap["per_method"]) == {"macro_regime", "market_regime"}
+    assert snap["ensemble"]["quadrant"] in {
         "Goldilocks",
         "Reflation",
         "Stagflation",
         "Deflationary Slowdown",
     }
     manifest = snap["source_info"]["manifest"]
-    assert manifest["methods"]["legacy_rulebook"]["status"] == "ok"
+    assert manifest["methods"]["macro_regime"]["status"] == "ok"
+    assert manifest["methods"]["market_regime"]["status"] == "ok"
+
+
+def test_cli_regime_detect_multi_rejects_legacy_method(tmp_path: Path, capsys) -> None:
+    output_path = tmp_path / "regime_multi.json"
+
+    exit_code = main(
+        [
+            "regime-detect-multi",
+            "--methods",
+            "legacy_rulebook",
+            "--output",
+            str(output_path),
+        ]
+    )
+
+    assert exit_code == 2
+    captured = capsys.readouterr()
+    assert "Unknown regime methods" in captured.err
+    assert "macro_regime" in captured.err
+    assert "market_regime" in captured.err
 
 
 def test_cli_regime_detect_multi_fails_when_no_enabled_method_can_run(
@@ -74,43 +170,49 @@ def test_cli_regime_detect_multi_fails_when_no_enabled_method_can_run(
     assert not output_path.exists()
     captured = capsys.readouterr()
     assert "No enabled regime methods can run" in captured.err
-    assert "macro_rules missing" in captured.err
-    assert "legacy_rulebook missing --returns" in captured.err
-    assert "legacy_rulebook missing --proxy" in captured.err
+    assert "macro_regime missing" in captured.err
+    assert "market_regime missing market panel" in captured.err
 
 
 def test_cli_regime_report_multi_prints_policy(tmp_path: Path, capsys) -> None:
-    proxy_path, returns_path = _write_legacy_fixtures(tmp_path)
+    macro_panel, fred_config = _write_macro_fixtures(tmp_path)
+    market_panel, market_config = _write_market_fixtures(tmp_path)
     output_path = tmp_path / "regime_multi.json"
     assert (
         main(
             [
                 "regime-detect-multi",
                 "--methods",
-                "legacy_rulebook",
-                "--returns",
-                str(returns_path),
-                "--proxy",
-                str(proxy_path),
+                "all",
+                "--macro-panel",
+                str(macro_panel),
+                "--fred-series-config",
+                str(fred_config),
+                "--market-panel",
+                str(market_panel),
+                "--market-regime-config",
+                str(market_config),
                 "--output",
                 str(output_path),
             ]
         )
         == 0
     )
-    capsys.readouterr()  # clear detect output
+    capsys.readouterr()
 
     exit_code = main(["regime-report-multi", "--regime", str(output_path)])
     assert exit_code == 0
     captured = capsys.readouterr().out
     assert "ensemble_quadrant=" in captured
-    assert "method=legacy_rulebook" in captured
+    assert "method=macro_regime" in captured
+    assert "method=market_regime" in captured
     assert "vol_multiplier=" in captured
     assert "asset_class_targets=" in captured
 
 
 def test_cli_regime_html_report_writes_html_from_multi_payload(tmp_path: Path) -> None:
-    proxy_path, returns_path = _write_legacy_fixtures(tmp_path)
+    macro_panel, fred_config = _write_macro_fixtures(tmp_path)
+    market_panel, market_config = _write_market_fixtures(tmp_path)
     regime_path = tmp_path / "regime_multi.json"
     html_path = tmp_path / "regime_report.html"
     assert (
@@ -118,11 +220,15 @@ def test_cli_regime_html_report_writes_html_from_multi_payload(tmp_path: Path) -
             [
                 "regime-detect-multi",
                 "--methods",
-                "legacy_rulebook",
-                "--returns",
-                str(returns_path),
-                "--proxy",
-                str(proxy_path),
+                "all",
+                "--macro-panel",
+                str(macro_panel),
+                "--fred-series-config",
+                str(fred_config),
+                "--market-panel",
+                str(market_panel),
+                "--market-regime-config",
+                str(market_config),
                 "--output",
                 str(regime_path),
                 "--latest-only",

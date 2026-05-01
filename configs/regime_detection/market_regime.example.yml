@@ -1,0 +1,185 @@
+# Market regime detection config.
+# Signals are sourced from a cached Yahoo Finance market panel.
+
+data_sources:
+  symbols:
+    - symbol: SPY
+      alias: SPY
+    - symbol: QQQ
+      alias: QQQ
+    - symbol: IWM
+      alias: IWM
+    - symbol: XLK
+      alias: XLK
+    - symbol: XLY
+      alias: XLY
+    - symbol: XLP
+      alias: XLP
+    - symbol: XLI
+      alias: XLI
+    - symbol: XLU
+      alias: XLU
+    - symbol: XLF
+      alias: XLF
+    - symbol: HYG
+      alias: HYG
+    - symbol: LQD
+      alias: LQD
+    - symbol: TLT
+      alias: TLT
+    - symbol: USO
+      alias: USO
+    - symbol: DBE
+      alias: DBE
+    - symbol: CPER
+      alias: CPER
+    - symbol: DBC
+      alias: DBC
+    - symbol: GLD
+      alias: GLD
+    - symbol: TIP
+      alias: TIP
+    - symbol: IEF
+      alias: IEF
+    - symbol: ^VIX
+      alias: VIX
+    - symbol: ^MOVE
+      alias: MOVE
+
+normalization:
+  zscore_clip: 3.0
+
+hysteresis:
+  min_consecutive_days: 5
+
+growth:
+  signals:
+    - name: spy_momentum
+      symbol: SPY
+      transform: return
+      lookback_days: 63
+      direction: positive
+      weight: 1.0
+    - name: qqq_momentum
+      symbol: QQQ
+      transform: return
+      lookback_days: 63
+      direction: positive
+      weight: 0.8
+    - name: small_caps_momentum
+      symbol: IWM
+      transform: return
+      lookback_days: 63
+      direction: positive
+      weight: 0.6
+    - name: discretionary_vs_staples
+      numerator: XLY
+      denominator: XLP
+      transform: relative_return
+      lookback_days: 63
+      direction: positive
+      weight: 0.8
+    - name: industrials_vs_utilities
+      numerator: XLI
+      denominator: XLU
+      transform: relative_return
+      lookback_days: 63
+      direction: positive
+      weight: 0.7
+    - name: tech_vs_utilities
+      numerator: XLK
+      denominator: XLU
+      transform: relative_return
+      lookback_days: 63
+      direction: positive
+      weight: 0.7
+    - name: credit_risk_appetite
+      numerator: HYG
+      denominator: LQD
+      transform: relative_return
+      lookback_days: 63
+      direction: positive
+      weight: 0.8
+    - name: copper_momentum
+      symbol: CPER
+      transform: return
+      lookback_days: 63
+      direction: positive
+      weight: 0.5
+    - name: defensive_treasury_outperformance
+      numerator: TLT
+      denominator: SPY
+      transform: relative_return
+      lookback_days: 63
+      direction: negative
+      weight: 0.7
+
+inflation:
+  signals:
+    - name: oil_momentum
+      symbol: USO
+      transform: return
+      lookback_days: 63
+      direction: positive
+      weight: 1.0
+    - name: energy_basket_momentum
+      symbol: DBE
+      transform: return
+      lookback_days: 63
+      direction: positive
+      weight: 0.8
+    - name: broad_commodity_momentum
+      symbol: DBC
+      transform: return
+      lookback_days: 63
+      direction: positive
+      weight: 0.7
+    - name: tip_vs_nominal_treasury
+      numerator: TIP
+      denominator: IEF
+      transform: relative_return
+      lookback_days: 63
+      direction: positive
+      weight: 0.6
+    - name: gold_momentum
+      symbol: GLD
+      transform: return
+      lookback_days: 63
+      direction: positive
+      weight: 0.3
+
+risk_overlay:
+  enter_threshold: 0.75
+  exit_threshold: 0.55
+  min_consecutive_days: 3
+  signals:
+    - name: vix_level
+      symbol: VIX
+      transform: level_zscore
+      direction: positive
+      weight: 1.0
+    - name: move_level
+      symbol: MOVE
+      transform: level_zscore
+      direction: positive
+      weight: 0.8
+    - name: equity_realized_vol
+      symbol: SPY
+      transform: realized_vol_zscore
+      lookback_days: 21
+      direction: positive
+      weight: 0.7
+    - name: credit_stress
+      numerator: HYG
+      denominator: LQD
+      transform: relative_return
+      lookback_days: 63
+      direction: negative
+      weight: 0.8
+    - name: flight_to_quality
+      numerator: TLT
+      denominator: SPY
+      transform: relative_return
+      lookback_days: 21
+      direction: positive
+      weight: 0.6
