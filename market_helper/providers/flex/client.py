@@ -1,12 +1,13 @@
 from __future__ import annotations
 
+import os
 from datetime import date, datetime, timedelta
 from dataclasses import dataclass
 import time
 from typing import Callable
 import xml.etree.ElementTree as ET
 
-from market_helper.data_sources.base import DEFAULT_TIMEOUT, build_url, download_text
+from market_helper.data_sources.base import build_url, download_text
 
 DEFAULT_IBKR_FLEX_BASE_URL = "https://ndcdyn.interactivebrokers.com/AccountManagement/FlexWebService"
 DEFAULT_IBKR_FLEX_API_VERSION = "3"
@@ -14,6 +15,28 @@ DEFAULT_IBKR_FLEX_POLL_INTERVAL_SECONDS = 5.0
 DEFAULT_IBKR_FLEX_SEND_REQUEST_RETRY_SECONDS = 10.0
 DEFAULT_IBKR_FLEX_WAIT_TIMEOUT_SECONDS = 60.0
 DEFAULT_IBKR_FLEX_MAX_ATTEMPTS = int(DEFAULT_IBKR_FLEX_WAIT_TIMEOUT_SECONDS / DEFAULT_IBKR_FLEX_POLL_INTERVAL_SECONDS) + 1
+
+
+def _resolve_default_flex_http_timeout() -> int:
+    """Default HTTP timeout for Flex SendRequest/GetStatement.
+
+    IBKR Flex frequently queues SendRequest server-side (especially the
+    first call after idle, or for fresh date ranges), so the global
+    20-second :data:`DEFAULT_TIMEOUT` is too tight here. Default to 60s
+    and allow operators to override via ``IBKR_FLEX_HTTP_TIMEOUT_SECONDS``.
+    """
+    override = os.environ.get("IBKR_FLEX_HTTP_TIMEOUT_SECONDS")
+    if override:
+        try:
+            value = int(float(override))
+        except ValueError:
+            return 60
+        if value > 0:
+            return value
+    return 60
+
+
+DEFAULT_FLEX_HTTP_TIMEOUT_SECONDS = _resolve_default_flex_http_timeout()
 SEND_REQUEST_PATH = "SendRequest"
 GET_STATEMENT_PATH = "GetStatement"
 
@@ -68,7 +91,7 @@ class FlexWebServiceClient:
     token: str
     downloader: Callable[[str], str] | None = None
     base_url: str = DEFAULT_IBKR_FLEX_BASE_URL
-    timeout: int = DEFAULT_TIMEOUT
+    timeout: int = DEFAULT_FLEX_HTTP_TIMEOUT_SECONDS
     api_version: str = DEFAULT_IBKR_FLEX_API_VERSION
     sleep: Callable[[float], None] = time.sleep
 
