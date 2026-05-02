@@ -680,7 +680,34 @@ def _render_report_host(state: PortfolioPageState) -> None:
         "pm-report-iframe"
     )
     iframe._props["title"] = "Portfolio Monitor HTML Report"
-    iframe._props["srcdoc"] = report_path.read_text(encoding="utf-8")
+    iframe._props["srcdoc"] = _inject_embedded_overrides(report_path.read_text(encoding="utf-8"))
+
+
+_EMBEDDED_REPORT_OVERRIDES = """
+<style id='pm-embedded-overrides'>
+  /* P10/M1: when the report runs inside the dashboard iframe, its sticky brand
+     pill + as-of meta duplicate the dashboard's own app-bar. Hide them but keep
+     the section-nav so users can still jump between Performance / Risk / Regime
+     within the iframe. The regime ribbon stays — the dashboard chrome doesn't
+     surface that context anywhere else. */
+  .app-bar__brand, .app-bar__meta { display: none !important; }
+  .app-bar { background: var(--surface); }
+  .report-shell { padding-top: 8px; }
+</style>
+"""
+
+
+def _inject_embedded_overrides(html_text: str) -> str:
+    """Inject `_EMBEDDED_REPORT_OVERRIDES` immediately before `</head>` in the rendered report.
+
+    Falls back to prepending the override block when no closing `</head>` is
+    found (still works in browsers — late `<style>` blocks are honoured).
+    """
+    needle = "</head>"
+    idx = html_text.find(needle)
+    if idx == -1:
+        return _EMBEDDED_REPORT_OVERRIDES + html_text
+    return html_text[:idx] + _EMBEDDED_REPORT_OVERRIDES + html_text[idx:]
 
 
 def _render_report_quick_link(state: PortfolioPageState) -> None:

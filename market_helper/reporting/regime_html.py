@@ -400,7 +400,7 @@ def _render_scores(view_model: RegimeHtmlViewModel) -> str:
         }
     rows = []
     for name, value in sorted(view_model.scores.items()):
-        spark = _render_axis_sparkline(history_by_axis.get(name) or [])
+        spark = _render_axis_sparkline(history_by_axis.get(name) or [], axis_label=name)
         tone = "tone-positive" if value > 0 else ("tone-negative" if value < 0 else "tone-muted")
         rows.append(
             "<div class='score-row'>"
@@ -417,7 +417,7 @@ def _render_scores(view_model: RegimeHtmlViewModel) -> str:
     )
 
 
-def _render_axis_sparkline(values: list[float | None]) -> str:
+def _render_axis_sparkline(values: list[float | None], *, axis_label: str = "") -> str:
     series = [float(v) for v in values if v is not None]
     if len(series) < 2:
         return ""
@@ -430,10 +430,18 @@ def _render_axis_sparkline(values: list[float | None]) -> str:
         f"{i * step:.1f},{height - ((value - lo) / span) * height:.1f}"
         for i, value in enumerate(series)
     )
+    first = series[0]
     last = series[-1]
     stroke = "var(--pos)" if last > 0 else ("var(--neg)" if last < 0 else "var(--muted-2)")
+    # P10/M3: announce the sparkline as a meaningful image rather than hiding it.
+    # The label includes axis name + trend direction so screen-reader users get
+    # the same gist as a sighted reader sees from the polyline shape.
+    direction = "rising" if last > first else ("falling" if last < first else "flat")
+    pretty_axis = axis_label.title() if axis_label else "axis"
+    aria_label = f"{pretty_axis} score history ({direction}, latest {last:+.2f})"
     return (
-        f"<svg viewBox='0 0 {width:.0f} {height:.0f}' preserveAspectRatio='none' role='img' aria-hidden='true'>"
+        f"<svg viewBox='0 0 {width:.0f} {height:.0f}' preserveAspectRatio='none' "
+        f"role='img' aria-label='{html.escape(aria_label)}'>"
         f"<polyline fill='none' stroke='{stroke}' stroke-width='1.5' points='{points}'/>"
         "</svg>"
     )
