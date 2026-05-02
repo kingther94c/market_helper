@@ -63,16 +63,27 @@ def _horizon_row(view_model: PerformanceReportViewModel | None, label: str) -> P
     return None
 
 
-def _largest_drift_summary(rows) -> tuple[str, float] | None:
-    """Return (bucket, drift_pct) for the row with the largest absolute active weight."""
+_DRIFT_WARN_THRESHOLD = 0.02  # 2pp absolute drift triggers the warn-tone Policy-drift KPI
+
+
+def _largest_drift_summary(rows) -> tuple[str, float, int] | None:
+    """Return (bucket, drift_weight, n_over_threshold) for the row with the largest
+    absolute active weight, plus the count of all rows whose absolute drift exceeds
+    `_DRIFT_WARN_THRESHOLD` (P2 enriches the KPI sub-label with this count)."""
     best: tuple[str, float] | None = None
+    n_over = 0
     for row in rows:
         active = getattr(row, "active_weight", None)
         if active is None:
             continue
-        if best is None or abs(active) > abs(best[1]):
-            best = (str(getattr(row, "bucket", "")), float(active))
-    return best
+        active_f = float(active)
+        if abs(active_f) >= _DRIFT_WARN_THRESHOLD:
+            n_over += 1
+        if best is None or abs(active_f) > abs(best[1]):
+            best = (str(getattr(row, "bucket", "")), active_f)
+    if best is None:
+        return None
+    return (best[0], best[1], n_over)
 
 
 def _delta_class(value: float | None) -> str:
@@ -114,15 +125,23 @@ def build_topline_html(report_data: "PortfolioReportData") -> str:
     if summary is not None and summary.funded_aum_sgd is not None:
         nav_sub = f"SGD {summary.funded_aum_sgd:,.0f}"
 
-    drift_pair = _largest_drift_summary(risk.policy_drift_asset_class) if risk is not None else None
-    if drift_pair is not None:
-        drift_pct = drift_pair[1] * 100.0
+    drift_summary = _largest_drift_summary(risk.policy_drift_asset_class) if risk is not None else None
+    if drift_summary is not None:
+        bucket, drift_weight, n_over = drift_summary
+        drift_pct = drift_weight * 100.0
         drift_sign = "+" if drift_pct > 0 else ("−" if drift_pct < 0 else "")
-        drift_value = f"{drift_sign}{abs(drift_pct):.1f}pp {html.escape(drift_pair[0])}"
-        drift_class = " is-warn" if abs(drift_pct) >= 2.0 else ""
+        drift_value = f"{drift_sign}{abs(drift_pct):.1f}pp {html.escape(bucket)}"
+        drift_class = " is-warn" if abs(drift_pct) >= _DRIFT_WARN_THRESHOLD * 100.0 else ""
+        if n_over >= 2:
+            drift_sub = f"{n_over} sleeves > {int(_DRIFT_WARN_THRESHOLD * 100)}pp"
+        elif n_over == 1:
+            drift_sub = f"1 sleeve > {int(_DRIFT_WARN_THRESHOLD * 100)}pp"
+        else:
+            drift_sub = "vs target asset-class"
     else:
         drift_value = "—"
         drift_class = ""
+        drift_sub = "vs target asset-class"
 
     cells = [
         _kpi_cell(
@@ -162,7 +181,7 @@ def build_topline_html(report_data: "PortfolioReportData") -> str:
         _kpi_cell(
             "Policy drift",
             html.escape(drift_value),
-            "vs target asset-class",
+            html.escape(drift_sub),
             value_class=drift_class,
         ),
     ]
@@ -264,7 +283,10 @@ def build_portfolio_report_document(report_data: "PortfolioReportData") -> Repor
                 key="regime",
                 title="Regime",
                 summary="Multi-method regime ensemble: factor scores, crisis intensity, method-vote heat strip, and transition log.",
-                body_html=render_regime_section_body(report_data.regime_view_model),
+                body_html=render_regime_section_body(
+                    report_data.regime_view_model,
+                    parent_as_of=report_data.as_of,
+                ),
             )
         )
     sections.append(
@@ -353,10 +375,11 @@ def _artifact_columns() -> list[HtmlTableColumn]:
 
 
 def _format_artifact_value(key: str, value: object) -> str:
+    # `render_html_table` escapes the cell value (column has no `allow_html`),
+    # so we return plain text — the previous wrapping `<span>` markup leaked
+    # through the escape and rendered as literal entities (B1).
     if value is None:
-        return "<span class='tone-muted'>n/a</span>"
+        return "n/a"
     if key.endswith("as_of"):
-        return html.escape(format_local_datetime(str(value)))
-    if isinstance(value, Path):
-        return html.escape(str(value))
-    return html.escape(str(value))
+        return format_local_datetime(str(value))
+    return str(value)

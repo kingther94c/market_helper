@@ -113,18 +113,28 @@ def build_regime_html_view_model(
     return _build_legacy_view_model(regime_path=regime_path, policy_path=policy_path)
 
 
-def render_regime_section_body(view_model: RegimeHtmlViewModel) -> str:
+def render_regime_section_body(
+    view_model: RegimeHtmlViewModel,
+    *,
+    parent_as_of: str | None = None,
+) -> str:
     """Render the regime section as a body fragment.
 
     Used both by the standalone CLI artifact (wrapped in a minimal HTML shell by
     :func:`render_regime_html_report`) and by the combined portfolio report
-    (embedded directly as a `ReportSection.body_html`).
+    (embedded directly as a `ReportSection.body_html`). When `parent_as_of` is
+    supplied and the regime view-model's `as_of` lags by more than one day, a
+    small `regime stale` tag is appended to the headline so the reader knows the
+    regime call may not match the report's positions/perf as-of (P3).
     """
+    stale_tag = ""
+    if _regime_is_stale(view_model.as_of, parent_as_of):
+        stale_tag = " <span class='tag tag--warning regime-stale-tag'>regime stale</span>"
     return (
         "<header class='regime-section__header'>"
         "<div>"
         "<p class='regime-eyebrow'>Regime Detection</p>"
-        f"<h2 class='regime-headline'>{html.escape(view_model.regime)}</h2>"
+        f"<h2 class='regime-headline'>{html.escape(view_model.regime)}{stale_tag}</h2>"
         f"<p class='regime-meta'>As of {html.escape(format_local_datetime(view_model.as_of))} · {html.escape(view_model.schema)}</p>"
         "</div>"
         f"{_render_status_cards(view_model)}"
@@ -138,6 +148,29 @@ def render_regime_section_body(view_model: RegimeHtmlViewModel) -> str:
         f"{_render_timeline(view_model.timeline)}"
         f"{_render_counts(view_model.regime_counts)}"
     )
+
+
+def _regime_is_stale(regime_as_of: str | None, parent_as_of: str | None) -> bool:
+    """Return True when the regime as-of lags the parent report's as-of by > 1 day."""
+    if not regime_as_of or not parent_as_of:
+        return False
+    try:
+        from datetime import datetime as _dt, timedelta as _td
+
+        def _parse(value: str) -> "_dt":
+            return _dt.fromisoformat(value.replace("Z", "+00:00"))
+
+        regime_dt = _parse(regime_as_of)
+        parent_dt = _parse(parent_as_of)
+    except (ValueError, TypeError):
+        return False
+    # Reconcile mixed tz-aware / tz-naive inputs by stripping tzinfo from the
+    # aware one — for the >1-day staleness check, sub-day timezone offsets are
+    # noise.
+    if (regime_dt.tzinfo is None) != (parent_dt.tzinfo is None):
+        regime_dt = regime_dt.replace(tzinfo=None)
+        parent_dt = parent_dt.replace(tzinfo=None)
+    return parent_dt - regime_dt > _td(days=1)
 
 
 def render_regime_html_report(view_model: RegimeHtmlViewModel) -> str:
@@ -417,13 +450,17 @@ _QUADRANT_CLASSES = {
 
 
 def _render_crisis_intensity_chart(view_model: RegimeHtmlViewModel) -> str:
-    points = [row for row in view_model.timeline if row.crisis_intensity is not None]
-    if not points:
+    timeline = view_model.timeline
+    if not timeline:
         return ""
-    points = list(reversed(points))  # timeline is newest-first; show oldest-first for the chart
+    # Plot the full timeline (treating None as 0.0) so the X-axis runs through
+    # the latest snapshot rather than stopping at the last historical spike (B3).
+    # The metadata strip's "current" reflects the live ensemble state from
+    # `view_model.crisis_intensity` / `view_model.as_of`, not the filtered series.
+    points = list(reversed(timeline))  # timeline is newest-first; chart oldest-first
     width, height = 600.0, 96.0
     threshold = 0.6
-    series = [float(row.crisis_intensity or 0.0) for row in points]
+    series = [float(row.crisis_intensity if row.crisis_intensity is not None else 0.0) for row in points]
     step = width / max(len(series) - 1, 1)
     line = " ".join(
         f"{i * step:.1f},{height - min(max(value, 0.0), 1.0) * height:.1f}"
@@ -432,13 +469,13 @@ def _render_crisis_intensity_chart(view_model: RegimeHtmlViewModel) -> str:
     threshold_y = height - threshold * height
     last_x = (len(series) - 1) * step
     last_y = height - min(max(series[-1], 0.0), 1.0) * height
-    last = series[-1]
-    last_when = format_local_datetime(points[-1].as_of)
+    current_value = view_model.crisis_intensity if view_model.crisis_intensity is not None else 0.0
+    current_when = format_local_datetime(view_model.as_of)
     return (
         "<section class='panel regime-crisis'>"
         "<header class='regime-panel__header'>"
         "<h2>Crisis Intensity</h2>"
-        f"<span class='regime-panel__meta'>threshold {threshold:.1f} · current {last:.2f} · {html.escape(last_when)}</span>"
+        f"<span class='regime-panel__meta'>threshold {threshold:.1f} · current {current_value:.2f} · {html.escape(current_when)}</span>"
         "</header>"
         "<div class='regime-crisis__chart'>"
         f"<svg viewBox='0 0 {width:.0f} {height:.0f}' preserveAspectRatio='none' role='img' aria-label='Crisis intensity over time'>"
@@ -475,11 +512,14 @@ def _render_method_vote_strip(view_model: RegimeHtmlViewModel) -> str:
         rows_html.append(f"<span class='method-strip__lbl'>{html.escape(method)}</span>")
         for point in history:
             quadrant = point.quadrants.get(method, "")
+            # Each cell reflects only its own method's vote — the crisis overlay has
+            # its own dedicated row + the crisis-intensity chart, so we no longer
+            # repaint every cell red on a crisis-flagged session (B2). Doing so
+            # made the title (the literal vote) disagree with the colour.
             cls = _QUADRANT_CLASSES.get(quadrant, "regime-cell--unknown")
-            if point.crisis_flag:
-                cls = "regime-cell--crisis"
+            label = quadrant or "n/a"
             rows_html.append(
-                f"<span class='method-strip__cell {cls}' title='{html.escape(point.as_of)} · {html.escape(quadrant)}'></span>"
+                f"<span class='method-strip__cell {cls}' title='{html.escape(point.as_of)} · {html.escape(label)}'></span>"
             )
         rows_html.append("</div>")
     legend_items = [
@@ -666,6 +706,7 @@ def regime_section_styles() -> str:
       text-transform: uppercase; letter-spacing: 0.04em; color: var(--accent);
     }
     .regime-headline { margin: 0; font-size: 28px; line-height: 1.1; font-weight: 700; }
+    .regime-stale-tag { margin-left: 12px; font-size: 11px; vertical-align: middle; }
     .regime-meta { margin: 8px 0 0; font-size: 12px; color: var(--muted-ink); }
     .status-grid {
       display: grid; grid-template-columns: repeat(4, minmax(0, 1fr));
