@@ -6,6 +6,7 @@ from pathlib import Path
 from typing import Protocol
 
 from market_helper.reporting.performance_html import PerformanceReportViewModel
+from market_helper.reporting.regime_html import RegimeHtmlViewModel
 from market_helper.reporting.risk_html import RiskReportViewModel
 
 
@@ -58,6 +59,9 @@ class PortfolioReportData:
     performance_sgd_view_model: PerformanceReportViewModel
     artifact_metadata: ArtifactMetadata
     warnings: list[str] = field(default_factory=list)
+    # P5: optional folded-in regime view-model — None when no regime artifact is
+    # available, so the combined report skips the Regime section + ribbon.
+    regime_view_model: RegimeHtmlViewModel | None = None
 
 
 @dataclass
