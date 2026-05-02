@@ -147,24 +147,19 @@ def render_performance_assets() -> str:
     )
     return (
         "<style>"
-        ".perf-summary-grid { display:grid; gap:14px; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); }"
-        ".perf-summary-card { position:relative; overflow:hidden; padding:18px 18px 16px; border-radius:20px; border:1px solid rgba(148,163,184,0.18); background:linear-gradient(180deg, rgba(255,255,255,0.98), rgba(248,250,252,0.92)); box-shadow:0 12px 32px rgba(15,23,42,0.05); }"
-        ".perf-summary-card::before { content:''; position:absolute; inset:0 auto auto 0; width:100%; height:4px; background:linear-gradient(90deg, rgba(15,118,110,0.92), rgba(194,65,12,0.72)); }"
-        ".perf-summary-label { display:block; margin-bottom:10px; font-size:12px; font-weight:800; letter-spacing:0.08em; text-transform:uppercase; color:#64748b; }"
-        ".perf-summary-value { display:block; font-family:var(--font-sans, 'Iowan Old Style', Georgia, serif); font-size:32px; line-height:1.02; color:#0f172a; }"
-        ".perf-summary-secondary { display:block; margin-top:10px; padding-top:10px; border-top:1px solid rgba(226,232,240,0.9); color:#475569; font-size:13px; font-weight:600; }"
+        ".perf-summary-grid { display:grid; gap:12px; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); }"
+        ".perf-summary-card { padding:14px 16px; border-radius:var(--r-2); border:1px solid var(--border-soft); background:var(--surface); box-shadow:var(--shadow-1); }"
+        ".perf-summary-label { display:block; margin-bottom:6px; font-size:11px; font-weight:600; letter-spacing:0.04em; text-transform:uppercase; color:var(--muted-ink); }"
+        ".perf-summary-value { display:block; font-family:var(--font-sans); font-size:22px; font-weight:600; line-height:1.1; color:var(--ink); font-variant-numeric:tabular-nums; }"
+        ".perf-summary-secondary { display:block; margin-top:8px; padding-top:8px; border-top:1px solid var(--border-soft); color:var(--muted-ink); font-size:12px; font-weight:600; font-variant-numeric:tabular-nums; }"
         ".perf-chart-shell { display:grid; gap:18px; }"
         ".perf-chart-toolbar { display:grid; grid-template-columns: minmax(0, 1.2fr) minmax(320px, 0.9fr); gap:18px; align-items:start; }"
         ".perf-controls { display:grid; gap:12px; justify-items:end; margin:0; }"
         ".perf-control-row { display:flex; flex-wrap:wrap; align-items:center; justify-content:flex-end; gap:10px; }"
         ".perf-control-label { font-size:12px; font-weight:800; letter-spacing:0.08em; text-transform:uppercase; color:#475569; min-width:120px; }"
-        ".segmented-control { display:inline-flex; flex-wrap:wrap; gap:8px; padding:6px; border-radius:18px; background:rgba(248,250,252,0.92); border:1px solid rgba(148,163,184,0.18); }"
-        ".segmented-control__button { appearance:none; border:1px solid transparent; border-radius:999px; padding:10px 14px; background:transparent; color:#334155; font-weight:700; cursor:pointer; transition: background 140ms ease, color 140ms ease, transform 140ms ease, border-color 140ms ease; }"
-        ".segmented-control__button:hover { transform:translateY(-1px); border-color:rgba(15,118,110,0.24); background:rgba(255,255,255,0.9); }"
-        ".segmented-control__button.is-active { background:linear-gradient(135deg, #0f766e, #115e59); color:#fff; border-color:transparent; box-shadow:0 10px 24px rgba(15,118,110,0.22); }"
-        ".segmented-control--warm .segmented-control__button { color:#9a3412; }"
-        ".segmented-control--warm .segmented-control__button:hover { border-color:rgba(194,65,12,0.24); }"
-        ".segmented-control--warm .segmented-control__button.is-active { background:linear-gradient(135deg, #c2410c, #9a3412); box-shadow:0 10px 24px rgba(194,65,12,0.22); }"
+        # `.segmented-control` and variants are provided by `_design_tokens.design_tokens_css()`
+        # injected into the `report_document` shell. The `@media` rule below overrides width
+        # for narrow viewports.
         ".perf-card-header { display:grid; gap:6px; }"
         ".perf-card-header p { margin:0; }"
         ".perf-card-kicker { margin:0; font-size:12px; font-weight:800; letter-spacing:0.08em; text-transform:uppercase; color:#0f766e; }"
