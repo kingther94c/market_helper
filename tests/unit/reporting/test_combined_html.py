@@ -166,7 +166,12 @@ def test_render_portfolio_report_builds_html_shell_without_nicegui_refs(tmp_path
     rendered = render_portfolio_report(_fake_report_data(tmp_path))
 
     assert "<!doctype html>" in rendered.lower()
-    assert "Market Helper HTML Report" in rendered
+    # P4 redesign: brand is rendered in the sticky `.app-bar`.
+    assert "Market Helper" in rendered
+    assert "app-bar" in rendered
+    # Section nav uses hash-routed anchors, not the legacy `<button>` toggle.
+    assert "section-nav" in rendered
+    assert "href='#performance-usd'" in rendered or 'href="#performance-usd"' in rendered
     assert "Performance USD" in rendered
     assert "Risk" in rendered
     assert "Artifacts" in rendered
