@@ -82,8 +82,12 @@ def add_dashboard_styles() -> None:
           .pm-app-bar__primary { padding: 6px 14px; border-radius: var(--r-2); border: 1px solid var(--ink); background: var(--ink); color: #fff; font-size: 13px; font-weight: 600; cursor: pointer; }
           .pm-app-bar__primary:hover { background: #1e293b; }
           .pm-app-bar__primary[disabled] { opacity: 0.6; cursor: not-allowed; }
+          .pm-app-bar__primary:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
           .pm-app-bar__operate { padding: 6px 12px; border-radius: var(--r-2); border: 1px solid var(--panel-border); background: var(--surface); color: var(--ink); font-size: 13px; font-weight: 600; cursor: pointer; }
           .pm-app-bar__operate:hover { background: var(--surface-2); }
+          .pm-app-bar__operate:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+          .pm-drawer__close:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+          .pm-static-tab-button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 
           .pm-drawer-backdrop {
             position: fixed; inset: 0; background: rgba(15,23,42,0.4);
@@ -113,6 +117,16 @@ def add_dashboard_styles() -> None:
           .pm-progress-strip__label { font-weight: 600; color: var(--ink); }
           .pm-progress-strip__detail { color: var(--muted-ink); font-variant-numeric: tabular-nums; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
           .pm-progress-strip__bar { height: 3px; max-width: 1600px; margin: 0 auto; }
+
+          /* P10/P10.3 — light Quasar input/field overrides to align focus colour
+             with the token system. Full ui.input → ui.element('input') swap is
+             intentionally deferred (bind_value + label/validation behaviour are
+             material rewrites for moderate visual win). */
+          .pm-drawer .q-field--outlined .q-field__control:before { border-color: var(--panel-border); }
+          .pm-drawer .q-field--outlined .q-field__control:hover:before { border-color: var(--ink-2); }
+          .pm-drawer .q-field--focused .q-field__control:before { border-color: var(--accent); border-width: 2px; }
+          .pm-drawer .q-field__label { color: var(--muted-ink); }
+          .pm-drawer .q-field--focused .q-field__label { color: var(--accent); }
 
           /* P8 — recent-runs panel inside the operate drawer. */
           .pm-history { font-variant-numeric: tabular-nums; }
