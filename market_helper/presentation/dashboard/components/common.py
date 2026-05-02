@@ -106,6 +106,22 @@ def add_dashboard_styles() -> None:
           .pm-drawer__close:hover { background: var(--surface-2); color: var(--ink); }
           .pm-drawer__body { padding: 16px 18px; display: flex; flex-direction: column; gap: 14px; }
           .pm-drawer__section-title { font-size: 11px; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; color: var(--muted-ink); margin: 4px 0; }
+
+          /* P8 — sticky progress strip directly under the app-bar while a job runs. */
+          .pm-progress-strip { position: sticky; top: 49px; z-index: 25; background: var(--surface); border-bottom: 1px solid var(--border-soft); }
+          .pm-progress-strip__row { max-width: 1600px; margin: 0 auto; padding: 6px 24px 4px; display: flex; align-items: baseline; justify-content: space-between; gap: 16px; font-size: 12px; }
+          .pm-progress-strip__label { font-weight: 600; color: var(--ink); }
+          .pm-progress-strip__detail { color: var(--muted-ink); font-variant-numeric: tabular-nums; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+          .pm-progress-strip__bar { height: 3px; max-width: 1600px; margin: 0 auto; }
+
+          /* P8 — recent-runs panel inside the operate drawer. */
+          .pm-history { font-variant-numeric: tabular-nums; }
+          .pm-history__row { display: grid; grid-template-columns: 80px 1fr auto auto; align-items: center; gap: 10px; }
+          .pm-history__time { font-family: var(--font-num); font-size: 12px; color: var(--muted-ink); }
+          .pm-history__action { font-size: 13px; font-weight: 600; }
+          .pm-history__duration { font-family: var(--font-num); font-size: 11px; color: var(--muted-ink); }
+          .pm-history__message { margin: 0 0 0 90px; }
+          .pm-history__link, .pm-history__path { margin: 0 0 8px 90px; display: inline-block; }
         </style>
         """
     )
