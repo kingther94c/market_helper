@@ -12,33 +12,100 @@ _ISO_UTC_TIMESTAMP_RE = re.compile(r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d
 
 
 def add_dashboard_styles() -> None:
-    # Inject shared design tokens first so dashboard-specific `.pm-*` rules below
-    # can reference `var(--accent)` etc. once the redesign starts using them (P3+).
-    # Today the tokens are unused by `.pm-*` rules — this is infrastructure for the
-    # later phases and changes nothing visually.
+    # Inject shared design tokens first so the dashboard-specific `.pm-*` rules below
+    # consume the same palette/type/radius scale as the embedded HTML report. P6
+    # closes the iframe seam by aligning the dashboard chrome with the report's
+    # `.app-bar` pattern; the editorial slate-blue gradient hero is retired here.
     ui.add_head_html(design_tokens_style_block())
     ui.add_head_html(
         """
         <style>
-          body { background: linear-gradient(180deg, #f6f8fb 0%, #eef3f8 100%); }
-          .pm-shell { gap: 20px; }
-          .pm-hero { background: linear-gradient(135deg, #0f172a 0%, #1d4ed8 100%); color: white; border-radius: 18px; padding: 22px; }
-          .pm-card { background: rgba(255,255,255,0.94); border-radius: 16px; border: 1px solid #dbe4ee; }
-          .pm-muted { color: #5b6b7f; }
-          .pm-warning { background: #fff7ed; border-left: 4px solid #f97316; padding: 10px 12px; border-radius: 10px; }
-          .pm-error { background: #fef2f2; border-left: 4px solid #dc2626; padding: 12px 14px; border-radius: 10px; color: #991b1b; }
-          .pm-loading { background: #eff6ff; border-left: 4px solid #2563eb; padding: 12px 14px; border-radius: 10px; color: #1d4ed8; }
+          body { background: var(--bg); color: var(--ink); font-family: var(--font-ui); font-size: 14px; line-height: 1.45; -webkit-font-smoothing: antialiased; }
+          .pm-shell { gap: 16px; }
+
+          /* Sticky app-bar — mirrors the report's `.app-bar` so the iframe seam closes. */
+          .pm-app-bar {
+            position: sticky; top: 0; z-index: 30;
+            background: rgba(255,255,255,0.85);
+            backdrop-filter: saturate(140%) blur(8px);
+            border-bottom: 1px solid var(--panel-border);
+            padding: 12px 24px;
+            display: flex; align-items: center; gap: 20px;
+            flex-wrap: wrap;
+          }
+          .pm-app-bar__brand { display: flex; align-items: center; gap: 8px; font-weight: 700; }
+          .pm-app-bar__brand-dot { width: 8px; height: 8px; border-radius: 999px; background: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
+          .pm-app-bar__brand-name { font-size: 13px; letter-spacing: 0.02em; }
+          .pm-app-bar__brand-sep { color: var(--muted-2); }
+          .pm-app-bar__brand-title { font-weight: 600; }
+          .pm-app-bar__spacer { flex: 1; }
+          .pm-app-bar__meta { font-size: 12px; color: var(--muted-ink); font-variant-numeric: tabular-nums; }
+          .pm-app-bar__actions { display: flex; align-items: center; gap: 8px; }
+
+          /* Cards re-skinned to match report `.card` token output. */
+          .pm-card {
+            background: var(--surface);
+            border: 1px solid var(--panel-border);
+            border-radius: var(--r-3);
+            box-shadow: var(--shadow-1);
+          }
+          .pm-muted { color: var(--muted-ink); }
+          .pm-warning { background: var(--warn-soft); border-left: 4px solid var(--warning-border); padding: 10px 12px; border-radius: var(--r-2); color: var(--warn); }
+          .pm-error { background: var(--neg-soft); border-left: 4px solid var(--neg); padding: 10px 12px; border-radius: var(--r-2); color: var(--neg); }
+          .pm-loading { background: var(--info-soft); border-left: 4px solid var(--info); padding: 10px 12px; border-radius: var(--r-2); color: var(--info); }
           .pm-log { max-height: 260px; overflow: auto; }
-          .pm-status-chip { border-radius: 999px; padding: 4px 10px; font-size: 12px; font-weight: 700; }
-          .pm-status-neutral { background: #e2e8f0; color: #334155; }
-          .pm-status-running { background: #dbeafe; color: #1d4ed8; }
-          .pm-status-success { background: #dcfce7; color: #166534; }
-          .pm-status-error { background: #fee2e2; color: #991b1b; }
-          .pm-static-tab-buttons { display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 14px; }
-          .pm-static-tab-button { appearance: none; border: 0; border-radius: 999px; padding: 10px 16px; background: #dbe4ee; color: #0f172a; font-weight: 700; cursor: pointer; }
-          .pm-static-tab-button.is-active { background: #0f172a; color: white; }
+
+          /* Status chips — same semantic palette as the report. */
+          .pm-status-chip { border-radius: 999px; padding: 2px 8px; font-size: 11px; font-weight: 600; }
+          .pm-status-neutral { background: var(--surface-2); color: var(--muted-ink); }
+          .pm-status-running { background: var(--info-soft); color: var(--info); }
+          .pm-status-success { background: var(--pos-soft); color: var(--pos); }
+          .pm-status-error { background: var(--neg-soft); color: var(--neg); }
+
+          /* Static tab buttons (used by the embedded reports' fallbacks). */
+          .pm-static-tab-buttons { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 14px; }
+          .pm-static-tab-button { appearance: none; border: 1px solid var(--border-soft); border-radius: 999px; padding: 6px 12px; background: var(--surface); color: var(--ink-2); font-weight: 600; font-size: 13px; cursor: pointer; }
+          .pm-static-tab-button.is-active { background: var(--ink); color: #fff; border-color: var(--ink); }
           .pm-static-tab-panel { width: 100%; }
           .pm-static-tab-panel[hidden] { display: none !important; }
+
+          /* KpiCard-style status card (replaces the slate-50 card chrome). */
+          .pm-status-card { background: var(--surface); border: 1px solid var(--border-soft); border-radius: var(--r-2); padding: 12px 14px; box-shadow: var(--shadow-1); display: flex; flex-direction: column; gap: 4px; min-width: 180px; }
+          .pm-status-card__title { font-size: 11px; letter-spacing: 0.04em; text-transform: uppercase; color: var(--muted-ink); font-weight: 600; }
+          .pm-status-card__value { font-size: 14px; font-weight: 600; color: var(--ink); }
+          .pm-status-card__detail { font-size: 11px; color: var(--muted-ink); font-variant-numeric: tabular-nums; }
+
+          /* Embedded report iframe — bleeds into the dashboard chrome via solid surface bg. */
+          .pm-report-iframe { width: 100%; min-height: 78vh; border: 0; border-radius: var(--r-3); background: var(--surface); }
+
+          /* P7 — operate drawer (slides over the right edge so /portfolio first-paint stays clean) */
+          .pm-app-bar__primary { padding: 6px 14px; border-radius: var(--r-2); border: 1px solid var(--ink); background: var(--ink); color: #fff; font-size: 13px; font-weight: 600; cursor: pointer; }
+          .pm-app-bar__primary:hover { background: #1e293b; }
+          .pm-app-bar__primary[disabled] { opacity: 0.6; cursor: not-allowed; }
+          .pm-app-bar__operate { padding: 6px 12px; border-radius: var(--r-2); border: 1px solid var(--panel-border); background: var(--surface); color: var(--ink); font-size: 13px; font-weight: 600; cursor: pointer; }
+          .pm-app-bar__operate:hover { background: var(--surface-2); }
+
+          .pm-drawer-backdrop {
+            position: fixed; inset: 0; background: rgba(15,23,42,0.4);
+            opacity: 0; pointer-events: none; transition: opacity 180ms ease;
+            z-index: 40;
+          }
+          .pm-drawer {
+            position: fixed; top: 0; right: 0; height: 100vh; width: min(520px, 92vw);
+            background: var(--surface); border-left: 1px solid var(--panel-border);
+            transform: translateX(100%); transition: transform 200ms ease;
+            z-index: 50; overflow-y: auto;
+            box-shadow: -12px 0 32px rgba(15,23,42,0.10);
+            display: flex; flex-direction: column;
+          }
+          body.pm-drawer-open .pm-drawer { transform: translateX(0); }
+          body.pm-drawer-open .pm-drawer-backdrop { opacity: 1; pointer-events: auto; }
+          .pm-drawer__header { display: flex; align-items: center; justify-content: space-between; padding: 14px 18px; border-bottom: 1px solid var(--border-soft); position: sticky; top: 0; background: var(--surface); z-index: 1; }
+          .pm-drawer__title { font-size: 14px; font-weight: 700; }
+          .pm-drawer__close { appearance: none; border: 0; background: transparent; color: var(--muted-ink); font-size: 18px; line-height: 1; cursor: pointer; padding: 4px 8px; border-radius: var(--r-1); }
+          .pm-drawer__close:hover { background: var(--surface-2); color: var(--ink); }
+          .pm-drawer__body { padding: 16px 18px; display: flex; flex-direction: column; gap: 14px; }
+          .pm-drawer__section-title { font-size: 11px; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; color: var(--muted-ink); margin: 4px 0; }
         </style>
         """
     )
@@ -59,11 +126,13 @@ def render_status_badge(status: str) -> None:
 
 
 def render_status_card(*, title: str, value: str, detail: str | None = None) -> None:
-    with ui.card().classes("min-w-[180px] p-3 bg-slate-50 shadow-none"):
-        ui.label(title).classes("text-caption pm-muted")
-        ui.label(value).classes("text-body2")
+    # P6: switch from the legacy slate-50 ui.card to the token-driven `.pm-status-card`
+    # primitive so dashboard status tiles match the report's `.metric` look.
+    with ui.element("div").classes("pm-status-card"):
+        ui.label(title).classes("pm-status-card__title")
+        ui.label(value).classes("pm-status-card__value")
         if detail:
-            ui.label(_format_status_detail(detail)).classes("text-caption pm-muted")
+            ui.label(_format_status_detail(detail)).classes("pm-status-card__detail")
 
 
 def _format_status_detail(detail: str) -> str:
