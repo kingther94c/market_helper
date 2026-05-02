@@ -6,10 +6,17 @@ from typing import Any
 
 from nicegui import ui
 
+from market_helper.reporting._design_tokens import design_tokens_style_block
+
 _ISO_UTC_TIMESTAMP_RE = re.compile(r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?\+00:00$")
 
 
 def add_dashboard_styles() -> None:
+    # Inject shared design tokens first so dashboard-specific `.pm-*` rules below
+    # can reference `var(--accent)` etc. once the redesign starts using them (P3+).
+    # Today the tokens are unused by `.pm-*` rules — this is infrastructure for the
+    # later phases and changes nothing visually.
+    ui.add_head_html(design_tokens_style_block())
     ui.add_head_html(
         """
         <style>

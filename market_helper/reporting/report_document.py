@@ -5,6 +5,7 @@ import html
 from typing import Sequence
 
 from market_helper.common.datetime_display import format_local_datetime
+from market_helper.reporting._design_tokens import design_tokens_css
 
 
 @dataclass(frozen=True)
@@ -24,6 +25,11 @@ class ReportDocument:
     warning_messages: Sequence[str] = field(default_factory=tuple)
     head_html: str = ""
     body_end_html: str = ""
+    # P4 additions: optional inline HTML rendered in the sticky chrome.
+    # `topline_html` is typically the 8-column KPI strip; `ribbon_html` is
+    # reserved for the regime ribbon added in P5.
+    topline_html: str = ""
+    ribbon_html: str = ""
 
 
 def render_report_document(document: ReportDocument) -> str:
@@ -31,12 +37,12 @@ def render_report_document(document: ReportDocument) -> str:
         raise ValueError("ReportDocument requires at least one section")
 
     nav_html = "".join(
-        _render_nav_button(section, active=index == 0)
+        _render_nav_link(section, active=index == 0)
         for index, section in enumerate(document.sections)
     )
     sections_html = "".join(
-        _render_section(section, active=index == 0)
-        for index, section in enumerate(document.sections)
+        _render_section(section)
+        for section in document.sections
     )
     warnings_html = ""
     if document.warning_messages:
@@ -48,311 +54,151 @@ def render_report_document(document: ReportDocument) -> str:
             "</aside>"
         )
 
-    subtitle_html = ""
+    # Subtitle is no longer rendered as visible chrome — the slim app-bar replaced
+    # the editorial hero. Surface it as a screen-reader-friendly meta description so
+    # context is still discoverable for assistive tech without burning viewport space.
+    subtitle_meta = ""
     if document.subtitle:
-        subtitle_html = f"<p class='report-hero__subtitle'>{html.escape(document.subtitle)}</p>"
+        subtitle_meta = f"<meta name='description' content='{html.escape(document.subtitle, quote=True)}' />"
+
+    ribbon_html = document.ribbon_html
+    topline_html = document.topline_html
 
     return f"""<!doctype html>
 <html lang='en'>
 <head>
   <meta charset='utf-8' />
   <meta name='viewport' content='width=device-width, initial-scale=1' />
+  {subtitle_meta}
   <title>{html.escape(document.title)}</title>
   <style>
-    :root {{
-      --page-bg: #f7f4ec;
-      --panel-bg: rgba(255,255,255,0.92);
-      --panel-border: rgba(148, 163, 184, 0.22);
-      --hero-ink: #0f172a;
-      --muted-ink: #475569;
-      --accent: #0f766e;
-      --accent-soft: #ccfbf1;
-      --accent-warm: #c2410c;
-      --accent-warm-soft: #ffedd5;
-      --shadow: 0 24px 80px rgba(15, 23, 42, 0.08);
-      --table-header: #f8fafc;
-      --table-border: #e2e8f0;
-      --row-alt: #fcfcfd;
-      --excluded-bg: #fff7ed;
-      --warning-bg: #fff7ed;
-      --warning-border: #fdba74;
-      --font-sans: "Iowan Old Style", "Palatino Linotype", "Book Antiqua", Georgia, serif;
-      --font-ui: "Avenir Next", "Helvetica Neue", Helvetica, Arial, sans-serif;
-    }}
+    {design_tokens_css()}
     * {{ box-sizing: border-box; }}
     html {{ scroll-behavior: smooth; }}
     body {{
       margin: 0;
-      color: var(--hero-ink);
-      background:
-        radial-gradient(circle at top left, rgba(13, 148, 136, 0.14), transparent 28%),
-        radial-gradient(circle at top right, rgba(249, 115, 22, 0.12), transparent 24%),
-        linear-gradient(180deg, #fffdf8 0%, var(--page-bg) 58%, #f8fafc 100%);
+      color: var(--ink);
+      background: var(--bg);
       font-family: var(--font-ui);
-    }}
-    .report-shell {{
-      max-width: 1540px;
-      margin: 0 auto;
-      padding: 40px 24px 56px;
-    }}
-    .report-hero {{
-      padding: 30px 32px;
-      border: 1px solid var(--panel-border);
-      border-radius: 28px;
-      background:
-        linear-gradient(135deg, rgba(255,255,255,0.95), rgba(248,250,252,0.88)),
-        linear-gradient(90deg, rgba(15, 118, 110, 0.04), rgba(194, 65, 12, 0.04));
-      box-shadow: var(--shadow);
-      margin-bottom: 20px;
-    }}
-    .report-hero__eyebrow {{
-      margin: 0 0 10px;
-      font-size: 12px;
-      letter-spacing: 0.16em;
-      text-transform: uppercase;
-      color: var(--accent);
-      font-weight: 700;
-    }}
-    .report-hero h1 {{
-      margin: 0;
-      font-family: var(--font-sans);
-      font-size: clamp(34px, 4vw, 56px);
-      line-height: 0.98;
-    }}
-    .report-hero__subtitle {{
-      margin: 12px 0 0;
-      font-size: 16px;
-      max-width: 920px;
-      color: var(--muted-ink);
-    }}
-    .report-nav {{
-      display: flex;
-      flex-wrap: wrap;
-      gap: 10px;
-      margin: 0 0 18px;
-    }}
-    .report-nav__button {{
-      appearance: none;
-      border: 1px solid rgba(15, 23, 42, 0.1);
-      background: rgba(255,255,255,0.7);
-      color: var(--hero-ink);
-      border-radius: 999px;
-      padding: 10px 16px;
-      font-weight: 700;
-      font-size: 13px;
-      cursor: pointer;
-      transition: background 140ms ease, color 140ms ease, transform 140ms ease, border-color 140ms ease;
-    }}
-    .report-nav__button:hover {{
-      transform: translateY(-1px);
-      border-color: rgba(15, 118, 110, 0.35);
-    }}
-    .report-nav__button.is-active {{
-      background: linear-gradient(135deg, var(--accent), #115e59);
-      color: #fff;
-      border-color: transparent;
-      box-shadow: 0 12px 28px rgba(15, 118, 110, 0.22);
-    }}
-    .report-alert {{
-      margin-bottom: 18px;
-      padding: 14px 16px;
-      border-radius: 18px;
-      border: 1px solid var(--warning-border);
-      background: var(--warning-bg);
-      color: #9a3412;
-    }}
-    .report-alert ul {{
-      margin: 10px 0 0;
-      padding-left: 18px;
-    }}
-    .report-section[hidden] {{ display: none !important; }}
-    .report-section__header {{
-      margin-bottom: 18px;
-    }}
-    .report-section__title {{
-      margin: 0;
-      font-family: var(--font-sans);
-      font-size: 30px;
-    }}
-    .report-section__summary {{
-      margin: 8px 0 0;
-      color: var(--muted-ink);
-      max-width: 840px;
-    }}
-    .card {{
-      background: var(--panel-bg);
-      border: 1px solid var(--panel-border);
-      border-radius: 22px;
-      box-shadow: 0 12px 40px rgba(15, 23, 42, 0.05);
-      padding: 20px;
-      margin-bottom: 16px;
-      backdrop-filter: blur(10px);
-    }}
-    .card h2 {{
-      margin: 0 0 12px;
-      font-family: var(--font-sans);
-      font-size: 24px;
-    }}
-    .card p {{
-      color: var(--muted-ink);
-      line-height: 1.55;
-    }}
-    .metrics {{
-      display: grid;
-      gap: 12px;
-      grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
-    }}
-    .metric {{
-      padding: 14px 16px;
-      border-radius: 18px;
-      background: linear-gradient(180deg, rgba(248,250,252,0.9), rgba(255,255,255,0.98));
-      border: 1px solid rgba(226, 232, 240, 0.95);
-    }}
-    .metric span {{
-      display: block;
-      font-size: 12px;
-      font-weight: 700;
-      letter-spacing: 0.03em;
-      text-transform: uppercase;
-      color: var(--muted-ink);
-      margin-bottom: 6px;
-    }}
-    .metric strong {{
-      font-size: 26px;
-      font-family: var(--font-sans);
-    }}
-    .report-table-wrap {{
-      overflow: auto;
-      border: 1px solid var(--table-border);
-      border-radius: 18px;
-      background: rgba(255,255,255,0.92);
-    }}
-    .report-table {{
-      width: 100%;
-      border-collapse: separate;
-      border-spacing: 0;
-      min-width: 720px;
       font-size: 14px;
+      line-height: 1.45;
+      -webkit-font-smoothing: antialiased;
     }}
-    .report-table__header {{
-      position: sticky;
-      top: 0;
-      z-index: 1;
-      background: var(--table-header);
-      border-bottom: 1px solid var(--table-border);
-      padding: 11px 14px;
-      font-size: 12px;
-      text-transform: uppercase;
-      letter-spacing: 0.05em;
-      color: var(--muted-ink);
-      white-space: nowrap;
+    /* Sticky app-bar (P4): brand + section nav + as-of + actions in a single row */
+    .app-bar {{
+      position: sticky; top: 0; z-index: 30;
+      background: rgba(255,255,255,0.85);
+      backdrop-filter: saturate(140%) blur(8px);
+      border-bottom: 1px solid var(--panel-border);
     }}
-    .report-table__cell {{
-      padding: 12px 14px;
-      border-bottom: 1px solid var(--table-border);
-      vertical-align: top;
+    .app-bar__row {{
+      max-width: 1540px; margin: 0 auto;
+      padding: 12px 24px;
+      display: grid; grid-template-columns: auto 1fr auto;
+      align-items: center; gap: 20px;
     }}
-    .report-table__row:nth-child(even) .report-table__cell {{
-      background: var(--row-alt);
+    .app-bar__brand {{ display: flex; align-items: center; gap: 8px; font-weight: 700; }}
+    .app-bar__brand-dot {{
+      width: 8px; height: 8px; border-radius: 999px; background: var(--accent);
+      box-shadow: 0 0 0 3px var(--accent-soft);
     }}
-    .report-table__row.is-excluded .report-table__cell {{
-      background: var(--excluded-bg);
+    .app-bar__brand-name {{ font-size: 13px; letter-spacing: 0.02em; }}
+    .app-bar__brand-sep {{ color: var(--muted-2); }}
+    .app-bar__brand-title {{ font-weight: 600; }}
+    .app-bar__meta {{ font-size: 12px; color: var(--muted-ink); font-variant-numeric: tabular-nums; }}
+    .section-nav {{
+      display: flex; gap: 2px; justify-self: center;
+      background: var(--surface-2); padding: 4px; border-radius: 999px;
+      border: 1px solid var(--border-soft);
     }}
-    .report-table__row:last-child .report-table__cell {{
-      border-bottom: 0;
+    .section-nav__button {{
+      appearance: none; border: 0; background: transparent; cursor: pointer;
+      padding: 6px 12px; font: inherit; font-size: 13px; font-weight: 600;
+      color: var(--ink-2); text-decoration: none; border-radius: 999px;
     }}
-    .report-table__empty td {{
-      padding: 18px 14px;
-      color: var(--muted-ink);
+    .section-nav__button:hover {{ background: rgba(15,23,42,0.05); color: var(--ink); }}
+    .section-nav__button.is-active {{ background: var(--ink); color: #fff; }}
+
+    /* KPI strip (P4): above-the-fold answers */
+    .kpi-strip-wrap {{ max-width: 1540px; margin: 0 auto; padding: 16px 24px 0; }}
+    .kpi-strip {{
+      display: grid; gap: 1px; background: var(--panel-border);
+      border: 1px solid var(--panel-border); border-radius: var(--r-3); overflow: hidden;
+      box-shadow: var(--shadow-1);
     }}
-    .is-num {{
-      text-align: right;
-      font-variant-numeric: tabular-nums;
+    .kpi {{ background: var(--surface); padding: 12px 16px; display: flex; flex-direction: column; gap: 2px; }}
+    .kpi__label {{ font-size: 11px; letter-spacing: 0.04em; text-transform: uppercase; color: var(--muted-ink); font-weight: 600; }}
+    .kpi__value {{ font-size: 20px; font-weight: 600; line-height: 1.1; font-variant-numeric: tabular-nums; }}
+    .kpi__sub {{ font-size: 11px; color: var(--muted-ink); font-variant-numeric: tabular-nums; }}
+    .kpi__value.tone-positive, .kpi__value.tone-negative {{ font-weight: 600; }}
+    .kpi__value.is-warn {{ color: var(--warn); }}
+
+    .report-shell {{ max-width: 1540px; margin: 0 auto; padding: 16px 24px 40px; }}
+    .report-alert {{
+      margin: 0 0 16px;
+      padding: 12px 14px; border-radius: var(--r-2);
+      border: 1px solid var(--warning-border);
+      background: var(--warning-bg); color: var(--warn);
     }}
-    .is-center {{ text-align: center; }}
-    .is-start {{ text-align: left; }}
-    .tone-positive {{ color: #166534; font-weight: 700; }}
-    .tone-negative {{ color: #b91c1c; font-weight: 700; }}
-    .tone-muted {{ color: var(--muted-ink); }}
-    .tag {{
-      display: inline-flex;
-      align-items: center;
-      padding: 4px 8px;
-      border-radius: 999px;
-      font-size: 12px;
-      font-weight: 700;
-      background: #eef2ff;
-      color: #3730a3;
-    }}
-    .tag--warning {{
-      background: #fff7ed;
-      color: #9a3412;
-    }}
-    .scores {{
-      display: flex;
-      flex-wrap: wrap;
-      gap: 10px;
-      color: var(--muted-ink);
-    }}
-    .chart {{ display: grid; gap: 8px; margin-bottom: 14px; }}
-    .chart-row {{ display: grid; grid-template-columns: 150px 1fr 80px; gap: 12px; align-items: center; }}
-    .chart-track {{ position: relative; height: 14px; border-radius: 999px; background: #e2e8f0; overflow: hidden; }}
-    .chart-midline {{ position: absolute; left: 50%; top: 0; bottom: 0; width: 1px; background: #94a3b8; }}
-    .chart-fill-pos {{ position: absolute; left: 50%; top: 0; bottom: 0; background: linear-gradient(90deg, #14b8a6, #0f766e); }}
-    .chart-fill-neg {{ position: absolute; top: 0; bottom: 0; background: linear-gradient(90deg, #fb923c, #c2410c); }}
-    .chart-value {{ text-align: right; color: var(--muted-ink); font-size: 12px; font-variant-numeric: tabular-nums; }}
-    .perf-plot {{ min-height: 520px; }}
-    .sparkline {{ width: 120px; height: 28px; }}
-    @media (max-width: 840px) {{
-      .report-shell {{ padding: 24px 12px 40px; }}
-      .report-hero {{ padding: 24px 18px; border-radius: 22px; }}
-      .card {{ padding: 16px; border-radius: 18px; }}
-      .report-table {{ min-width: 620px; }}
-      .chart-row {{ grid-template-columns: 120px 1fr 72px; }}
-    }}
+    .report-alert ul {{ margin: 8px 0 0; padding-left: 18px; }}
+    .report-section {{ scroll-margin-top: 64px; margin-top: 32px; }}
+    .report-section:first-of-type {{ margin-top: 0; }}
+    .report-section__header {{ margin-bottom: 12px; display: flex; align-items: baseline; justify-content: space-between; gap: 16px; }}
+    .report-section__title {{ margin: 0; font-family: var(--font-sans); font-size: 18px; font-weight: 700; }}
+    .report-section__summary {{ margin: 0; color: var(--muted-ink); max-width: 840px; font-size: 12px; }}
+
+    :focus-visible {{ outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 4px; }}
+
+    /* Card, KpiCard, Table, Tag, BarRow, alignment + tone helpers, sparkline are
+       provided by `_design_tokens.design_tokens_css()` (P2 of the redesign track). */
   </style>
   {document.head_html}
 </head>
 <body>
+  <header class='app-bar'>
+    <div class='app-bar__row'>
+      <div class='app-bar__brand'>
+        <span class='app-bar__brand-dot' aria-hidden='true'></span>
+        <span class='app-bar__brand-name'>Market Helper</span>
+        <span class='app-bar__brand-sep'>/</span>
+        <span class='app-bar__brand-title'>{html.escape(document.title)}</span>
+      </div>
+      <nav class='section-nav' aria-label='Report Sections'>
+        {nav_html}
+      </nav>
+      <div class='app-bar__meta'>As of {html.escape(format_local_datetime(document.as_of))}</div>
+    </div>
+  </header>
+  {ribbon_html}
+  {topline_html}
   <main class='report-shell'>
-    <header class='report-hero'>
-      <p class='report-hero__eyebrow'>Market Helper HTML Report</p>
-      <h1>{html.escape(document.title)}</h1>
-      {subtitle_html}
-      <p class='report-hero__subtitle'>As of {html.escape(format_local_datetime(document.as_of))}</p>
-    </header>
     {warnings_html}
-    <nav class='report-nav' aria-label='Report Sections'>
-      {nav_html}
-    </nav>
     {sections_html}
   </main>
   <script>
     (function () {{
-      const buttons = Array.from(document.querySelectorAll('[data-report-tab]'));
-      const sections = Array.from(document.querySelectorAll('[data-report-section]'));
-      const activate = function (target) {{
-        buttons.forEach((button) => {{
-          const active = button.getAttribute('data-report-tab') === target;
-          button.classList.toggle('is-active', active);
-          button.setAttribute('aria-selected', active ? 'true' : 'false');
+      const links = Array.from(document.querySelectorAll('.section-nav__button'));
+      const sections = Array.from(document.querySelectorAll('.report-section'));
+      function setActive(id) {{
+        links.forEach(function (link) {{
+          const active = link.getAttribute('href') === '#' + id;
+          link.classList.toggle('is-active', active);
+          link.setAttribute('aria-current', active ? 'true' : 'false');
         }});
-        sections.forEach((section) => {{
-          const active = section.getAttribute('data-report-section') === target;
-          if (active) {{
-            section.removeAttribute('hidden');
-          }} else {{
-            section.setAttribute('hidden', '');
-          }}
-        }});
-        const plots = document.querySelectorAll('.perf-plot');
-        if (typeof window.__marketHelperResizePerformancePlots === 'function') {{
-          plots.forEach(() => window.__marketHelperResizePerformancePlots(document));
-        }}
-      }};
-      buttons.forEach((button) => {{
-        button.addEventListener('click', () => activate(button.getAttribute('data-report-tab')));
-      }});
+      }}
+      if (typeof IntersectionObserver === 'function' && sections.length > 0) {{
+        const io = new IntersectionObserver(function (entries) {{
+          entries.forEach(function (entry) {{ if (entry.isIntersecting) {{ setActive(entry.target.id); }} }});
+        }}, {{ rootMargin: '-40% 0px -55% 0px' }});
+        sections.forEach(function (section) {{ io.observe(section); }});
+      }}
+      // Honor `?section=...` query on initial load by jumping to the matching anchor.
+      const params = new URLSearchParams(window.location.search);
+      const requested = params.get('section');
+      if (requested) {{
+        const target = document.getElementById(requested);
+        if (target) {{ target.scrollIntoView({{ block: 'start' }}); }}
+      }}
     }})();
   </script>
   {document.body_end_html}
@@ -361,25 +207,32 @@ def render_report_document(document: ReportDocument) -> str:
 """
 
 
-def _render_nav_button(section: ReportSection, *, active: bool) -> str:
-    classes = "report-nav__button is-active" if active else "report-nav__button"
+def _render_nav_link(section: ReportSection, *, active: bool) -> str:
+    """Render a hash-routed anchor for the section nav.
+
+    The IntersectionObserver in the rendered page flips the `is-active` class as
+    the user scrolls, so the initial `active` flag is just the first-paint hint.
+    """
+    classes = "section-nav__button is-active" if active else "section-nav__button"
+    aria_current = " aria-current='true'" if active else ""
     return (
-        f"<button type='button' class='{classes}' data-report-tab='{html.escape(section.key)}' "
-        f"aria-selected='{'true' if active else 'false'}'>{html.escape(section.title)}</button>"
+        f"<a class='{classes}' href='#{html.escape(section.key, quote=True)}'"
+        f"{aria_current}>{html.escape(section.title)}</a>"
     )
 
 
-def _render_section(section: ReportSection, *, active: bool) -> str:
+def _render_section(section: ReportSection) -> str:
+    """Render a stacked section. Sections are always visible (P4 hash routing)."""
     summary = ""
     if section.summary:
         summary = f"<p class='report-section__summary'>{html.escape(section.summary)}</p>"
-    hidden_attr = "" if active else " hidden"
-    return (
-        f"<section class='report-section' data-report-section='{html.escape(section.key)}'{hidden_attr}>"
-        "<header class='report-section__header'>"
+    title = (
         f"<h2 class='report-section__title'>{html.escape(section.title)}</h2>"
-        f"{summary}"
-        "</header>"
+    )
+    return (
+        f"<section id='{html.escape(section.key, quote=True)}' class='report-section'"
+        f" data-report-section='{html.escape(section.key, quote=True)}'>"
+        f"<header class='report-section__header'>{title}{summary}</header>"
         f"{section.body_html}"
         "</section>"
     )

@@ -47,6 +47,7 @@ from market_helper.domain.portfolio_monitor.services.yahoo_returns import (
 )
 from market_helper.data_sources.yahoo_finance import YahooFinanceTransientError
 from market_helper.reporting.html_tables import HtmlTableColumn, HtmlTableRow, render_html_table
+from market_helper.reporting._design_tokens import design_tokens_css
 from market_helper.portfolio.security_reference import (
     DEFAULT_SECURITY_REFERENCE_PATH,
     SecurityReference,
@@ -1211,6 +1212,7 @@ def render_html_from_view_model(view_model: RiskReportViewModel) -> str:
   <meta charset='utf-8' />
   <title>Portfolio Risk Report</title>
   <style>
+    {design_tokens_css()}
     {render_risk_report_styles()}
   </style>
 </head>
@@ -1224,6 +1226,10 @@ def render_html_from_view_model(view_model: RiskReportViewModel) -> str:
 
 
 def render_risk_report_styles() -> str:
+    # Shared tokens + segmented-control primitives come from `_design_tokens` and are
+    # injected by the combined-report shell (`report_document`) or by the standalone
+    # path's wrapper (`render_html_from_view_model`). This block carries only the
+    # risk-tab-specific CSS so it can be embedded either way without duplicating tokens.
     return """
     .scores { display: flex; gap: 12px; flex-wrap: wrap; color: #334155; }
     .sparkline { width: 120px; height: 28px; }
@@ -1236,17 +1242,6 @@ def render_risk_report_styles() -> str:
     .control-toolbar { display:grid; gap:12px; margin:0 0 18px; }
     .control-row { display:flex; flex-wrap:wrap; align-items:center; gap:10px; }
     .control-label { font-size:12px; font-weight:800; letter-spacing:0.08em; text-transform:uppercase; color:#475569; min-width:120px; }
-    .segmented-control { display:inline-flex; flex-wrap:wrap; gap:8px; padding:6px; border-radius:18px; background:rgba(248,250,252,0.92); border:1px solid rgba(148,163,184,0.18); }
-    .segmented-control__button {
-      appearance:none; border:1px solid transparent; border-radius:999px; padding:10px 14px;
-      background:transparent; color:#334155; font-weight:700; cursor:pointer;
-      transition: background 140ms ease, color 140ms ease, transform 140ms ease, border-color 140ms ease;
-    }
-    .segmented-control__button:hover { transform: translateY(-1px); border-color: rgba(15,118,110,0.24); background: rgba(255,255,255,0.9); }
-    .segmented-control__button.is-active { background:linear-gradient(135deg, #0f766e, #115e59); color:#fff; border-color:transparent; box-shadow:0 10px 24px rgba(15,118,110,0.22); }
-    .segmented-control--warm .segmented-control__button { color:#9a3412; }
-    .segmented-control--warm .segmented-control__button:hover { border-color: rgba(194,65,12,0.24); }
-    .segmented-control--warm .segmented-control__button.is-active { background:linear-gradient(135deg, #c2410c, #9a3412); box-shadow:0 10px 24px rgba(194,65,12,0.22); }
     .tab-panel[hidden] { display: none !important; }
     .heat-table { width:100%; border-collapse:separate; border-spacing:0; border:1px solid #e2e8f0; border-radius:12px; overflow:hidden; }
     .heat-table th, .heat-table td { padding:12px 14px; border-bottom:1px solid #f1f5f9; }
