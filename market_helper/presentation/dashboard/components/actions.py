@@ -17,7 +17,9 @@ def render_action_card(
     last_output_path: str,
     body: Callable[[], None],
 ) -> None:
-    with ui.card().classes("grow basis-[420px] p-4 bg-slate-50 shadow-none"):
+    # P6: drop the pre-token `bg-slate-50` styling in favor of the shared `.pm-card`
+    # primitive so action cards match the rest of the dashboard chrome.
+    with ui.card().classes("grow basis-[420px] p-4 pm-card shadow-none"):
         with ui.row().classes("w-full items-center justify-between"):
             ui.label(title).classes("text-subtitle1")
             render_status_badge(status)

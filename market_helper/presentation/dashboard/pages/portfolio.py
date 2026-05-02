@@ -502,85 +502,112 @@ def _build_initial_state(query_service: PortfolioMonitorQueryService) -> Portfol
 
 def _render_portfolio_page(state: PortfolioPageState) -> None:
     add_dashboard_styles()
+    _render_header(state)
     with ui.column().classes("w-full max-w-[1600px] mx-auto p-4 pm-shell"):
-        _render_header(state)
         _render_toolbar(state)
         _render_feedback(state)
         _render_main_tabs(state)
-        _render_action_console(state)
-        _render_logs(state)
+    # P7: action console + artifact paths + progress log moved out of the page
+    # first-paint into a slide-over drawer triggered by the app-bar Operate button.
+    _render_operate_drawer(state)
 
 
 def _render_header(state: PortfolioPageState) -> None:
-    with ui.card().classes("w-full pm-hero shadow-lg"):
-        ui.label("Portfolio Monitor").classes("text-h4")
-        ui.label("GUI shell for actions, artifact inspection, and embedded HTML report hosting.").classes(
-            "text-body1 opacity-80"
-        )
-        ui.label(state.status_message).classes("text-body2 opacity-80")
+    # P6: replaces the legacy slate-blue gradient `.pm-hero` with a token-driven
+    # app-bar that mirrors the embedded report's `<header class='app-bar'>` so the
+    # iframe seam closes. Status / job state surfaces inline as `.pm-app-bar__meta`.
+    # P7: adds a single primary Refresh button + an Operate trigger that toggles
+    # the right-side drawer holding the granular actions, paths, and progress log.
+    run_action = getattr(state, "_run_action", None)
+    is_busy = state.is_loading or state.active_job is not None
+    job_label = "running…" if state.active_job else "idle"
+    job_chip_class = "pm-status-chip pm-status-running" if state.active_job else "pm-status-chip pm-status-neutral"
+    with ui.element("header").classes("pm-app-bar"):
+        with ui.element("div").classes("pm-app-bar__brand"):
+            ui.element("span").classes("pm-app-bar__brand-dot")
+            ui.label("Market Helper").classes("pm-app-bar__brand-name")
+            ui.label("/").classes("pm-app-bar__brand-sep")
+            ui.label("Portfolio").classes("pm-app-bar__brand-title")
+        ui.element("div").classes("pm-app-bar__spacer")
+        ui.label(state.status_message).classes("pm-app-bar__meta")
+        with ui.element("div").classes("pm-app-bar__actions"):
+            ui.label(job_label).classes(job_chip_class)
+            operate_button = ui.button("⚙ Operate")
+            operate_button.classes("pm-app-bar__operate").props("flat dense no-caps")
+            operate_button.on(
+                "click",
+                lambda _: ui.run_javascript("document.body.classList.toggle('pm-drawer-open');"),
+            )
+            refresh_button = ui.button(
+                "Refresh",
+                on_click=lambda: asyncio.create_task(run_action("refresh")) if run_action else None,
+            )
+            refresh_button.classes("pm-app-bar__primary").props("unelevated dense no-caps")
+            if is_busy or run_action is None:
+                refresh_button.props("disable")
 
 
 def _render_toolbar(state: PortfolioPageState) -> None:
+    # P7: granular action buttons (Recompute / Reload / Generate) + the Artifact
+    # Paths expansion moved into the operate drawer. The toolbar now carries only
+    # the status row + quick-link so /portfolio first-paint is form-free.
+    with ui.row().classes("w-full gap-3 wrap"):
+        render_status_card(
+            title="Report Data",
+            value=state.status_message,
+            detail=(format_local_datetime(state.report_data.as_of) if state.report_data is not None else None),
+        )
+        render_status_card(
+            title="Generated HTML",
+            value=state.action_statuses["combined"].message,
+            detail=state.action_statuses["combined"].last_output_path,
+        )
+    _render_report_quick_link(state)
+
+
+def _render_artifact_paths_form(state: PortfolioPageState) -> None:
+    with ui.column().classes("w-full gap-3"):
+        with ui.grid(columns=2).classes("w-full gap-3"):
+            ui.input("Positions CSV").bind_value(state.artifact_form, "positions_csv_path").classes("w-full")
+            ui.input("Performance output dir").bind_value(state.artifact_form, "performance_output_dir").classes("w-full")
+            ui.input("Combined HTML output").bind_value(state.export_form, "output_path").classes("w-full")
+            ui.input("Security reference CSV").bind_value(state.artifact_form, "security_reference_path").classes("w-full")
+        with ui.expansion("More Paths", icon="tune", value=False).classes("w-full"):
+            with ui.grid(columns=2).classes("w-full gap-3 p-2"):
+                ui.input("Performance history").bind_value(state.artifact_form, "performance_history_path").classes("w-full")
+                ui.input("Performance report CSV").bind_value(state.artifact_form, "performance_report_csv_path").classes("w-full")
+                ui.input("Returns JSON").bind_value(state.artifact_form, "returns_path").classes("w-full")
+                ui.input("Proxy JSON").bind_value(state.artifact_form, "proxy_path").classes("w-full")
+                ui.input("Regime JSON").bind_value(state.artifact_form, "regime_path").classes("w-full")
+                ui.input("Risk config YAML").bind_value(state.artifact_form, "risk_config_path").classes("w-full")
+                ui.input("Allocation policy YAML").bind_value(state.artifact_form, "allocation_policy_path").classes("w-full")
+                ui.input("Vol method").bind_value(state.artifact_form, "vol_method").classes("w-full")
+                ui.input("Correlation assumption").bind_value(state.artifact_form, "inter_asset_corr").classes("w-full")
+
+
+def _render_granular_buttons(state: PortfolioPageState) -> None:
+    """Granular Report Controls — moved into the operate drawer in P7."""
     load_report_data = getattr(state, "_load_report_data", None)
     reload_embedded_report = getattr(state, "_reload_embedded_report", None)
     run_action = getattr(state, "_run_action", None)
-    with ui.card().classes("w-full pm-card p-4"):
-        ui.label("Report Controls").classes("text-h6")
-        ui.label(
-            "Recompute report data when inputs changed, reload the embedded HTML artifact when only the display needs refreshing, or explicitly generate the self-contained HTML report."
-        ).classes("pm-muted")
-        with ui.row().classes("items-center gap-3 mt-4 wrap"):
-            load_button = ui.button(
-                "Recompute Report Data",
-                on_click=lambda: asyncio.create_task(load_report_data()),
-            ).props("color=primary")
-            reload_button = ui.button(
-                "Reload Embedded HTML",
-                on_click=reload_embedded_report,
-            ).props("outline color=primary")
-            refresh_button = ui.button(
-                "Refresh Pipeline + Generate",
-                on_click=lambda: asyncio.create_task(run_action("refresh")),
-            ).props("color=secondary")
-            generate_button = ui.button(
-                "Generate HTML Report",
-                on_click=lambda: asyncio.create_task(run_action("combined")),
-            ).props("color=accent")
-            if state.is_loading or state.active_job is not None:
-                load_button.props("disable")
-                reload_button.props("disable")
-                refresh_button.props("disable")
-                generate_button.props("disable")
-        with ui.row().classes("w-full gap-3 wrap mt-4"):
-            render_status_card(
-                title="Report Data",
-                value=state.status_message,
-                detail=(format_local_datetime(state.report_data.as_of) if state.report_data is not None else None),
-            )
-            render_status_card(
-                title="Generated HTML",
-                value=state.action_statuses["combined"].message,
-                detail=state.action_statuses["combined"].last_output_path,
-            )
-        _render_report_quick_link(state)
-        with ui.expansion("Artifact Paths", icon="folder", value=False).classes("w-full mt-4"):
-            with ui.column().classes("w-full gap-3 p-2"):
-                with ui.grid(columns=2).classes("w-full gap-3"):
-                    ui.input("Positions CSV").bind_value(state.artifact_form, "positions_csv_path").classes("w-full")
-                    ui.input("Performance output dir").bind_value(state.artifact_form, "performance_output_dir").classes("w-full")
-                    ui.input("Combined HTML output").bind_value(state.export_form, "output_path").classes("w-full")
-                    ui.input("Security reference CSV").bind_value(state.artifact_form, "security_reference_path").classes("w-full")
-                with ui.expansion("More Paths", icon="tune", value=False).classes("w-full"):
-                    with ui.grid(columns=2).classes("w-full gap-3 p-2"):
-                        ui.input("Performance history").bind_value(state.artifact_form, "performance_history_path").classes("w-full")
-                        ui.input("Performance report CSV").bind_value(state.artifact_form, "performance_report_csv_path").classes("w-full")
-                        ui.input("Returns JSON").bind_value(state.artifact_form, "returns_path").classes("w-full")
-                        ui.input("Proxy JSON").bind_value(state.artifact_form, "proxy_path").classes("w-full")
-                        ui.input("Regime JSON").bind_value(state.artifact_form, "regime_path").classes("w-full")
-                        ui.input("Risk config YAML").bind_value(state.artifact_form, "risk_config_path").classes("w-full")
-                        ui.input("Allocation policy YAML").bind_value(state.artifact_form, "allocation_policy_path").classes("w-full")
-                        ui.input("Vol method").bind_value(state.artifact_form, "vol_method").classes("w-full")
-                        ui.input("Correlation assumption").bind_value(state.artifact_form, "inter_asset_corr").classes("w-full")
+    is_busy = state.is_loading or state.active_job is not None
+    with ui.row().classes("items-center gap-2 wrap"):
+        load_button = ui.button(
+            "Recompute Report Data",
+            on_click=lambda: asyncio.create_task(load_report_data()) if load_report_data else None,
+        ).props("color=primary outline dense no-caps")
+        reload_button = ui.button(
+            "Reload Embedded HTML",
+            on_click=reload_embedded_report,
+        ).props("outline color=primary dense no-caps")
+        generate_button = ui.button(
+            "Generate HTML Report",
+            on_click=lambda: asyncio.create_task(run_action("combined")) if run_action else None,
+        ).props("color=accent dense no-caps")
+        if is_busy:
+            load_button.props("disable")
+            reload_button.props("disable")
+            generate_button.props("disable")
 
 
 def _render_feedback(state: PortfolioPageState) -> None:
@@ -620,15 +647,19 @@ def _render_report_host(state: PortfolioPageState) -> None:
             ).classes("pm-muted")
             ui.label(str(report_path)).classes("text-caption pm-muted")
         return
-    with ui.card().classes("w-full pm-card p-2"):
-        with ui.row().classes("w-full items-center justify-between px-2 pt-2"):
-            ui.label("Embedded HTML Report").classes("text-subtitle2")
-            ui.link("Open Generated HTML", _generated_html_route(report_path), new_tab=True).classes("text-primary")
-        iframe = ui.element("iframe").props("sandbox=allow-same-origin allow-scripts").classes("w-full").style(
-            "width:100%;min-height:78vh;border:0;border-radius:20px;background:#fff"
-        )
-        iframe._props["title"] = "Portfolio Monitor HTML Report"
-        iframe._props["srcdoc"] = report_path.read_text(encoding="utf-8")
+    # P6: drop the wrapping `ui.card` chrome — the embedded report now carries the
+    # unified tokens, so a card-on-card border just creates the iframe seam we are
+    # trying to close. The iframe itself uses the `.pm-report-iframe` primitive.
+    # Link target: main's `_generated_html_route` route avoids Chrome's file://
+    # navigation block (later rebase step generalises this to `_served_artifact_url`).
+    with ui.row().classes("w-full items-center justify-between px-2 pt-2"):
+        ui.label("Embedded HTML Report").classes("text-subtitle2 pm-muted")
+        ui.link("Open Generated HTML", _generated_html_route(report_path), new_tab=True).classes("text-primary")
+    iframe = ui.element("iframe").props("sandbox=allow-same-origin allow-scripts").classes(
+        "pm-report-iframe"
+    )
+    iframe._props["title"] = "Portfolio Monitor HTML Report"
+    iframe._props["srcdoc"] = report_path.read_text(encoding="utf-8")
 
 
 def _render_report_quick_link(state: PortfolioPageState) -> None:
@@ -769,8 +800,7 @@ def _render_action_button(run_action, action_name: str, label: str) -> None:
 
 
 def _render_logs(state: PortfolioPageState) -> None:
-    with ui.card().classes("w-full pm-card p-4"):
-        ui.label("Progress Log").classes("text-h6")
+    with ui.column().classes("w-full gap-2"):
         with ui.column().classes("w-full gap-2 pm-log"):
             if not state.progress_sink.events:
                 ui.label("No progress events yet.").classes("pm-muted")
@@ -779,6 +809,41 @@ def _render_logs(state: PortfolioPageState) -> None:
                 detail = _format_progress_event(event)
                 text = f"{event.label}: {detail}" if detail else event.label
                 ui.label(text).classes("text-caption")
+
+
+def _render_operate_drawer(state: PortfolioPageState) -> None:
+    """Slide-over drawer holding granular controls, paths, and logs (P7).
+
+    Toggled by the app-bar Operate button via `body.classList.toggle('pm-drawer-open')`
+    so opening/closing is purely client-side; rendered content still binds to `state`
+    so form changes round-trip through the existing `@ui.refreshable` pipeline.
+    """
+    backdrop = ui.element("div").classes("pm-drawer-backdrop")
+    backdrop.on(
+        "click",
+        lambda _: ui.run_javascript("document.body.classList.remove('pm-drawer-open');"),
+    )
+    with ui.element("aside").classes("pm-drawer"):
+        with ui.element("div").classes("pm-drawer__header"):
+            ui.label("Operate").classes("pm-drawer__title")
+            close_btn = ui.button("×")
+            close_btn.classes("pm-drawer__close").props("flat dense")
+            close_btn.on(
+                "click",
+                lambda _: ui.run_javascript("document.body.classList.remove('pm-drawer-open');"),
+            )
+        with ui.element("div").classes("pm-drawer__body"):
+            ui.label("Report Controls").classes("pm-drawer__section-title")
+            _render_granular_buttons(state)
+            ui.element("div").classes("pm-divider").style("border-top: 1px solid var(--border-soft); margin: 4px 0;")
+            ui.label("Pipeline Actions").classes("pm-drawer__section-title")
+            _render_action_console(state)
+            ui.element("div").classes("pm-divider").style("border-top: 1px solid var(--border-soft); margin: 4px 0;")
+            ui.label("Artifact Paths").classes("pm-drawer__section-title")
+            _render_artifact_paths_form(state)
+            ui.element("div").classes("pm-divider").style("border-top: 1px solid var(--border-soft); margin: 4px 0;")
+            ui.label("Progress Log").classes("pm-drawer__section-title")
+            _render_logs(state)
 
 
 def _artifact_inputs_from_form(form: PortfolioArtifactFormState) -> PortfolioReportInputs:
