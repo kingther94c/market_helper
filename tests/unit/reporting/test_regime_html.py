@@ -137,3 +137,73 @@ def test_write_regime_html_report_outputs_self_contained_html(tmp_path: Path) ->
     assert "Goldilocks" in html
     assert "Method Votes" in html
     assert "Full-Sample Distribution" in html
+
+
+def test_crisis_intensity_chart_metadata_uses_view_model_as_of(tmp_path: Path) -> None:
+    """B3: chart's `current` metadata reads from `view_model.as_of` /
+    `view_model.crisis_intensity`, not from the last filtered timeline point.
+
+    With the old logic, a timeline of all-None intensities would drop the chart
+    entirely; or, if any historical spike was present, the metadata strip would
+    show that spike's date as `current`. This test pins the new behaviour:
+    even when the most recent snapshot has a `None` intensity, the chart still
+    renders and the metadata reflects the live ensemble state.
+    """
+    from market_helper.reporting.regime_html import (
+        RegimeHtmlPolicySummary,
+        RegimeHtmlTimelineRow,
+        RegimeHtmlViewModel,
+        render_regime_section_body,
+    )
+
+    timeline = [
+        RegimeHtmlTimelineRow(
+            as_of="2026-01-30",
+            regime="Slowdown",
+            method_agreement=0.7,
+            crisis_flag=True,
+            crisis_intensity=0.74,
+            duration_days=3,
+        ),
+        # Everything after the spike has no published intensity.
+        *[
+            RegimeHtmlTimelineRow(
+                as_of=f"2026-{m:02d}-15",
+                regime="Goldilocks",
+                method_agreement=0.85,
+                crisis_flag=False,
+                crisis_intensity=None,
+                duration_days=30,
+            )
+            for m in range(2, 6)
+        ],
+    ]
+
+    vm = RegimeHtmlViewModel(
+        schema="regime-multi-v1",
+        as_of="2026-04-27",
+        regime="Goldilocks",
+        scores={"GROWTH": 0.4, "INFLATION": -0.1},
+        method_agreement=0.85,
+        crisis_flag=False,
+        crisis_intensity=0.0,  # <-- live state, not the historical spike
+        duration_days=85,
+        methods=[],
+        timeline=timeline,
+        regime_counts={"Goldilocks": 4, "Slowdown": 1},
+        policy=RegimeHtmlPolicySummary(
+            vol_multiplier=1.0, asset_class_targets={"EQ": 0.6}, notes=""
+        ),
+        vol_multiplier=1.0,
+    )
+
+    fragment = render_regime_section_body(vm)
+
+    # Crisis chart still renders even though only one historical point had a
+    # non-None intensity.
+    assert "Crisis Intensity" in fragment
+    # Metadata strip reads from the live state — `current 0.00` and the
+    # report-as-of date, not the Jan-30 spike date.
+    assert "current 0.00" in fragment
+    assert "2026-04-27" in fragment
+    assert "current 0.74" not in fragment
