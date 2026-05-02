@@ -118,6 +118,7 @@ def render_report_document(document: ReportDocument) -> str:
     }}
     .section-nav__button:hover {{ background: rgba(15,23,42,0.05); color: var(--ink); }}
     .section-nav__button.is-active {{ background: var(--ink); color: #fff; }}
+    .section-nav__button:focus-visible {{ outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 999px; }}
 
     /* KPI strip (P4): above-the-fold answers */
     .kpi-strip-wrap {{ max-width: 1540px; margin: 0 auto; padding: 16px 24px 0; }}

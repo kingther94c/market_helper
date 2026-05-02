@@ -181,6 +181,12 @@ def test_render_portfolio_report_builds_html_shell_without_nicegui_refs(tmp_path
     # section + ribbon entirely (no empty chrome).
     assert "regime-ribbon" not in rendered
     assert "href='#regime'" not in rendered and 'href="#regime"' not in rendered
+    # B1 — the Artifacts table no longer leaks raw `<span class='tone-muted'>`
+    # markup that was getting double-escaped through `render_html_table`.
+    assert "&lt;span class=&#x27;tone-muted&#x27;&gt;n/a&lt;/span&gt;" not in rendered
+    assert "&lt;span class='tone-muted'&gt;" not in rendered
+    # P1 — section-nav buttons get a visible focus ring.
+    assert ".section-nav__button:focus-visible" in rendered
 
 
 def test_render_portfolio_report_includes_regime_section_when_view_model_present(tmp_path: Path) -> None:
@@ -226,11 +232,20 @@ def test_render_portfolio_report_includes_regime_section_when_view_model_present
             RegimeHtmlAxisHistoryPoint(as_of="2026-05-02", growth=0.62, inflation=-0.18),
         ],
         method_vote_history=[
+            # Crisis-flagged session — under the old logic every method's cell
+            # would be re-painted `regime-cell--crisis` while the title kept the
+            # vote name (B2). After the fix the crisis flag does not override
+            # the cell's per-method colour.
+            RegimeHtmlMethodVoteHistoryPoint(
+                as_of="2026-04-15",
+                quadrants={"vix_move_quadrant": "Goldilocks"},
+                crisis_flag=True,
+            ),
             RegimeHtmlMethodVoteHistoryPoint(
                 as_of="2026-05-02",
                 quadrants={"vix_move_quadrant": "Goldilocks"},
                 crisis_flag=False,
-            )
+            ),
         ],
         transitions=[
             RegimeHtmlTransitionEvent(
@@ -258,6 +273,78 @@ def test_render_portfolio_report_includes_regime_section_when_view_model_present
     assert "Crisis Intensity" in rendered
     assert "Method-Vote Heat Strip" in rendered
     assert "Regime Transitions" in rendered
+
+    # B2 — crisis-flagged sessions no longer over-paint cells for unrelated
+    # methods. The vix_move row's only crisis-flagged session voted Goldilocks,
+    # so its cell must keep the goldilocks class with the matching title.
+    assert (
+        "<span class='method-strip__cell regime-cell--goldilocks' "
+        "title='2026-04-15 · Goldilocks'></span>"
+    ) in rendered
+
+    # B3 — the Crisis Intensity chart pulls its `current` metadata from
+    # `view_model.crisis_intensity` / `as_of`, not from the last filtered point.
+    # With crisis_intensity=0.18 and as_of=2026-05-02, the chart strip should
+    # mention 0.18 (and not the older 2026-03-20 transition date).
+    assert "current 0.18" in rendered
+
+    # P3 — when the regime view-model's as-of is fresh (same day as the report's
+    # as-of), the `regime stale` tag must NOT appear.
+    assert "regime stale" not in rendered
+
+
+def test_regime_section_marks_stale_when_regime_as_of_lags_report(tmp_path: Path) -> None:
+    """P3: regime view-model is more than a day older than the report → stale tag."""
+    from dataclasses import replace as _replace
+    from market_helper.application.portfolio_monitor.contracts import PortfolioReportData
+    from market_helper.reporting.regime_html import (
+        RegimeHtmlPolicySummary,
+        RegimeHtmlTimelineRow,
+        RegimeHtmlViewModel,
+    )
+
+    regime_vm = RegimeHtmlViewModel(
+        schema="regime-multi-v1",
+        as_of="2026-04-20T00:00:00+00:00",  # ~12 days behind the report
+        regime="Goldilocks",
+        scores={"GROWTH": 0.4, "INFLATION": -0.1},
+        method_agreement=0.8,
+        crisis_flag=False,
+        crisis_intensity=0.1,
+        duration_days=14,
+        methods=[],
+        timeline=[
+            RegimeHtmlTimelineRow(
+                as_of="2026-04-20T00:00:00+00:00",
+                regime="Goldilocks",
+                method_agreement=0.8,
+                crisis_flag=False,
+                crisis_intensity=0.1,
+                duration_days=14,
+            )
+        ],
+        regime_counts={"Goldilocks": 5},
+        policy=RegimeHtmlPolicySummary(
+            vol_multiplier=1.0,
+            asset_class_targets={"EQ": 0.6},
+            notes="",
+        ),
+        vol_multiplier=1.0,
+    )
+
+    base = _fake_report_data(tmp_path)
+    # The fixture uses `2026-03-31T00:00:00+00:00` — but for this test we want
+    # the report `as_of` to be after the regime as-of. Replace it.
+    fresh = _replace(
+        base,
+        as_of="2026-05-02T00:00:00+00:00",
+        regime_view_model=regime_vm,
+    )
+    rendered = render_portfolio_report(fresh)
+
+    # Stale tag is present (regime as-of > 1d behind report).
+    assert "regime stale" in rendered
+    assert "regime-stale-tag" in rendered
 
 
 def _demo_history_frame() -> pd.DataFrame:
