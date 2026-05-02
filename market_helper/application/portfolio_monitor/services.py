@@ -30,6 +30,10 @@ from market_helper.reporting.performance_html import (
     build_performance_report_view_model,
     load_nav_cashflow_history_frame,
 )
+from market_helper.reporting.regime_html import (
+    RegimeHtmlViewModel,
+    build_regime_html_view_model,
+)
 from market_helper.reporting.risk_html import DEFAULT_RISK_REPORT_CONFIG_PATH, build_risk_report_view_model
 from market_helper.workflows import generate_report as report_workflows
 
@@ -172,6 +176,11 @@ class PortfolioMonitorQueryService:
             vol_method=resolved.vol_method,
             inter_asset_corr=resolved.inter_asset_corr,
         )
+        regime_view_model = self._load_regime_view_model(
+            regime_path=resolved.regime_path,
+            policy_path=resolved.allocation_policy_path,
+            warnings=warnings,
+        )
         performance_usd_view_model = perf_entry.usd_view_model
         performance_sgd_view_model = perf_entry.sgd_view_model
         positions_as_of = _read_positions_as_of(positions_path)
@@ -200,7 +209,32 @@ class PortfolioMonitorQueryService:
             performance_sgd_view_model=performance_sgd_view_model,
             artifact_metadata=metadata,
             warnings=warnings,
+            regime_view_model=regime_view_model,
         )
+
+    @staticmethod
+    def _load_regime_view_model(
+        *,
+        regime_path: str | Path | None,
+        policy_path: str | Path | None,
+        warnings: list[str],
+    ) -> RegimeHtmlViewModel | None:
+        """Best-effort regime view-model load — failures degrade to a warning."""
+        if regime_path is None:
+            return None
+        path = Path(str(regime_path))
+        if not path.exists():
+            warnings.append(f"Regime artifact not found at {path}; regime section will be omitted.")
+            return None
+        try:
+            return build_regime_html_view_model(
+                regime_path=path,
+                policy_path=policy_path,
+            )
+        except Exception as exc:  # noqa: BLE001 — swallow into a warning to keep the report alive
+            logger.warning("Failed to build regime view-model from %s: %s", path, exc)
+            warnings.append(f"Regime artifact at {path} could not be parsed ({exc}); regime section will be omitted.")
+            return None
 
     def resolve_report_artifact(
         self,

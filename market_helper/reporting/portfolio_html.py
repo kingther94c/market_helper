@@ -13,6 +13,11 @@ from market_helper.reporting.performance_html import (
     render_performance_assets,
     render_performance_tab,
 )
+from market_helper.reporting.regime_html import (
+    RegimeHtmlViewModel,
+    regime_section_styles,
+    render_regime_section_body,
+)
 from market_helper.reporting.report_document import ReportDocument, ReportSection, render_report_document
 from market_helper.reporting.risk_html import (
     RiskReportViewModel,
@@ -172,6 +177,66 @@ def build_topline_html(report_data: "PortfolioReportData") -> str:
     )
 
 
+def build_regime_ribbon_html(view_model: RegimeHtmlViewModel | None) -> str:
+    """Single-line sticky regime ribbon rendered under the app-bar (P5).
+
+    Returns an empty string when no regime data is available so the shell
+    naturally collapses the slot.
+    """
+    if view_model is None:
+        return ""
+    pieces: list[str] = [
+        f"<span class='regime-ribbon__pill'><span class='regime-ribbon__dot'></span>{html.escape(view_model.regime)}</span>"
+    ]
+    meta_pieces: list[str] = []
+    if view_model.method_agreement is not None:
+        meta_pieces.append(f"Agreement <b>{view_model.method_agreement:.0%}</b>")
+    if view_model.duration_days is not None:
+        meta_pieces.append(f"Duration <b class='num'>{view_model.duration_days}d</b>")
+    if view_model.vol_multiplier is not None:
+        meta_pieces.append(f"Vol mult <b class='num'>{view_model.vol_multiplier:.2f}×</b>")
+    if meta_pieces:
+        pieces.append(
+            "<div class='regime-ribbon__meta'>"
+            + "".join(f"<span>{m}</span>" for m in meta_pieces)
+            + "</div>"
+        )
+    crisis_class = "regime-ribbon__crisis is-on" if view_model.crisis_flag else "regime-ribbon__crisis"
+    crisis_label = "Crisis on" if view_model.crisis_flag else "Crisis off"
+    if view_model.crisis_flag and view_model.crisis_intensity is not None:
+        crisis_label = f"Crisis on · {view_model.crisis_intensity:.2f}"
+    pieces.append(f"<span class='{crisis_class}'>{html.escape(crisis_label)}</span>")
+    if view_model.transitions:
+        last = view_model.transitions[-1]
+        pieces.append(
+            "<span class='regime-ribbon__transition'>"
+            f"Last change <b class='num'>{html.escape(last.as_of)}</b> · "
+            f"{html.escape(last.from_regime)} → {html.escape(last.to_regime)}"
+            "</span>"
+        )
+    return (
+        "<div class='regime-ribbon'>"
+        "<div class='regime-ribbon__row'>"
+        + "".join(pieces)
+        + "</div>"
+        "</div>"
+    )
+
+
+_REGIME_RIBBON_STYLES = """
+.regime-ribbon { position: sticky; top: 49px; z-index: 20; background: var(--surface); border-bottom: 1px solid var(--panel-border); }
+.regime-ribbon__row { max-width: 1540px; margin: 0 auto; padding: 8px 24px; display: flex; align-items: center; gap: 20px; font-size: 13px; flex-wrap: wrap; }
+.regime-ribbon__pill { display: inline-flex; align-items: center; gap: 8px; padding: 4px 10px; border-radius: 999px; background: var(--accent-soft); color: var(--accent-ink); font-weight: 700; font-size: 12px; letter-spacing: 0.02em; }
+.regime-ribbon__dot { width: 6px; height: 6px; border-radius: 999px; background: var(--accent); }
+.regime-ribbon__meta { display: flex; gap: 20px; color: var(--muted-ink); }
+.regime-ribbon__meta b { color: var(--ink-2); font-weight: 600; }
+.regime-ribbon__crisis { display: inline-flex; align-items: center; gap: 6px; padding: 2px 8px; border-radius: 999px; background: var(--surface-2); color: var(--muted-ink); font-size: 12px; font-weight: 600; }
+.regime-ribbon__crisis.is-on { background: var(--neg-soft); color: var(--neg); }
+.regime-ribbon__transition { margin-left: auto; color: var(--muted-ink); font-size: 12px; }
+.regime-ribbon__transition b { color: var(--ink-2); }
+"""
+
+
 def build_portfolio_report_document(report_data: "PortfolioReportData") -> ReportDocument:
     sections = [
         ReportSection(
@@ -192,22 +257,42 @@ def build_portfolio_report_document(report_data: "PortfolioReportData") -> Repor
             summary="Allocation, drift, breakdown, and position decomposition rendered as the canonical HTML report.",
             body_html=render_risk_tab(report_data.risk_view_model),
         ),
+    ]
+    if report_data.regime_view_model is not None:
+        sections.append(
+            ReportSection(
+                key="regime",
+                title="Regime",
+                summary="Multi-method regime ensemble: factor scores, crisis intensity, method-vote heat strip, and transition log.",
+                body_html=render_regime_section_body(report_data.regime_view_model),
+            )
+        )
+    sections.append(
         ReportSection(
             key="artifacts",
             title="Artifacts",
             summary="Source artifact references used to build this report.",
             body_html=_render_artifact_section(report_data.artifact_metadata),
-        ),
+        )
+    )
+    head_html_pieces = [
+        f"<style>{render_risk_report_styles()}</style>",
+        render_performance_assets(),
     ]
+    if report_data.regime_view_model is not None:
+        head_html_pieces.append(
+            f"<style>{regime_section_styles()}{_REGIME_RIBBON_STYLES}</style>"
+        )
     return ReportDocument(
         title="Portfolio Monitor",
         subtitle="HTML-first portfolio report for export, embedding, and future report-type expansion.",
         as_of=report_data.as_of,
         sections=sections,
         warning_messages=tuple(report_data.warnings),
-        head_html=f"<style>{render_risk_report_styles()}</style>{render_performance_assets()}",
+        head_html="".join(head_html_pieces),
         body_end_html=render_risk_report_script(),
         topline_html=build_topline_html(report_data),
+        ribbon_html=build_regime_ribbon_html(report_data.regime_view_model),
     )
 
 

@@ -177,6 +177,87 @@ def test_render_portfolio_report_builds_html_shell_without_nicegui_refs(tmp_path
     assert "Artifacts" in rendered
     assert "report-table" in rendered
     assert "/_nicegui/" not in rendered
+    # When no regime artifact is provided, the combined report omits the Regime
+    # section + ribbon entirely (no empty chrome).
+    assert "regime-ribbon" not in rendered
+    assert "href='#regime'" not in rendered and 'href="#regime"' not in rendered
+
+
+def test_render_portfolio_report_includes_regime_section_when_view_model_present(tmp_path: Path) -> None:
+    from dataclasses import replace as _replace
+    from market_helper.reporting.regime_html import (
+        RegimeHtmlAxisHistoryPoint,
+        RegimeHtmlMethodRow,
+        RegimeHtmlMethodVoteHistoryPoint,
+        RegimeHtmlPolicySummary,
+        RegimeHtmlTimelineRow,
+        RegimeHtmlTransitionEvent,
+        RegimeHtmlViewModel,
+    )
+
+    regime_vm = RegimeHtmlViewModel(
+        schema="regime-multi-v1",
+        as_of="2026-05-02",
+        regime="Goldilocks",
+        scores={"GROWTH": 0.62, "INFLATION": -0.18},
+        method_agreement=0.83,
+        crisis_flag=False,
+        crisis_intensity=0.18,
+        duration_days=42,
+        methods=[RegimeHtmlMethodRow("vix_move_quadrant", "Goldilocks", "low-vol risk-on")],
+        timeline=[
+            RegimeHtmlTimelineRow(
+                as_of="2026-05-02",
+                regime="Goldilocks",
+                method_agreement=0.83,
+                crisis_flag=False,
+                crisis_intensity=0.18,
+                duration_days=42,
+            )
+        ],
+        regime_counts={"Goldilocks": 42, "Slowdown": 9},
+        policy=RegimeHtmlPolicySummary(
+            vol_multiplier=0.95,
+            asset_class_targets={"EQ": 0.55, "FI": 0.30},
+            notes="Goldilocks tilt",
+        ),
+        axes_history=[
+            RegimeHtmlAxisHistoryPoint(as_of="2026-04-01", growth=0.4, inflation=-0.1),
+            RegimeHtmlAxisHistoryPoint(as_of="2026-05-02", growth=0.62, inflation=-0.18),
+        ],
+        method_vote_history=[
+            RegimeHtmlMethodVoteHistoryPoint(
+                as_of="2026-05-02",
+                quadrants={"vix_move_quadrant": "Goldilocks"},
+                crisis_flag=False,
+            )
+        ],
+        transitions=[
+            RegimeHtmlTransitionEvent(
+                as_of="2026-03-20",
+                from_regime="Slowdown",
+                to_regime="Goldilocks",
+                crisis_intensity=None,
+                duration_days=42,
+            )
+        ],
+        vol_multiplier=0.95,
+    )
+    base = _fake_report_data(tmp_path)
+    rendered = render_portfolio_report(_replace(base, regime_view_model=regime_vm))
+
+    # Ribbon is sticky directly under the app-bar.
+    assert "regime-ribbon" in rendered
+    assert "regime-ribbon__pill" in rendered
+    assert "Goldilocks" in rendered
+    assert "Crisis off" in rendered
+    assert "0.95×" in rendered  # vol multiplier
+    # Regime section is reachable via deep-link and renders all four new visuals.
+    assert "href='#regime'" in rendered or 'href="#regime"' in rendered
+    assert "Factor Scores" in rendered
+    assert "Crisis Intensity" in rendered
+    assert "Method-Vote Heat Strip" in rendered
+    assert "Regime Transitions" in rendered
 
 
 def _demo_history_frame() -> pd.DataFrame:
