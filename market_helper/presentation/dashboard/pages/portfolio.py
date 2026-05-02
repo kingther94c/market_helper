@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import logging
 import os
 from copy import deepcopy
 from dataclasses import dataclass, field
@@ -102,6 +103,21 @@ class ActionStatusState:
     last_output_path: str = "n/a"
 
 
+@dataclass(frozen=True)
+class JobHistoryEntry:
+    """One past run of a top-level action — for the drawer's history panel (P8)."""
+    action_name: str
+    started_at: datetime
+    finished_at: datetime
+    status: str  # "success" | "error"
+    message: str
+    output_path: str
+    duration_seconds: float
+
+
+_JOB_HISTORY_MAX_ENTRIES = 10
+
+
 @dataclass
 class PortfolioPageState:
     artifact_form: PortfolioArtifactFormState
@@ -115,6 +131,7 @@ class PortfolioPageState:
     is_loading: bool = False
     load_error: str | None = None
     active_job: str | None = None
+    active_job_started_at: datetime | None = None
     status_message: str = "Ready"
     selected_top_tab: str = "report"
     progress_sink: InMemoryUiProgressSink = field(default_factory=InMemoryUiProgressSink)
@@ -128,6 +145,8 @@ class PortfolioPageState:
             "etf": ActionStatusState(),
         }
     )
+    # P8: ring buffer of recent runs surfaced in the operate drawer.
+    job_history: list[JobHistoryEntry] = field(default_factory=list)
 
 
 def _cache_stale_page_state(state: PortfolioPageState) -> None:
@@ -144,6 +163,7 @@ def _cache_stale_page_state(state: PortfolioPageState) -> None:
         "status_message": state.status_message,
         "selected_top_tab": state.selected_top_tab,
         "action_statuses": deepcopy(state.action_statuses),
+        "job_history": list(state.job_history),
     }
 
 
@@ -161,9 +181,11 @@ def _restore_stale_page_state(state: PortfolioPageState) -> None:
     state.status_message = str(_STALE_PAGE_CACHE["status_message"])
     state.selected_top_tab = str(_STALE_PAGE_CACHE["selected_top_tab"])
     state.action_statuses = deepcopy(_STALE_PAGE_CACHE["action_statuses"])
+    state.job_history = list(_STALE_PAGE_CACHE.get("job_history", []))
     state.load_error = None
     state.is_loading = False
     state.active_job = None
+    state.active_job_started_at = None
 
 
 def _clear_stale_page_cache() -> None:
@@ -341,6 +363,7 @@ def register_portfolio_page(
                 return
             state.progress_sink.clear()
             state.active_job = action_name
+            state.active_job_started_at = datetime.now()
             _set_action_running(state, action_name)
             render.refresh()
             try:
@@ -436,7 +459,12 @@ def register_portfolio_page(
                 _set_action_error(state, action_name, str(exc))
                 state.status_message = f"Action failed: {exc}"
             finally:
+                # P8: record completion in history + push a toast so a finished
+                # background job is visible without watching the page.
+                _record_job_completion(state, action_name)
+                _push_completion_toast(state, action_name)
                 state.active_job = None
+                state.active_job_started_at = None
                 _cache_stale_page_state(state)
                 render.refresh()
 
@@ -494,6 +522,10 @@ def _build_initial_state(query_service: PortfolioMonitorQueryService) -> Portfol
 def _render_portfolio_page(state: PortfolioPageState) -> None:
     add_dashboard_styles()
     _render_header(state)
+    # P8: thin progress strip directly under the app-bar; only renders while
+    # a job is in flight, with either a measurable fraction or an indeterminate
+    # animation depending on what the progress sink is reporting.
+    _render_progress_strip(state)
     with ui.column().classes("w-full max-w-[1600px] mx-auto p-4 pm-shell"):
         _render_toolbar(state)
         _render_feedback(state)
@@ -827,6 +859,9 @@ def _render_operate_drawer(state: PortfolioPageState) -> None:
             ui.label("Artifact Paths").classes("pm-drawer__section-title")
             _render_artifact_paths_form(state)
             ui.element("div").classes("pm-divider").style("border-top: 1px solid var(--border-soft); margin: 4px 0;")
+            ui.label(f"Recent Runs (last {_JOB_HISTORY_MAX_ENTRIES})").classes("pm-drawer__section-title")
+            _render_job_history(state)
+            ui.element("div").classes("pm-divider").style("border-top: 1px solid var(--border-soft); margin: 4px 0;")
             ui.label("Progress Log").classes("pm-drawer__section-title")
             _render_logs(state)
 
@@ -991,6 +1026,132 @@ def _format_progress_event(event: Any) -> str:
     if event.current is not None and event.total is not None:
         return f"{event.current} / {event.total}"
     return event.detail or ""
+
+
+# ===== P8: progress strip + completion toast + job history =====================
+
+def _progress_fraction(state: PortfolioPageState) -> float | None:
+    """Return the latest measurable progress fraction in [0,1], or None for indeterminate."""
+    if not state.progress_sink.events:
+        return None
+    for event in reversed(state.progress_sink.events):
+        if event.total and event.total > 0:
+            value = event.completed if event.completed is not None else event.current
+            if value is None:
+                continue
+            try:
+                return max(0.0, min(1.0, float(value) / float(event.total)))
+            except (TypeError, ValueError):
+                continue
+    return None
+
+
+def _record_job_completion(state: PortfolioPageState, action_name: str) -> None:
+    """Append a `JobHistoryEntry` for `action_name` based on the latest action status."""
+    status = state.action_statuses.get(action_name)
+    if status is None:
+        return
+    started_at = state.active_job_started_at or datetime.now()
+    finished_at = datetime.now()
+    duration = max(0.0, (finished_at - started_at).total_seconds())
+    entry = JobHistoryEntry(
+        action_name=action_name,
+        started_at=started_at,
+        finished_at=finished_at,
+        status=status.status,
+        message=status.message,
+        output_path=status.last_output_path,
+        duration_seconds=duration,
+    )
+    state.job_history.append(entry)
+    if len(state.job_history) > _JOB_HISTORY_MAX_ENTRIES:
+        del state.job_history[: -_JOB_HISTORY_MAX_ENTRIES]
+
+
+def _push_completion_toast(state: PortfolioPageState, action_name: str) -> None:
+    """Surface a Quasar toast on success/error so a finished background job is visible."""
+    status = state.action_statuses.get(action_name)
+    if status is None or status.status not in {"success", "error"}:
+        return
+    duration = ""
+    if state.active_job_started_at is not None:
+        elapsed = (datetime.now() - state.active_job_started_at).total_seconds()
+        duration = f" ({elapsed:.1f}s)"
+    toast_type = "positive" if status.status == "success" else "negative"
+    pretty = _ACTION_PRETTY_NAMES.get(action_name, action_name.replace("-", " ").title())
+    try:
+        ui.notify(
+            f"{pretty}: {status.message}{duration}",
+            type=toast_type,
+            position="top-right",
+            timeout=6000 if status.status == "success" else 0,  # error toasts persist
+            close_button="Dismiss",
+        )
+    except Exception as exc:  # noqa: BLE001 — toast failure must not bubble back into the action handler
+        logging.getLogger(__name__).debug("ui.notify failed: %s", exc)
+
+
+_ACTION_PRETTY_NAMES: dict[str, str] = {
+    "refresh": "Refresh pipeline",
+    "live": "Live refresh",
+    "flex": "Flex refresh",
+    "combined": "HTML report",
+    "security-reference": "Security reference sync",
+    "etf": "ETF sector sync",
+}
+
+
+def _render_progress_strip(state: PortfolioPageState) -> None:
+    """Render a thin progress strip below the app-bar while a job is active."""
+    if state.active_job is None:
+        return
+    fraction = _progress_fraction(state)
+    summary = _summarize_progress(state) if state.progress_sink.events else "Starting…"
+    pretty = _ACTION_PRETTY_NAMES.get(state.active_job, state.active_job)
+    with ui.element("div").classes("pm-progress-strip"):
+        with ui.element("div").classes("pm-progress-strip__row"):
+            ui.label(f"⏳ {pretty}").classes("pm-progress-strip__label")
+            ui.label(summary).classes("pm-progress-strip__detail")
+        progress_el = ui.linear_progress(
+            value=fraction if fraction is not None else 0.0,
+            show_value=False,
+        ).classes("pm-progress-strip__bar")
+        # NiceGUI's linear-progress renders an indeterminate animation when given
+        # the `indeterminate` Quasar prop — we set it directly when we have no
+        # measurable fraction.
+        if fraction is None:
+            progress_el.props("indeterminate")
+
+
+def _render_job_history(state: PortfolioPageState) -> None:
+    """Render the recent-jobs ring buffer inside the operate drawer (P8)."""
+    if not state.job_history:
+        ui.label("No completed runs yet.").classes("pm-muted")
+        return
+    with ui.column().classes("w-full gap-1 pm-history"):
+        for entry in reversed(state.job_history):
+            chip_class = (
+                "pm-status-chip pm-status-success"
+                if entry.status == "success"
+                else "pm-status-chip pm-status-error"
+            )
+            pretty_action = _ACTION_PRETTY_NAMES.get(entry.action_name, entry.action_name)
+            time_label = entry.finished_at.strftime("%H:%M:%S")
+            duration_label = f"{entry.duration_seconds:.1f}s"
+            with ui.element("div").classes("pm-history__row"):
+                ui.label(time_label).classes("pm-history__time")
+                ui.label(pretty_action).classes("pm-history__action")
+                ui.label(entry.status.title()).classes(chip_class)
+                ui.label(duration_label).classes("pm-history__duration")
+            ui.label(entry.message).classes("pm-history__message text-caption pm-muted")
+            if entry.output_path and entry.output_path != "n/a":
+                output_path = Path(entry.output_path)
+                if output_path.exists():
+                    ui.link("Open output", output_path.as_uri(), new_tab=True).classes(
+                        "pm-history__link text-caption"
+                    )
+                else:
+                    ui.label(entry.output_path).classes("pm-history__path text-caption pm-muted")
 
 
 def _update_top_tab(state: PortfolioPageState, value: str) -> None:
