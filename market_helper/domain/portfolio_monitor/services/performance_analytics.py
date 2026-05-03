@@ -484,14 +484,24 @@ def _calculate_metrics_from_frame(
 def _percent_frame_from_history(history: pd.DataFrame, currency: str) -> pd.DataFrame:
     nav_col = _nav_column(currency)
     return_col = _return_column(currency)
-    available = history.loc[history[nav_col].notna(), ["date", nav_col, return_col]].copy().reset_index(drop=True)
+    bench_col = _benchmark_return_column_if_present(history, currency)
+    select_cols = ["date", nav_col, return_col]
+    if bench_col is not None:
+        select_cols.append(bench_col)
+    available = history.loc[history[nav_col].notna(), select_cols].copy().reset_index(drop=True)
     if len(available) < 2:
-        return pd.DataFrame(columns=["date", "cumulative_return", "drawdown"])
+        empty_columns = ["date", "cumulative_return", "drawdown"]
+        if bench_col is not None:
+            empty_columns.append("bench_cumulative_return")
+        return pd.DataFrame(columns=empty_columns)
 
     returns = pd.to_numeric(available.iloc[1:][return_col], errors="coerce")
     valid_returns = returns.dropna()
     if valid_returns.empty:
-        return pd.DataFrame(columns=["date", "cumulative_return", "drawdown"])
+        empty_columns = ["date", "cumulative_return", "drawdown"]
+        if bench_col is not None:
+            empty_columns.append("bench_cumulative_return")
+        return pd.DataFrame(columns=empty_columns)
 
     first_valid_idx = int(valid_returns.index[0])
     opening_date = pd.to_datetime(available.loc[first_valid_idx - 1, "date"], errors="coerce")
@@ -507,7 +517,37 @@ def _percent_frame_from_history(history: pd.DataFrame, currency: str) -> pd.Data
             "drawdown": (levels / peaks - 1.0).to_numpy(dtype=float),
         }
     )
+    if bench_col is not None:
+        # Benchmark compounds on the same trading-day axis as the portfolio:
+        # NaN bench returns (US holidays vs SG, weekends, missing data) are
+        # treated as 0 so the curve stays flat on those days rather than
+        # short-circuiting the cumprod. Aligned via `valid_returns.index` so
+        # the resulting series matches `return_dates` exactly.
+        bench_aligned = pd.to_numeric(
+            available.loc[valid_returns.index, bench_col], errors="coerce"
+        )
+        bench_levels_tail = (1.0 + pd.Series(
+            bench_aligned.fillna(0.0).to_numpy(dtype=float),
+            index=return_dates,
+            dtype=float,
+        )).cumprod()
+        bench_levels = pd.concat([pd.Series([1.0], index=[opening_date], dtype=float), bench_levels_tail])
+        # If the benchmark series is entirely NaN/zero (e.g. SPY data missing
+        # for the whole window), drop the column rather than draw a flat line.
+        if bench_aligned.notna().any():
+            frame["bench_cumulative_return"] = bench_levels.to_numpy(dtype=float) - 1.0
     return frame.reset_index(drop=True)
+
+
+def _benchmark_return_column_if_present(history: pd.DataFrame, currency: str) -> str | None:
+    normalized = currency.strip().upper()
+    if normalized == "USD":
+        candidate = "bench_spy_return_usd"
+    elif normalized == "SGD":
+        candidate = "bench_spy_return_sgd"
+    else:
+        return None
+    return candidate if candidate in history.columns else None
 
 
 def _dollar_frame_from_history(history: pd.DataFrame, currency: str) -> pd.DataFrame:

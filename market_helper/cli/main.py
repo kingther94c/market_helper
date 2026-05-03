@@ -70,6 +70,13 @@ def build_parser() -> argparse.ArgumentParser:
     ibkr_flex_performance_report.add_argument("--flex-xml", required=True, help="Path to downloaded Flex XML file.")
     ibkr_flex_performance_report.add_argument("--output-dir", required=True, help="Directory for generated CSV outputs.")
 
+    benchmark_refresh = subparsers.add_parser(
+        "benchmark-history-refresh",
+        help="Fill SPY benchmark return columns on nav_cashflow_history.feather (uses Yahoo cache; SGD derived from feather FX).",
+    )
+    benchmark_refresh.add_argument("--history-path", required=True, help="Path to nav_cashflow_history.feather.")
+    benchmark_refresh.add_argument("--force", action="store_true", help="Bypass Yahoo cache freshness check.")
+
     ibkr_position_report = subparsers.add_parser(
         "ibkr-position-report",
         help="Generate a CSV position report directly from raw IBKR JSON payloads.",
@@ -550,6 +557,19 @@ def main(argv: Sequence[str] | None = None) -> int:
             flex_xml_path=Path(args.flex_xml),
             output_dir=Path(args.output_dir),
         )
+        return 0
+    if args.command == "benchmark-history-refresh":
+        from market_helper.data_sources.yahoo_finance import YahooFinanceClient
+        from market_helper.domain.portfolio_monitor.services.benchmark_history import (
+            refresh_benchmark_returns_in_history_feather,
+        )
+
+        target = refresh_benchmark_returns_in_history_feather(
+            Path(args.history_path),
+            yahoo_client=YahooFinanceClient(),
+            force_refresh=bool(args.force),
+        )
+        print(f"Wrote benchmark returns to {target}")
         return 0
     if args.command == "ibkr-position-report":
         generate_ibkr_position_report(
