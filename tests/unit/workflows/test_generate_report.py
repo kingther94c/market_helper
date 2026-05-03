@@ -677,6 +677,52 @@ def test_refresh_current_year_latest_flex_xml_writes_latest_file(tmp_path: Path,
     }
 
 
+def test_refresh_current_year_latest_flex_xml_reuses_fresh_cached_file(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(portfolio_report_pipeline, "_current_et_date", lambda: date(2026, 5, 2))
+    output_dir = tmp_path / "outputs"
+    target_path = output_dir / "raw" / "ibkr_flex_2026_latest.xml"
+    target_path.parent.mkdir(parents=True, exist_ok=True)
+    target_path.write_text(
+        """
+<FlexQueryResponse>
+  <FlexStatements>
+    <FlexStatement accountId="U2935967" fromDate="20260101" toDate="20260501" whenGenerated="20260501;010101">
+      <ChangeInNAV reportDate="2026-05-01" startingValue="100" endingValue="110" depositWithdrawal="0"/>
+      <PerformanceSummary ytdMoneyWeightedUsdPnl="10" ytdMoneyWeightedUsdReturn="0.10" />
+    </FlexStatement>
+  </FlexStatements>
+</FlexQueryResponse>
+""".strip(),
+        encoding="utf-8",
+    )
+
+    class FakeFlexClient:
+        def fetch_statement(self, *args, **kwargs) -> str:
+            raise AssertionError("fetch_statement should not be called when cached XML is already fresh")
+
+    progress = RecordingProgressReporter()
+    record = refresh_current_year_latest_flex_xml(
+        output_dir=output_dir,
+        query_id="1462703",
+        token="secret-token",
+        client=FakeFlexClient(),
+        progress=progress,
+    )
+
+    assert record.target_path == target_path
+    assert record.status == "reused"
+    assert record.xml_to_date == date(2026, 5, 1)
+    assert any(
+        event["kind"] == "spinner"
+        and event["label"] == "IBKR Flex report"
+        and "reusing cached current-year XML" in str(event["detail"])
+        for event in progress.events
+    )
+
+
 def test_refresh_current_year_latest_flex_xml_falls_back_one_weekday_after_missing_statement(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,

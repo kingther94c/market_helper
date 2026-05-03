@@ -635,6 +635,14 @@ def refresh_current_year_latest_flex_xml(
         if xml_output_path is not None
         else _latest_year_archive_path(_flex_raw_archive_dir(output_dir), year)
     )
+    cached_record = _reuse_current_year_latest_archive_if_fresh(
+        target_path=target_path,
+        year=year,
+        required_to_date=resolved_to_date,
+        progress=reporter,
+    )
+    if cached_record is not None:
+        return cached_record
     flex_client = client or FlexWebServiceClient(token=normalized_token)
     statement_xml, resolved_to_date = _fetch_current_year_statement_with_fallback(
         flex_client=flex_client,
@@ -652,6 +660,39 @@ def refresh_current_year_latest_flex_xml(
         kind="latest",
         target_path=target_path,
         status="refreshed",
+        xml_from_date=metadata.from_date,
+        xml_to_date=metadata.to_date,
+    )
+
+
+def _reuse_current_year_latest_archive_if_fresh(
+    *,
+    target_path: Path,
+    year: int,
+    required_to_date: date,
+    progress: ProgressReporter,
+) -> FlexArchiveRecord | None:
+    if not target_path.exists():
+        return None
+    metadata = _read_statement_metadata(target_path)
+    if metadata is None:
+        return None
+    if metadata.from_date != date(year, 1, 1):
+        return None
+    if metadata.to_date is None or metadata.to_date < required_to_date:
+        return None
+    progress.spinner(
+        "IBKR Flex report",
+        detail=(
+            f"reusing cached current-year XML {target_path.name} "
+            f"(to_date={metadata.to_date.isoformat()})"
+        ),
+    )
+    return FlexArchiveRecord(
+        year=year,
+        kind="latest",
+        target_path=target_path,
+        status="reused",
         xml_from_date=metadata.from_date,
         xml_to_date=metadata.to_date,
     )
