@@ -2,7 +2,9 @@ __pycache__/
 .pytest_cache/
 .cache/
 .claude/
+# macOS Finder metadata
 .DS_Store
+**/.DS_Store
 *.pyc
 .venv/
 *.egg-info/
