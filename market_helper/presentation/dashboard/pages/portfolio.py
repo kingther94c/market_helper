@@ -8,10 +8,14 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
 from typing import Any
-from urllib.parse import urlencode
+from urllib.parse import quote
 
+from fastapi import HTTPException, Query
+from fastapi.responses import FileResponse
+from nicegui import app as nicegui_app
 from nicegui import ui
 
+from market_helper.app.paths import DATA_DIR
 from market_helper.application.portfolio_monitor import (
     EtfSectorSyncInputs,
     FlexPerformanceRefreshInputs,
@@ -283,6 +287,8 @@ def register_portfolio_page(
         _ACTION_SERVICE = action_service
     if _REGISTERED:
         return
+
+    _register_generated_html_route()
 
     @ui.page("/portfolio")
     async def portfolio_page(tab: str | None = None) -> None:
@@ -682,11 +688,16 @@ def _render_report_host(state: PortfolioPageState) -> None:
     # P6: drop the wrapping `ui.card` chrome — the embedded report now carries the
     # unified tokens, so a card-on-card border just creates the iframe seam we are
     # trying to close. The iframe itself uses the `.pm-report-iframe` primitive.
-    # Link target: main's `_generated_html_route` route avoids Chrome's file://
-    # navigation block (later rebase step generalises this to `_served_artifact_url`).
+    # Link target uses `_served_artifact_url` — Chrome blocks navigation from
+    # http:// to file://, so we serve through the sandboxed dashboard route
+    # (supersedes the simpler `_generated_html_route` helper added on local main).
     with ui.row().classes("w-full items-center justify-between px-2 pt-2"):
         ui.label("Embedded HTML Report").classes("text-subtitle2 pm-muted")
-        ui.link("Open Generated HTML", _generated_html_route(report_path), new_tab=True).classes("text-primary")
+        served_url = _served_artifact_url(report_path)
+        if served_url is not None:
+            ui.link("Open Generated HTML", served_url, new_tab=True).classes("text-primary")
+        else:
+            ui.label(str(report_path)).classes("text-caption pm-muted")
     iframe = ui.element("iframe").props("sandbox=allow-same-origin allow-scripts").classes(
         "pm-report-iframe"
     )
@@ -725,13 +736,12 @@ def _render_report_quick_link(state: PortfolioPageState) -> None:
     report_path = _current_report_output_path(state)
     if report_path is None or not report_path.exists():
         return
+    served_url = _served_artifact_url(report_path)
+    if served_url is None:
+        return
     with ui.row().classes("w-full items-center gap-2 mt-3"):
         ui.label("Quick Access").classes("text-caption pm-muted")
-        ui.link("Open Generated HTML", _generated_html_route(report_path), new_tab=True).classes("text-primary")
-
-
-def _generated_html_route(report_path: Path) -> str:
-    return f"/portfolio/generated-html?{urlencode({'path': str(report_path)})}"
+        ui.link("Open Generated HTML", served_url, new_tab=True).classes("text-primary")
 
 
 def _render_artifact_metadata(state: PortfolioPageState) -> None:
@@ -980,6 +990,73 @@ def _etf_inputs_from_form(form: ReferenceActionFormState) -> EtfSectorSyncInputs
     )
 
 
+# ===== Served-artifact route ===================================================
+#
+# Chrome blocks navigation from `http://...` (the dashboard) to `file://` URLs,
+# so the legacy `report_path.as_uri()` link silently fails. Serve any file under
+# `DATA_DIR` through a NiceGUI / FastAPI route instead — the browser stays on
+# `http://` and the artifact opens in a new tab as a real text/html / text/csv
+# response.
+
+_GENERATED_HTML_ROUTE = "/portfolio/generated-html"
+_GENERATED_HTML_ROUTE_REGISTERED = False
+
+
+def _register_generated_html_route() -> None:
+    """Register a single FastAPI route that serves any file under `DATA_DIR`.
+
+    The route is idempotent: subsequent registration calls noop. Path traversal
+    is blocked by `Path.resolve()` + `is_relative_to(DATA_DIR.resolve())`, so the
+    route can only return artifacts the rest of the dashboard could already see.
+    """
+    global _GENERATED_HTML_ROUTE_REGISTERED
+    if _GENERATED_HTML_ROUTE_REGISTERED:
+        return
+
+    @nicegui_app.get(_GENERATED_HTML_ROUTE)
+    async def serve_generated_html(path: str = Query(...)) -> FileResponse:  # type: ignore[no-redef]
+        target = Path(path).expanduser()
+        if not target.is_absolute():
+            target = (DATA_DIR / target).resolve()
+        else:
+            target = target.resolve()
+        try:
+            target.relative_to(DATA_DIR.resolve())
+        except ValueError as exc:
+            raise HTTPException(status_code=403, detail="Path is outside the allowed artifact root") from exc
+        if not target.is_file():
+            raise HTTPException(status_code=404, detail=f"Artifact not found: {target}")
+        suffix = target.suffix.lower()
+        media_type = {
+            ".html": "text/html; charset=utf-8",
+            ".csv": "text/csv; charset=utf-8",
+            ".json": "application/json; charset=utf-8",
+            ".feather": "application/octet-stream",
+        }.get(suffix, "application/octet-stream")
+        return FileResponse(target, media_type=media_type)
+
+    _GENERATED_HTML_ROUTE_REGISTERED = True
+
+
+def _served_artifact_url(target: Path | str | None) -> str | None:
+    """Return a dashboard-relative URL that serves `target` via the generated-html route.
+
+    Returns None when the path is empty / outside `DATA_DIR` / does not exist on
+    disk — callers should fall back to a plain label rather than render a broken
+    link.
+    """
+    if target is None:
+        return None
+    candidate = Path(str(target)).expanduser()
+    if not candidate.is_absolute() or not candidate.exists():
+        return None
+    try:
+        candidate.resolve().relative_to(DATA_DIR.resolve())
+    except ValueError:
+        return None
+    return f"{_GENERATED_HTML_ROUTE}?path={quote(str(candidate))}"
+
+
 def _current_report_output_path(state: PortfolioPageState) -> Path | None:
     candidates = [
         str(state.generated_report.output_path) if state.generated_report is not None else None,
@@ -1188,8 +1265,9 @@ def _render_job_history(state: PortfolioPageState) -> None:
             ui.label(entry.message).classes("pm-history__message text-caption pm-muted")
             if entry.output_path and entry.output_path != "n/a":
                 output_path = Path(entry.output_path)
-                if output_path.exists():
-                    ui.link("Open output", output_path.as_uri(), new_tab=True).classes(
+                served_url = _served_artifact_url(output_path)
+                if served_url is not None:
+                    ui.link("Open output", served_url, new_tab=True).classes(
                         "pm-history__link text-caption"
                     )
                 else:
