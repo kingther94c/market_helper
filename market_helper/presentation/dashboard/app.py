@@ -5,12 +5,9 @@ from __future__ import annotations
 import argparse
 import logging
 import os
-from pathlib import Path
 from typing import Sequence
 
 from fastapi.responses import RedirectResponse
-from fastapi import HTTPException, Query
-from fastapi.responses import FileResponse
 from nicegui import run as nicegui_run
 from nicegui import app as nicegui_app
 from nicegui import ui
@@ -50,15 +47,10 @@ def create_app(
         async def root_redirect() -> RedirectResponse:
             return RedirectResponse("/portfolio")
 
-        @nicegui_app.get("/portfolio/generated-html")
-        async def generated_html(path: str = Query(...)) -> FileResponse:
-            target = Path(path).expanduser()
-            if not target.exists() or not target.is_file():
-                raise HTTPException(status_code=404, detail=f"Generated HTML not found: {target}")
-            if target.suffix.lower() != ".html":
-                raise HTTPException(status_code=400, detail="Only HTML artifacts can be opened from this route")
-            return FileResponse(target, media_type="text/html")
-
+        # Note: `/portfolio/generated-html` is registered by `register_portfolio_page`
+        # itself (sandboxed to `DATA_DIR`, supports `.html` / `.csv` / `.json` /
+        # `.feather`). The simpler `.html`-only handler that used to live here was
+        # removed when the more general version landed.
         _ROOT_REGISTERED = True
     return nicegui_app
 
