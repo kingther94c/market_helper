@@ -1242,6 +1242,21 @@ def render_risk_report_styles() -> str:
     .chart-midline { position: absolute; left: 50%; top: 0; bottom: 0; width: 1px; background: #94a3b8; }
     .chart-fill-pos { position: absolute; left: 50%; top: 0; bottom: 0; background: #16a34a; }
     .chart-fill-neg { position: absolute; top: 0; bottom: 0; background: #dc2626; }
+    /* Drift dumbbell — current ● vs target ○ on a shared 0..max axis */
+    .drift-dumbbell { grid-template-columns: 160px 1fr 78px; }
+    .drift-dumbbell__lbl { font-size: 12.5px; font-weight: 600; color: var(--ink); }
+    .drift-dumbbell__track { position: relative; height: 18px; background: var(--surface-2, #f1f5f9); border-radius: 9px; }
+    .drift-dumbbell__bar { position: absolute; top: 50%; transform: translateY(-50%); height: 3px; background: var(--muted-2, #94a3b8); border-radius: 2px; }
+    .drift-dumbbell__pt { position: absolute; top: 50%; width: 12px; height: 12px; border-radius: 999px; transform: translate(-50%, -50%); box-shadow: 0 0 0 2px var(--surface, #fff); }
+    .drift-dumbbell__pt--cur { background: var(--accent, #0f766e); z-index: 2; }
+    .drift-dumbbell__pt--tgt { background: var(--surface, #fff); border: 2px solid var(--ink-2, #334155); z-index: 1; }
+    .drift-dumbbell__delta { text-align: right; font-size: 12px; font-variant-numeric: tabular-nums; color: var(--muted-ink, #475569); font-weight: 600; }
+    .drift-dumbbell__delta.is-warn { color: var(--warn, #b45309); }
+    .drift-dumbbell-legend { display: flex; gap: 14px; font-size: 11.5px; color: var(--muted-ink, #475569); margin: 0 0 10px; align-items: center; }
+    .drift-dumbbell-legend__sw { display: inline-flex; align-items: center; gap: 6px; }
+    .drift-dumbbell-legend__dot { width: 10px; height: 10px; border-radius: 999px; display: inline-block; }
+    .drift-dumbbell-legend__dot--cur { background: var(--accent, #0f766e); }
+    .drift-dumbbell-legend__dot--tgt { background: #fff; border: 2px solid var(--ink-2, #334155); }
     .control-toolbar { display:grid; gap:12px; margin:0 0 18px; }
     .control-row { display:flex; flex-wrap:wrap; align-items:center; gap:10px; }
     .control-label { font-size:12px; font-weight:800; letter-spacing:0.08em; text-transform:uppercase; color:#475569; min-width:120px; }
@@ -2095,30 +2110,49 @@ def _blend_heat_color(
 
 
 def _render_policy_drift_chart(rows: Iterable[PolicyDriftRow]) -> str:
+    # Dumbbell visual: each row plots `current` (●) and `target` (○) on a shared
+    # 0..max-weight axis, with a connecting bar in between. Direction is read
+    # from dot order; the right-hand delta carries the magnitude (and is warn-
+    # tinted past 2pp). Replaces the legacy divergent-bar `_render_policy_drift_chart`.
     materialized = list(rows)
     if not materialized:
         return "<div>No data</div>"
-    max_abs = max(abs(row.active_weight) for row in materialized) or 1e-9
-    chart_rows: list[str] = []
+    # Adaptive scale — fit the largest weight present (current OR target) so
+    # sleeve-level charts (asset class, ~0..50%) and sector-level charts
+    # (~0..15%) both use the full track width.
+    max_weight = max(
+        max(abs(row.current_weight), abs(row.policy_weight)) for row in materialized
+    ) or 1e-9
+    legend = (
+        "<div class='drift-dumbbell-legend'>"
+        "<span class='drift-dumbbell-legend__sw'>"
+        "<span class='drift-dumbbell-legend__dot drift-dumbbell-legend__dot--cur'></span>current"
+        "</span>"
+        "<span class='drift-dumbbell-legend__sw'>"
+        "<span class='drift-dumbbell-legend__dot drift-dumbbell-legend__dot--tgt'></span>target"
+        "</span>"
+        "<span>active weight (right) flagged when |drift| ≥ 2pp</span>"
+        "</div>"
+    )
+    chart_rows: list[str] = [legend]
     for row in materialized:
-        if row.active_weight >= 0:
-            fill = (
-                "<span class='chart-fill-pos' "
-                f"style='width:{(abs(row.active_weight) / max_abs) * 50:.2f}%;'></span>"
-            )
-        else:
-            left = 50 - (abs(row.active_weight) / max_abs) * 50
-            fill = (
-                "<span class='chart-fill-neg' "
-                f"style='left:{left:.2f}%; width:{(abs(row.active_weight) / max_abs) * 50:.2f}%;'></span>"
-            )
+        cur_pos = (row.current_weight / max_weight) * 100.0
+        tgt_pos = (row.policy_weight / max_weight) * 100.0
+        bar_lo = min(cur_pos, tgt_pos)
+        bar_hi = max(cur_pos, tgt_pos)
+        bar_w = max(bar_hi - bar_lo, 0.0)
+        delta_class = " is-warn" if abs(row.active_weight) >= 0.02 else ""
+        cur_title = f"current {row.current_weight:.2%}"
+        tgt_title = f"target {row.policy_weight:.2%}"
         chart_rows.append(
-            "<div class='chart-row'>"
-            f"<div>{html.escape(row.bucket)}</div>"
-            "<div class='chart-track'><span class='chart-midline'></span>"
-            f"{fill}"
+            "<div class='chart-row drift-dumbbell'>"
+            f"<div class='drift-dumbbell__lbl'>{html.escape(row.bucket)}</div>"
+            "<div class='drift-dumbbell__track'>"
+            f"<span class='drift-dumbbell__bar' style='left:{bar_lo:.2f}%;width:{bar_w:.2f}%;'></span>"
+            f"<span class='drift-dumbbell__pt drift-dumbbell__pt--tgt' style='left:{tgt_pos:.2f}%;' title='{tgt_title}'></span>"
+            f"<span class='drift-dumbbell__pt drift-dumbbell__pt--cur' style='left:{cur_pos:.2f}%;' title='{cur_title}'></span>"
             "</div>"
-            f"<div class='chart-value'>{row.active_weight:+.2%}</div>"
+            f"<div class='drift-dumbbell__delta{delta_class}'>{row.active_weight:+.2%}</div>"
             "</div>"
         )
     return "\n".join(chart_rows)
