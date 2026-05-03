@@ -309,7 +309,7 @@ conda run -n py313 python -m market_helper.cli.main regime-detect \
   --indicators-output data/artifacts/regime_detection/indicator_snapshots.json
 ```
 
-Optional tuning overrides can be based on `configs/regime_detection/regime_config.example.yml`.
+Optional tuning overrides can use `configs/regime_detection/regime_config.yml`.
 
 Latest-only snapshot:
 
@@ -326,7 +326,7 @@ Human-readable summary + policy suggestion:
 ```bash
 conda run -n py313 python -m market_helper.cli.main regime-report \
   --regime data/artifacts/regime_detection/regime_snapshots.json \
-  --policy configs/regime_detection/regime_policy.example.yml
+  --policy configs/regime_detection/regime_policy.yml
 ```
 
 Standalone HTML artifact for multi-method regime snapshots:
@@ -335,7 +335,7 @@ Standalone HTML artifact for multi-method regime snapshots:
 conda run -n py313 python -m market_helper.cli.main regime-html-report \
   --regime data/artifacts/regime_detection/regime_snapshots.json \
   --output data/artifacts/regime_detection/regime_report.html \
-  --policy configs/regime_detection/quadrant_policy.example.yml
+  --policy configs/regime_detection/quadrant_policy.yml
 ```
 
 For regime v2 sanity review, use

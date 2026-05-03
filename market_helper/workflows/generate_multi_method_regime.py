@@ -94,8 +94,6 @@ def run_multi_method_detection(
             if market_regime_config
             else Path("configs/regime_detection/market_regime.yml")
         )
-        if market_regime_config is None and not market_cfg_path.exists():
-            market_cfg_path = Path("configs/regime_detection/market_regime.example.yml")
         market_panel_input = (
             Path(market_panel_path)
             if market_panel_path

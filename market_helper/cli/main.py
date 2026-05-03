@@ -301,7 +301,7 @@ def build_parser() -> argparse.ArgumentParser:
     regime_detect.add_argument(
         "--config",
         required=False,
-        help="Optional regime config YAML path. Example template: configs/regime_detection/regime_config.example.yml.",
+        help="Optional regime config YAML path. Example: configs/regime_detection/regime_config.yml.",
     )
     regime_detect.add_argument("--latest-only", action="store_true", help="Write latest snapshot only.")
 
@@ -433,7 +433,7 @@ def build_parser() -> argparse.ArgumentParser:
     regime_report_multi.add_argument(
         "--policy",
         required=False,
-        help="Optional quadrant policy YAML overrides. Example: configs/regime_detection/quadrant_policy.example.yml.",
+        help="Optional quadrant policy YAML overrides. Example: configs/regime_detection/quadrant_policy.yml.",
     )
 
     regime_html_report = subparsers.add_parser(
@@ -464,7 +464,7 @@ def build_parser() -> argparse.ArgumentParser:
     regime_report.add_argument(
         "--policy",
         required=False,
-        help="Optional policy YAML overrides. Example template: configs/regime_detection/regime_policy.example.yml.",
+        help="Optional policy YAML overrides. Example: configs/regime_detection/regime_policy.yml.",
     )
 
     mapping_table_report = subparsers.add_parser(
@@ -504,7 +504,7 @@ def _add_regime_report_run_args(parser: argparse.ArgumentParser) -> None:
     parser.add_argument(
         "--fred-series-config",
         default=None,
-        help="Path to FRED series YAML. Defaults to configs/regime_detection/fred_series.yml, falling back to the example file.",
+        help="Path to FRED series YAML. Defaults to configs/regime_detection/fred_series.yml.",
     )
     parser.add_argument(
         "--market-panel",
@@ -519,7 +519,7 @@ def _add_regime_report_run_args(parser: argparse.ArgumentParser) -> None:
     parser.add_argument(
         "--market-regime-config",
         default=None,
-        help="Path to market regime YAML. Defaults to configs/regime_detection/market_regime.yml, falling back to the example file.",
+        help="Path to market regime YAML. Defaults to configs/regime_detection/market_regime.yml.",
     )
     parser.add_argument(
         "--output-regime",

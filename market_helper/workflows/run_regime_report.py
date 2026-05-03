@@ -25,9 +25,7 @@ DEFAULT_REGIME_ARTIFACT_PATH = Path("data/artifacts/regime_detection/regime_snap
 DEFAULT_REGIME_HTML_PATH = Path("data/artifacts/regime_detection/regime_report.html")
 DEFAULT_FRED_CACHE_DIR = Path("data/interim/fred")
 DEFAULT_FRED_SERIES_CONFIG = Path("configs/regime_detection/fred_series.yml")
-DEFAULT_FRED_SERIES_EXAMPLE_CONFIG = Path("configs/regime_detection/fred_series.example.yml")
 DEFAULT_MARKET_REGIME_CONFIG = Path("configs/regime_detection/market_regime.yml")
-DEFAULT_MARKET_REGIME_EXAMPLE_CONFIG = Path("configs/regime_detection/market_regime.example.yml")
 
 
 @dataclass(frozen=True)
@@ -191,17 +189,13 @@ def refresh_data_and_run_regime_report(
 def _resolve_fred_series_config(path: str | Path | None) -> Path:
     if path is not None:
         return Path(path)
-    if DEFAULT_FRED_SERIES_CONFIG.exists():
-        return DEFAULT_FRED_SERIES_CONFIG
-    return DEFAULT_FRED_SERIES_EXAMPLE_CONFIG
+    return DEFAULT_FRED_SERIES_CONFIG
 
 
 def _resolve_market_regime_config(path: str | Path | None) -> Path:
     if path is not None:
         return Path(path)
-    if DEFAULT_MARKET_REGIME_CONFIG.exists():
-        return DEFAULT_MARKET_REGIME_CONFIG
-    return DEFAULT_MARKET_REGIME_EXAMPLE_CONFIG
+    return DEFAULT_MARKET_REGIME_CONFIG
 
 
 def _normalize_methods(methods: Sequence[str]) -> tuple[str, ...]:

@@ -59,7 +59,7 @@ This plan replaces the current `macro_rules + legacy_rulebook` regime v2 path wi
 | TASK-008 | Replace `market_helper/regimes/methods/macro_rules.py` with `market_helper/regimes/methods/macro_regime.py` or rename in place; implement `MacroRegimeConfig` with `bucket_weights={"fast": 0.70, "slow": 0.30}`, per-axis `min_available_bucket_weight`, `normalization_defaults`, and `min_consecutive_days`. | | |
 | TASK-009 | Implement macro scoring as: per-series signed signal -> per-bucket weighted average -> per-axis weighted average using bucket weights -> per-axis hysteresis -> quadrant. Default signal is raw signed value after transform and direction mapping, not z-score. | | |
 | TASK-010 | Preserve optional z-score scoring by moving `_rolling_zscore()` into a reusable normalizer selected only when a series or config sets `normalization: zscore`. | | |
-| TASK-011 | Update `configs/regime_detection/fred_series.example.yml` to include fast/slow buckets and explicit direction mapping for every series. | | |
+| TASK-011 | Update `configs/regime_detection/fred_series.yml` to include fast/slow buckets and explicit direction mapping for every series. | | |
 | TASK-012 | Add macro defaults: inflation fast bucket includes `T5YIFR`, `T10YIE`, `oil_yoy_or_energy_proxy` if available from market data, `AHETPI`; inflation slow bucket includes `CPIAUCSL`, `CPILFESL`, `PCEPI`, `PCEPILFE`, `CORESTICKM159SFRBATL`. | | |
 | TASK-013 | Add macro defaults: growth fast bucket includes `PAYEMS`, `UNRATE` inverted, `RSAFS`, `ICSA` inverted if added, `USSLIND`; growth slow bucket includes `INDPRO`, real GDP if added, corporate profits if added, and other quarterly/slow indicators only if publication lag is configured. | | |
 | TASK-014 | Add unit tests in `tests/unit/regimes/test_macro_regime.py` for fast bucket dominance, slow bucket contribution at 30%, raw sign classification, optional z-score parity, missing bucket behavior, and all four quadrants. | | |
@@ -70,7 +70,7 @@ This plan replaces the current `macro_rules + legacy_rulebook` regime v2 path wi
 
 | Task | Description | Completed | Date |
 |------|-------------|-----------|------|
-| TASK-015 | Add `configs/regime_detection/market_regime.example.yml` with top-level sections `growth`, `inflation`, `risk_overlay`, `data_sources`, `normalization`, and `hysteresis`. | | |
+| TASK-015 | Add `configs/regime_detection/market_regime.yml` with top-level sections `growth`, `inflation`, `risk_overlay`, `data_sources`, `normalization`, and `hysteresis`. | | |
 | TASK-016 | Add `market_helper/data_sources/yahoo_finance/market_panel.py` or an equivalent service that downloads/caches adjusted close prices for configured Yahoo tickers and writes `data/interim/market_regime/market_panel.feather`. | | |
 | TASK-017 | Add `market_helper/regimes/methods/market_regime.py` implementing `MarketRegimeMethod` that consumes the market panel and YAML config and emits `MethodResult`. | | |
 | TASK-018 | Implement market transforms: `return_1m`, `return_3m`, `return_6m`, `return_12m`, `relative_return`, `spread`, `level_zscore`, `change_zscore`, and `realized_vol_zscore`. | | |
@@ -151,8 +151,8 @@ This plan replaces the current `macro_rules + legacy_rulebook` regime v2 path wi
 - **FILE-009**: `market_helper/workflows/sync_market_regime_panel.py` - new market data sync workflow.
 - **FILE-010**: `market_helper/cli/main.py` - CLI help and dispatch.
 - **FILE-011**: `market_helper/reporting/regime_html.py` - report labels and driver tables.
-- **FILE-012**: `configs/regime_detection/fred_series.example.yml` - macro method config.
-- **FILE-013**: `configs/regime_detection/market_regime.example.yml` - market method config.
+- **FILE-012**: `configs/regime_detection/fred_series.yml` - macro method config.
+- **FILE-013**: `configs/regime_detection/market_regime.yml` - market method config.
 - **FILE-014**: `notebooks/regime_detection/regime_v2_sanity_review.ipynb` - review notebook.
 - **FILE-015**: `DEV_DOCS/PLAN.md` - project plan summary.
 - **FILE-016**: `DEV_DOCS/docs/devplans/regime_detection_devplan.md` - regime devplan.
@@ -190,6 +190,6 @@ This plan replaces the current `macro_rules + legacy_rulebook` regime v2 path wi
 
 [Project Plan](/Users/kelvin/git_projects/market_helper/DEV_DOCS/PLAN.md)
 
-[FRED Series Example Config](/Users/kelvin/git_projects/market_helper/configs/regime_detection/fred_series.example.yml)
+[FRED Series Config](/Users/kelvin/git_projects/market_helper/configs/regime_detection/fred_series.yml)
 
 [Regime Review Notebook](/Users/kelvin/git_projects/market_helper/notebooks/regime_detection/regime_v2_sanity_review.ipynb)
