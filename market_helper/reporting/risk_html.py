@@ -812,6 +812,9 @@ def load_position_rows(
             asset_class = security.asset_class or infer_asset_class(symbol, exchange)
             display_ticker = security.display_ticker or infer_display_ticker(symbol, exchange, local_symbol)
             display_name = security.display_name or infer_display_name(symbol, local_symbol, instrument_type)
+            if asset_class == "CM" and instrument_type == "Futures" and local_symbol:
+                display_ticker = infer_display_ticker(symbol, exchange, local_symbol)
+                display_name = infer_display_name(symbol, local_symbol, instrument_type)
             duration = security.mod_duration
             eq_country = security.eq_country
             eq_sector_proxy = security.eq_sector_proxy

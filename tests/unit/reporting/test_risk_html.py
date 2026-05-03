@@ -855,6 +855,85 @@ def test_build_risk_report_view_model_uses_security_reference_for_enrichment(tmp
     assert any(row.mapping_status == "mapped" for row in view_model.risk_rows)
 
 
+def test_build_risk_report_view_model_prefers_local_symbol_for_mapped_commodity_futures(tmp_path: Path) -> None:
+    positions_csv = tmp_path / "positions.csv"
+    positions_csv.write_text(
+        "\n".join(
+            [
+                "as_of,account,internal_id,con_id,symbol,local_symbol,exchange,currency,source,quantity,avg_cost,latest_price,market_value,cost_basis,unrealized_pnl,weight",
+                "2026-05-03T02:20:20+00:00,U1,FUT:NGN26:NYMEX,269460091,NG,NGN26,NYMEX,USD,ibkr,-1,30797.3077,4.69500015,-30840,-30797.3077,-42.6923,0.4",
+                "2026-05-03T02:20:20+00:00,U1,FUT:NGQ26:NYMEX,269460092,NG,NGQ26,NYMEX,USD,ibkr,1,46742.6923,4.69500015,46950,46742.6923,207.3077,0.6",
+            ]
+        ),
+        encoding="utf-8",
+    )
+
+    returns_json = tmp_path / "returns.json"
+    returns_json.write_text(
+        json.dumps(
+            {
+                "FUT:NGN26:NYMEX": [0.001 * ((idx % 5) - 2) for idx in range(90)],
+                "FUT:NGQ26:NYMEX": [0.0012 * ((idx % 5) - 2) for idx in range(90)],
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    security_reference_path = tmp_path / "security_reference.csv"
+    export_security_reference_csv(
+        [
+            SecurityReference(
+                internal_id="FUT:NGN26:NYMEX",
+                asset_class="CM",
+                canonical_symbol="NG",
+                display_ticker="NG",
+                display_name="Natural Gas",
+                currency="USD",
+                primary_exchange="NYMEX",
+                multiplier=10000.0,
+                ibkr_sec_type="FUT",
+                ibkr_symbol="NG",
+                ibkr_exchange="NYMEX",
+                ibkr_conid="269460091",
+                yahoo_symbol="NG=F",
+                dir_exposure="L",
+                cm_sector="EN",
+                lookup_status="verified",
+            ),
+            SecurityReference(
+                internal_id="FUT:NGQ26:NYMEX",
+                asset_class="CM",
+                canonical_symbol="NG",
+                display_ticker="NG",
+                display_name="Natural Gas",
+                currency="USD",
+                primary_exchange="NYMEX",
+                multiplier=10000.0,
+                ibkr_sec_type="FUT",
+                ibkr_symbol="NG",
+                ibkr_exchange="NYMEX",
+                ibkr_conid="269460092",
+                yahoo_symbol="NG=F",
+                dir_exposure="L",
+                cm_sector="EN",
+                lookup_status="verified",
+            ),
+        ],
+        security_reference_path,
+    )
+
+    view_model = build_risk_report_view_model(
+        positions_csv_path=positions_csv,
+        returns_path=returns_json,
+        security_reference_path=security_reference_path,
+    )
+
+    tickers = {row.display_ticker for row in view_model.risk_rows if row.symbol == "NG"}
+    names = {row.display_name for row in view_model.risk_rows if row.symbol == "NG"}
+    assert tickers == {"NGN26:NYMEX", "NGQ26:NYMEX"}
+    assert names == {"NGN26", "NGQ26"}
+
+
 def test_annualized_vol_zero_for_short_series() -> None:
     assert annualized_vol([]) == 0.0
     assert annualized_vol([0.01]) == 0.0
