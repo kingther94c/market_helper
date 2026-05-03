@@ -5,6 +5,7 @@ from pathlib import Path
 import csv
 import html
 import json
+import os
 
 import pandas as pd
 
@@ -136,15 +137,32 @@ def build_performance_report_view_model(
     )
 
 
-def render_performance_assets() -> str:
+_PLOTLY_CDN_TAG = "<script src='https://cdn.plot.ly/plotly-2.35.2.min.js'></script>"
+
+
+def _resolve_plotly_loader() -> str:
+    """Return the `<script>` tag that loads Plotly into the report.
+
+    Mode is chosen by the `MARKET_HELPER_PLOTLY_MODE` env var:
+      * `inline` (default) — embed the bundled `get_plotlyjs()` payload,
+        producing a self-contained ~3 MB HTML report that opens with no
+        network access. Falls back to the CDN tag if the bundle is missing
+        (e.g. plotly extra not installed in the environment).
+      * `cdn` — always emit the CDN `<script src=...>` tag instead of
+        bundling. Drops the report size by ~3 MB at the cost of needing
+        an internet connection to view charts.
+    """
+    mode = os.environ.get("MARKET_HELPER_PLOTLY_MODE", "inline").strip().lower()
+    if mode == "cdn":
+        return _PLOTLY_CDN_TAG
     plotly_js = get_plotlyjs()
-    plotly_loader = (
-        "<script>"
-        f"{plotly_js}"
-        "</script>"
-        if plotly_js.strip()
-        else "<script src='https://cdn.plot.ly/plotly-2.35.2.min.js'></script>"
-    )
+    if plotly_js.strip():
+        return f"<script>{plotly_js}</script>"
+    return _PLOTLY_CDN_TAG
+
+
+def render_performance_assets() -> str:
+    plotly_loader = _resolve_plotly_loader()
     return (
         "<style>"
         ".perf-summary-grid { display:grid; gap:12px; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); }"
