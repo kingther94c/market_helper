@@ -35,6 +35,7 @@
 - Fixed Flex cashflow date extraction to use `reportDate` instead of `settleDate`, so cashflows are attributed to the correct accounting period.
 - Added `scripts/launch_ui.sh` to start the NiceGUI dashboard (`market_helper/presentation/dashboard/`) with TCP-readiness probing, server liveness checks, and browser auto-open once the port is up.
 - Tightened dashboard export ownership in `PortfolioMonitorActionService`: GUI-triggered combined-report generation now explicitly ensures the configured Google Drive mirror is refreshed and carries that mirror result back into the UI state, instead of relying on the lower-level workflow side effect staying coupled to the current renderer path.
+- Fixed live commodity-futures month collapsing in `market_helper/portfolio/ibkr.py`: mapped `CM` futures now clone the matched family reference into a contract-specific runtime identity keyed by `local_symbol`, so live spread legs keep distinct `internal_id / con_id / local_symbol` values in exported CSVs instead of overwriting each other through a shared family-level reference row.
 
 
 - Added a combined static HTML portfolio report with `Performance` and `Risk` tabs, using `USD` as the primary performance view, `SGD` as auxiliary display, and `TWR` as the headline return basis while preserving `MWR` alongside key metrics.

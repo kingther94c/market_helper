@@ -46,6 +46,8 @@ def contract_to_security_reference(
         multiplier = 1.0
 
     internal_id = contract_to_internal_id(contract)
+    if _prefer_contract_specific_future_identity(contract):
+        internal_id = _contract_specific_internal_id(contract)
     if status == "outside_scope":
         internal_id = f"OUTSIDE_SCOPE:{internal_id}"
     return SecurityReference(
@@ -178,6 +180,8 @@ def resolve_ibkr_contract(
         exchange=contract.exchange,
     )
     if alias_match is not None:
+        if _should_clone_runtime_future_identity(alias_match, contract):
+            return _clone_runtime_future_security(alias_match, contract)
         return alias_match
 
     runtime_match = reference_table.resolve_runtime_contract_match(
@@ -187,6 +191,8 @@ def resolve_ibkr_contract(
         primary_exchange=contract.exchange,
     )
     if runtime_match is not None:
+        if _should_clone_runtime_future_identity(runtime_match, contract):
+            return _clone_runtime_future_security(runtime_match, contract)
         return runtime_match
 
     if contract.sec_type.upper() == "CASH":
@@ -201,6 +207,56 @@ def resolve_ibkr_contract(
         return contract_to_security_reference(contract, status="outside_scope")
 
     return contract_to_security_reference(contract, status="unmapped")
+
+
+def _prefer_contract_specific_future_identity(contract: IbkrContract) -> bool:
+    return (
+        contract.sec_type.upper() == "FUT"
+        and _infer_asset_class(contract) == "CM"
+        and bool(str(contract.local_symbol).strip())
+    )
+
+
+def _contract_specific_internal_id(contract: IbkrContract) -> str:
+    return build_internal_security_id(
+        ibkr_sec_type=contract.sec_type,
+        canonical_symbol=contract.local_symbol or contract.symbol,
+        primary_exchange=contract.exchange,
+    )
+
+
+def _should_clone_runtime_future_identity(
+    security: SecurityReference,
+    contract: IbkrContract,
+) -> bool:
+    return (
+        contract.sec_type.upper() == "FUT"
+        and security.asset_class == "CM"
+        and bool(str(contract.local_symbol).strip())
+        and security.internal_id != _contract_specific_internal_id(contract)
+    )
+
+
+def _clone_runtime_future_security(
+    security: SecurityReference,
+    contract: IbkrContract,
+) -> SecurityReference:
+    metadata = dict(security.metadata)
+    metadata.update(
+        {
+            "family_internal_id": security.internal_id,
+            "local_symbol": contract.local_symbol,
+        }
+    )
+    local_symbol = str(contract.local_symbol).strip()
+    return replace(
+        security,
+        internal_id=_contract_specific_internal_id(contract),
+        description=local_symbol or security.description,
+        display_ticker=f"{local_symbol}:{contract.exchange.upper()}" if local_symbol else security.display_ticker,
+        display_name=local_symbol or security.display_name,
+        metadata=metadata,
+    )
 
 
 def normalize_ibkr_positions(

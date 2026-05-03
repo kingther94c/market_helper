@@ -63,6 +63,46 @@ def test_normalize_ibkr_positions_matches_futures_family_alias() -> None:
     assert table.require_internal_id("ibkr", "999001") == "FUT:ZN:CBOT"
 
 
+def test_normalize_ibkr_positions_uses_contract_specific_identity_for_commodity_futures() -> None:
+    table = SecurityReferenceTable.from_default_csv()
+    positions = normalize_ibkr_positions(
+        [
+            {
+                "account": "U12345",
+                "con_id": "880001",
+                "sec_type": "FUT",
+                "symbol": "NG",
+                "currency": "USD",
+                "exchange": "NYMEX",
+                "local_symbol": "NGN26",
+                "multiplier": "10000",
+                "position": "1",
+                "avg_cost": "4.60",
+                "market_value": "46000",
+            },
+            {
+                "account": "U12345",
+                "con_id": "880002",
+                "sec_type": "FUT",
+                "symbol": "NG",
+                "currency": "USD",
+                "exchange": "NYMEX",
+                "local_symbol": "NGQ26",
+                "multiplier": "10000",
+                "position": "-1",
+                "avg_cost": "4.75",
+                "market_value": "-47500",
+            },
+        ],
+        table,
+        as_of="2026-05-03T00:00:00+00:00",
+    )
+
+    assert [position.internal_id for position in positions] == ["FUT:NGN26:NYMEX", "FUT:NGQ26:NYMEX"]
+    assert table.require_internal_id("ibkr", "880001") == "FUT:NGN26:NYMEX"
+    assert table.require_internal_id("ibkr", "880002") == "FUT:NGQ26:NYMEX"
+
+
 def test_normalize_ibkr_latest_prices_uses_fallback_price_fields() -> None:
     table = SecurityReferenceTable.from_default_csv()
     normalize_ibkr_positions(
