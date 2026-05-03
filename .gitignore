@@ -21,3 +21,4 @@ data/interim/fred/**
 data/processed/*.json
 notebooks/dev_lab/**
 !notebooks/dev_lab/.gitkeep
+DEV_DOCS/archive/
