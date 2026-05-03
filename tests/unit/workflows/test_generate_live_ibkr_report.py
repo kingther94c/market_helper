@@ -212,6 +212,58 @@ def test_generate_live_ibkr_position_report_converts_multi_currency_cash_to_sgd(
     assert cash_rows[0]["market_value"] == "-147.5"
 
 
+class FakeNgSpreadContract:
+    def __init__(self, *, con_id: int, local_symbol: str, position: float, avg_cost: float, market_value: float) -> None:
+        self.account = "U12345"
+        self.contract = type(
+            "Contract",
+            (),
+            {
+                "conId": con_id,
+                "secType": "FUT",
+                "symbol": "NG",
+                "currency": "USD",
+                "exchange": "NYMEX",
+                "primaryExchange": "NYMEX",
+                "localSymbol": local_symbol,
+                "multiplier": "10000",
+            },
+        )()
+        self.position = position
+        self.averageCost = avg_cost
+        self.marketPrice = 4.69500015
+        self.marketValue = market_value
+
+
+class FakeNgSpreadLiveClient(FakeLiveClient):
+    def list_portfolio(self, account_id: str) -> list[object]:
+        assert account_id == "U12345"
+        return [
+            FakeNgSpreadContract(con_id=269460091, local_symbol="NGN26", position=-1.0, avg_cost=30797.3077, market_value=-30840.0),
+            FakeNgSpreadContract(con_id=269460092, local_symbol="NGQ26", position=1.0, avg_cost=46742.6923, market_value=46950.0),
+        ]
+
+
+def test_generate_live_ibkr_position_report_keeps_distinct_commodity_future_legs(tmp_path) -> None:
+    output_path = tmp_path / "outputs" / "live_position_report.csv"
+    client = FakeNgSpreadLiveClient()
+
+    generate_live_ibkr_position_report(
+        output_path=output_path,
+        account_id="U12345",
+        as_of="2026-05-03T02:20:20+00:00",
+        client=client,
+    )
+
+    with output_path.open("r", encoding="utf-8", newline="") as handle:
+        rows = list(csv.DictReader(handle))
+
+    ng_rows = [row for row in rows if row["symbol"] == "NG"]
+    assert [row["internal_id"] for row in ng_rows] == ["FUT:NGN26:NYMEX", "FUT:NGQ26:NYMEX"]
+    assert [row["con_id"] for row in ng_rows] == ["269460091", "269460092"]
+    assert [row["local_symbol"] for row in ng_rows] == ["NGN26", "NGQ26"]
+
+
 class FakeUnmappedContract:
     def __init__(self) -> None:
         self.conId = 888888
