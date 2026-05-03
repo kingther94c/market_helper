@@ -12,11 +12,7 @@ PERIOD="${YAHOO_PERIOD:-max}"
 INTERVAL="${YAHOO_INTERVAL:-1d}"
 
 if [ ! -f "$CONFIG" ]; then
-    if [ -f "${CONFIG%.yml}.example.yml" ]; then
-        echo "No $CONFIG found; copy $(basename "${CONFIG%.yml}.example.yml") to $(basename "$CONFIG") first." >&2
-    else
-        echo "Missing market regime config: $CONFIG" >&2
-    fi
+    echo "Missing market regime config: $CONFIG" >&2
     exit 1
 fi
 

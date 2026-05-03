@@ -18,11 +18,7 @@ START="${FRED_OBSERVATION_START:-2005-01-01}"
 FORCE="${FRED_FORCE_REFRESH:-0}"
 
 if [ ! -f "$CONFIG" ]; then
-    if [ -f "${CONFIG%.yml}.example.yml" ]; then
-        echo "No $CONFIG found; copy $(basename "${CONFIG%.yml}.example.yml") to $(basename "$CONFIG") first." >&2
-    else
-        echo "Missing FRED series config: $CONFIG" >&2
-    fi
+    echo "Missing FRED series config: $CONFIG" >&2
     exit 1
 fi
 
