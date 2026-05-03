@@ -437,6 +437,7 @@ def _build_figure_spec(
             "y": cumulative_values,
             "type": "scatter",
             "mode": "lines",
+            "name": "Portfolio",
             "line": {"color": "#0f172a", "width": 3},
             "hovertemplate": hover_template,
             "xaxis": "x",
@@ -457,6 +458,25 @@ def _build_figure_spec(
             "showlegend": False,
         },
     ]
+    # Optional benchmark trace (dotted) — only on percent mode, only when the
+    # cumulative frame already carries `bench_cumulative_return` (which means
+    # `_percent_frame_from_history` saw the benchmark column on the input
+    # history). PnL ($) mode stays portfolio-only since SPY has no $ analogue.
+    if mode == "percent" and "bench_cumulative_return" in cumulative_frame.columns:
+        bench_series = pd.to_numeric(cumulative_frame["bench_cumulative_return"], errors="coerce")
+        if bench_series.notna().any():
+            traces.append({
+                "x": dates,
+                "y": _series_to_plot_values(bench_series),
+                "type": "scatter",
+                "mode": "lines",
+                "name": "SPY (benchmark)",
+                "line": {"color": "#64748b", "width": 1.6, "dash": "dot"},
+                "hovertemplate": "%{x|%Y-%m-%d}<br>SPY %{y:.2%}<extra></extra>",
+                "xaxis": "x",
+                "yaxis": "y",
+                "showlegend": True,
+            })
     layout = {
         "template": "plotly_white",
         "height": 520,
@@ -464,6 +484,7 @@ def _build_figure_spec(
         "paper_bgcolor": "#ffffff",
         "plot_bgcolor": "#ffffff",
         "title": {"text": f"{_DISPLAY_WINDOW_LABELS[window]} • {currency}"},
+        "legend": {"orientation": "h", "x": 0, "y": 1.06, "xanchor": "left", "yanchor": "bottom", "bgcolor": "rgba(0,0,0,0)"},
         "grid": {"rows": 2, "columns": 1, "pattern": "independent", "roworder": "top to bottom"},
         "xaxis": {
             "matches": "x2",
