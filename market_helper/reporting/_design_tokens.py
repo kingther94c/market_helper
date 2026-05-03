@@ -137,6 +137,52 @@ _COMPONENT_PRIMITIVES_CSS = """
 """
 
 
+# Mobile-only refinements (≤ 768px). Strictly additive — no calc, no column,
+# no row-ordering changes; desktop layout untouched. The primary win is making
+# the existing horizontal-scroll affordance more usable on phone-sized viewports
+# rather than collapsing wide tables to unreadable widths.
+_MOBILE_OVERRIDES_CSS = """
+@media (max-width: 768px) {
+  /* Tighter cells + smaller cell font so more columns fit per scroll step.
+     `.report-table` keeps its desktop `min-width: 720px` so columns stay
+     readable rather than collapsing to ~50px on a 380px viewport — the
+     `.report-table-wrap` overflow already handles horizontal scroll. */
+  .report-table { font-size: 12px; }
+  .report-table__header { padding: 8px 10px; font-size: 10px; letter-spacing: 0.03em; }
+  .report-table__cell { padding: 8px 10px; }
+  .report-table__empty td { padding: 14px 10px; }
+
+  /* Sticky first column — keeps the row identifier (ticker / region / sector)
+     visible while the user scrolls horizontally through wide numeric columns.
+     Combines with the existing sticky `<thead>` so the header×identifier corner
+     stays pinned in both axes. Background must win over the alternating-row
+     stripe to avoid the sticky cell being seen through. */
+  .report-table__cell:first-child,
+  .report-table__header:first-child {
+    position: sticky;
+    left: 0;
+    z-index: 1;
+    background: var(--surface);
+    box-shadow: 1px 0 0 var(--border-soft);
+  }
+  .report-table__row:nth-child(even) .report-table__cell:first-child { background: var(--row-alt); }
+  .report-table__row.is-excluded .report-table__cell:first-child { background: var(--excluded-bg); }
+  .report-table__header:first-child {
+    background: var(--table-header);
+    z-index: 2;  /* sit on top of body sticky cells where the row + col intersect */
+  }
+
+  /* Heat-table tightening (orange + red scales in the risk section). Same
+     primitive shape (no min-width to relax), just denser cells. */
+  .heat-table th, .heat-table td { padding: 8px 10px; font-size: 11px; }
+
+  /* Report-table-wrap looks better with reduced corner radius on tiny screens
+     where the cell density is higher. Pure cosmetic. */
+  .report-table-wrap { border-radius: var(--r-1); }
+}
+"""
+
+
 def design_tokens_css() -> str:
     """Return the ``:root`` token block + shared component primitive CSS as a string.
 
@@ -144,7 +190,7 @@ def design_tokens_css() -> str:
     consumer's ``<head>``. Use :func:`design_tokens_style_block` if a complete
     ``<style>...</style>`` wrapper is needed (e.g. NiceGUI's ``ui.add_head_html``).
     """
-    return _TOKENS_CSS + _COMPONENT_PRIMITIVES_CSS
+    return _TOKENS_CSS + _COMPONENT_PRIMITIVES_CSS + _MOBILE_OVERRIDES_CSS
 
 
 def design_tokens_style_block() -> str:
