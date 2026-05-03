@@ -53,9 +53,9 @@ risk_report:
       EQ: 0.80
       FI: 1.0
       FX: 1.0
-      CASH: 0.05
+      CASH: 0.025
       CM: 0.10
-      MACRO: 0.05
+      MACRO: 0.075
     equity_country_policy_mix:
       ACWI: 1.0
     us_equity_sector_policy_mix:
