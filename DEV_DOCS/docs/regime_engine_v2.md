@@ -1,0 +1,44 @@
+# Regime Engine v2 Design Note
+
+Regime Engine v2 uses two macro axes: growth and inflation. Risk/stress is an
+independent overlay, not a third macro dimension.
+
+The dashboard should show the final regime label first, then expand into layer
+detail:
+
+- `macro_nowcast`: economically meaningful macro anchor from point-in-time
+  macro data where supported. It is slower because macro data is published with
+  lags.
+- `market_implied`: faster market-pricing view using proxies such as equities,
+  sectors, credit, rates, commodities, inflation-linked bonds, and volatility
+  where available. It is noisier than macro data.
+- `macro_truth_ml`: generic classification-model layer for ex-post macro labels.
+- `return_truth_ml`: generic classification-model layer for future asset-return
+  regime labels.
+
+Macro and market disagreement is meaningful information. It may reflect slow
+macro data versus fast market pricing, or a genuine dislocation, so v2 surfaces
+disagreement directly instead of hiding it inside a consensus label.
+
+Risk/stress is reported through an independent overlay driven by volatility,
+credit stress, liquidity, and related stress indicators. In this pass it is
+regime context only and must not produce allocation changes or policy target
+changes.
+
+ML layers use a separate model-selection interface so SVM, logistic regression,
+random forest, gradient boosting, or other classifiers can be swapped without
+changing the engine coordinator. The initial SVM adapter is optional and must
+not emit fake outputs: if there is no valid dependency, model artifact, schema,
+or feature set, the layer is `Not available`. Default ML weights are `0.00`.
+
+Ex-post revised macro data may be used for labels only, never as model features.
+Features must remain point-in-time.
+
+Confidence is a lightweight product indicator with `Low`, `Medium`, and `High`
+levels. It combines score strength and layer agreement; it is not a calibrated
+probability.
+
+Data refresh should preserve existing historical caches. FRED keeps its
+per-series incremental cache behavior. Market panel sync merges cached history
+with recent Yahoo rows by default, then sorts, deduplicates, and writes
+diagnostics for duplicate dates and unexpected panel gaps.

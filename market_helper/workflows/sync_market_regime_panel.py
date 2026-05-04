@@ -3,6 +3,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from market_helper.data_sources.yahoo_finance.market_panel import DEFAULT_INCREMENTAL_PERIOD
 from market_helper.data_sources.yahoo_finance.market_panel import sync_market_panel
 from market_helper.regimes.methods.market_regime import market_symbol_specs_from_config
 
@@ -11,10 +12,11 @@ def run_market_regime_sync(
     *,
     config_path: Path,
     cache_dir: Path,
-    period: str = "max",
+    period: str = DEFAULT_INCREMENTAL_PERIOD,
     interval: str = "1d",
     start_date: str | None = None,
     end_date: str | None = None,
+    force: bool = False,
 ) -> Path:
     specs = market_symbol_specs_from_config(config_path)
     if not specs:
@@ -26,6 +28,7 @@ def run_market_regime_sync(
         interval=interval,
         start_date=start_date,
         end_date=end_date,
+        force=force,
     )
 
 

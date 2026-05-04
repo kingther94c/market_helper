@@ -379,3 +379,23 @@ Outputs:
 - `indicator_snapshots.json` contains factor snapshot history for validation and future backtests.
 
 Policy layer (`market_helper/suggest/regime_policy.py`) maps regime -> `vol_multiplier` and asset-class target buckets (`EQ`, `FI`, `GOLD`, `CM`, `CASH`) for read/analyze/report suggestions only (no execution).
+
+## Regime Engine v2 isolated path
+
+Regime Engine v2 is available as an isolated replacement path:
+
+```bash
+conda run -n py313 python -m market_helper.cli.main regime-detect-v2 \
+  --config configs/regime_detection/regime_engine_v2.yml \
+  --macro-panel data/interim/fred/macro_panel.feather \
+  --fred-series-config configs/regime_detection/fred_series.yml \
+  --market-panel data/interim/market_regime/market_panel.feather \
+  --market-regime-config configs/regime_detection/market_regime.yml \
+  --output data/artifacts/regime_detection/regime_engine_v2.json \
+  --latest-only
+```
+
+V2 keeps growth and inflation as the main regime axes and reports risk/stress as
+an independent overlay. It does not produce trading signals, allocation changes,
+or brokerage actions. See `DEV_DOCS/docs/regime_engine_v2.md` for the design
+contract.

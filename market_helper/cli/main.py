@@ -26,11 +26,13 @@ from market_helper.workflows.generate_multi_method_regime import (
     load_multi_method_snapshots,
     run_multi_method_detection,
 )
+from market_helper.workflows.generate_regime_v2 import run_regime_engine_v2_detection
 from market_helper.workflows.run_regime_report import (
     refresh_data_and_run_regime_report,
     run_regime_report_from_existing_data,
 )
 from market_helper.workflows.sync_fred_macro_panel import run_fred_macro_sync
+from market_helper.data_sources.yahoo_finance.market_panel import DEFAULT_INCREMENTAL_PERIOD
 from market_helper.workflows.sync_market_regime_panel import run_market_regime_sync
 from market_helper.workflows.sync_regime_inputs import sync_regime_inputs
 from market_helper.domain.regime_detection.policies.regime_policy import (
@@ -348,6 +350,46 @@ def build_parser() -> argparse.ArgumentParser:
         help="Emit only the most-recent snapshot.",
     )
 
+    regime_detect_v2 = subparsers.add_parser(
+        "regime-detect-v2",
+        help="Run isolated Regime Engine v2 and write dashboard-ready JSON.",
+    )
+    regime_detect_v2.add_argument(
+        "--config",
+        default=None,
+        help="Path to Regime Engine v2 YAML. Defaults to built-in v2 config.",
+    )
+    regime_detect_v2.add_argument(
+        "--macro-panel",
+        default=None,
+        help="Path to the joined FRED panel feather. Defaults to data/interim/fred/macro_panel.feather.",
+    )
+    regime_detect_v2.add_argument(
+        "--fred-series-config",
+        default=None,
+        help="Path to FRED series YAML. Defaults to configs/regime_detection/fred_series.yml.",
+    )
+    regime_detect_v2.add_argument(
+        "--market-panel",
+        default=None,
+        help="Path to the joined market price panel feather. Defaults to data/interim/market_regime/market_panel.feather.",
+    )
+    regime_detect_v2.add_argument(
+        "--market-regime-config",
+        default=None,
+        help="Path to market-implied regime YAML. Defaults to configs/regime_detection/market_regime.yml.",
+    )
+    regime_detect_v2.add_argument(
+        "--output",
+        required=True,
+        help="Path to output Regime Engine v2 JSON array.",
+    )
+    regime_detect_v2.add_argument(
+        "--latest-only",
+        action="store_true",
+        help="Emit only the most-recent result.",
+    )
+
     regime_run_report = subparsers.add_parser(
         "regime-run-report",
         help="Run multi-method regime detection from existing local data and generate HTML.",
@@ -370,7 +412,11 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Refresh online source data regardless of artifact age.",
     )
-    regime_refresh_report.add_argument("--yahoo-period", default="max", help="Yahoo history period.")
+    regime_refresh_report.add_argument(
+        "--yahoo-period",
+        default=DEFAULT_INCREMENTAL_PERIOD,
+        help=f"Yahoo recent-history period for incremental refresh. Defaults to {DEFAULT_INCREMENTAL_PERIOD}.",
+    )
     regime_refresh_report.add_argument("--yahoo-interval", default="1d", help="Yahoo history interval.")
     regime_refresh_report.add_argument(
         "--fred-observation-start",
@@ -416,10 +462,19 @@ def build_parser() -> argparse.ArgumentParser:
         default="data/interim/market_regime",
         help="Directory for per-symbol feather caches and the joined market panel.",
     )
-    market_regime_sync.add_argument("--period", default="max", help="Yahoo history period.")
+    market_regime_sync.add_argument(
+        "--period",
+        default=DEFAULT_INCREMENTAL_PERIOD,
+        help=f"Yahoo recent-history period for incremental refresh. Defaults to {DEFAULT_INCREMENTAL_PERIOD}.",
+    )
     market_regime_sync.add_argument("--interval", default="1d", help="Yahoo history interval.")
     market_regime_sync.add_argument("--start-date", default=None, help="Optional panel start date.")
     market_regime_sync.add_argument("--end-date", default=None, help="Optional panel end date.")
+    market_regime_sync.add_argument(
+        "--force",
+        action="store_true",
+        help="Re-download full symbol history instead of merging recent data into cached history.",
+    )
 
     regime_report_multi = subparsers.add_parser(
         "regime-report-multi",
@@ -660,6 +715,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                 interval=args.interval,
                 start_date=args.start_date,
                 end_date=args.end_date,
+                force=bool(args.force),
             )
         except (RuntimeError, ValueError) as exc:
             print(f"market-regime-sync: {exc}", file=sys.stderr)
@@ -713,6 +769,21 @@ def main(argv: Sequence[str] | None = None) -> int:
             )
         except ValueError as exc:
             print(f"regime-detect-multi: {exc}", file=sys.stderr)
+            return 2
+        return 0
+    if args.command == "regime-detect-v2":
+        try:
+            run_regime_engine_v2_detection(
+                regime_engine_config=args.config,
+                macro_panel_path=args.macro_panel,
+                fred_series_config=args.fred_series_config,
+                market_panel_path=args.market_panel,
+                market_regime_config=args.market_regime_config,
+                output_path=Path(args.output),
+                latest_only=bool(args.latest_only),
+            )
+        except ValueError as exc:
+            print(f"regime-detect-v2: {exc}", file=sys.stderr)
             return 2
         return 0
     if args.command == "regime-run-report":

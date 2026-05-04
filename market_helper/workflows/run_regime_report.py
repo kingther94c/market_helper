@@ -9,6 +9,7 @@ from typing import Sequence
 
 from market_helper.data_sources.fred.macro_panel import DEFAULT_PANEL_FILENAME
 from market_helper.data_sources.yahoo_finance.market_panel import (
+    DEFAULT_INCREMENTAL_PERIOD,
     DEFAULT_MARKET_CACHE_DIR,
     DEFAULT_MARKET_PANEL_FILENAME,
 )
@@ -106,7 +107,7 @@ def refresh_data_and_run_regime_report(
     market_start_date: str | None = None,
     market_end_date: str | None = None,
     fred_api_key: str | None = None,
-    yahoo_period: str = "max",
+    yahoo_period: str = DEFAULT_INCREMENTAL_PERIOD,
     yahoo_interval: str = "1d",
     latest_only: bool = False,
 ) -> RegimeReportRunResult:
@@ -161,6 +162,7 @@ def refresh_data_and_run_regime_report(
             interval=yahoo_interval,
             start_date=market_start_date,
             end_date=market_end_date,
+            force=force_refresh,
         )
         refreshed_market_panel = True
 

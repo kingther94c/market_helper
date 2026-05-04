@@ -106,6 +106,8 @@ Detection / policy / CLI / HTML / operator entry points all landed. Detail in `D
 
 **Active methodology:** 2D `(growth × inflation)` quadrant taxonomy — Goldilocks / Reflation / Stagflation / Deflationary Slowdown — with an orthogonal risk-on/risk-off overlay. Two methods ship today: `macro_regime` (FRED panel, fast/slow buckets, raw signed aggregation, `fast=0.70 / slow=0.30` default per axis) and `market_regime` (Yahoo panel, equity/credit/vol proxies). Ensemble aligns on common dates, votes per axis with confidence weighting, ORs the risk-off flag, reports `method_agreement`. Policy resolution: quadrant table + crisis overlay (`equity_shift_pct * crisis_intensity` from EQ into CASH/GOLD/FI, vol multiplier reduced).
 
+**Regime Engine v2 replacement track:** isolated `regime-detect-v2` path added with dashboard-ready `regime-engine-v2` output, independent risk overlay, disabled/unavailable ML layer status handling, separate model selector interface, and incremental market panel cache merge/validation. Design note: `DEV_DOCS/docs/regime_engine_v2.md`.
+
 **Outstanding:**
 
 1. **GUI action integration** — call `regime-refresh-report` / `regime-run-report` from NiceGUI, mirroring the performance/risk action pattern.

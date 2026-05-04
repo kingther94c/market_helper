@@ -1,0 +1,53 @@
+regime_engine:
+  version: 2
+
+  layers:
+    macro_nowcast:
+      enabled: true
+      available_required: false
+      weight_growth: 0.50
+      weight_inflation: 0.50
+
+    market_implied:
+      enabled: true
+      available_required: false
+      weight_growth: 0.50
+      weight_inflation: 0.50
+
+    macro_truth_ml:
+      enabled: false
+      available_required: false
+      model_type: svm
+      weight_growth: 0.00
+      weight_inflation: 0.00
+
+    return_truth_ml:
+      enabled: false
+      available_required: false
+      model_type: svm
+      weight_growth: 0.00
+      weight_inflation: 0.00
+
+  risk_overlay:
+    enabled: true
+    independent: true
+    enter_threshold: 0.75
+    exit_threshold: 0.55
+    min_consecutive_days: 3
+
+  regime_thresholds:
+    growth_up: 0.35
+    growth_down: -0.35
+    inflation_up: 0.35
+    inflation_down: -0.35
+
+  confidence:
+    enabled: true
+    score_strength_thresholds:
+      medium: 0.35
+      high: 0.75
+    disagreement_penalty: true
+
+  disagreement:
+    enabled: true
+    strong_disagreement_threshold: 0.70
