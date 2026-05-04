@@ -112,8 +112,8 @@ def test_calibration_workflow_writes_html_summary_and_question_notebook(tmp_path
     artifacts = run_regime_v2_calibration(
         macro_panel_path=macro_panel,
         fred_series_config=fred_config,
-        market_panel_path=None,
-        market_regime_config=None,
+        market_panel_path=tmp_path / "missing_market_panel.feather",
+        market_regime_config=tmp_path / "missing_market_regime.yml",
         output_dir=tmp_path / "calibration",
         html_output=html_path,
         notebook_output=notebook_path,
@@ -126,6 +126,7 @@ def test_calibration_workflow_writes_html_summary_and_question_notebook(tmp_path
     html = html_path.read_text(encoding="utf-8")
     assert "Regime Engine v2 Calibration Report" in html
     assert "2025 April Liberation Day Tariff Shock" in html
+    assert "Market Cover" in html
     notebook = json.loads(notebook_path.read_text(encoding="utf-8"))
     assert notebook["cells"]
     assert all("Observation:" in "".join(cell["source"]) for cell in notebook["cells"])
@@ -155,6 +156,32 @@ def test_summarize_anchor_periods_reports_missing_windows() -> None:
     assert "No engine rows" in summaries[0]["observation"]
 
 
+def test_summarize_anchor_periods_exposes_layer_coverage_limits() -> None:
+    cfg = RegimeEngineConfig(
+        layers={
+            "macro_nowcast": LayerConfig(enabled=True, weight_growth=1.0, weight_inflation=1.0),
+            "market_implied": LayerConfig(enabled=False),
+            "macro_truth_ml": LayerConfig(enabled=False, model_type="svm"),
+            "return_truth_ml": LayerConfig(enabled=False, model_type="svm"),
+        }
+    )
+    results = run_regime_engine_v2(
+        config=cfg,
+        macro_panel=_macro_panel(n=30),
+        macro_specs=_macro_specs(),
+    )
+    summaries = summarize_anchor_periods(
+        results,
+        anchors=[AnchorPeriod("Covered Macro Only", "2025-01-01", "2025-01-31", "Expected", "Question?")],
+    )
+
+    assert summaries[0]["available"] is True
+    assert summaries[0]["macro_coverage_share"] == 1.0
+    assert summaries[0]["market_coverage_share"] == 0.0
+    assert summaries[0]["risk_coverage_share"] == 0.0
+    assert "coverage macro/market/risk 100%/0%/0%" in summaries[0]["observation"]
+
+
 def test_cli_regime_calibrate_v2_dispatches(tmp_path: Path) -> None:
     macro_panel = tmp_path / "macro_panel.feather"
     fred_config = tmp_path / "fred_series.yml"
@@ -181,6 +208,10 @@ def test_cli_regime_calibrate_v2_dispatches(tmp_path: Path) -> None:
             str(macro_panel),
             "--fred-series-config",
             str(fred_config),
+            "--market-panel",
+            str(tmp_path / "missing_market_panel.feather"),
+            "--market-regime-config",
+            str(tmp_path / "missing_market_regime.yml"),
             "--output-dir",
             str(output_dir),
             "--html-output",

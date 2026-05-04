@@ -180,7 +180,6 @@ def run_regime_v2_calibration(
     daily_json_path = output_root / "regime_v2_calibration_daily.json"
     summary_json_path = output_root / "regime_v2_calibration_summary.json"
 
-    rows = [result.to_dict() for result in results]
     compact_rows = [_compact_daily_row(result) for result in results]
     summaries = summarize_anchor_periods(results, ANCHOR_PERIODS)
     diagnostics = _input_diagnostics(
@@ -191,7 +190,7 @@ def run_regime_v2_calibration(
     )
     recommendations = _recommendations(summaries, diagnostics)
 
-    daily_json_path.write_text(json.dumps(compact_rows, indent=2), encoding="utf-8")
+    daily_json_path.write_text(json.dumps(compact_rows, separators=(",", ":")), encoding="utf-8")
     summary_json_path.write_text(
         json.dumps(
             {
@@ -208,7 +207,7 @@ def run_regime_v2_calibration(
         summaries=summaries,
         diagnostics=diagnostics,
         recommendations=recommendations,
-        latest=rows[-1],
+        latest=results[-1].to_dict(),
     )
     _write_review_notebook(
         notebook_path,
@@ -233,7 +232,7 @@ def summarize_anchor_periods(
     results: Sequence[FinalRegimeResult],
     anchors: Sequence[AnchorPeriod] = ANCHOR_PERIODS,
 ) -> list[dict[str, Any]]:
-    frame = pd.DataFrame([result.to_dict() for result in results])
+    frame = pd.DataFrame([_summary_row(result) for result in results])
     frame["date"] = pd.to_datetime(frame["date"])
     summaries: list[dict[str, Any]] = []
     for anchor in anchors:
@@ -261,12 +260,18 @@ def summarize_anchor_periods(
         macro_inflation = _mean_optional(window["macro_inflation_score"])
         market_growth = _mean_optional(window["market_growth_score"])
         market_inflation = _mean_optional(window["market_inflation_score"])
+        macro_coverage = _score_coverage(window, "macro_growth_score", "macro_inflation_score")
+        market_coverage = _score_coverage(window, "market_growth_score", "market_inflation_score")
+        risk_coverage = float((window["risk_state"] != "Not available").mean())
         top_contributors = _aggregate_top_contributors(window["top_contributors"])
         observation = _anchor_observation(
             anchor,
             final_counts=final_counts,
             stress_share=stress_share,
             disagreement_share=disagreement_share,
+            macro_coverage=macro_coverage,
+            market_coverage=market_coverage,
+            risk_coverage=risk_coverage,
             macro_growth=macro_growth,
             macro_inflation=macro_inflation,
             market_growth=market_growth,
@@ -287,6 +292,9 @@ def summarize_anchor_periods(
                 "base_regime_counts": base_counts,
                 "stress_share": stress_share,
                 "disagreement_share": disagreement_share,
+                "macro_coverage_share": macro_coverage,
+                "market_coverage_share": market_coverage,
+                "risk_coverage_share": risk_coverage,
                 "macro_growth_mean": macro_growth,
                 "macro_inflation_mean": macro_inflation,
                 "market_growth_mean": market_growth,
@@ -342,6 +350,14 @@ def _compact_daily_row(result: FinalRegimeResult) -> dict[str, Any]:
     }
 
 
+def _summary_row(result: FinalRegimeResult) -> dict[str, Any]:
+    return {
+        **_compact_daily_row(result),
+        "top_contributors": [list(item) for item in result.top_contributors],
+        "risk_state": result.risk_output.risk_state,
+    }
+
+
 def _recommendations(summaries: Sequence[Mapping[str, Any]], diagnostics: Mapping[str, Any]) -> list[str]:
     recs: list[str] = []
     if not diagnostics.get("market_panel", {}).get("available"):
@@ -359,10 +375,19 @@ def _recommendations(summaries: Sequence[Mapping[str, Any]], diagnostics: Mappin
     weak_market = [
         item["name"]
         for item in summaries
-        if item.get("available") and item.get("market_growth_mean") is None and item.get("market_inflation_mean") is None
+        if item.get("available") and float(item.get("market_coverage_share") or 0.0) < 0.80
     ]
     if weak_market:
-        recs.append("Market layer is unavailable in at least one anchor; avoid changing market thresholds until the panel is present.")
+        recs.append(
+            "Market layer coverage is insufficient in at least one anchor; avoid market_implied calibration until full-history market data is present."
+        )
+    weak_risk = [
+        item["name"]
+        for item in summaries
+        if item.get("available") and float(item.get("risk_coverage_share") or 0.0) < 0.80
+    ]
+    if weak_risk:
+        recs.append("Risk overlay coverage is incomplete in at least one anchor; stress-share conclusions are coverage-limited.")
     recs.append("Prefer config-only changes first: thresholds, layer weights, market lookbacks, and macro bucket weights.")
     return recs
 
@@ -425,7 +450,7 @@ def _write_review_notebook(
         _markdown_cell(
             "## Data Coverage\n\n"
             f"Observation: Macro panel is {_availability_text(diagnostics.get('macro_panel', {}))}; market panel is {_availability_text(diagnostics.get('market_panel', {}))}.\n\n"
-            "Question: Should we require a refreshed market panel before making any market_implied calibration decision?"
+            "Question: Should we require full-history market coverage before making any market_implied or risk-overlay calibration decision?"
         ),
     ]
     for summary in summaries:
@@ -502,6 +527,9 @@ def _render_anchor_table(summaries: Sequence[Mapping[str, Any]]) -> str:
             f"<td>{escape(str(item.get('final_regime_majority') or 'Unavailable'))}</td>"
             f"<td>{_fmt_pct(item.get('stress_share'))}</td>"
             f"<td>{_fmt_pct(item.get('disagreement_share'))}</td>"
+            f"<td>{_fmt_pct(item.get('macro_coverage_share'))}</td>"
+            f"<td>{_fmt_pct(item.get('market_coverage_share'))}</td>"
+            f"<td>{_fmt_pct(item.get('risk_coverage_share'))}</td>"
             f"<td>{_fmt_num(item.get('macro_growth_mean'))} / {_fmt_num(item.get('macro_inflation_mean'))}</td>"
             f"<td>{_fmt_num(item.get('market_growth_mean'))} / {_fmt_num(item.get('market_inflation_mean'))}</td>"
             "</tr>"
@@ -509,7 +537,7 @@ def _render_anchor_table(summaries: Sequence[Mapping[str, Any]]) -> str:
     return (
         '<section class="panel">'
         "<h2>Anchor Period Summary</h2>"
-        "<table><thead><tr><th>Period</th><th>Window</th><th>Majority Regime</th><th>Stress</th><th>Disagreement</th><th>Macro G/I</th><th>Market G/I</th></tr></thead>"
+        "<table><thead><tr><th>Period</th><th>Window</th><th>Majority Regime</th><th>Stress</th><th>Disagreement</th><th>Macro Cover</th><th>Market Cover</th><th>Risk Cover</th><th>Macro G/I</th><th>Market G/I</th></tr></thead>"
         f"<tbody>{''.join(rows)}</tbody></table>"
         "</section>"
     )
@@ -577,6 +605,9 @@ def _anchor_observation(
     final_counts: Sequence[tuple[str, int]],
     stress_share: float,
     disagreement_share: float,
+    macro_coverage: float,
+    market_coverage: float,
+    risk_coverage: float,
     macro_growth: float | None,
     macro_inflation: float | None,
     market_growth: float | None,
@@ -587,7 +618,8 @@ def _anchor_observation(
     market = "market unavailable" if market_growth is None and market_inflation is None else f"market G/I {market_growth:.2f}/{market_inflation:.2f}"
     return (
         f"{anchor.name} majority regime is {majority}; stress share {stress_share:.0%}; "
-        f"disagreement share {disagreement_share:.0%}; {macro}; {market}."
+        f"disagreement share {disagreement_share:.0%}; coverage macro/market/risk "
+        f"{macro_coverage:.0%}/{market_coverage:.0%}/{risk_coverage:.0%}; {macro}; {market}."
     )
 
 
@@ -601,6 +633,12 @@ def _mean_optional(series: pd.Series) -> float | None:
     if clean.empty:
         return None
     return float(clean.mean())
+
+
+def _score_coverage(frame: pd.DataFrame, growth_col: str, inflation_col: str) -> float:
+    growth = pd.to_numeric(frame[growth_col], errors="coerce")
+    inflation = pd.to_numeric(frame[inflation_col], errors="coerce")
+    return float((growth.notna() & inflation.notna()).mean())
 
 
 def _aggregate_top_contributors(series: pd.Series) -> list[tuple[str, float]]:
