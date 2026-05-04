@@ -108,13 +108,15 @@ Detection / policy / CLI / HTML / operator entry points all landed. Detail in `D
 
 **Regime Engine v2 replacement track:** `regime-run-report` and `regime-refresh-report` are v2-backed. Deprecated `regime-detect-multi` / `regime-report-multi` remain available for old `regime-multi-v1` fixtures only. Design note: `DEV_DOCS/docs/regime_engine_v2.md`.
 
+**Calibration workflow:** `regime-calibrate-v2` generates a research-only HTML calibration report and question-driven notebook for macro_nowcast / market_implied anchor-window review. It includes the April 2025 Liberation Day tariff-shock window and reports missing market-panel coverage explicitly instead of fabricating market-implied output.
+
 **Outstanding:**
 
 1. **GUI action integration** — call `regime-refresh-report` / `regime-run-report` from NiceGUI, mirroring the performance/risk action pattern.
-2. **Calibration notebook pass** — run macro/market notebook over GFC, COVID, 2022 inflation, 2023 disinflation, current data; adjust YAML weights before changing code.
+2. **Calibration decision pass** — review the generated HTML/notebook observations, then decide whether to adjust YAML thresholds/weights before changing code.
 3. **ML inference implementation** — wire selected model artifacts into actual `macro_truth_ml` / `return_truth_ml` predictions after feature schemas and artifact lifecycle are finalized.
 4. **Backtest sanity harness** — 15-year window, validate against GFC, COVID, 2017 Goldilocks, 2022 Reflation/Stagflation turn; commit fixture snapshots.
-5. **Calibration notebook** — walk-forward tuning of `zscore_window_bdays`, `min_consecutive_days`, layer weights, and risk-overlay thresholds.
+5. **Calibration tuning pass** — walk-forward tuning of `zscore_window_bdays`, `min_consecutive_days`, layer weights, and risk-overlay thresholds after anchor-window review.
 
 ## Backlog
 

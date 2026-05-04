@@ -27,6 +27,7 @@ from market_helper.workflows.generate_multi_method_regime import (
     run_multi_method_detection,
 )
 from market_helper.workflows.generate_regime_v2 import run_regime_engine_v2_detection
+from market_helper.workflows.regime_v2_calibration import run_regime_v2_calibration
 from market_helper.workflows.run_regime_report import (
     refresh_data_and_run_regime_report,
     run_regime_report_from_existing_data,
@@ -383,6 +384,51 @@ def build_parser() -> argparse.ArgumentParser:
         "--latest-only",
         action="store_true",
         help="Emit only the most-recent result.",
+    )
+
+    regime_calibrate_v2 = subparsers.add_parser(
+        "regime-calibrate-v2",
+        help="Generate research-only Regime Engine v2 calibration HTML and notebook artifacts.",
+    )
+    regime_calibrate_v2.add_argument(
+        "--config",
+        default=None,
+        help="Path to Regime Engine v2 YAML. Defaults to built-in v2 config.",
+    )
+    regime_calibrate_v2.add_argument(
+        "--macro-panel",
+        default=None,
+        help="Path to the joined FRED panel feather. Defaults to data/interim/fred/macro_panel.feather.",
+    )
+    regime_calibrate_v2.add_argument(
+        "--fred-series-config",
+        default=None,
+        help="Path to FRED series YAML. Defaults to configs/regime_detection/fred_series.yml.",
+    )
+    regime_calibrate_v2.add_argument(
+        "--market-panel",
+        default=None,
+        help="Path to the joined market price panel feather. Defaults to data/interim/market_regime/market_panel.feather.",
+    )
+    regime_calibrate_v2.add_argument(
+        "--market-regime-config",
+        default=None,
+        help="Path to market-implied regime YAML. Defaults to configs/regime_detection/market_regime.yml.",
+    )
+    regime_calibrate_v2.add_argument(
+        "--output-dir",
+        default="data/artifacts/regime_detection/calibration",
+        help="Directory for calibration JSON/HTML artifacts.",
+    )
+    regime_calibrate_v2.add_argument(
+        "--html-output",
+        default=None,
+        help="Optional explicit HTML report path.",
+    )
+    regime_calibrate_v2.add_argument(
+        "--notebook-output",
+        default=None,
+        help="Optional explicit notebook path. Defaults to notebooks/regime_detection/regime_v2_calibration_questions.ipynb.",
     )
 
     regime_run_report = subparsers.add_parser(
@@ -769,6 +815,26 @@ def main(argv: Sequence[str] | None = None) -> int:
         except ValueError as exc:
             print(f"regime-detect-v2: {exc}", file=sys.stderr)
             return 2
+        return 0
+    if args.command == "regime-calibrate-v2":
+        try:
+            artifacts = run_regime_v2_calibration(
+                regime_engine_config=args.config,
+                macro_panel_path=args.macro_panel,
+                fred_series_config=args.fred_series_config,
+                market_panel_path=args.market_panel,
+                market_regime_config=args.market_regime_config,
+                output_dir=args.output_dir,
+                html_output=args.html_output,
+                notebook_output=args.notebook_output,
+            )
+        except ValueError as exc:
+            print(f"regime-calibrate-v2: {exc}", file=sys.stderr)
+            return 2
+        print(f"html={artifacts.html_path}")
+        print(f"notebook={artifacts.notebook_path}")
+        print(f"daily_json={artifacts.daily_json_path}")
+        print(f"summary_json={artifacts.summary_json_path}")
         return 0
     if args.command == "regime-run-report":
         method_list = [m.strip() for m in str(args.methods).split(",") if m.strip()]
