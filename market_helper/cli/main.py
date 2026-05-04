@@ -40,11 +40,6 @@ from market_helper.domain.regime_detection.policies.regime_policy import (
     resolve_policy,
 )
 from market_helper.domain.regime_detection.services.detection_service import load_regime_snapshots
-from market_helper.suggest.quadrant_policy import (
-    load_crisis_overlay,
-    load_quadrant_policy,
-    resolve_quadrant_policy,
-)
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -309,7 +304,7 @@ def build_parser() -> argparse.ArgumentParser:
 
     regime_detect_multi = subparsers.add_parser(
         "regime-detect-multi",
-        help="Run multi-method regime detection (macro_regime + market_regime) and write ensemble JSON.",
+        help="Deprecated: run legacy multi-method regime detection and write regime-multi-v1 JSON.",
     )
     regime_detect_multi.add_argument(
         "--methods",
@@ -392,13 +387,13 @@ def build_parser() -> argparse.ArgumentParser:
 
     regime_run_report = subparsers.add_parser(
         "regime-run-report",
-        help="Run multi-method regime detection from existing local data and generate HTML.",
+        help="Run Regime Engine v2 from existing local data and generate HTML.",
     )
     _add_regime_report_run_args(regime_run_report)
 
     regime_refresh_report = subparsers.add_parser(
         "regime-refresh-report",
-        help="Refresh stale online regime inputs, run all regimes, and generate HTML.",
+        help="Refresh stale online regime inputs, run Regime Engine v2, and generate HTML.",
     )
     _add_regime_report_run_args(regime_refresh_report)
     regime_refresh_report.add_argument(
@@ -478,22 +473,16 @@ def build_parser() -> argparse.ArgumentParser:
 
     regime_report_multi = subparsers.add_parser(
         "regime-report-multi",
-        help="Print a human-readable summary of the latest multi-method regime snapshot + quadrant policy.",
+        help="Deprecated: print a human-readable summary of the latest regime-multi-v1 snapshot.",
     )
     regime_report_multi.add_argument(
         "--regime",
         required=True,
         help="Path to multi-method regime snapshots JSON.",
     )
-    regime_report_multi.add_argument(
-        "--policy",
-        required=False,
-        help="Optional quadrant policy YAML overrides. Example: configs/regime_detection/quadrant_policy.yml.",
-    )
-
     regime_html_report = subparsers.add_parser(
         "regime-html-report",
-        help="Generate a standalone HTML report from multi-method regime snapshots.",
+        help="Generate a standalone HTML report from Regime Engine v2 or legacy regime snapshots.",
     )
     regime_html_report.add_argument(
         "--regime",
@@ -504,11 +493,6 @@ def build_parser() -> argparse.ArgumentParser:
         "--output",
         required=True,
         help="Path to output HTML.",
-    )
-    regime_html_report.add_argument(
-        "--policy",
-        required=False,
-        help="Optional quadrant policy YAML overrides.",
     )
 
     regime_report = subparsers.add_parser(
@@ -577,6 +561,11 @@ def _add_regime_report_run_args(parser: argparse.ArgumentParser) -> None:
         help="Path to market regime YAML. Defaults to configs/regime_detection/market_regime.yml.",
     )
     parser.add_argument(
+        "--regime-engine-config",
+        default=None,
+        help="Path to Regime Engine v2 YAML. Defaults to configs/regime_detection/regime_engine_v2.yml.",
+    )
+    parser.add_argument(
         "--output-regime",
         default="data/artifacts/regime_detection/regime_snapshots.json",
         help="Path to output multi-method regime JSON.",
@@ -585,11 +574,6 @@ def _add_regime_report_run_args(parser: argparse.ArgumentParser) -> None:
         "--output-html",
         default="data/artifacts/regime_detection/regime_report.html",
         help="Path to output standalone regime HTML.",
-    )
-    parser.add_argument(
-        "--policy",
-        required=False,
-        help="Optional quadrant policy YAML overrides.",
     )
     parser.add_argument(
         "--latest-only",
@@ -797,9 +781,9 @@ def main(argv: Sequence[str] | None = None) -> int:
                 fred_series_config=args.fred_series_config,
                 market_panel_path=args.market_panel,
                 market_regime_config=args.market_regime_config,
+                regime_engine_config=args.regime_engine_config,
                 output_regime_path=Path(args.output_regime),
                 output_html_path=Path(args.output_html),
-                policy_path=Path(args.policy) if args.policy else None,
                 latest_only=bool(args.latest_only),
             )
         except (FileNotFoundError, RuntimeError, ValueError) as exc:
@@ -823,9 +807,9 @@ def main(argv: Sequence[str] | None = None) -> int:
                 market_panel_path=args.market_panel,
                 market_cache_dir=Path(args.market_cache_dir),
                 market_regime_config=args.market_regime_config,
+                regime_engine_config=args.regime_engine_config,
                 output_regime_path=Path(args.output_regime),
                 output_html_path=Path(args.output_html),
-                policy_path=Path(args.policy) if args.policy else None,
                 fred_observation_start=args.fred_observation_start,
                 macro_start_date=args.macro_start_date,
                 macro_end_date=args.macro_end_date,
@@ -853,15 +837,6 @@ def main(argv: Sequence[str] | None = None) -> int:
             print("No multi-method regime snapshots found.")
             return 0
         latest = snapshots[-1]
-        quadrant_policy = load_quadrant_policy(
-            Path(args.policy) if args.policy else None
-        )
-        crisis_overlay = load_crisis_overlay(
-            Path(args.policy) if args.policy else None
-        )
-        decision = resolve_quadrant_policy(
-            latest.ensemble, policy=quadrant_policy, overlay=crisis_overlay
-        )
         print(f"as_of={latest.as_of}")
         print(f"ensemble_quadrant={latest.ensemble.quadrant}")
         print(f"crisis_flag={latest.ensemble.crisis_flag}")
@@ -872,17 +847,13 @@ def main(argv: Sequence[str] | None = None) -> int:
         for name, result in latest.per_method.items():
             native = f" native={result.native_label}" if result.native_label else ""
             print(f"  method={name} quadrant={result.quadrant.quadrant}{native}")
-        print(f"vol_multiplier={decision.vol_multiplier:.2f}")
-        print(f"asset_class_targets={decision.asset_class_targets}")
-        if decision.notes:
-            print(f"notes={decision.notes}")
         return 0
     if args.command == "regime-html-report":
         try:
             generate_regime_html_report(
                 regime_path=Path(args.regime),
                 output_path=Path(args.output),
-                policy_path=Path(args.policy) if args.policy else None,
+                policy_path=None,
             )
         except (FileNotFoundError, ValueError) as exc:
             print(f"regime-html-report: {exc}", file=sys.stderr)

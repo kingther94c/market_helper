@@ -302,6 +302,10 @@ class RegimeReportSummary:
     crisis_flag: bool | None = None
     crisis_intensity: float | None = None
     per_method: list[dict[str, str]] | None = None
+    confidence: str | None = None
+    disagreement_flag: bool | None = None
+    disagreement_summary: str | None = None
+    risk_state: str | None = None
 
 
 @dataclass(frozen=True)
@@ -1453,6 +1457,18 @@ def render_risk_tab(view_model: RiskReportViewModel) -> str:
             regime_badges.append(
                 f"<span><strong>Agreement</strong>: {regime_summary.method_agreement:.0%}</span>"
             )
+        if regime_summary.confidence:
+            regime_badges.append(
+                f"<span><strong>Confidence</strong>: {html.escape(regime_summary.confidence)}</span>"
+            )
+        if regime_summary.disagreement_flag is not None:
+            regime_badges.append(
+                f"<span><strong>Disagreement</strong>: {'yes' if regime_summary.disagreement_flag else 'no'}</span>"
+            )
+        if regime_summary.risk_state:
+            regime_badges.append(
+                f"<span><strong>Risk</strong>: {html.escape(regime_summary.risk_state)}</span>"
+            )
         if regime_summary.crisis_flag is not None:
             crisis_label = "on" if regime_summary.crisis_flag else "off"
             regime_badges.append(
@@ -1465,7 +1481,7 @@ def render_risk_tab(view_model: RiskReportViewModel) -> str:
         score_list = " ".join(
             f"<span><strong>{html.escape(name)}</strong>: {value:.2f}</span>"
             for name, value in sorted(regime_summary.scores.items())
-            if name in {"VOL", "CREDIT", "RATES", "GROWTH", "TREND", "STRESS", "INFLATION"}
+            if name in {"VOL", "CREDIT", "RATES", "GROWTH", "TREND", "STRESS", "INFLATION", "RISK"}
         )
         badge_list = " ".join(regime_badges)
         method_rows = ""
@@ -1482,7 +1498,7 @@ def render_risk_tab(view_model: RiskReportViewModel) -> str:
                 )
             method_rows = (
                 "<table class='report-table'>"
-                "<thead><tr><th>Method</th><th>Quadrant</th><th>Native Label</th></tr></thead>"
+                "<thead><tr><th>Layer</th><th>State</th><th>Status</th></tr></thead>"
                 f"<tbody>{''.join(method_items)}</tbody>"
                 "</table>"
             )
@@ -3886,6 +3902,8 @@ def _load_regime_summary(path: str | Path | None) -> RegimeReportSummary | None:
     row = loaded[-1]
     if not isinstance(row, dict):
         return None
+    if str(row.get("version") or "") == "regime-engine-v2":
+        return _load_v2_regime_summary(row)
     if str(row.get("version") or "") == "regime-multi-v1" or isinstance(row.get("ensemble"), dict):
         return _load_multi_method_regime_summary(row)
     scores = row.get("scores") if isinstance(row.get("scores"), dict) else {}
@@ -3946,6 +3964,65 @@ def _load_multi_method_regime_summary(row: dict[str, Any]) -> RegimeReportSummar
             else None
         ),
         per_method=method_summaries,
+    )
+
+
+def _load_v2_regime_summary(row: dict[str, Any]) -> RegimeReportSummary:
+    scores: dict[str, float] = {}
+    if row.get("final_growth_score") is not None:
+        scores["GROWTH"] = float(row.get("final_growth_score") or 0.0)
+    if row.get("final_inflation_score") is not None:
+        scores["INFLATION"] = float(row.get("final_inflation_score") or 0.0)
+    if row.get("risk_score") is not None:
+        scores["RISK"] = float(row.get("risk_score") or 0.0)
+
+    layer_summaries: list[dict[str, str]] = []
+    layer_outputs = row.get("layer_outputs") if isinstance(row.get("layer_outputs"), list) else []
+    for layer in layer_outputs:
+        if not isinstance(layer, dict):
+            continue
+        if not bool(layer.get("enabled")):
+            status = "Disabled"
+            state = "Disabled"
+        elif not bool(layer.get("available")):
+            diagnostics = layer.get("diagnostics") if isinstance(layer.get("diagnostics"), dict) else {}
+            status = str(diagnostics.get("reason") or "Not available")
+            state = "Not available"
+        else:
+            confidence = layer.get("confidence")
+            status = f"confidence {float(confidence):.2f}" if confidence is not None else "Available"
+            state = f"{layer.get('growth_state', 'n/a')} / {layer.get('inflation_state', 'n/a')}"
+        layer_summaries.append(
+            {
+                "method": str(layer.get("layer_name") or "unknown"),
+                "quadrant": state,
+                "native_label": status,
+            }
+        )
+
+    risk_output = row.get("risk_output") if isinstance(row.get("risk_output"), dict) else {}
+    return RegimeReportSummary(
+        as_of=str(row.get("date") or ""),
+        regime=str(row.get("final_regime") or "Unknown"),
+        scores=scores,
+        version=str(row.get("version") or "regime-engine-v2"),
+        crisis_flag=(
+            bool(row["risk_overlay_on"])
+            if row.get("risk_overlay_on") is not None
+            else None
+        ),
+        crisis_intensity=(
+            float(row["risk_score"]) if row.get("risk_score") is not None else None
+        ),
+        per_method=layer_summaries,
+        confidence=str(row.get("confidence") or ""),
+        disagreement_flag=(
+            bool(row["disagreement_flag"])
+            if row.get("disagreement_flag") is not None
+            else None
+        ),
+        disagreement_summary=str(row.get("disagreement_summary") or ""),
+        risk_state=str(risk_output.get("risk_state") or ""),
     )
 
 

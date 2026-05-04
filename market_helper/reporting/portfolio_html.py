@@ -212,8 +212,6 @@ def build_regime_ribbon_html(view_model: RegimeHtmlViewModel | None) -> str:
         meta_pieces.append(f"Agreement <b>{view_model.method_agreement:.0%}</b>")
     if view_model.duration_days is not None:
         meta_pieces.append(f"Duration <b class='num'>{view_model.duration_days}d</b>")
-    if view_model.vol_multiplier is not None:
-        meta_pieces.append(f"Vol mult <b class='num'>{view_model.vol_multiplier:.2f}×</b>")
     if meta_pieces:
         pieces.append(
             "<div class='regime-ribbon__meta'>"

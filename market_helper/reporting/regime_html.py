@@ -10,20 +10,11 @@ from pathlib import Path
 from typing import Any
 
 from market_helper.common.datetime_display import format_local_datetime
-from market_helper.domain.regime_detection.policies.regime_policy import (
-    load_regime_policy,
-    resolve_policy,
-)
 from market_helper.domain.regime_detection.services.detection_service import (
     load_regime_snapshots,
 )
 from market_helper.regimes.models import MultiMethodRegimeSnapshot
 from market_helper.reporting._design_tokens import design_tokens_css
-from market_helper.suggest.quadrant_policy import (
-    load_crisis_overlay,
-    load_quadrant_policy,
-    resolve_quadrant_policy,
-)
 
 
 @dataclass(frozen=True)
@@ -41,13 +32,6 @@ class RegimeHtmlTimelineRow:
     crisis_flag: bool | None
     crisis_intensity: float | None
     duration_days: int | None
-
-
-@dataclass(frozen=True)
-class RegimeHtmlPolicySummary:
-    vol_multiplier: float
-    asset_class_targets: dict[str, float]
-    notes: str
 
 
 @dataclass(frozen=True)
@@ -89,12 +73,14 @@ class RegimeHtmlViewModel:
     methods: list[RegimeHtmlMethodRow]
     timeline: list[RegimeHtmlTimelineRow]
     regime_counts: dict[str, int]
-    policy: RegimeHtmlPolicySummary | None
     # P5 additions — derived from the same snapshots payload, no new I/O.
     axes_history: list[RegimeHtmlAxisHistoryPoint] = field(default_factory=list)
     method_vote_history: list[RegimeHtmlMethodVoteHistoryPoint] = field(default_factory=list)
     transitions: list[RegimeHtmlTransitionEvent] = field(default_factory=list)
-    vol_multiplier: float | None = None  # convenience for ribbon header
+    confidence: str | None = None
+    disagreement_flag: bool | None = None
+    disagreement_summary: str | None = None
+    risk_state: str | None = None
 
 
 def build_regime_html_view_model(
@@ -108,6 +94,8 @@ def build_regime_html_view_model(
     latest = payload[-1]
     if not isinstance(latest, dict):
         raise ValueError("Regime HTML report requires object rows")
+    if str(latest.get("version") or "") == "regime-engine-v2":
+        return _build_v2_view_model(payload)
     if str(latest.get("version") or "") == "regime-multi-v1" or isinstance(latest.get("ensemble"), dict):
         return _build_multi_method_view_model(payload, policy_path=policy_path)
     return _build_legacy_view_model(regime_path=regime_path, policy_path=policy_path)
@@ -143,7 +131,6 @@ def render_regime_section_body(
         f"{_render_crisis_intensity_chart(view_model)}"
         f"{_render_method_vote_strip(view_model)}"
         f"{_render_transitions(view_model)}"
-        f"{_render_policy(view_model.policy)}"
         f"{_render_methods(view_model.methods)}"
         f"{_render_timeline(view_model.timeline)}"
         f"{_render_counts(view_model.regime_counts)}"
@@ -223,11 +210,6 @@ def _build_multi_method_view_model(
     latest = snapshots[-1]
     ensemble = latest.ensemble
     diagnostics = ensemble.diagnostics or {}
-    policy = resolve_quadrant_policy(
-        ensemble,
-        policy=load_quadrant_policy(policy_path),
-        overlay=load_crisis_overlay(policy_path),
-    )
     axes_history = [
         RegimeHtmlAxisHistoryPoint(
             as_of=snap.as_of,
@@ -300,15 +282,89 @@ def _build_multi_method_view_model(
             for snap in snapshots[-60:]
         ],
         regime_counts=dict(Counter(snap.ensemble.quadrant for snap in snapshots)),
-        policy=RegimeHtmlPolicySummary(
-            vol_multiplier=policy.vol_multiplier,
-            asset_class_targets=policy.asset_class_targets,
-            notes=policy.notes,
-        ),
         axes_history=axes_history,
         method_vote_history=method_vote_history,
         transitions=transitions,
-        vol_multiplier=policy.vol_multiplier,
+    )
+
+
+def _build_v2_view_model(payload: list[Any]) -> RegimeHtmlViewModel:
+    rows = [dict(row) for row in payload if isinstance(row, dict)]
+    latest = rows[-1]
+    axes_history = [
+        RegimeHtmlAxisHistoryPoint(
+            as_of=str(row.get("date") or ""),
+            growth=_optional_float(row.get("final_growth_score")),
+            inflation=_optional_float(row.get("final_inflation_score")),
+        )
+        for row in rows[-180:]
+    ]
+    method_vote_history = [
+        RegimeHtmlMethodVoteHistoryPoint(
+            as_of=str(row.get("date") or ""),
+            quadrants={
+                str(layer.get("layer_name")): _layer_label(layer)
+                for layer in row.get("layer_outputs", [])
+                if isinstance(layer, dict)
+            },
+            crisis_flag=bool(row.get("risk_overlay_on")),
+        )
+        for row in rows[-30:]
+    ]
+    transitions: list[RegimeHtmlTransitionEvent] = []
+    for prev, curr in zip(rows, rows[1:]):
+        if prev.get("final_regime") != curr.get("final_regime"):
+            transitions.append(
+                RegimeHtmlTransitionEvent(
+                    as_of=str(curr.get("date") or ""),
+                    from_regime=str(prev.get("final_regime") or "Unknown"),
+                    to_regime=str(curr.get("final_regime") or "Unknown"),
+                    crisis_intensity=_optional_float(curr.get("risk_score")),
+                    duration_days=None,
+                )
+            )
+    risk_output = latest.get("risk_output") if isinstance(latest.get("risk_output"), dict) else {}
+    return RegimeHtmlViewModel(
+        schema=str(latest.get("version") or "regime-engine-v2"),
+        as_of=str(latest.get("date") or ""),
+        regime=str(latest.get("final_regime") or "Unknown"),
+        scores={
+            "GROWTH": float(latest.get("final_growth_score") or 0.0),
+            "INFLATION": float(latest.get("final_inflation_score") or 0.0),
+            "RISK": float(latest.get("risk_score") or 0.0),
+        },
+        method_agreement=None,
+        crisis_flag=bool(latest.get("risk_overlay_on")),
+        crisis_intensity=_optional_float(latest.get("risk_score")),
+        duration_days=None,
+        methods=[
+            RegimeHtmlMethodRow(
+                method=str(layer.get("layer_name") or "unknown"),
+                quadrant=_layer_label(layer),
+                native_label=_layer_status(layer),
+            )
+            for layer in latest.get("layer_outputs", [])
+            if isinstance(layer, dict)
+        ],
+        timeline=[
+            RegimeHtmlTimelineRow(
+                as_of=str(row.get("date") or ""),
+                regime=str(row.get("final_regime") or "Unknown"),
+                method_agreement=None,
+                crisis_flag=bool(row.get("risk_overlay_on")),
+                crisis_intensity=_optional_float(row.get("risk_score")),
+                duration_days=None,
+            )
+            for row in rows[-60:]
+        ],
+        regime_counts=dict(Counter(str(row.get("final_regime") or "Unknown") for row in rows)),
+        axes_history=axes_history,
+        method_vote_history=method_vote_history,
+        transitions=transitions[-8:],
+        confidence=str(latest.get("confidence") or ""),
+        disagreement_flag=bool(latest.get("disagreement_flag")),
+        disagreement_summary=str(latest.get("disagreement_summary") or ""),
+        risk_state=str(risk_output.get("risk_state") or ""),
     )
 
 
@@ -321,7 +377,6 @@ def _build_legacy_view_model(
     if not snapshots:
         raise ValueError("No valid legacy regime snapshots found")
     latest = snapshots[-1]
-    decision = resolve_policy(latest, policy=load_regime_policy(policy_path))
     transitions: list[RegimeHtmlTransitionEvent] = []
     for prev, curr in zip(snapshots, snapshots[1:]):
         if prev.regime != curr.regime:
@@ -356,26 +411,30 @@ def _build_legacy_view_model(
             for snap in snapshots[-60:]
         ],
         regime_counts=dict(Counter(snap.regime for snap in snapshots)),
-        policy=RegimeHtmlPolicySummary(
-            vol_multiplier=decision.vol_multiplier,
-            asset_class_targets=decision.asset_class_targets,
-            notes=decision.notes,
-        ),
         # Legacy snapshots don't carry per-axis or per-method data; new visuals stay empty.
         axes_history=[],
         method_vote_history=[],
         transitions=transitions[-8:],
-        vol_multiplier=decision.vol_multiplier,
     )
 
 
 def _render_status_cards(view_model: RegimeHtmlViewModel) -> str:
-    cards = [
-        ("Agreement", _format_percent(view_model.method_agreement)),
-        ("Crisis", _format_bool(view_model.crisis_flag)),
-        ("Intensity", _format_float(view_model.crisis_intensity)),
-        ("Duration", _format_days(view_model.duration_days)),
-    ]
+    cards: list[tuple[str, str]] = []
+    if view_model.confidence:
+        cards.append(("Confidence", view_model.confidence))
+    if view_model.disagreement_flag is not None:
+        cards.append(("Disagreement", "Yes" if view_model.disagreement_flag else "No"))
+    if view_model.risk_state:
+        cards.append(("Risk", view_model.risk_state))
+    if view_model.method_agreement is not None:
+        cards.append(("Agreement", _format_percent(view_model.method_agreement)))
+    cards.extend(
+        [
+            ("Crisis", _format_bool(view_model.crisis_flag)),
+            ("Intensity", _format_float(view_model.crisis_intensity)),
+            ("Duration", _format_days(view_model.duration_days)),
+        ]
+    )
     return (
         "<section class='status-grid'>"
         + "".join(
@@ -581,31 +640,6 @@ def _render_transitions(view_model: RegimeHtmlViewModel) -> str:
     )
 
 
-def _render_policy(policy: RegimeHtmlPolicySummary | None) -> str:
-    if policy is None:
-        return ""
-    targets = "".join(
-        "<div class='target-row'>"
-        f"<span>{html.escape(bucket)}</span>"
-        f"<strong>{weight:.1%}</strong>"
-        "</div>"
-        for bucket, weight in sorted(policy.asset_class_targets.items())
-    )
-    return (
-        "<section class='panel'>"
-        "<h2>Policy Suggestion</h2>"
-        "<div class='policy-layout'>"
-        "<div>"
-        "<span class='label'>Vol multiplier</span>"
-        f"<strong class='large'>{policy.vol_multiplier:.2f}</strong>"
-        f"<p class='muted'>{html.escape(policy.notes)}</p>"
-        "</div>"
-        f"<div class='target-grid'>{targets}</div>"
-        "</div>"
-        "</section>"
-    )
-
-
 def _render_methods(methods: list[RegimeHtmlMethodRow]) -> str:
     if not methods:
         return ""
@@ -619,8 +653,8 @@ def _render_methods(methods: list[RegimeHtmlMethodRow]) -> str:
     )
     return (
         "<section class='panel'>"
-        "<h2>Method Votes</h2>"
-        "<table><thead><tr><th>Method</th><th>Quadrant</th><th>Native Label</th></tr></thead>"
+        "<h2>Layer Detail</h2>"
+        "<table><thead><tr><th>Layer</th><th>State</th><th>Status</th></tr></thead>"
         f"<tbody>{rows}</tbody></table>"
         "</section>"
     )
@@ -695,6 +729,33 @@ def _format_days(value: int | None) -> str:
     return f"{value}d"
 
 
+def _optional_float(value: object) -> float | None:
+    if value is None:
+        return None
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return None
+
+
+def _layer_label(layer: dict[str, Any]) -> str:
+    if not bool(layer.get("enabled")):
+        return "Disabled"
+    if not bool(layer.get("available")):
+        return "Not available"
+    return f"{layer.get('growth_state', 'n/a')} / {layer.get('inflation_state', 'n/a')}"
+
+
+def _layer_status(layer: dict[str, Any]) -> str:
+    if not bool(layer.get("enabled")):
+        return "Disabled"
+    if not bool(layer.get("available")):
+        diagnostics = layer.get("diagnostics") if isinstance(layer.get("diagnostics"), dict) else {}
+        return str(diagnostics.get("reason") or "Not available")
+    confidence = layer.get("confidence")
+    return f"confidence {float(confidence):.2f}" if confidence is not None else "Available"
+
+
 def regime_section_styles() -> str:
     """Regime-section CSS that layers on top of `design_tokens_css()`.
 
@@ -740,20 +801,18 @@ def regime_section_styles() -> str:
     .regime-panel__header h2 { margin: 0; }
     .regime-panel__meta { font-size: 12px; color: var(--muted-ink); font-variant-numeric: tabular-nums; }
 
-    .score-grid, .target-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 10px; }
-    .score-row, .target-row {
+    .score-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 10px; }
+    .score-row {
       display: grid; gap: 4px;
       border: 1px solid var(--border-soft); border-radius: var(--r-2);
       padding: 10px 12px; background: var(--surface);
     }
-    .score-row span, .target-row span, .count-row span {
+    .score-row span, .count-row span {
       font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em; color: var(--muted-ink);
     }
-    .score-row strong, .target-row strong { font-size: 18px; font-weight: 600; font-variant-numeric: tabular-nums; }
+    .score-row strong { font-size: 18px; font-weight: 600; font-variant-numeric: tabular-nums; }
     .score-spark svg { display: block; width: 100%; height: 28px; }
 
-    .policy-layout { display: grid; grid-template-columns: minmax(220px, 0.45fr) minmax(0, 1fr); gap: 16px; align-items: start; }
-    .large { display: block; font-size: 28px; font-weight: 700; line-height: 1; color: var(--accent); font-variant-numeric: tabular-nums; }
     .label { margin: 0 0 6px; font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em; color: var(--muted-ink); }
 
     .panel table { width: 100%; border-collapse: collapse; font-size: 13px; }
@@ -802,7 +861,7 @@ def regime_section_styles() -> str:
     .transition-row__meta { text-align: right; }
 
     @media (max-width: 760px) {
-      .regime-section__header, .policy-layout { grid-template-columns: 1fr; }
+      .regime-section__header { grid-template-columns: 1fr; }
       .status-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
       .regime-headline { font-size: 22px; }
       .count-row { grid-template-columns: 1fr; }

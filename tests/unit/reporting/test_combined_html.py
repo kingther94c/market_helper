@@ -195,7 +195,6 @@ def test_render_portfolio_report_includes_regime_section_when_view_model_present
         RegimeHtmlAxisHistoryPoint,
         RegimeHtmlMethodRow,
         RegimeHtmlMethodVoteHistoryPoint,
-        RegimeHtmlPolicySummary,
         RegimeHtmlTimelineRow,
         RegimeHtmlTransitionEvent,
         RegimeHtmlViewModel,
@@ -222,11 +221,6 @@ def test_render_portfolio_report_includes_regime_section_when_view_model_present
             )
         ],
         regime_counts={"Goldilocks": 42, "Slowdown": 9},
-        policy=RegimeHtmlPolicySummary(
-            vol_multiplier=0.95,
-            asset_class_targets={"EQ": 0.55, "FI": 0.30},
-            notes="Goldilocks tilt",
-        ),
         axes_history=[
             RegimeHtmlAxisHistoryPoint(as_of="2026-04-01", growth=0.4, inflation=-0.1),
             RegimeHtmlAxisHistoryPoint(as_of="2026-05-02", growth=0.62, inflation=-0.18),
@@ -256,7 +250,6 @@ def test_render_portfolio_report_includes_regime_section_when_view_model_present
                 duration_days=42,
             )
         ],
-        vol_multiplier=0.95,
     )
     base = _fake_report_data(tmp_path)
     rendered = render_portfolio_report(_replace(base, regime_view_model=regime_vm))
@@ -266,7 +259,7 @@ def test_render_portfolio_report_includes_regime_section_when_view_model_present
     assert "regime-ribbon__pill" in rendered
     assert "Goldilocks" in rendered
     assert "Crisis off" in rendered
-    assert "0.95×" in rendered  # vol multiplier
+    assert "Vol mult" not in rendered
     # Regime section is reachable via deep-link and renders all four new visuals.
     assert "href='#regime'" in rendered or 'href="#regime"' in rendered
     assert "Factor Scores" in rendered
@@ -298,7 +291,6 @@ def test_regime_section_marks_stale_when_regime_as_of_lags_report(tmp_path: Path
     from dataclasses import replace as _replace
     from market_helper.application.portfolio_monitor.contracts import PortfolioReportData
     from market_helper.reporting.regime_html import (
-        RegimeHtmlPolicySummary,
         RegimeHtmlTimelineRow,
         RegimeHtmlViewModel,
     )
@@ -324,12 +316,6 @@ def test_regime_section_marks_stale_when_regime_as_of_lags_report(tmp_path: Path
             )
         ],
         regime_counts={"Goldilocks": 5},
-        policy=RegimeHtmlPolicySummary(
-            vol_multiplier=1.0,
-            asset_class_targets={"EQ": 0.6},
-            notes="",
-        ),
-        vol_multiplier=1.0,
     )
 
     base = _fake_report_data(tmp_path)

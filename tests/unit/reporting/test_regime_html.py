@@ -135,8 +135,60 @@ def test_write_regime_html_report_outputs_self_contained_html(tmp_path: Path) ->
     html = output_path.read_text(encoding="utf-8")
     assert "Regime Detection" in html
     assert "Goldilocks" in html
-    assert "Method Votes" in html
+    assert "Layer Detail" in html
     assert "Full-Sample Distribution" in html
+    assert "Policy Suggestion" not in html
+
+
+def test_build_regime_html_view_model_accepts_v2_payload(tmp_path: Path) -> None:
+    regime_path = tmp_path / "regime_v2.json"
+    regime_path.write_text(
+        json.dumps(
+            [
+                {
+                    "date": "2026-01-03",
+                    "version": "regime-engine-v2",
+                    "final_regime": "Reflation + Stress Overlay",
+                    "base_regime": "Reflation",
+                    "confidence": "Medium",
+                    "disagreement_flag": True,
+                    "disagreement_summary": "Layer disagreement",
+                    "final_growth_score": 0.4,
+                    "final_inflation_score": 0.6,
+                    "risk_score": 0.8,
+                    "risk_overlay_on": True,
+                    "layer_outputs": [
+                        {
+                            "layer_name": "macro_nowcast",
+                            "enabled": True,
+                            "available": True,
+                            "growth_state": "Down",
+                            "inflation_state": "Up",
+                            "confidence": 0.5,
+                        },
+                        {
+                            "layer_name": "macro_truth_ml",
+                            "enabled": False,
+                            "available": False,
+                            "growth_state": "Disabled",
+                            "inflation_state": "Disabled",
+                        },
+                    ],
+                    "risk_output": {"risk_state": "Stress"},
+                }
+            ]
+        ),
+        encoding="utf-8",
+    )
+
+    view_model = build_regime_html_view_model(regime_path=regime_path)
+
+    assert view_model.schema == "regime-engine-v2"
+    assert view_model.regime == "Reflation + Stress Overlay"
+    assert view_model.confidence == "Medium"
+    assert view_model.disagreement_flag is True
+    assert view_model.risk_state == "Stress"
+    assert view_model.scores == {"GROWTH": 0.4, "INFLATION": 0.6, "RISK": 0.8}
 
 
 def test_crisis_intensity_chart_metadata_uses_view_model_as_of(tmp_path: Path) -> None:
@@ -150,7 +202,6 @@ def test_crisis_intensity_chart_metadata_uses_view_model_as_of(tmp_path: Path) -
     renders and the metadata reflects the live ensemble state.
     """
     from market_helper.reporting.regime_html import (
-        RegimeHtmlPolicySummary,
         RegimeHtmlTimelineRow,
         RegimeHtmlViewModel,
         render_regime_section_body,
@@ -191,10 +242,6 @@ def test_crisis_intensity_chart_metadata_uses_view_model_as_of(tmp_path: Path) -
         methods=[],
         timeline=timeline,
         regime_counts={"Goldilocks": 4, "Slowdown": 1},
-        policy=RegimeHtmlPolicySummary(
-            vol_multiplier=1.0, asset_class_targets={"EQ": 0.6}, notes=""
-        ),
-        vol_multiplier=1.0,
     )
 
     fragment = render_regime_section_body(vm)

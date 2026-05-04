@@ -659,6 +659,65 @@ def test_load_regime_summary_accepts_multi_method_payload(tmp_path: Path) -> Non
     assert "Unknown" not in html
 
 
+def test_load_regime_summary_accepts_v2_payload(tmp_path: Path) -> None:
+    regime_json = tmp_path / "regime_v2.json"
+    regime_json.write_text(
+        json.dumps(
+            [
+                {
+                    "date": "2026-03-26",
+                    "version": "regime-engine-v2",
+                    "final_regime": "Reflation + Stress Overlay",
+                    "base_regime": "Reflation",
+                    "confidence": "Medium",
+                    "disagreement_flag": True,
+                    "disagreement_summary": "Layer disagreement",
+                    "final_growth_score": 0.55,
+                    "final_inflation_score": 0.65,
+                    "risk_score": 0.82,
+                    "risk_overlay_on": True,
+                    "layer_outputs": [
+                        {
+                            "layer_name": "macro_nowcast",
+                            "enabled": True,
+                            "available": True,
+                            "growth_state": "Down",
+                            "inflation_state": "Up",
+                            "confidence": 0.6,
+                        },
+                        {
+                            "layer_name": "macro_truth_ml",
+                            "enabled": False,
+                            "available": False,
+                        },
+                    ],
+                    "risk_output": {"risk_state": "Stress"},
+                }
+            ]
+        ),
+        encoding="utf-8",
+    )
+
+    summary = risk_html_module._load_regime_summary(regime_json)
+    assert summary is not None
+    assert summary.version == "regime-engine-v2"
+    assert summary.regime == "Reflation + Stress Overlay"
+    assert summary.scores == {"GROWTH": 0.55, "INFLATION": 0.65, "RISK": 0.82}
+    assert summary.confidence == "Medium"
+    assert summary.disagreement_flag is True
+    assert summary.risk_state == "Stress"
+    assert summary.per_method is not None
+    assert summary.per_method[0]["method"] == "macro_nowcast"
+
+    html = risk_html_module.render_risk_tab(
+        _minimal_risk_view_model(regime_summary=summary)
+    )
+    assert "Reflation + Stress Overlay" in html
+    assert "Confidence" in html
+    assert "Disagreement" in html
+    assert "macro_nowcast" in html
+
+
 def test_build_risk_report_view_model_accepts_configurable_allocation_policy(tmp_path: Path) -> None:
     positions_csv = tmp_path / "positions.csv"
     positions_csv.write_text(

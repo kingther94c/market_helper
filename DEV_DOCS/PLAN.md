@@ -104,17 +104,17 @@ Phases P1-P7 + post-P7 polish (drift dumbbell, SPY benchmark trace) all **landed
 
 Detection / policy / CLI / HTML / operator entry points all landed. Detail in `DEV_DOCS/archive/historical_plans.md` (M1-M7 detail) and `DEV_DOCS/archive/completed_history.md`.
 
-**Active methodology:** 2D `(growth × inflation)` quadrant taxonomy — Goldilocks / Reflation / Stagflation / Deflationary Slowdown — with an orthogonal risk-on/risk-off overlay. Two methods ship today: `macro_regime` (FRED panel, fast/slow buckets, raw signed aggregation, `fast=0.70 / slow=0.30` default per axis) and `market_regime` (Yahoo panel, equity/credit/vol proxies). Ensemble aligns on common dates, votes per axis with confidence weighting, ORs the risk-off flag, reports `method_agreement`. Policy resolution: quadrant table + crisis overlay (`equity_shift_pct * crisis_intensity` from EQ into CASH/GOLD/FI, vol multiplier reduced).
+**Active methodology:** Regime Engine v2. Growth and inflation are the only macro axes. `macro_nowcast` adapts the FRED macro scoring path, `market_implied` adapts the Yahoo market signal path, and `macro_truth_ml` / `return_truth_ml` remain disabled or unavailable unless valid model artifacts exist. Risk/stress is an independent overlay for market context only; normal regime reporting no longer emits allocation policy, `vol_multiplier`, or crisis-overlay target changes.
 
-**Regime Engine v2 replacement track:** isolated `regime-detect-v2` path added with dashboard-ready `regime-engine-v2` output, independent risk overlay, disabled/unavailable ML layer status handling, separate model selector interface, and incremental market panel cache merge/validation. Design note: `DEV_DOCS/docs/regime_engine_v2.md`.
+**Regime Engine v2 replacement track:** `regime-run-report` and `regime-refresh-report` are v2-backed. Deprecated `regime-detect-multi` / `regime-report-multi` remain available for old `regime-multi-v1` fixtures only. Design note: `DEV_DOCS/docs/regime_engine_v2.md`.
 
 **Outstanding:**
 
 1. **GUI action integration** — call `regime-refresh-report` / `regime-run-report` from NiceGUI, mirroring the performance/risk action pattern.
 2. **Calibration notebook pass** — run macro/market notebook over GFC, COVID, 2022 inflation, 2023 disinflation, current data; adjust YAML weights before changing code.
-3. **ML method skeleton** — supervised classifier + unsupervised clustering drop-in under `market_helper/regimes/methods/` conforming to `RegimeMethod`.
+3. **ML inference implementation** — wire selected model artifacts into actual `macro_truth_ml` / `return_truth_ml` predictions after feature schemas and artifact lifecycle are finalized.
 4. **Backtest sanity harness** — 15-year window, validate against GFC, COVID, 2017 Goldilocks, 2022 Reflation/Stagflation turn; commit fixture snapshots.
-5. **Calibration notebook** — walk-forward tuning of `zscore_window_bdays`, `min_consecutive_days`, crisis-overlay magnitudes.
+5. **Calibration notebook** — walk-forward tuning of `zscore_window_bdays`, `min_consecutive_days`, layer weights, and risk-overlay thresholds.
 
 ## Backlog
 

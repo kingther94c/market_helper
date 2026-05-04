@@ -21,9 +21,8 @@ macro data versus fast market pricing, or a genuine dislocation, so v2 surfaces
 disagreement directly instead of hiding it inside a consensus label.
 
 Risk/stress is reported through an independent overlay driven by volatility,
-credit stress, liquidity, and related stress indicators. In this pass it is
-regime context only and must not produce allocation changes or policy target
-changes.
+credit stress, liquidity, and related stress indicators. It is regime context
+only and must not produce allocation changes or policy target changes.
 
 ML layers use a separate model-selection interface so SVM, logistic regression,
 random forest, gradient boosting, or other classifiers can be swapped without
@@ -42,3 +41,8 @@ Data refresh should preserve existing historical caches. FRED keeps its
 per-series incremental cache behavior. Market panel sync merges cached history
 with recent Yahoo rows by default, then sorts, deduplicates, and writes
 diagnostics for duplicate dates and unexpected panel gaps.
+
+Phase 2 replacement status: `regime-run-report` and `regime-refresh-report` now
+write `regime-engine-v2` rows by default. `regime-detect-multi` and
+`regime-report-multi` are deprecated compatibility commands for old
+`regime-multi-v1` payloads.

@@ -164,7 +164,21 @@ def test_cli_regime_detect_multi_fails_when_no_enabled_method_can_run(
 ) -> None:
     output_path = tmp_path / "regime_multi.json"
 
-    exit_code = main(["regime-detect-multi", "--output", str(output_path)])
+    exit_code = main(
+        [
+            "regime-detect-multi",
+            "--macro-panel",
+            str(tmp_path / "missing_macro_panel.feather"),
+            "--fred-series-config",
+            str(tmp_path / "missing_fred_series.yml"),
+            "--market-panel",
+            str(tmp_path / "missing_market_panel.feather"),
+            "--market-regime-config",
+            str(tmp_path / "missing_market_regime.yml"),
+            "--output",
+            str(output_path),
+        ]
+    )
 
     assert exit_code == 2
     assert not output_path.exists()
@@ -174,7 +188,7 @@ def test_cli_regime_detect_multi_fails_when_no_enabled_method_can_run(
     assert "market_regime missing market panel" in captured.err
 
 
-def test_cli_regime_report_multi_prints_policy(tmp_path: Path, capsys) -> None:
+def test_cli_regime_report_multi_prints_deprecated_summary_without_policy(tmp_path: Path, capsys) -> None:
     macro_panel, fred_config = _write_macro_fixtures(tmp_path)
     market_panel, market_config = _write_market_fixtures(tmp_path)
     output_path = tmp_path / "regime_multi.json"
@@ -206,8 +220,8 @@ def test_cli_regime_report_multi_prints_policy(tmp_path: Path, capsys) -> None:
     assert "ensemble_quadrant=" in captured
     assert "method=macro_regime" in captured
     assert "method=market_regime" in captured
-    assert "vol_multiplier=" in captured
-    assert "asset_class_targets=" in captured
+    assert "vol_multiplier=" not in captured
+    assert "asset_class_targets=" not in captured
 
 
 def test_cli_regime_html_report_writes_html_from_multi_payload(tmp_path: Path) -> None:
@@ -250,5 +264,41 @@ def test_cli_regime_html_report_writes_html_from_multi_payload(tmp_path: Path) -
     assert exit_code == 0
     html = html_path.read_text(encoding="utf-8")
     assert "Regime Detection" in html
-    assert "Policy Suggestion" in html
-    assert "Method Votes" in html
+    assert "Policy Suggestion" not in html
+    assert "Layer Detail" in html
+
+
+def test_cli_regime_run_report_writes_v2_schema(tmp_path: Path) -> None:
+    macro_panel, fred_config = _write_macro_fixtures(tmp_path)
+    market_panel, market_config = _write_market_fixtures(tmp_path)
+    regime_path = tmp_path / "regime_v2.json"
+    html_path = tmp_path / "regime_report.html"
+
+    exit_code = main(
+        [
+            "regime-run-report",
+            "--methods",
+            "all",
+            "--macro-panel",
+            str(macro_panel),
+            "--fred-series-config",
+            str(fred_config),
+            "--market-panel",
+            str(market_panel),
+            "--market-regime-config",
+            str(market_config),
+            "--output-regime",
+            str(regime_path),
+            "--output-html",
+            str(html_path),
+            "--latest-only",
+        ]
+    )
+
+    assert exit_code == 0
+    payload = json.loads(regime_path.read_text(encoding="utf-8"))
+    assert payload[0]["version"] == "regime-engine-v2"
+    assert payload[0]["final_regime"]
+    html = html_path.read_text(encoding="utf-8")
+    assert "Regime Detection" in html
+    assert "Policy Suggestion" not in html

@@ -382,15 +382,13 @@ def test_cli_regime_html_report_dispatches_to_workflow(monkeypatch, tmp_path) ->
             str(tmp_path / "regime_multi.json"),
             "--output",
             str(tmp_path / "regime_report.html"),
-            "--policy",
-            str(tmp_path / "quadrant_policy.yml"),
         ]
     )
 
     assert exit_code == 0
     assert str(captured["regime_path"]).endswith("regime_multi.json")
     assert str(captured["output_path"]).endswith("regime_report.html")
-    assert str(captured["policy_path"]).endswith("quadrant_policy.yml")
+    assert captured["policy_path"] is None
 
 
 def test_cli_regime_input_sync_dispatches_to_workflow(monkeypatch, tmp_path) -> None:
@@ -465,6 +463,8 @@ def test_cli_regime_run_report_dispatches_to_existing_data_workflow(monkeypatch,
             str(tmp_path / "market_panel.feather"),
             "--market-regime-config",
             str(tmp_path / "market_regime.yml"),
+            "--regime-engine-config",
+            str(tmp_path / "regime_engine_v2.yml"),
             "--output-regime",
             str(tmp_path / "regime_multi.json"),
             "--output-html",
@@ -476,6 +476,7 @@ def test_cli_regime_run_report_dispatches_to_existing_data_workflow(monkeypatch,
     assert captured["methods"] == ["macro_regime"]
     assert str(captured["market_panel_path"]).endswith("market_panel.feather")
     assert str(captured["market_regime_config"]).endswith("market_regime.yml")
+    assert str(captured["regime_engine_config"]).endswith("regime_engine_v2.yml")
     assert str(captured["output_html_path"]).endswith("regime_report.html")
 
 
@@ -510,6 +511,8 @@ def test_cli_regime_refresh_report_dispatches_to_refresh_workflow(monkeypatch, t
             "--force-refresh",
             "--market-regime-config",
             str(tmp_path / "market_regime.yml"),
+            "--regime-engine-config",
+            str(tmp_path / "regime_engine_v2.yml"),
             "--fred-api-key",
             "test-key",
         ]
@@ -520,6 +523,7 @@ def test_cli_regime_refresh_report_dispatches_to_refresh_workflow(monkeypatch, t
     assert captured["max_age_days"] == 7
     assert captured["force_refresh"] is True
     assert str(captured["market_regime_config"]).endswith("market_regime.yml")
+    assert str(captured["regime_engine_config"]).endswith("regime_engine_v2.yml")
     assert captured["fred_api_key"] == "test-key"
 
 

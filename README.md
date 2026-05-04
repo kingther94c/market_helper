@@ -321,7 +321,7 @@ conda run -n py313 python -m market_helper.cli.main regime-detect \
   --latest-only
 ```
 
-Human-readable summary + policy suggestion:
+Human-readable summary + legacy policy suggestion:
 
 ```bash
 conda run -n py313 python -m market_helper.cli.main regime-report \
@@ -329,22 +329,10 @@ conda run -n py313 python -m market_helper.cli.main regime-report \
   --policy configs/regime_detection/regime_policy.yml
 ```
 
-Standalone HTML artifact for multi-method regime snapshots:
+Regime Engine v2 is the normal regime workflow. It has two high-level entry
+points:
 
-```bash
-conda run -n py313 python -m market_helper.cli.main regime-html-report \
-  --regime data/artifacts/regime_detection/regime_snapshots.json \
-  --output data/artifacts/regime_detection/regime_report.html \
-  --policy configs/regime_detection/quadrant_policy.yml
-```
-
-For regime v2 sanity review, use
-`notebooks/regime_detection/regime_v2_sanity_review.ipynb` to inspect latest
-ensemble output, historical checkpoint windows, and the generated HTML report.
-
-Regime v2 has two high-level entry points for normal use:
-
-1. Refresh stale source data, run all enabled regime methods, and render HTML.
+1. Refresh stale source data, run all enabled v2 layers, and render HTML.
    This defaults to a 7-day freshness window, so source data is not fetched
    again when local artifacts are already recent.
 
@@ -356,7 +344,7 @@ conda run -n py313 python -m market_helper.cli.main regime-refresh-report \
   --output-html data/artifacts/regime_detection/regime_report.html
 ```
 
-2. Reuse existing local source artifacts, run regime detection, and render HTML.
+2. Reuse existing local source artifacts, run Regime Engine v2, and render HTML.
    Use this when the source data was already refreshed recently.
 
 ```bash
@@ -367,32 +355,24 @@ conda run -n py313 python -m market_helper.cli.main regime-run-report \
 ```
 
 The refresh entry point writes:
-- `data/interim/fred/macro_panel.feather` from the FRED macro panel config for `macro_regime`.
-- `data/interim/market_regime/market_panel.feather` from Yahoo Finance symbols in `configs/regime_detection/market_regime.yml` for `market_regime`.
+- `data/interim/fred/macro_panel.feather` from the FRED macro panel config for `macro_nowcast`.
+- `data/interim/market_regime/market_panel.feather` from Yahoo Finance symbols in `configs/regime_detection/market_regime.yml` for `market_implied` and the independent risk overlay.
 
 Input expectations:
-- `macro_regime` reads the FRED panel and `fred_series.yml`; macro sources are split into configurable `fast` and `slow` buckets, defaulting to 70%/30% per axis.
-- `market_regime` reads the market panel and `market_regime.yml`; market growth/inflation/risk signals are configurable by ticker, transform, direction, and weight.
+- `macro_nowcast` adapts the existing FRED macro scoring path; macro sources are split into configurable `fast` and `slow` buckets.
+- `market_implied` adapts the existing market-regime signal config; market growth/inflation/risk signals are configurable by ticker, transform, direction, and weight.
+- `macro_truth_ml` and `return_truth_ml` are disabled by default and show as disabled or not available unless valid model artifacts exist.
 
 Outputs:
-- `regime_snapshots.json` contains `MultiMethodRegimeSnapshot` rows with `macro_regime`, `market_regime`, ensemble scores, risk overlay flags, and diagnostics.
+- `regime_snapshots.json` contains `regime-engine-v2` rows with final regime, confidence, disagreement, layer outputs, and independent risk overlay.
 - `indicator_snapshots.json` contains factor snapshot history for validation and future backtests.
 
-Policy layer (`market_helper/suggest/regime_policy.py`) maps regime -> `vol_multiplier` and asset-class target buckets (`EQ`, `FI`, `GOLD`, `CM`, `CASH`) for read/analyze/report suggestions only (no execution).
-
-## Regime Engine v2 isolated path
-
-Regime Engine v2 is available as an isolated replacement path:
+Standalone HTML artifact for v2 regime snapshots:
 
 ```bash
-conda run -n py313 python -m market_helper.cli.main regime-detect-v2 \
-  --config configs/regime_detection/regime_engine_v2.yml \
-  --macro-panel data/interim/fred/macro_panel.feather \
-  --fred-series-config configs/regime_detection/fred_series.yml \
-  --market-panel data/interim/market_regime/market_panel.feather \
-  --market-regime-config configs/regime_detection/market_regime.yml \
-  --output data/artifacts/regime_detection/regime_engine_v2.json \
-  --latest-only
+conda run -n py313 python -m market_helper.cli.main regime-html-report \
+  --regime data/artifacts/regime_detection/regime_snapshots.json \
+  --output data/artifacts/regime_detection/regime_report.html
 ```
 
 V2 keeps growth and inflation as the main regime axes and reports risk/stress as

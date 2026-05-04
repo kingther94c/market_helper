@@ -13,10 +13,7 @@ from market_helper.data_sources.yahoo_finance.market_panel import (
     DEFAULT_MARKET_CACHE_DIR,
     DEFAULT_MARKET_PANEL_FILENAME,
 )
-from market_helper.workflows.generate_multi_method_regime import (
-    ALL_METHODS,
-    run_multi_method_detection,
-)
+from market_helper.workflows.generate_regime_v2 import run_regime_engine_v2_detection
 from market_helper.workflows.generate_regime_html import generate_regime_html_report
 from market_helper.workflows.sync_fred_macro_panel import run_fred_macro_sync
 from market_helper.workflows.sync_market_regime_panel import run_market_regime_sync
@@ -27,6 +24,8 @@ DEFAULT_REGIME_HTML_PATH = Path("data/artifacts/regime_detection/regime_report.h
 DEFAULT_FRED_CACHE_DIR = Path("data/interim/fred")
 DEFAULT_FRED_SERIES_CONFIG = Path("configs/regime_detection/fred_series.yml")
 DEFAULT_MARKET_REGIME_CONFIG = Path("configs/regime_detection/market_regime.yml")
+DEFAULT_REGIME_ENGINE_CONFIG = Path("configs/regime_detection/regime_engine_v2.yml")
+ALL_METHODS = ("macro_nowcast", "market_implied", "macro_truth_ml", "return_truth_ml")
 
 
 @dataclass(frozen=True)
@@ -47,6 +46,7 @@ def run_regime_report_from_existing_data(
     fred_series_config: str | Path | None = None,
     market_panel_path: str | Path | None = None,
     market_regime_config: str | Path | None = None,
+    regime_engine_config: str | Path | None = None,
     output_regime_path: str | Path = DEFAULT_REGIME_ARTIFACT_PATH,
     output_html_path: str | Path = DEFAULT_REGIME_HTML_PATH,
     policy_path: str | Path | None = None,
@@ -64,8 +64,9 @@ def run_regime_report_from_existing_data(
     output_regime = Path(output_regime_path)
     output_html = Path(output_html_path)
 
-    run_multi_method_detection(
+    run_regime_engine_v2_detection(
         methods=methods,
+        regime_engine_config=_resolve_regime_engine_config(regime_engine_config),
         macro_panel_path=resolved_macro_panel,
         fred_series_config=resolved_config,
         market_panel_path=resolved_market_panel,
@@ -76,7 +77,7 @@ def run_regime_report_from_existing_data(
     generate_regime_html_report(
         regime_path=output_regime,
         output_path=output_html,
-        policy_path=policy_path,
+        policy_path=None,
     )
     return RegimeReportRunResult(
         regime_path=output_regime,
@@ -98,6 +99,7 @@ def refresh_data_and_run_regime_report(
     market_panel_path: str | Path | None = None,
     market_cache_dir: str | Path = DEFAULT_MARKET_CACHE_DIR,
     market_regime_config: str | Path | None = None,
+    regime_engine_config: str | Path | None = None,
     output_regime_path: str | Path = DEFAULT_REGIME_ARTIFACT_PATH,
     output_html_path: str | Path = DEFAULT_REGIME_HTML_PATH,
     policy_path: str | Path | None = None,
@@ -137,7 +139,7 @@ def refresh_data_and_run_regime_report(
         resolved_market_panel = market_cache / DEFAULT_MARKET_PANEL_FILENAME
 
     refreshed_macro_panel = False
-    if "macro_regime" in enabled and (
+    if "macro_nowcast" in enabled and (
         force_refresh or not _all_fresh([resolved_macro_panel], max_age_days=max_age_days)
     ):
         run_fred_macro_sync(
@@ -152,7 +154,7 @@ def refresh_data_and_run_regime_report(
         refreshed_macro_panel = True
 
     refreshed_market_panel = False
-    if "market_regime" in enabled and (
+    if "market_implied" in enabled and (
         force_refresh or not _all_fresh([resolved_market_panel], max_age_days=max_age_days)
     ):
         run_market_regime_sync(
@@ -172,9 +174,10 @@ def refresh_data_and_run_regime_report(
         fred_series_config=resolved_config,
         market_panel_path=resolved_market_panel,
         market_regime_config=resolved_market_config,
+        regime_engine_config=regime_engine_config,
         output_regime_path=output_regime_path,
         output_html_path=output_html_path,
-        policy_path=policy_path,
+        policy_path=None,
         latest_only=latest_only,
     )
     return RegimeReportRunResult(
@@ -200,11 +203,18 @@ def _resolve_market_regime_config(path: str | Path | None) -> Path:
     return DEFAULT_MARKET_REGIME_CONFIG
 
 
+def _resolve_regime_engine_config(path: str | Path | None) -> Path:
+    if path is not None:
+        return Path(path)
+    return DEFAULT_REGIME_ENGINE_CONFIG
+
+
 def _normalize_methods(methods: Sequence[str]) -> tuple[str, ...]:
     enabled = {str(method).strip().lower() for method in methods if str(method).strip()}
     if not enabled or "all" in enabled:
         enabled = set(ALL_METHODS)
-    return tuple(sorted(enabled))
+    aliases = {"macro_regime": "macro_nowcast", "market_regime": "market_implied"}
+    return tuple(sorted(aliases.get(method, method) for method in enabled))
 
 
 def _all_fresh(paths: Sequence[Path], *, max_age_days: int) -> bool:
@@ -222,6 +232,7 @@ __all__ = [
     "DEFAULT_FRED_SERIES_CONFIG",
     "DEFAULT_MARKET_CACHE_DIR",
     "DEFAULT_MARKET_REGIME_CONFIG",
+    "DEFAULT_REGIME_ENGINE_CONFIG",
     "DEFAULT_REGIME_ARTIFACT_PATH",
     "DEFAULT_REGIME_HTML_PATH",
     "RegimeReportRunResult",
