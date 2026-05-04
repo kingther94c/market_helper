@@ -30,6 +30,7 @@ from market_helper.reporting.performance_html import (
     build_performance_report_view_model,
     load_nav_cashflow_history_frame,
 )
+from market_helper.reporting.portfolio_html import write_portfolio_report
 from market_helper.reporting.regime_html import (
     RegimeHtmlViewModel,
     build_regime_html_view_model,
@@ -389,28 +390,14 @@ class PortfolioMonitorActionService:
         resolved = self._query_service.resolve_inputs(inputs)
         output_path = Path(inputs.output_path) if inputs.output_path is not None else DEFAULT_COMBINED_REPORT_PATH
         _record_manual_event(sink, kind="spinner", label="Combined HTML", detail="rendering")
-        written = report_workflows.generate_combined_html_report(
-            positions_csv_path=Path(str(resolved.positions_csv_path)),
-            output_path=output_path,
-            performance_history_path=Path(str(resolved.performance_history_path)) if resolved.performance_history_path is not None else None,
-            performance_output_dir=Path(str(resolved.performance_output_dir)) if resolved.performance_output_dir is not None else None,
-            performance_report_csv_path=Path(str(resolved.performance_report_csv_path)) if resolved.performance_report_csv_path is not None else None,
-            returns_path=Path(str(resolved.returns_path)) if resolved.returns_path is not None else None,
-            proxy_path=Path(str(resolved.proxy_path)) if resolved.proxy_path is not None else None,
-            regime_path=Path(str(resolved.regime_path)) if resolved.regime_path is not None else None,
-            security_reference_path=Path(str(resolved.security_reference_path)) if resolved.security_reference_path is not None else None,
-            risk_config_path=Path(str(resolved.risk_config_path)) if resolved.risk_config_path is not None else None,
-            allocation_policy_path=Path(str(resolved.allocation_policy_path)) if resolved.allocation_policy_path is not None else None,
-            vol_method=resolved.vol_method,
-            inter_asset_corr=resolved.inter_asset_corr,
-        )
+        report_data = self._query_service.load_report_data(resolved)
+        written = write_portfolio_report(report_data, output_path)
         mirrored = report_workflows.ensure_google_drive_artifact_mirror(
             source_path=written,
             target_name="portfolio_combined_report.html",
             config_path=Path(str(resolved.risk_config_path)) if resolved.risk_config_path is not None else None,
         )
         _record_manual_event(sink, kind="done", label="Combined HTML", detail=f"wrote {written}")
-        report_data = self._query_service.load_report_data(resolved)
         return self._query_service.resolve_report_artifact(
             inputs=resolved,
             output_path=written,

@@ -113,12 +113,16 @@ def test_action_service_bridges_workflow_progress(monkeypatch, tmp_path: Path) -
 
 
 def test_action_service_normalizes_combined_and_etf_calls(monkeypatch, tmp_path: Path) -> None:
-    combined_calls: dict[str, object] = {}
+    write_calls: dict[str, object] = {}
     etf_calls: dict[str, object] = {}
+    load_calls = 0
 
-    def fake_generate_combined_html_report(**kwargs):
-        combined_calls.update(kwargs)
-        return Path(kwargs["output_path"])
+    def fake_write_portfolio_report(report_data, output_path):
+        write_calls["report_data"] = report_data
+        write_calls["output_path"] = output_path
+        output_path = Path(output_path)
+        output_path.write_text("<html>combined</html>", encoding="utf-8")
+        return output_path
 
     def fake_ensure_google_drive_artifact_mirror(**kwargs):
         assert kwargs["source_path"] == tmp_path / "combined.html"
@@ -132,14 +136,11 @@ def test_action_service_normalizes_combined_and_etf_calls(monkeypatch, tmp_path:
         progress.done("ETF sector sync", detail="done")
         return tmp_path / "sector.json"
 
-    monkeypatch.setattr(app_services.report_workflows, "generate_combined_html_report", fake_generate_combined_html_report)
+    monkeypatch.setattr(app_services, "write_portfolio_report", fake_write_portfolio_report)
     monkeypatch.setattr(app_services.report_workflows, "ensure_google_drive_artifact_mirror", fake_ensure_google_drive_artifact_mirror)
     monkeypatch.setattr(app_services.report_workflows, "generate_etf_sector_sync", fake_generate_etf_sector_sync)
     query_service = app_services.PortfolioMonitorQueryService()
-    monkeypatch.setattr(
-        query_service,
-        "load_report_data",
-        lambda inputs=None: app_services.PortfolioReportData(
+    fake_report_data = app_services.PortfolioReportData(
             as_of="2026-04-08T00:00:00+00:00",
             artifact_metadata=app_services.ArtifactMetadata(
                 positions_csv_path=tmp_path / "positions.csv",
@@ -158,8 +159,14 @@ def test_action_service_normalizes_combined_and_etf_calls(monkeypatch, tmp_path:
             performance_sgd_view_model=object(),  # type: ignore[arg-type]
             risk_view_model=object(),  # type: ignore[arg-type]
             warnings=[],
-        ),
     )
+
+    def fake_load_report_data(inputs=None):
+        nonlocal load_calls
+        load_calls += 1
+        return fake_report_data
+
+    monkeypatch.setattr(query_service, "load_report_data", fake_load_report_data)
 
     service = PortfolioMonitorActionService(query_service=query_service)
     sink = InMemoryUiProgressSink()
@@ -179,8 +186,9 @@ def test_action_service_normalizes_combined_and_etf_calls(monkeypatch, tmp_path:
     assert combined_written.output_path == tmp_path / "combined.html"
     assert combined_written.mirrored_output_path == tmp_path / "google-drive" / "portfolio_combined_report.html"
     assert combined_written.report_type == "portfolio_monitor"
-    assert combined_calls["output_path"] == tmp_path / "combined.html"
-    assert combined_calls["positions_csv_path"] == tmp_path / "positions.csv"
+    assert write_calls["output_path"] == tmp_path / "combined.html"
+    assert write_calls["report_data"] == fake_report_data
+    assert load_calls == 1
     assert etf_written == tmp_path / "sector.json"
     assert etf_calls["symbols"] == ["DBMF", "QQQ"]
     assert etf_calls["api_key"] == "demo"
