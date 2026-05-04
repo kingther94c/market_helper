@@ -13,6 +13,7 @@ from market_helper.data_sources.fred.macro_panel import (
     apply_transform,
     build_panel,
     load_cached_series,
+    load_panel,
     load_series_specs,
     sync_series,
 )
@@ -68,6 +69,21 @@ def test_load_series_specs_from_yaml(tmp_path: Path) -> None:
     assert [s.series_id for s in specs] == ["NAPM", "CPIAUCSL"]
     assert specs[0].transform_param == 50.0
     assert specs[1].weight == 1.5
+
+
+def test_load_panel_projects_requested_columns(tmp_path: Path) -> None:
+    path = tmp_path / "macro_panel.feather"
+    pd.DataFrame(
+        {
+            "date": pd.to_datetime(["2026-01-02"]),
+            "KEEP": [1.0],
+            "DROP": [2.0],
+        }
+    ).to_feather(path)
+
+    frame = load_panel(path, columns=["KEEP"])
+
+    assert frame.columns.tolist() == ["date", "KEEP"]
 
 
 # ---------------------------------------------------------------------------

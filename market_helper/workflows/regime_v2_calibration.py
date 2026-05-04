@@ -21,11 +21,26 @@ from market_helper.data_sources.yahoo_finance.market_panel import (
     load_market_panel,
 )
 from market_helper.regimes.engine_v2 import FinalRegimeResult, load_regime_engine_config, run_regime_engine_v2
-from market_helper.regimes.methods.market_regime import load_market_regime_config
+from market_helper.regimes.methods.market_regime import MarketRegimeConfig, load_market_regime_config
 
 
 DEFAULT_CALIBRATION_DIR = Path("data/artifacts/regime_detection/calibration")
 DEFAULT_NOTEBOOK_PATH = Path("notebooks/regime_detection/regime_v2_calibration_questions.ipynb")
+DAILY_ROW_KEYS = (
+    "date",
+    "final_regime",
+    "base_regime",
+    "confidence",
+    "disagreement_flag",
+    "final_growth_score",
+    "final_inflation_score",
+    "risk_score",
+    "risk_overlay_on",
+    "macro_growth_score",
+    "macro_inflation_score",
+    "market_growth_score",
+    "market_inflation_score",
+)
 
 
 @dataclass(frozen=True)
@@ -153,7 +168,7 @@ def run_regime_v2_calibration(
     panel_path = Path(macro_panel_path) if macro_panel_path else Path(FRED_DEFAULT_CACHE_DIR) / FRED_DEFAULT_PANEL_FILENAME
     if specs_path.exists() and panel_path.exists():
         macro_specs = load_series_specs(specs_path)
-        macro_panel = load_panel(panel_path)
+        macro_panel = load_panel(panel_path, columns=_macro_panel_columns(macro_specs))
 
     market_config = None
     market_panel = None
@@ -161,7 +176,7 @@ def run_regime_v2_calibration(
     market_panel_input = Path(market_panel_path) if market_panel_path else Path(DEFAULT_MARKET_CACHE_DIR) / DEFAULT_MARKET_PANEL_FILENAME
     if market_cfg_path.exists() and market_panel_input.exists():
         market_config = load_market_regime_config(market_cfg_path)
-        market_panel = load_market_panel(market_panel_input)
+        market_panel = load_market_panel(market_panel_input, columns=_market_panel_columns(market_config))
 
     results = run_regime_engine_v2(
         config=cfg,
@@ -180,8 +195,9 @@ def run_regime_v2_calibration(
     daily_json_path = output_root / "regime_v2_calibration_daily.json"
     summary_json_path = output_root / "regime_v2_calibration_summary.json"
 
-    compact_rows = [_compact_daily_row(result) for result in results]
-    summaries = summarize_anchor_periods(results, ANCHOR_PERIODS)
+    summary_rows = [_summary_row(result) for result in results]
+    daily_rows = [_daily_row_from_summary_row(row) for row in summary_rows]
+    summaries = summarize_anchor_period_rows(summary_rows, ANCHOR_PERIODS)
     diagnostics = _input_diagnostics(
         macro_panel=macro_panel,
         market_panel=market_panel,
@@ -190,7 +206,7 @@ def run_regime_v2_calibration(
     )
     recommendations = _recommendations(summaries, diagnostics)
 
-    daily_json_path.write_text(json.dumps(compact_rows, separators=(",", ":")), encoding="utf-8")
+    daily_json_path.write_text(json.dumps(daily_rows, separators=(",", ":")), encoding="utf-8")
     summary_json_path.write_text(
         json.dumps(
             {
@@ -207,7 +223,7 @@ def run_regime_v2_calibration(
         summaries=summaries,
         diagnostics=diagnostics,
         recommendations=recommendations,
-        latest=results[-1].to_dict(),
+        latest=summary_rows[-1],
     )
     _write_review_notebook(
         notebook_path,
@@ -232,7 +248,14 @@ def summarize_anchor_periods(
     results: Sequence[FinalRegimeResult],
     anchors: Sequence[AnchorPeriod] = ANCHOR_PERIODS,
 ) -> list[dict[str, Any]]:
-    frame = pd.DataFrame([_summary_row(result) for result in results])
+    return summarize_anchor_period_rows([_summary_row(result) for result in results], anchors)
+
+
+def summarize_anchor_period_rows(
+    rows: Sequence[Mapping[str, Any]],
+    anchors: Sequence[AnchorPeriod] = ANCHOR_PERIODS,
+) -> list[dict[str, Any]]:
+    frame = pd.DataFrame(rows)
     frame["date"] = pd.to_datetime(frame["date"])
     summaries: list[dict[str, Any]] = []
     for anchor in anchors:
@@ -318,6 +341,19 @@ def _input_diagnostics(
     }
 
 
+def _macro_panel_columns(specs: Sequence[Any]) -> list[str]:
+    return ["date", *(str(spec.series_id) for spec in specs)]
+
+
+def _market_panel_columns(config: MarketRegimeConfig) -> list[str]:
+    columns: list[str] = ["date"]
+    for signal in config.signals:
+        for value in (signal.symbol, signal.numerator, signal.denominator):
+            if value and value not in columns:
+                columns.append(str(value))
+    return columns
+
+
 def _panel_diagnostic(panel: pd.DataFrame | None, path: Path) -> dict[str, Any]:
     if panel is None:
         return {"available": False, "path": str(path), "reason": "file not found or config unavailable"}
@@ -332,7 +368,7 @@ def _panel_diagnostic(panel: pd.DataFrame | None, path: Path) -> dict[str, Any]:
     }
 
 
-def _compact_daily_row(result: FinalRegimeResult) -> dict[str, Any]:
+def _summary_row(result: FinalRegimeResult) -> dict[str, Any]:
     return {
         "date": result.date,
         "final_regime": result.final_regime,
@@ -347,15 +383,13 @@ def _compact_daily_row(result: FinalRegimeResult) -> dict[str, Any]:
         "macro_inflation_score": result.macro_inflation_score,
         "market_growth_score": result.market_growth_score,
         "market_inflation_score": result.market_inflation_score,
-    }
-
-
-def _summary_row(result: FinalRegimeResult) -> dict[str, Any]:
-    return {
-        **_compact_daily_row(result),
         "top_contributors": [list(item) for item in result.top_contributors],
         "risk_state": result.risk_output.risk_state,
     }
+
+
+def _daily_row_from_summary_row(row: Mapping[str, Any]) -> dict[str, Any]:
+    return {key: row[key] for key in DAILY_ROW_KEYS}
 
 
 def _recommendations(summaries: Sequence[Mapping[str, Any]], diagnostics: Mapping[str, Any]) -> list[str]:
@@ -676,4 +710,5 @@ __all__ = [
     "CalibrationArtifacts",
     "run_regime_v2_calibration",
     "summarize_anchor_periods",
+    "summarize_anchor_period_rows",
 ]

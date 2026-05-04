@@ -228,11 +228,29 @@ def write_market_symbol_meta(cache_dir: Path, column: str, payload: Mapping[str,
     return path
 
 
-def load_market_panel(path: str | Path) -> pd.DataFrame:
-    frame = pd.read_feather(Path(path))
+def load_market_panel(path: str | Path, columns: Sequence[str] | None = None) -> pd.DataFrame:
+    requested = _date_first_columns(columns)
+    try:
+        frame = pd.read_feather(Path(path), columns=requested)
+    except (KeyError, ValueError):
+        frame = pd.read_feather(Path(path))
+        if requested:
+            available = [column for column in requested if column in frame.columns]
+            frame = frame.loc[:, available]
     if "date" in frame.columns:
         frame["date"] = pd.to_datetime(frame["date"]).dt.tz_localize(None)
     return frame
+
+
+def _date_first_columns(columns: Sequence[str] | None) -> list[str] | None:
+    if columns is None:
+        return None
+    out: list[str] = ["date"]
+    for column in columns:
+        text = str(column)
+        if text != "date" and text not in out:
+            out.append(text)
+    return out
 
 
 def sync_market_panel(

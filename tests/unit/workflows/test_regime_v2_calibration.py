@@ -13,6 +13,7 @@ from market_helper.regimes.methods.market_regime import MarketRegimeConfig, Mark
 from market_helper.workflows.regime_v2_calibration import (
     AnchorPeriod,
     run_regime_v2_calibration,
+    summarize_anchor_period_rows,
     summarize_anchor_periods,
 )
 
@@ -123,6 +124,11 @@ def test_calibration_workflow_writes_html_summary_and_question_notebook(tmp_path
     assert artifacts.notebook_path == notebook_path
     assert html_path.exists()
     assert artifacts.daily_json_path.exists()
+    daily = json.loads(artifacts.daily_json_path.read_text(encoding="utf-8"))
+    assert daily
+    assert "layer_outputs" not in daily[0]
+    assert "top_contributors" not in daily[0]
+    assert "risk_state" not in daily[0]
     html = html_path.read_text(encoding="utf-8")
     assert "Regime Engine v2 Calibration Report" in html
     assert "2025 April Liberation Day Tariff Shock" in html
@@ -180,6 +186,38 @@ def test_summarize_anchor_periods_exposes_layer_coverage_limits() -> None:
     assert summaries[0]["market_coverage_share"] == 0.0
     assert summaries[0]["risk_coverage_share"] == 0.0
     assert "coverage macro/market/risk 100%/0%/0%" in summaries[0]["observation"]
+
+
+def test_anchor_summary_can_reuse_prepared_rows_without_full_result_dicts() -> None:
+    rows = [
+        {
+            "date": "2025-01-02",
+            "final_regime": "Reflation",
+            "base_regime": "Reflation",
+            "confidence": "High",
+            "disagreement_flag": False,
+            "final_growth_score": 1.0,
+            "final_inflation_score": 1.0,
+            "risk_score": 0.0,
+            "risk_overlay_on": False,
+            "macro_growth_score": 1.0,
+            "macro_inflation_score": 1.0,
+            "market_growth_score": None,
+            "market_inflation_score": None,
+            "top_contributors": [["macro_nowcast:G", 1.0]],
+            "risk_state": "Not available",
+        }
+    ]
+
+    summaries = summarize_anchor_period_rows(
+        rows,
+        anchors=[AnchorPeriod("Prepared", "2025-01-01", "2025-01-31", "Expected", "Question?")],
+    )
+
+    assert summaries[0]["available"] is True
+    assert summaries[0]["macro_coverage_share"] == 1.0
+    assert summaries[0]["market_coverage_share"] == 0.0
+    assert summaries[0]["top_contributors"] == [("macro_nowcast:G", 1.0)]
 
 
 def test_cli_regime_calibrate_v2_dispatches(tmp_path: Path) -> None:

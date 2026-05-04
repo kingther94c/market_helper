@@ -8,6 +8,7 @@ import pandas as pd
 from market_helper.data_sources.yahoo_finance.market_panel import (
     MarketSymbolSpec,
     load_cached_market_symbol,
+    load_market_panel,
     sync_market_panel,
     validate_market_panel,
 )
@@ -76,3 +77,18 @@ def test_market_panel_validation_reports_gaps() -> None:
     diagnostics = validate_market_panel(panel)
     assert diagnostics.unique_dates is True
     assert diagnostics.unexpected_gap_count >= 1
+
+
+def test_load_market_panel_projects_requested_columns(tmp_path: Path) -> None:
+    path = tmp_path / "market_panel.feather"
+    pd.DataFrame(
+        {
+            "date": pd.to_datetime(["2026-01-02"]),
+            "SPY": [100.0],
+            "UNUSED": [200.0],
+        }
+    ).to_feather(path)
+
+    frame = load_market_panel(path, columns=["SPY"])
+
+    assert frame.columns.tolist() == ["date", "SPY"]
