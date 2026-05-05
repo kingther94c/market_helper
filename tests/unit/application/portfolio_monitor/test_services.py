@@ -86,6 +86,40 @@ def test_query_service_warns_when_performance_artifacts_are_missing(tmp_path: Pa
     assert report_data.performance_usd_view_model.as_of == "n/a"
 
 
+def test_generate_combined_inputs_default_to_existing_regime_artifact(
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+    regime_path = tmp_path / "regime_snapshots.json"
+    regime_path.write_text("[]", encoding="utf-8")
+    monkeypatch.setattr(app_services, "DEFAULT_REGIME_ARTIFACT_PATH", regime_path)
+
+    service = PortfolioMonitorQueryService()
+
+    resolved = service.resolve_inputs(
+        GenerateCombinedReportInputs(positions_csv_path=tmp_path / "positions.csv")
+    )
+
+    assert resolved.regime_path == regime_path
+
+
+def test_plain_report_inputs_do_not_implicitly_load_default_regime(
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+    regime_path = tmp_path / "regime_snapshots.json"
+    regime_path.write_text("[]", encoding="utf-8")
+    monkeypatch.setattr(app_services, "DEFAULT_REGIME_ARTIFACT_PATH", regime_path)
+
+    service = PortfolioMonitorQueryService()
+
+    resolved = service.resolve_inputs(
+        PortfolioReportInputs(positions_csv_path=tmp_path / "positions.csv")
+    )
+
+    assert resolved.regime_path is None
+
+
 def test_action_service_bridges_workflow_progress(monkeypatch, tmp_path: Path) -> None:
     recorded: dict[str, object] = {}
 
@@ -194,6 +228,63 @@ def test_action_service_normalizes_combined_and_etf_calls(monkeypatch, tmp_path:
     assert etf_calls["api_key"] == "demo"
     assert any(event.label == "Combined HTML" for event in sink.events)
     assert any(event.label == "ETF sector sync" for event in sink.events)
+
+
+def test_generate_combined_report_returns_local_artifact_when_mirror_fails(
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+    def fake_write_portfolio_report(report_data, output_path):
+        output_path = Path(output_path)
+        output_path.write_text("<html>combined</html>", encoding="utf-8")
+        return output_path
+
+    def fake_ensure_google_drive_artifact_mirror(**kwargs):
+        raise PermissionError("mirror denied")
+
+    monkeypatch.setattr(app_services, "write_portfolio_report", fake_write_portfolio_report)
+    monkeypatch.setattr(
+        app_services.report_workflows,
+        "ensure_google_drive_artifact_mirror",
+        fake_ensure_google_drive_artifact_mirror,
+    )
+    query_service = app_services.PortfolioMonitorQueryService()
+    fake_report_data = app_services.PortfolioReportData(
+        as_of="2026-04-08T00:00:00+00:00",
+        artifact_metadata=app_services.ArtifactMetadata(
+            positions_csv_path=tmp_path / "positions.csv",
+            performance_output_dir=tmp_path / "flex",
+            performance_history_path=None,
+            performance_report_csv_path=None,
+            returns_path=None,
+            proxy_path=None,
+            regime_path=None,
+            security_reference_path=None,
+            risk_config_path=None,
+            allocation_policy_path=None,
+            positions_as_of="2026-04-08T00:00:00+00:00",
+        ),
+        performance_usd_view_model=object(),  # type: ignore[arg-type]
+        performance_sgd_view_model=object(),  # type: ignore[arg-type]
+        risk_view_model=object(),  # type: ignore[arg-type]
+        warnings=[],
+    )
+
+    monkeypatch.setattr(query_service, "load_report_data", lambda inputs=None: fake_report_data)
+
+    service = PortfolioMonitorActionService(query_service=query_service)
+    artifact = service.generate_combined_report(
+        GenerateCombinedReportInputs(
+            positions_csv_path=tmp_path / "positions.csv",
+            performance_output_dir=tmp_path / "flex",
+            output_path=tmp_path / "combined.html",
+        )
+    )
+
+    assert artifact.output_path == tmp_path / "combined.html"
+    assert artifact.exists is True
+    assert artifact.mirrored_output_path is None
+    assert any("Google Drive artifact mirror failed" in warning for warning in artifact.warnings)
 
 
 def _write_positions_csv(path: Path) -> Path:

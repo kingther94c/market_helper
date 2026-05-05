@@ -42,6 +42,7 @@ from market_helper.workflows import generate_report as report_workflows
 DEFAULT_POSITIONS_CSV_PATH = PORTFOLIO_ARTIFACTS_DIR / "live_ibkr_position_report.csv"
 DEFAULT_COMBINED_REPORT_PATH = PORTFOLIO_ARTIFACTS_DIR / "portfolio_combined_report.html"
 DEFAULT_PERFORMANCE_OUTPUT_DIR = PORTFOLIO_ARTIFACTS_DIR / "flex"
+DEFAULT_REGIME_ARTIFACT_PATH = Path("data/artifacts/regime_detection/regime_snapshots.json")
 
 
 @dataclass
@@ -97,6 +98,14 @@ def _resolve_performance_report_csv_path(
     return candidates[-1]
 
 
+def _resolve_regime_input_path(source: PortfolioReportInputs) -> Path | None:
+    if source.regime_path is not None:
+        return Path(source.regime_path)
+    if isinstance(source, GenerateCombinedReportInputs) and DEFAULT_REGIME_ARTIFACT_PATH.exists():
+        return DEFAULT_REGIME_ARTIFACT_PATH
+    return None
+
+
 class PortfolioMonitorQueryService:
     def __init__(self) -> None:
         self._perf_cache: _PerformanceCacheEntry | None = None
@@ -119,6 +128,7 @@ class PortfolioMonitorQueryService:
             if source.risk_config_path is not None
             else DEFAULT_RISK_REPORT_CONFIG_PATH
         )
+        regime_path = _resolve_regime_input_path(source)
         return PortfolioReportInputs(
             positions_csv_path=positions_csv_path,
             performance_output_dir=output_dir,
@@ -137,7 +147,7 @@ class PortfolioMonitorQueryService:
             ),
             returns_path=Path(source.returns_path) if source.returns_path is not None else None,
             proxy_path=Path(source.proxy_path) if source.proxy_path is not None else None,
-            regime_path=Path(source.regime_path) if source.regime_path is not None else None,
+            regime_path=regime_path,
             security_reference_path=security_reference_path,
             risk_config_path=risk_config_path,
             allocation_policy_path=Path(source.allocation_policy_path) if source.allocation_policy_path is not None else None,
@@ -392,11 +402,22 @@ class PortfolioMonitorActionService:
         _record_manual_event(sink, kind="spinner", label="Combined HTML", detail="rendering")
         report_data = self._query_service.load_report_data(resolved)
         written = write_portfolio_report(report_data, output_path)
-        mirrored = report_workflows.ensure_google_drive_artifact_mirror(
-            source_path=written,
-            target_name="portfolio_combined_report.html",
-            config_path=Path(str(resolved.risk_config_path)) if resolved.risk_config_path is not None else None,
-        )
+        try:
+            mirrored = report_workflows.ensure_google_drive_artifact_mirror(
+                source_path=written,
+                target_name="portfolio_combined_report.html",
+                config_path=Path(str(resolved.risk_config_path)) if resolved.risk_config_path is not None else None,
+            )
+        except Exception as exc:  # noqa: BLE001 — local report is the source of truth for GUI use.
+            logger.warning("Failed to mirror combined report artifact from %s: %s", written, exc)
+            mirrored = None
+            report_data = replace(
+                report_data,
+                warnings=[
+                    *report_data.warnings,
+                    f"Google Drive artifact mirror failed ({exc}); local report was written.",
+                ],
+            )
         _record_manual_event(sink, kind="done", label="Combined HTML", detail=f"wrote {written}")
         return self._query_service.resolve_report_artifact(
             inputs=resolved,
