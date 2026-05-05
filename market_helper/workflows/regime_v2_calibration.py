@@ -26,6 +26,7 @@ from market_helper.regimes.methods.market_regime import MarketRegimeConfig, load
 
 DEFAULT_CALIBRATION_DIR = Path("data/artifacts/regime_detection/calibration")
 DEFAULT_NOTEBOOK_PATH = Path("notebooks/regime_detection/regime_v2_calibration_questions.ipynb")
+DEFAULT_REGIME_ENGINE_CONFIG = Path("configs/regime_detection/regime_engine_v2.yml")
 DAILY_ROW_KEYS = (
     "date",
     "final_regime",
@@ -161,7 +162,8 @@ def run_regime_v2_calibration(
     of being papered over.
     """
 
-    cfg = load_regime_engine_config(regime_engine_config)
+    cfg_path = Path(regime_engine_config) if regime_engine_config else DEFAULT_REGIME_ENGINE_CONFIG
+    cfg = load_regime_engine_config(cfg_path if cfg_path.exists() else None)
     macro_specs = None
     macro_panel = None
     specs_path = Path(fred_series_config) if fred_series_config else Path("configs/regime_detection/fred_series.yml")
@@ -402,7 +404,7 @@ def _recommendations(summaries: Sequence[Mapping[str, Any]], diagnostics: Mappin
     high_disagreement = [
         item["name"]
         for item in summaries
-        if item.get("available") and float(item.get("disagreement_share") or 0.0) >= 0.50
+        if item.get("available") and float(item.get("disagreement_share") or 0.0) >= 0.75
     ]
     if high_disagreement:
         recs.append(f"Review whether these high-disagreement windows are desirable dislocations: {', '.join(high_disagreement)}.")

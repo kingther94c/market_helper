@@ -5,14 +5,14 @@ regime_engine:
     macro_nowcast:
       enabled: true
       available_required: false
-      weight_growth: 0.50
-      weight_inflation: 0.50
+      weight_growth: 0.45
+      weight_inflation: 0.40
 
     market_implied:
       enabled: true
       available_required: false
-      weight_growth: 0.50
-      weight_inflation: 0.50
+      weight_growth: 0.55
+      weight_inflation: 0.60
 
     macro_truth_ml:
       enabled: false
@@ -38,8 +38,8 @@ regime_engine:
   regime_thresholds:
     growth_up: 0.35
     growth_down: -0.35
-    inflation_up: 0.35
-    inflation_down: -0.35
+    inflation_up: 0.50
+    inflation_down: -0.50
 
   confidence:
     enabled: true

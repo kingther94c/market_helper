@@ -54,3 +54,10 @@ collapse, 2017 soft landing, 2018 Q4, COVID, 2022 inflation/tightening,
 2023-24 disinflation, and the April 2025 Liberation Day tariff-shock window.
 The workflow is for product calibration only; it does not alter configs, train
 ML models, produce trading signals, or emit allocation changes.
+
+Current first-pass calibration uses neutral/deadband normalization for macro
+inflation series so normal 2%-ish inflation is not automatically treated as
+`Inflation Up`. The ensemble gives a modestly higher weight to
+`market_implied` than `macro_nowcast` because market pricing is the faster layer.
+Disagreement is reserved for opposing directional layer calls, not every
+neutral-vs-directional difference.

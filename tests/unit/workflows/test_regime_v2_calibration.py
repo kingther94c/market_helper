@@ -38,8 +38,8 @@ def _tariff_shock_market_panel(n: int = 120) -> pd.DataFrame:
     for idx, date in enumerate(dates):
         if pd.Timestamp("2025-04-01") <= date <= pd.Timestamp("2025-04-25"):
             shock_idx = len([d for d in dates[: idx + 1] if pd.Timestamp("2025-04-01") <= d <= pd.Timestamp("2025-04-25")])
-            spy.append(150.0 - shock_idx * 1.5)
-            uso.append(80.0 + shock_idx * 1.0)
+            spy.append(150.0 * (0.5 ** shock_idx))
+            uso.append(80.0 * (1.5 ** shock_idx))
             vix.append(18.0 + shock_idx * 1.2)
         elif date > pd.Timestamp("2025-04-25"):
             relief_idx = len([d for d in dates[: idx + 1] if d > pd.Timestamp("2025-04-25")])

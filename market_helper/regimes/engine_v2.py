@@ -70,8 +70,8 @@ class RiskOverlayConfig:
 class RegimeThresholds:
     growth_up: float = 0.35
     growth_down: float = -0.35
-    inflation_up: float = 0.35
-    inflation_down: float = -0.35
+    inflation_up: float = 0.50
+    inflation_down: float = -0.50
 
 
 @dataclass(frozen=True)
@@ -93,8 +93,8 @@ class RegimeEngineConfig:
     version: int = 2
     layers: Mapping[str, LayerConfig] = field(
         default_factory=lambda: {
-            "macro_nowcast": LayerConfig(enabled=True, weight_growth=0.50, weight_inflation=0.50),
-            "market_implied": LayerConfig(enabled=True, weight_growth=0.50, weight_inflation=0.50),
+            "macro_nowcast": LayerConfig(enabled=True, weight_growth=0.45, weight_inflation=0.40),
+            "market_implied": LayerConfig(enabled=True, weight_growth=0.55, weight_inflation=0.60),
             "macro_truth_ml": LayerConfig(enabled=False, weight_growth=0.0, weight_inflation=0.0, model_type="svm"),
             "return_truth_ml": LayerConfig(enabled=False, weight_growth=0.0, weight_inflation=0.0, model_type="svm"),
         }
@@ -490,24 +490,37 @@ def _disagreement(
     if not cfg.disagreement.enabled:
         return False, ""
     available = [layer for layer in layers if layer.enabled and layer.available]
-    states = {
-        (layer.growth_state, layer.inflation_state)
-        for layer in available
-        if layer.growth_state not in {STATE_DISABLED, STATE_UNAVAILABLE}
-    }
-    score_gap = 0.0
-    if len(available) >= 2:
-        growth_scores = [layer.growth_score for layer in available if layer.growth_score is not None]
-        inflation_scores = [layer.inflation_score for layer in available if layer.inflation_score is not None]
-        if growth_scores:
-            score_gap = max(score_gap, max(growth_scores) - min(growth_scores))
-        if inflation_scores:
-            score_gap = max(score_gap, max(inflation_scores) - min(inflation_scores))
-    flag = len(states) > 1 or score_gap >= cfg.disagreement.strong_disagreement_threshold
+    flag = _axis_has_opposing_layers(available, "growth", cfg) or _axis_has_opposing_layers(
+        available,
+        "inflation",
+        cfg,
+    )
     if not flag:
         return False, ""
     labels = ", ".join(f"{layer.layer_name}: {layer.growth_state}/{layer.inflation_state}" for layer in available)
     return True, f"Layer disagreement: {labels}"
+
+
+def _axis_has_opposing_layers(
+    layers: Sequence[RegimeLayerResult],
+    axis: str,
+    cfg: RegimeEngineConfig,
+) -> bool:
+    scores = [
+        layer.growth_score if axis == "growth" else layer.inflation_score
+        for layer in layers
+    ]
+    clean = [float(score) for score in scores if score is not None]
+    if len(clean) < 2:
+        return False
+    thresholds = cfg.regime_thresholds
+    down = thresholds.growth_down if axis == "growth" else thresholds.inflation_down
+    up = thresholds.growth_up if axis == "growth" else thresholds.inflation_up
+    return (
+        min(clean) <= down
+        and max(clean) >= up
+        and (max(clean) - min(clean)) >= cfg.disagreement.strong_disagreement_threshold
+    )
 
 
 def _confidence(

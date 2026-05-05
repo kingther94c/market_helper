@@ -83,7 +83,9 @@ series:
     transform: yoy_pct
     bucket: slow
     direction: positive
-    normalization: none
+    neutral_level: 2.5
+    threshold: 0.5
+    normalization: threshold
     weight: 1.0
     publication_lag_days: 14
     title: CPI all items (YoY %)
@@ -94,7 +96,9 @@ series:
     transform: yoy_pct
     bucket: slow
     direction: positive
-    normalization: none
+    neutral_level: 2.5
+    threshold: 0.5
+    normalization: threshold
     weight: 1.0
     publication_lag_days: 14
     title: Core CPI (YoY %)
@@ -105,7 +109,9 @@ series:
     transform: yoy_pct
     bucket: slow
     direction: positive
-    normalization: none
+    neutral_level: 2.2
+    threshold: 0.5
+    normalization: threshold
     weight: 1.0
     publication_lag_days: 30
     title: PCE price index (YoY %)
@@ -116,7 +122,9 @@ series:
     transform: yoy_pct
     bucket: slow
     direction: positive
-    normalization: none
+    neutral_level: 2.2
+    threshold: 0.5
+    normalization: threshold
     weight: 1.0
     publication_lag_days: 30
     title: Core PCE (YoY %)
@@ -127,7 +135,9 @@ series:
     transform: level
     bucket: slow
     direction: positive
-    normalization: none
+    neutral_level: 3.0
+    threshold: 0.5
+    normalization: threshold
     weight: 1.0
     publication_lag_days: 14
     title: Sticky-price CPI (YoY %, as published)
@@ -138,7 +148,9 @@ series:
     transform: level
     bucket: fast
     direction: positive
-    normalization: none
+    neutral_level: 2.25
+    threshold: 0.25
+    normalization: threshold
     weight: 1.0
     publication_lag_days: 1
     title: 5y5y forward inflation expectation
@@ -149,7 +161,9 @@ series:
     transform: yoy_pct
     bucket: fast
     direction: positive
-    normalization: none
+    neutral_level: 4.0
+    threshold: 0.5
+    normalization: threshold
     weight: 0.5
     publication_lag_days: 7
     title: Average hourly earnings (YoY %)

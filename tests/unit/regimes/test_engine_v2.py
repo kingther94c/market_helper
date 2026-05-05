@@ -38,8 +38,8 @@ def _market_panel(
     n: int = 90,
 ) -> pd.DataFrame:
     dates = pd.bdate_range("2026-01-01", periods=n)
-    spy = [100.0 + idx if growth_up else 100.0 - idx * 0.1 for idx in range(n)]
-    oil = [100.0 + idx if inflation_up else 100.0 - idx * 0.1 for idx in range(n)]
+    spy = [100.0 + idx if growth_up else 100.0 * (0.5 ** idx) for idx in range(n)]
+    oil = [100.0 + idx if inflation_up else 100.0 * (0.5 ** idx) for idx in range(n)]
     vix = [15.0] * n
     if risk_high:
         vix[-20:] = [40.0] * 20
@@ -172,6 +172,26 @@ def test_disagreement_and_confidence_penalty_are_exposed() -> None:
     assert "macro_nowcast" in latest.disagreement_summary
     assert latest.confidence in {"Low", "Medium", "High"}
     assert latest.confidence != "High"
+
+
+def test_neutral_layer_difference_is_not_strong_disagreement() -> None:
+    cfg = RegimeEngineConfig(
+        layers={
+            "macro_nowcast": LayerConfig(enabled=True, weight_growth=0.5, weight_inflation=0.5),
+            "market_implied": LayerConfig(enabled=True, weight_growth=0.5, weight_inflation=0.5),
+            "macro_truth_ml": LayerConfig(enabled=False, model_type="svm"),
+            "return_truth_ml": LayerConfig(enabled=False, model_type="svm"),
+        }
+    )
+    latest = run_regime_engine_v2(
+        config=cfg,
+        macro_panel=_macro_panel((0.4, 0.0), n=90),
+        macro_specs=_macro_specs(),
+        market_panel=_market_panel(growth_up=True, inflation_up=True),
+        market_config=_market_config(),
+    )[-1]
+
+    assert latest.disagreement_flag is False
 
 
 def test_weights_and_zero_weight_layers_control_final_scores() -> None:
