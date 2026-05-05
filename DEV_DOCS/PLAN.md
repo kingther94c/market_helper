@@ -1,146 +1,134 @@
 # PLAN
 
-> Process gates live in `DEV_DOCS/RULES.md`. Historical detail lives in `DEV_DOCS/archive/` (gitignored, do not read by default).
+> Process gates live in `DEV_DOCS/RULES.md`. Historical detail lives in
+> `DEV_DOCS/archive/` (gitignored, do not read by default).
 
 ## Objective
 
-Build a broker-agnostic, **read-only** IBKR integration layer for market monitoring and portfolio analytics. Primary path: IBKR Client Portal Web API + TWS / IB Gateway via `ib_async` + Flex Web Service. Delivery surfaces: position reports, performance analytics, risk reports, regime detection, and a NiceGUI live dashboard.
+Build a broker-agnostic, **read-only** market monitoring stack around IBKR data:
+live positions, Flex performance, portfolio risk, Regime Engine v2 context,
+static HTML reports, and the NiceGUI dashboard.
 
-## In / Out of scope
+## Boundaries
 
-**In**: read-only provider adapters (Web API, `ib_async`, Flex), domain normalization, allocation/risk/reporting services, static HTML monitor + live dashboard.
-**Out**: any order placement / cancel / modify capability in V1; raw TWS socket client; full multi-user product frontend or execution UI.
+**In scope**
+- Read-only provider adapters: IBKR Client Portal, TWS / IB Gateway via
+  `ib_async`, Flex Web Service, Yahoo/FRED/FMP data pulls.
+- Artifact-driven portfolio monitor: position CSV, NAV/cashflow history,
+  security reference cache, risk/performance/regime reports.
+- NiceGUI dashboard as the operator surface.
 
-## Architecture (current state)
+**Out of scope**
+- Order placement, cancel, modify, brokerage write actions.
+- Trading signal generation or allocation execution from regime output.
+- Multi-user SaaS frontend work.
+- Rebuilding old workbook reports before the artifact/reporting model is stable.
 
-`cli → workflows (compatibility shims) → application → domain → data_sources / presentation`. `market_helper/application/portfolio_monitor` is the dashboard orchestration seam. The portfolio-monitor track (live TWS, Flex ingestion, combined-report pipeline, NiceGUI dashboard) shares one artifact-driven workflow direction.
-- Added a workbook-to-JSON mapping-table extraction path so stable portfolio metadata can be seeded from `target_report.xlsx` without making the HTML report depend directly on the workbook at runtime.
-- Replaced the old in-memory / workbook-JSON mapping split with a generated wide `data/artifacts/portfolio_monitor/security_reference.csv` cache covering `ETF`, `EQ`, `FX_FUT`, `FI_FUT`, `OTHER_FUT`, and `CASH`.
-- Reworked `market_helper/portfolio/security_reference.py` around CSV loading, provider indexes, and runtime `UNMAPPED` / `OUTSIDE_SCOPE` fallbacks while keeping compatibility helpers for existing report code.
-- Updated IBKR normalization to resolve positions against the curated universe first (exact `conId`, then alias/family lookup, then cash), with futures canonicalized at family level rather than expiry-contract level.
-- Moved the HTML risk report off workbook-derived runtime JSON so category/display/duration/expected-vol enrichment now comes from curated security reference rows.
-- Downgraded workbook extraction into a bootstrap importer that exports a security-reference CSV seed instead of a runtime JSON mapping table.
-- Promoted `configs/security_universe.csv` to the single manually maintained instrument source of truth and turned `data/artifacts/portfolio_monitor/security_reference.csv` into a generated materialized lookup table rebuilt from universe rows plus cached/live IBKR metadata.
-- Replaced the old report/risk semantics (`report_category`, `risk_bucket`, `default_expected_vol`, provider-hint columns) with universe-native fields centered on `asset_class`, `eq_country`, `eq_sector`, `dir_exposure`, `fi_mod_duration`, and `fi_tenor`.
-- Added universe-first generation/sync services, a dedicated `security-reference-sync` CLI path, and a `security_universe_PROPOSED.csv` review flow for unmapped runtime instruments.
-- Updated raw IBKR JSON and live TWS report workflows so they rebuild the generated security reference first, preserve universe-stable `internal_id`s, and refresh runtime lookup fields without letting primary-exchange resolution destabilize IDs.
-- Added explicit SMART-vs-primary-exchange alias handling so mapped equities such as `SPY` remain keyed as `STK:SPY:SMART` while still absorbing live `ARCA` contract details.
-- Rebuilt the HTML risk workflow around universe-first semantics, with Yahoo-backed returns generation by default, asset-class summaries, EQ country look-through, US sector look-through, FI tenor breakdowns, and selectable vol/correlation modes.
-- Added a reusable portfolio-monitor risk utility layer under `market_helper/domain/portfolio_monitor/services/`, covering generic realized-vol, EWMA, blend, proxy-vol, fixed-income-vol, and Yahoo return-cache helpers.
-- Added dated Yahoo return caching under `data/artifacts/portfolio_monitor/yahoo_returns/`, storing per-symbol log-return series derived from adjusted close so repeated risk runs can reuse history instead of fetching everything on demand.
-- Refactored `market_helper/reporting/risk_html.py` to consume the new risk utility services, support both legacy list-style and dated return overrides, and compute aligned correlations from date-indexed return series.
-- Hardened Yahoo history retrieval for the risk flow so transient failures such as HTTP `429` now retry with backoff, honor `Retry-After` when present, reuse stale per-symbol cache files when refresh fails, and fall back to proxy-driven risk estimates when no dated return history can be refreshed in the current run.
-- Split FI tenor semantics from duration bucketing so `fi_tenor` is now an explicit instrument classification rather than a derived `fi_mod_duration` range; workbook import, generated reference, and report rendering now preserve cases such as `ZT -> 1-3Y`, `ZF -> 3-5Y`, `ZN -> 7-10Y`, `LQD -> 7-10Y`, and `TLT -> 20Y+`.
-- Updated FI tenor presentation so the risk report keeps the canonical bucket names while also showing readable labels (`Cash / ultra-short`, `Front end`, `Short belly`, `Belly`, `Long belly`, `Long end`, `Ultra-long`) in the breakdown table.
-- Corrected funded-AUM semantics in the portfolio-monitor risk path so the denominator now includes only stock-like and cash exposures (`EQ` / `ETF` / `CASH`) and excludes futures, options, and outside-scope rows.
-- Corrected fixed-income proxy-vol fallback semantics so unmapped or temporarily return-less FI rows no longer treat `MOVE` as direct price volatility; instead the report maps proxy yield-vol into price-vol through modified duration, producing realistic fallback vols for instruments such as `ZT`, `ZF`, `ZN`, and `LQD`.
-- Cleaned up the HTML risk `Asset Class Summary` rendering so the section has a dedicated renderer, consistent column counts, and exposure-first row ordering rather than reusing the more verbose generic breakdown layout.
-- Added FI 10Y-equivalent display normalization inside the HTML risk report: FI dollar-amount views now map raw FI notionals into `10Y-equivalent` exposure using `gross_exposure * mod_duration / FI_10Y_EQ_MOD_DURATION` with a default base duration of `8.0`, configurable from proxy JSON, while leaving volatility, loadings, correlations, and risk-contribution math unchanged.
-- Added static look-through configs under `configs/portfolio_monitor/` for coarse equity country expansion and broad-US sector decomposition.
-- Refreshed portfolio-monitor and provider tests around the new stable IDs and generated-reference flow, and fixed remaining Python 3.9 compatibility issues (`zip(..., strict=True)` and typing syntax) so the full repo test suite is green again in the active environment.
-- Expanded the shared Python environment definitions to include Jupyter notebook support (`ipykernel`, `notebook`, `jupyterlab`) for exploratory work under `notebooks/`.
-- Consolidated duplicate Conda environment files into a single repo-level `env.yml`, aligned to the active `py313` notebook stack and explicit `matplotlib` dependency.
-- Synced additional top-level `py313` packages back into `env.yml` where they appear intentional and repo-relevant, specifically `pytest` for the test workflow and `yfinance` for notebook/data exploration.
-- Added explicit notebook-analysis staples used in local project notebooks to `env.yml`, specifically `numpy` and `pandas`, so exploratory work is reproducible from the shared environment spec.
-- Expanded `env.yml` further with common stats / quant-analysis packages (`scipy`, `scikit-learn`, `statsmodels`) so the shared environment covers typical research notebooks without ad hoc local installs.
-- Formalized the TWS / IB Gateway path as `ib_async`-first for local live work and removed the unnecessary `ibapi` dependency from IBKR contract lookup.
-- Extended `market_helper.providers.tws_ib_async.TwsIbAsyncClient` with primary-exchange-aware contract lookup, plus `search_securities()` for multi-match exploration and fail-fast `lookup_security()` for single-instrument lookups.
-- Replaced the old offline/demo `derive_sec_table` notebook flow with a live, `market_helper`-only IBKR contract lookup notebook that pulls real raw contract details from local TWS / IB Gateway.
-- Expanded TWS provider tests to cover `ib_async` contract construction, `primaryExchange` propagation, and explicit no-match / ambiguous-match lookup failures.
-- Updated README and provider docs so the documented TWS strategy now matches the code: `ib_async` is the default TWS stack and the live notebook is part of the supported local workflow.
-- Unit tests added and expanded across config, domain, providers, portfolio normalization, reporting, workflows, and read-only guard behavior.
-- Hardened volatility pipeline in `reporting/risk_html.py`: `_security_vol` now emits a WARNING whenever it falls back to the proxy-vol branch (ticker, asset class, method, reason logged).
-- Switched historical inter-asset correlation to use per-asset-class proxy tickers (`ACWI/AGG/GLD`) via `_load_asset_class_proxy_returns`; asset classes with no proxy (MACRO, CASH) are forced to 0 corr with others.
-- Exposed `inter_asset_corr` end-to-end (contracts → services → workflows → pipelines → CLI → NiceGUI dashboard toggle) so users can compare portfolio vol under `historical / corr_0 / corr_1`.
-- Added a new forward-looking vol method `_adjusted_proxy_security_vol`: `fwd(asset) = realized_5Y(asset) / realized_5Y(proxy) × simple_proxy_level`. The simple proxy-vol calc (`_proxy_fallback_security_vol`) is preserved as the last-resort fallback. Exposed via the `vol_method="forward_looking"` option in the dashboard, CLI, and risk HTML summary card.
-- Started the dashboard refactor toward a unified current-state risk monitor: added a configurable label→key mapping for vol methods (`vol_method_labels` in `report_config.yaml`) with defaults `Long-Term → 5y_realized`, `Fast → geomean_1m_3m`, `Forward-Looking → forward_looking`; added `resolve_vol_method_key()` helper in `reporting/risk_html.py` that accepts either label or internal key so downstream pipelines can stay on internal keys. Also added `fx_excluded_asset_classes` config for the upcoming `FX excluded` portfolio-vol note.
-- Added an in-process, date-keyed session cache for Yahoo return series in `domain/portfolio_monitor/services/yahoo_returns.py` so repeated risk-report refreshes within the same dashboard session (and same calendar day) skip both disk reads and network fetches for already-loaded symbols. Exposes `clear_session_yahoo_cache()` for tests / forced refresh.
-- Renamed the NiceGUI dashboard vol-method selector to surface the human-readable labels (`Long-Term / Fast / Forward-Looking`) with `Fast` as the default; the dashboard now passes the selected label straight through to the risk view-model builder, which resolves it via the configurable mapping.
-- Restructured the NiceGUI Risk tab into a **Main Overview + 5 detail sub-tabs** layout (`Equity`, `Fixed Income`, `Commodity`, `FX`, `Macro`) per the v1 Risk Dashboard spec. Main Overview now groups Portfolio Summary (with `FX excluded` note and Long-Term / Fast / Forward-Looking vol hero cards), Asset Class Summary (renamed columns: `Net Exposure ($)`, `Portfolio Allocation %`, `Vol Contribution %`), and an allocation-only Portfolio Drift chart/table. Detail tabs reuse existing view-model data: Equity surfaces country + US sector breakdowns plus EQ-filtered holdings; Fixed Income adds summary cards (total FI net exposure, weighted-avg duration, position count) above the existing FI tenor bucket table and FI-filtered instruments; FX/Macro are filtered-row views (FX with `Vol Contribution %` omitted per spec).
-- Added a lightweight Commodity Sector Summary table in the Commodity detail tab, aggregating CM positions by `cm_sector` (PM / IM / EN / AG) loaded directly from `configs/security_universe.csv`. Full propagation of `cm_sector` through `SecurityReference` is still deferred to a future change.
-- Added a Commodity cross-sector correlation heatmap (Plotly `RdBu`, `-1..1`) in the Commodity detail tab, computed from `commodity_sector_proxies` (config: `PM=GLD, IM=DBB, EN=USO, AG=DBA`) and `commodity_sector_correlation_lookback_days` via the existing session-cached Yahoo returns.
-- Added an Equity DM/EM summary block to the Equity detail tab with a small table plus two 100% stacked bars (portfolio vs policy), deriving DM/EM classification from `configs/portfolio_monitor/eq_country_lookthrough.csv`.
-- Landed Phase A of the Playwright snapshot retirement plan: added `snapshot_mode` to `PortfolioPageState`, a `?snapshot=1` query-param flag on `@ui.page("/portfolio")` that hides the Actions console, Run History, and artifact toolbar, and a `#snapshot-ready` sentinel element emitted after the snapshot finishes loading. Added a skeleton `market_helper/presentation/dashboard/snapshot.py` module that launches the NiceGUI dashboard in-process, drives it with Playwright (`async_playwright`), waits for the sentinel, and writes the captured HTML to disk. Playwright is not yet installed into the env.
-- Propagated `cm_sector` through the security-reference layer: added an optional `cm_sector` column to `SECURITY_UNIVERSE_HEADERS` / `SECURITY_REFERENCE_HEADERS` with schema-detection tolerance for legacy CSVs that pre-date the column; wired it through `SecurityUniverseRow` / `SecurityReference` / `RiskInputRow` / `RiskMetricsRow` and the `load_position_rows` parser. The Commodity detail tab now reads `cm_sector` off the risk row directly, and the `@lru_cache`-backed `_load_cm_sector_map` CSV side-channel and `import csv` cleanup workaround have been removed from `presentation/dashboard/pages/portfolio.py`.
-- Landed Phase B-1 of the Playwright snapshot pipeline: `playwright>=1.48` is in `env.yml`, `scripts/setup_python_env.sh` runs `python -m playwright install chromium` after env creation, and `capture_snapshot()` now smoke-passes end-to-end — launches NiceGUI on an ephemeral port, navigates to `/portfolio?snapshot=1`, waits for `#snapshot-ready` (switched to `state="attached"` since NiceGUI renders sentinel `ui.html` nodes as display:none), and writes the HTML to disk. Sentinel fires in snapshot mode regardless of whether a positions CSV is available (`data-has-snapshot="0"` vs `"1"`) so the Playwright wait is deterministic. Asset inlining is not yet done — the captured HTML still references `/_nicegui/...` URLs and requires a running NiceGUI server to fully render.
-- Landed Phase B-2 of the Playwright snapshot pipeline via an **ossify-and-strip** strategy. `snapshot.py` now: captures every `/_nicegui/...` response during navigation via `page.on("response")`, strips all `<script>` tags (the DOM is already hydrated by Playwright before capture), inlines captured stylesheets as prepended `<style>` blocks, rewrites `url(/_nicegui/...)` references inside existing/inlined CSS to `data:` URIs (fonts included), converts captured favicon/icon references to `data:` URIs, and drops `<link rel="modulepreload">` / `<link rel="preload">` hints. The output is intentionally non-interactive: no JS runs when the snapshot is viewed offline, so Plotly charts / Quasar styling / tables are all baked into the DOM at capture time. Smoke verified end-to-end in `offline=True` Playwright context — no page errors, no failed network requests, styling preserved (gradient header, tabs with active underline, card shadows).
-- Fixed a dashboard tab-persistence bug: toggling Percent/Dollar (or MTD/YTD/1Y/Full) on the Performance SGD tab snapped the view back to Performance USD, because the perf toggles trigger a full `@ui.refreshable` rebuild that re-created `ui.tab_panels` with the page-load default. The top-level `ui.tabs` now binds its value into `state.selected_top_tab` via `on_change`, so refreshes respect whichever tab the user is on.
-- Fixed a live-TWS portfolio bug that caused `live_ibkr_position_report.csv` to drop every non-cash position, leaving the risk dashboard showing just the converted-SGD cash row. Root cause: `ib_async`'s `wrapper.portfolio[account]` dict is only populated by `reqAccountUpdates` (the single-account subscription), not by `reqAccountUpdatesMulti`. The startup `reqAccountUpdates` call in `IB.connectAsync` is skipped when no `account` is passed to `connect()` and more than one managed account is returned, and when it does run it is wrapped in `asyncio.wait_for(..., timeout)` with `raiseSyncErrors=False`, so a short `connect()` timeout silently leaves `wrapper.portfolio` empty. `ib.portfolio(account)` then returns `[]` while `ib.accountValues(account)` still returns the cash tags populated by `reqAccountUpdatesMulti`. `TwsIbAsyncClient.list_portfolio` now reads `ib.portfolio(account)` first, and only if the result is empty does it force a fresh subscription (unsubscribe via `client.reqAccountUpdates(False, account)` then re-subscribe via `reqAccountUpdatesAsync(account)` under `ib.run(..., timeout=30.0)`). Using the bounded async path matters because the blocking `ib.reqAccountUpdates` hangs forever when the subscription is already active — TWS does not re-send `accountDownloadEnd`, so the future never completes. Tests cover both the happy path (no re-subscribe when portfolio is populated) and the empty-portfolio path (unsubscribe + re-subscribe refills portfolio).
-- Bumped the Flex Web Service HTTP timeout default from the global 20s `DEFAULT_TIMEOUT` to a Flex-specific 60s, with `IBKR_FLEX_HTTP_TIMEOUT_SECONDS` env override. IBKR queues `SendRequest` server-side (especially the first call after idle, or for fresh date ranges), so 20s frequently surfaced spurious `Timeout while requesting .../FlexWebService/SendRequest...` failures in the dashboard's Flex actions. New constant `DEFAULT_FLEX_HTTP_TIMEOUT_SECONDS` lives in `market_helper/providers/flex/client.py` and is re-exported from the `market_helper.providers.flex` facade; the existing 60s `DEFAULT_IBKR_FLEX_WAIT_TIMEOUT_SECONDS` polling budget is unchanged. All four `FlexWebServiceClient(token=...)` call sites in `domain/portfolio_monitor/pipelines/generate_portfolio_report.py` inherit the new default. `tests/unit/providers/test_flex_client.py` (17 tests) still passes.
-- Made the data-artifacts root overridable via a new `MARKET_HELPER_DATA_DIR` env var so git worktrees can share the main checkout's cache. `market_helper/app/paths.py` now honors the env var when computing `DATA_DIR` (and therefore `PORTFOLIO_ARTIFACTS_DIR` and friends), and `market_helper/domain/portfolio_monitor/services/yahoo_returns.py` now derives `DEFAULT_YAHOO_RETURNS_CACHE_DIR` from `PORTFOLIO_ARTIFACTS_DIR` instead of `Path(__file__).resolve().parents[4]`. Before this fix, loading the dashboard from a worktree missed the 32-symbol Yahoo return cache and refetched everything from Yahoo, causing very slow "Loading report data..." stalls. Tests under `tests/unit/domain/portfolio_monitor`, `tests/unit/application/portfolio_monitor`, and `tests/unit/presentation/dashboard` still pass (61/61, excluding a pre-existing unrelated circular-import collection error in `test_new_pipelines.py`).
-- Landed Phase C-risk of the Playwright snapshot pipeline: rewired the `risk-html-report` CLI to `generate_risk_snapshot_report`, which drives `/portfolio?snapshot=1&tab=risk` via `capture_snapshot()` instead of the legacy Jinja renderer. The dashboard page now accepts a `tab=` query arg (resolves to one of `performance_usd | performance_sgd | risk | artifacts`, with aliases for `perf`, `usd`, `sgd`), auto-loads the snapshot when `snapshot_mode=True` and the positions CSV exists, and honors a module-level `set_snapshot_overrides()` dict so the CLI can inject artifact paths + vol/correlation selections without query-string plumbing. `SnapshotRequest` gained an `overrides: Mapping[str, str] | None` field; `_start_dashboard()` calls `set_snapshot_overrides()` before `ui.run`. Also fixed a pre-existing broken import in `portfolio.py` (`market_helper.data_sources.yahoo` → `market_helper.data_sources.yahoo_finance`) surfaced by the first end-to-end snapshot smoke against `tests/e2e/fixtures/live_ibkr_position_report_mock.csv`. Smoke: 498 KB self-contained HTML, `data-has-snapshot="1"`, Portfolio Summary / Asset Class Summary / Vol Contribution content all populated. Migrated the CLI dispatch test to target `generate_risk_snapshot_report`; full `tests/unit` suite (233 tests) passes. Legacy `generate_risk_html_report` workflow + pipeline remain exported for parallel audits before D deletes them.
-- Tightened NiceGUI combined-report export semantics so dashboard-triggered HTML generation now explicitly re-applies the configured Google Drive artifact mirror at the application-service seam and surfaces mirror success back to the UI state. This removes reliance on an implicit lower-level side effect and keeps GUI export behavior aligned even as the underlying report renderer changes.
-- Fixed a live commodity-futures identity bug in the IBKR normalization path: runtime `CM` futures now use contract-specific internal ids keyed by `local_symbol` (for example `FUT:NGN26:NYMEX`) instead of collapsing all months for the same root symbol into a single family id. This preserves distinct spread legs through live export while still inheriting the curated family semantics from the matched reference row.
-- Added current-year Flex XML freshness reuse to the portfolio-monitor workflow: before issuing a new live Flex request for the default YTD path, `refresh_current_year_latest_flex_xml` now checks the cached `ibkr_flex_<year>_latest.xml` metadata and reuses it when it already covers the required ET `to_date`. This avoids unnecessary `SendRequest/GetStatement` cycles and reduces spurious IBKR `1019 statement generation in progress` waits in the GUI.
-- Added Regime Engine v2 actions to the NiceGUI operate drawer so the GUI can run the standalone regime report from cached inputs or refresh stale macro/market inputs before generating the regime JSON/HTML artifacts consumed by the combined report.
-- Fixed the SPY performance benchmark trace path so report-data loading can fill empty `bench_spy_return_usd/sgd` columns from the local Yahoo return cache without forcing a network pull; Flex refresh also attempts to refresh the persisted benchmark columns when the NAV/cashflow feather exists.
+## Architecture
 
-## Recently Landed
+Current ownership:
 
-- **Report header freshness note** — combined / portfolio HTML reports now show a small hint under the `As of …` meta when the resolved `as_of` lags the SGT-perceived T-1 trading day. Two cases distinguished: (a) IBKR Flex hasn't yet published the latest trading day (Flex `_fetch_current_year_statement_with_fallback` quietly steps back to the prior weekday when the queue is pending) — header notes "Latest trading day (YYYY-MM-DD) not yet published by IBKR Flex; serving T-2"; (b) report ran before ET crossed midnight, so `_default_current_flex_to_date = et_today - 1` already targets T-2 in SGT terms — header notes "Run before HH:MM SGT … re-run after HH:MM SGT for T-1" (12:00 SGT during EDT, 13:00 SGT during EST). Detection lives in [common/datetime_display.py](market_helper/common/datetime_display.py); plumbed via `PortfolioReportData.as_of_freshness_note → ReportDocument.as_of_freshness_note`.
+`cli -> workflows -> application -> domain -> data_sources / reporting / presentation`
 
-## In Progress
+Important seams:
+- `market_helper/application/portfolio_monitor/` owns dashboard-triggered
+  orchestration, artifact resolution, progress events, and action contracts.
+- `market_helper/domain/portfolio_monitor/services/` owns reusable risk,
+  performance, benchmark, volatility, fixed-income, and Yahoo-cache logic.
+- `market_helper/presentation/dashboard/` owns live NiceGUI interaction.
+- `market_helper/reporting/` owns static HTML fragments until the snapshot
+  pipeline fully replaces legacy renderers.
+- `configs/security_universe.csv` is the manually maintained instrument source
+  of truth; `data/artifacts/portfolio_monitor/security_reference.csv` is a
+  generated lookup cache.
+- `nav_cashflow_history.feather` is the canonical daily NAV + cashflow store.
 
-- **Headless UI snapshot pipeline** (Phases A / B-1 / B-2 / C-risk landed). Remaining: **perf-parity** (cumulative/drawdown Plotly charts on the NiceGUI Performance USD/SGD tabs to reach parity with `render_performance_tab()`); **C-combined** (rewire `combined-html-report` after perf parity); **D** (delete the legacy `render_html` / `render_risk_tab` / `_render_*` template code in `risk_html.py` keeping the view-model builders, the re-export shim in `presentation/html/portfolio_risk_report.py`, and the HTML half of `combined_html.py`); **E** (replace HTML-string assertions in `tests/unit/reporting/test_risk_html.py` with view-model-level assertions).
-- **Live TWS / `ib_async` ergonomics** — better account/session ergonomics, broader contract coverage, richer real-world fixtures.
-- **Universe-first risk workflow** — cached proxy ingestion, more robust derivatives, deeper attribution math, tighter alignment between target-report semantics and HTML/notebook summaries.
+## Active Tracks
 
-## Next Steps
+### Portfolio Monitor
 
-1. Cached benchmark-proxy loaders wired into the same artifact flow as Yahoo return histories (extends the SPY benchmark layer to AGG / 60-40 etc.).
-2. Extend the performance tab with richer windows / benchmarks once the core combined layout is stable.
-3. Risk attribution: covariance-consistent marginal/component risk attribution at security and bucket levels (current view is vol-contribution only).
-4. Derivatives handling — options, `OUTSIDE_SCOPE` rows, inverse products, futures-specific exposure normalization.
-5. Manual-override layer for provisional / account-specific universe entries (gitignored until reviewed).
-6. Broaden look-through coverage for country/sector decomposition; expand explicit FI tenor mappings.
-7. Account-selection ergonomics + account/session metadata surfacing for live TWS / IB Gateway runs.
-8. More real IBKR payload fixtures and live-contract edge cases.
+Goal: keep the GUI/report workflow reliable while shrinking old rendering paths.
 
-## UI / Reports Redesign
+Near-term work:
+1. Finish dashboard Performance USD/SGD parity for the snapshot path.
+2. Rewire `combined-html-report` to the NiceGUI/Playwright snapshot pipeline.
+3. Delete or shrink obsolete legacy HTML renderers after combined snapshot parity.
+4. Formalize an artifact/config contract shared by CLI, workflows, dashboard
+   forms, and snapshot overrides.
+5. Add focused performance-data warnings for missing/unsafe metrics.
 
-Phases P1-P7 + post-P7 polish (drift dumbbell, SPY benchmark trace) all **landed**. Detail in `DEV_DOCS/archive/ui_redesign_landed_phases.md`.
+Keep for later, not active:
+- Covariance-consistent marginal/component risk attribution.
+- Richer derivatives normalization for options, inverse products, and unusual
+  futures exposure.
+- Broader country/sector/FI-tenor look-through coverage.
+- Manual override layer for provisional account-specific universe entries.
 
-**Remaining phase:**
+Detail: `DEV_DOCS/docs/devplans/portfolio_monitor_devplan.md`.
 
-- **P8 — Legacy template deletion + test migration.** Delete `_render_summary_card` decorative gradient CSS in `performance_html.py`, redundant `<style>` blocks across the three reporting modules, the standalone `regime_html.py` shell (keep view-model builders), the `_styles()` function, and the duplicated segmented-control / chart-row CSS. Migrate `tests/unit/reporting/test_*.py` HTML-string assertions to view-model-level assertions; add CSS-presence tests against the shared token module. Pairs with snapshot-retirement Phase D.
+### Regime Engine v2
 
-**Out of scope for this track:** dark mode, multi-user variations, print stylesheet, replacing Plotly. Mobile-only table polish landed in commit `522ccc8` (minimal `@media (max-width: 768px)`, no desktop impact).
+Goal: keep regime as market context: growth and inflation axes plus independent
+risk/stress overlay.
 
-## Regime v2 — Multi-Method 2D Framework
+Landed:
+- V2 contracts, engine coordinator, CLI/report paths, calibration workflow.
+- GUI actions for cached run and input-refresh run.
+- Combined report includes Regime Engine v2 when the artifact exists.
 
-Detection / policy / CLI / HTML / operator entry points all landed. Detail in `DEV_DOCS/archive/historical_plans.md` (M1-M7 detail) and `DEV_DOCS/archive/completed_history.md`.
+Near-term work:
+1. Calibration decision pass: review the HTML report and notebook questions,
+   then decide config changes before writing more code.
+2. Apply a narrow config tuning pass if calibration decisions are clear.
+3. Add a small backtest sanity harness with pinned fixture snapshots for anchor
+   periods.
+4. Keep ML layers as unavailable/zero-weight until model artifacts and feature
+   schemas are explicit.
 
-**Active methodology:** Regime Engine v2. Growth and inflation are the only macro axes. `macro_nowcast` adapts the FRED macro scoring path, `market_implied` adapts the Yahoo market signal path, and `macro_truth_ml` / `return_truth_ml` remain disabled or unavailable unless valid model artifacts exist. Risk/stress is an independent overlay for market context only; normal regime reporting no longer emits allocation policy, `vol_multiplier`, or crisis-overlay target changes.
-
-**Regime Engine v2 replacement track:** `regime-run-report` and `regime-refresh-report` are v2-backed. Deprecated `regime-detect-multi` / `regime-report-multi` remain available for old `regime-multi-v1` fixtures only. Design note: `DEV_DOCS/docs/regime_engine_v2.md`.
-
-**Calibration workflow:** `regime-calibrate-v2` generates a research-only HTML calibration report and question-driven notebook for macro_nowcast / market_implied anchor-window review. It includes the April 2025 Liberation Day tariff-shock window and reports missing market-panel coverage explicitly instead of fabricating market-implied output.
-
-**Outstanding:**
-
-1. **Calibration decision pass** — review the generated HTML/notebook observations, then decide whether to adjust YAML thresholds/weights before changing code.
-2. **ML inference implementation** — wire selected model artifacts into actual `macro_truth_ml` / `return_truth_ml` predictions after feature schemas and artifact lifecycle are finalized.
-3. **Backtest sanity harness** — 15-year window, validate against GFC, COVID, 2017 Goldilocks, 2022 Reflation/Stagflation turn; commit fixture snapshots.
-4. **Calibration tuning pass** — walk-forward tuning of `zscore_window_bdays`, `min_consecutive_days`, layer weights, and risk-overlay thresholds after anchor-window review.
+Detail: `DEV_DOCS/docs/devplans/regime_engine_v2_devplan.md`.
 
 ## Backlog
 
-- Extend the TWS `ib_async` adapter beyond client/portfolio/report/contract-lookup (market-data, richer account/session tooling).
-- Deepen the Flex path around historical backfill ergonomics, archive validation, statement/account metadata.
-- Continue shrinking compatibility shims as application/domain ownership clarifies.
-- Add e2e workflow coverage across Web API, TWS, and Flex.
-- Workbook-style report generation (target_report.xlsx parity) — practical sequence: stabilize mapping/exposure → bucket/risk calculations → workbook generation/formatting. Detail in `DEV_DOCS/archive/historical_plans.md` (Target Report Gap).
+- Live TWS ergonomics: account/session metadata, account selection, broader
+  contract fixtures.
+- Flex ergonomics: historical backfill validation, archive metadata, stale XML
+  diagnostics.
+- Cached benchmark/proxy loaders beyond SPY, such as AGG and 60/40 benchmark
+  support.
+- Lightweight portfolio/regime integration scenarios only after portfolio and
+  regime contracts stop moving.
+- Workbook-style target report generation after risk/report semantics are stable.
 
-## Domain gotchas
+## Archived Active Plans
 
-- FI tenor bucketing is explicit mapping (`ZT → 1-3Y`, `ZN → 7-10Y`), not derived from duration.
+The following files were retired from active planning because they were either
+landed, superseded by Regime Engine v2, or too speculative for near-term work:
+
+- `regime_detection_devplan.md` -> `DEV_DOCS/archive/devplans/regime_detection_devplan_retired.md`
+- `ui_redesign_devplan.md` -> `DEV_DOCS/archive/devplans/ui_redesign_devplan_retired.md`
+- `integration_devplan.md` -> `DEV_DOCS/archive/devplans/integration_devplan_retired.md`
+
+## Domain Gotchas
+
+- The app is read-only. Do not add brokerage write actions.
+- FI tenor bucketing is explicit mapping (`ZT -> 1-3Y`, `ZN -> 7-10Y`), not
+  derived from duration.
 - Flex XML cashflow attribution uses `reportDate`, not `settleDate`.
-- Portfolio AUM denominator excludes futures/options (stock-like + cash only).
-- FI proxy-vol applies a modified-duration adjustment rather than using MOVE price vol directly.
-- `security_reference.csv` is regenerated by tooling; `security_universe.csv` is manually maintained.
-- `nav_cashflow_history.feather` `fx_usdsgd_eod` is **SGD per 1 USD**. Benchmark SGD return uses `(1 + r_usd) * (fx_t / fx_{t-1}) - 1`.
-- Yahoo return cache stores **log returns**; `expm1` to convert to simple when compounding for chart cumulative.
+- Portfolio AUM denominator excludes futures/options; it is stock-like + cash.
+- FI proxy-vol maps yield-vol through modified duration; do not treat MOVE as
+  direct bond price volatility.
+- `fx_usdsgd_eod` is SGD per 1 USD.
+- Yahoo return cache stores log returns; use `expm1` when compounding simple
+  chart returns.
+- Risk/stress is not a macro axis in Regime Engine v2.
 
 ## Testing
 
-`PYTHONPATH=. PYTHONPYCACHEPREFIX=/tmp/pycache pytest -q tests/unit` — full unit suite green. Coverage is solid at the unit level (portfolio-monitor services, UI contracts, regime methods, benchmark math). Integration risk is concentrated at provider variability, snapshot rendering parity, and artifact/config drift across CLI / scripts / UI forms.
+Default unit command:
+
+```bash
+PYTHONPATH=. PYTHONPYCACHEPREFIX=/tmp/pycache pytest -q tests/unit
+```
+
+Integration risk is concentrated in provider variability, snapshot rendering
+parity, and artifact/config drift across CLI, scripts, and GUI forms.
