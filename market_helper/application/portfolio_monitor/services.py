@@ -11,6 +11,7 @@ import pandas as pd
 logger = logging.getLogger(__name__)
 
 from market_helper.app.paths import PORTFOLIO_ARTIFACTS_DIR
+from market_helper.common.datetime_display import compute_as_of_freshness_note
 from market_helper.application.portfolio_monitor.contracts import (
     ArtifactMetadata,
     EtfSectorSyncInputs,
@@ -221,6 +222,7 @@ class PortfolioMonitorQueryService:
             artifact_metadata=metadata,
             warnings=warnings,
             regime_view_model=regime_view_model,
+            as_of_freshness_note=compute_as_of_freshness_note(report_as_of),
         )
 
     @staticmethod

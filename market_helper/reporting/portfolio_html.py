@@ -318,6 +318,7 @@ def build_portfolio_report_document(report_data: "PortfolioReportData") -> Repor
         body_end_html=render_risk_report_script(),
         topline_html=build_topline_html(report_data),
         ribbon_html=build_regime_ribbon_html(report_data.regime_view_model),
+        as_of_freshness_note=report_data.as_of_freshness_note,
     )
 
 

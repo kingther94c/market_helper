@@ -63,6 +63,7 @@ class PortfolioReportData:
     # P5: optional folded-in regime view-model — None when no regime artifact is
     # available, so the combined report skips the Regime section + ribbon.
     regime_view_model: RegimeHtmlViewModel | None = None
+    as_of_freshness_note: str | None = None
 
 
 @dataclass

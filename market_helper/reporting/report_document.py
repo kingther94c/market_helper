@@ -30,6 +30,7 @@ class ReportDocument:
     # reserved for the regime ribbon added in P5.
     topline_html: str = ""
     ribbon_html: str = ""
+    as_of_freshness_note: str | None = None
 
 
 def render_report_document(document: ReportDocument) -> str:
@@ -106,6 +107,8 @@ def render_report_document(document: ReportDocument) -> str:
     .app-bar__brand-sep {{ color: var(--muted-2); }}
     .app-bar__brand-title {{ font-weight: 600; }}
     .app-bar__meta {{ font-size: 12px; color: var(--muted-ink); font-variant-numeric: tabular-nums; }}
+    .app-bar__meta-stack {{ display: flex; flex-direction: column; align-items: flex-end; gap: 2px; }}
+    .app-bar__meta--note {{ font-size: 11px; opacity: 0.75; max-width: 360px; text-align: right; }}
     .section-nav {{
       display: flex; gap: 2px; justify-self: center;
       background: var(--surface-2); padding: 4px; border-radius: 999px;
@@ -167,7 +170,10 @@ def render_report_document(document: ReportDocument) -> str:
       <nav class='section-nav' aria-label='Report Sections'>
         {nav_html}
       </nav>
-      <div class='app-bar__meta'>As of {html.escape(format_local_datetime(document.as_of))}</div>
+      <div class='app-bar__meta-stack'>
+        <div class='app-bar__meta'>As of {html.escape(format_local_datetime(document.as_of))}</div>
+        {_render_freshness_note(document.as_of_freshness_note)}
+      </div>
     </div>
   </header>
   {ribbon_html}
@@ -206,6 +212,12 @@ def render_report_document(document: ReportDocument) -> str:
 </body>
 </html>
 """
+
+
+def _render_freshness_note(note: str | None) -> str:
+    if not note:
+        return ""
+    return f"<div class='app-bar__meta app-bar__meta--note'>{html.escape(note)}</div>"
 
 
 def _render_nav_link(section: ReportSection, *, active: bool) -> str:

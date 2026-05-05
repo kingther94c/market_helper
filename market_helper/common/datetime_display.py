@@ -1,6 +1,7 @@
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import datetime, time, timedelta, timezone
+from zoneinfo import ZoneInfo
 
 
 def format_local_datetime(value: str | None) -> str:
@@ -24,6 +25,55 @@ def _parse_datetime(value: str) -> datetime | None:
     if parsed.tzinfo is None:
         return parsed.astimezone()
     return parsed
+
+
+_ET_TZ = ZoneInfo("America/New_York")
+_SGT_TZ = ZoneInfo("Asia/Singapore")
+
+
+def compute_as_of_freshness_note(
+    as_of: str | None,
+    *,
+    now: datetime | None = None,
+) -> str | None:
+    """Return a small-text note explaining why a report's as_of lags T-1.
+
+    Returns None when the report is fresh (as_of >= expected T-1 in ET) or
+    when as_of cannot be parsed.
+    """
+    parsed = _parse_datetime(str(as_of or "").strip())
+    if parsed is None:
+        return None
+    as_of_date = parsed.date()
+    now_dt = now or datetime.now(timezone.utc)
+    if now_dt.tzinfo is None:
+        now_dt = now_dt.astimezone()
+    now_et = now_dt.astimezone(_ET_TZ)
+    now_sgt = now_dt.astimezone(_SGT_TZ)
+    expected_t1 = _previous_or_same_weekday(now_sgt.date() - timedelta(days=1))
+    if as_of_date >= expected_t1:
+        return None
+    flex_baseline = _previous_or_same_weekday(now_et.date() - timedelta(days=1))
+    if flex_baseline < expected_t1:
+        flip_sgt = datetime.combine(
+            expected_t1 + timedelta(days=1), time.min, tzinfo=_ET_TZ
+        ).astimezone(_SGT_TZ)
+        threshold = flip_sgt.strftime("%H:%M")
+        return (
+            f"Run before {threshold} SGT — IBKR Flex baseline is T-2 until ET "
+            f"crosses midnight. Re-run after {threshold} SGT for T-1."
+        )
+    return (
+        f"Latest trading day ({expected_t1.isoformat()}) not yet published by "
+        f"IBKR Flex; serving T-2."
+    )
+
+
+def _previous_or_same_weekday(value):
+    resolved = value
+    while resolved.weekday() >= 5:
+        resolved -= timedelta(days=1)
+    return resolved
 
 
 def _format_utc_offset(value: datetime) -> str:
