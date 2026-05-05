@@ -15,6 +15,8 @@ from .nav_cashflow_history import (
 from .yahoo_returns import (
     DEFAULT_YAHOO_RETURNS_CACHE_DIR,
     ensure_symbol_return_cache,
+    load_symbol_return_cache,
+    yahoo_symbol_cache_path,
 )
 
 
@@ -71,6 +73,40 @@ def attach_benchmark_returns(
         usd_returns_aligned = usd_returns_simple.reindex(enriched["date"].dt.normalize().to_numpy())
         enriched[usd_column] = usd_returns_aligned.to_numpy(dtype=float)
 
+        enriched[sgd_column] = compound_returns_with_fx(
+            returns_usd=enriched[usd_column],
+            fx_sgd_per_usd=enriched["fx_usdsgd_eod"],
+        ).to_numpy(dtype=float)
+
+    return enriched
+
+
+def attach_cached_benchmark_returns(
+    history: pd.DataFrame,
+    *,
+    cache_dir: str | Path = DEFAULT_YAHOO_RETURNS_CACHE_DIR,
+    symbols: Iterable[str] = ("SPY",),
+) -> pd.DataFrame:
+    """Fill benchmark columns from local Yahoo return caches without network I/O."""
+    if history.empty:
+        return history.copy()
+
+    enriched = history.copy()
+    enriched["date"] = pd.to_datetime(enriched["date"], errors="coerce")
+
+    for symbol in symbols:
+        usd_column = BENCHMARK_RETURN_SOURCES.get(symbol)
+        sgd_column = BENCHMARK_SGD_COLUMNS.get(symbol)
+        if usd_column is None or sgd_column is None:
+            raise ValueError(f"Benchmark symbol {symbol!r} not registered in BENCHMARK_RETURN_SOURCES")
+        cache_path = yahoo_symbol_cache_path(symbol, cache_dir=cache_dir)
+        cache = load_symbol_return_cache(cache_path)
+        if cache is None or cache.series.empty:
+            continue
+        usd_returns_simple = _log_returns_to_simple(cache.series).rename(usd_column)
+        usd_returns_simple.index = pd.to_datetime(usd_returns_simple.index).normalize()
+        usd_returns_aligned = usd_returns_simple.reindex(enriched["date"].dt.normalize().to_numpy())
+        enriched[usd_column] = usd_returns_aligned.to_numpy(dtype=float)
         enriched[sgd_column] = compound_returns_with_fx(
             returns_usd=enriched[usd_column],
             fx_sgd_per_usd=enriched["fx_usdsgd_eod"],
@@ -150,6 +186,7 @@ __all__ = [
     "BENCHMARK_RETURN_SOURCES",
     "BENCHMARK_SGD_COLUMNS",
     "DEFAULT_BENCHMARK_PERIOD",
+    "attach_cached_benchmark_returns",
     "attach_benchmark_returns",
     "benchmark_return_column",
     "compound_returns_with_fx",

@@ -72,6 +72,8 @@ Build a broker-agnostic, **read-only** IBKR integration layer for market monitor
 - Tightened NiceGUI combined-report export semantics so dashboard-triggered HTML generation now explicitly re-applies the configured Google Drive artifact mirror at the application-service seam and surfaces mirror success back to the UI state. This removes reliance on an implicit lower-level side effect and keeps GUI export behavior aligned even as the underlying report renderer changes.
 - Fixed a live commodity-futures identity bug in the IBKR normalization path: runtime `CM` futures now use contract-specific internal ids keyed by `local_symbol` (for example `FUT:NGN26:NYMEX`) instead of collapsing all months for the same root symbol into a single family id. This preserves distinct spread legs through live export while still inheriting the curated family semantics from the matched reference row.
 - Added current-year Flex XML freshness reuse to the portfolio-monitor workflow: before issuing a new live Flex request for the default YTD path, `refresh_current_year_latest_flex_xml` now checks the cached `ibkr_flex_<year>_latest.xml` metadata and reuses it when it already covers the required ET `to_date`. This avoids unnecessary `SendRequest/GetStatement` cycles and reduces spurious IBKR `1019 statement generation in progress` waits in the GUI.
+- Added Regime Engine v2 actions to the NiceGUI operate drawer so the GUI can run the standalone regime report from cached inputs or refresh stale macro/market inputs before generating the regime JSON/HTML artifacts consumed by the combined report.
+- Fixed the SPY performance benchmark trace path so report-data loading can fill empty `bench_spy_return_usd/sgd` columns from the local Yahoo return cache without forcing a network pull; Flex refresh also attempts to refresh the persisted benchmark columns when the NAV/cashflow feather exists.
 
 ## Recently Landed
 
@@ -116,11 +118,10 @@ Detection / policy / CLI / HTML / operator entry points all landed. Detail in `D
 
 **Outstanding:**
 
-1. **GUI action integration** — call `regime-refresh-report` / `regime-run-report` from NiceGUI, mirroring the performance/risk action pattern.
-2. **Calibration decision pass** — review the generated HTML/notebook observations, then decide whether to adjust YAML thresholds/weights before changing code.
-3. **ML inference implementation** — wire selected model artifacts into actual `macro_truth_ml` / `return_truth_ml` predictions after feature schemas and artifact lifecycle are finalized.
-4. **Backtest sanity harness** — 15-year window, validate against GFC, COVID, 2017 Goldilocks, 2022 Reflation/Stagflation turn; commit fixture snapshots.
-5. **Calibration tuning pass** — walk-forward tuning of `zscore_window_bdays`, `min_consecutive_days`, layer weights, and risk-overlay thresholds after anchor-window review.
+1. **Calibration decision pass** — review the generated HTML/notebook observations, then decide whether to adjust YAML thresholds/weights before changing code.
+2. **ML inference implementation** — wire selected model artifacts into actual `macro_truth_ml` / `return_truth_ml` predictions after feature schemas and artifact lifecycle are finalized.
+3. **Backtest sanity harness** — 15-year window, validate against GFC, COVID, 2017 Goldilocks, 2022 Reflation/Stagflation turn; commit fixture snapshots.
+4. **Calibration tuning pass** — walk-forward tuning of `zscore_window_bdays`, `min_consecutive_days`, layer weights, and risk-overlay thresholds after anchor-window review.
 
 ## Backlog
 

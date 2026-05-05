@@ -13,6 +13,8 @@ from market_helper.application.portfolio_monitor import (
     PortfolioMonitorActionService,
     PortfolioMonitorQueryService,
     PortfolioReportInputs,
+    RegimeReportRefreshInputs,
+    RegimeReportRunInputs,
 )
 from market_helper.application.portfolio_monitor import services as app_services
 
@@ -120,6 +122,42 @@ def test_plain_report_inputs_do_not_implicitly_load_default_regime(
     assert resolved.regime_path is None
 
 
+def test_query_service_fills_missing_spy_benchmark_from_cached_returns(
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+    positions_csv = _write_positions_csv(tmp_path / "positions.csv")
+    returns_json = _write_returns_json(tmp_path / "returns.json")
+    proxy_json = _write_proxy_json(tmp_path / "proxy.json")
+    performance_output_dir = tmp_path / "flex"
+    performance_output_dir.mkdir()
+    history = _demo_history_frame()
+    history["bench_spy_return_usd"] = [pd.NA] * len(history)
+    history["bench_spy_return_sgd"] = [pd.NA] * len(history)
+    history.to_feather(performance_output_dir / "nav_cashflow_history.feather")
+
+    def fake_attach_cached_benchmark_returns(loaded):
+        enriched = loaded.copy()
+        enriched["bench_spy_return_usd"] = [pd.NA, 0.01, 0.01, 0.01, 0.01]
+        enriched["bench_spy_return_sgd"] = [pd.NA, 0.01, 0.01, 0.01, 0.01]
+        return enriched
+
+    monkeypatch.setattr(app_services, "attach_cached_benchmark_returns", fake_attach_cached_benchmark_returns)
+
+    service = PortfolioMonitorQueryService()
+    report_data = service.load_report_data(
+        PortfolioReportInputs(
+            positions_csv_path=positions_csv,
+            performance_output_dir=performance_output_dir,
+            returns_path=returns_json,
+            proxy_path=proxy_json,
+        )
+    )
+
+    figure = report_data.performance_usd_view_model.chart_specs["percent"]["FULL"]
+    assert any(trace.get("name") == "SPY (benchmark)" for trace in figure["data"])
+
+
 def test_action_service_bridges_workflow_progress(monkeypatch, tmp_path: Path) -> None:
     recorded: dict[str, object] = {}
 
@@ -144,6 +182,79 @@ def test_action_service_bridges_workflow_progress(monkeypatch, tmp_path: Path) -
     assert recorded["account_id"] == "U123"
     assert [event.kind for event in sink.events] == ["stage", "done"]
     assert sink.events[-1].detail == "wrote live.csv"
+
+
+def test_action_service_runs_regime_report_from_cached_inputs(monkeypatch, tmp_path: Path) -> None:
+    recorded: dict[str, object] = {}
+    regime_json = tmp_path / "regime.json"
+    regime_html = tmp_path / "regime.html"
+    regime_html.write_text("<html>regime</html>", encoding="utf-8")
+
+    def fake_run_regime_report_from_existing_data(**kwargs):
+        recorded.update(kwargs)
+        return app_services.regime_report_workflows.RegimeReportRunResult(
+            regime_path=regime_json,
+            html_path=regime_html,
+            macro_panel_path=tmp_path / "macro.feather",
+            market_panel_path=tmp_path / "market.feather",
+            market_config_path=tmp_path / "market.yml",
+        )
+
+    monkeypatch.setattr(
+        app_services.regime_report_workflows,
+        "run_regime_report_from_existing_data",
+        fake_run_regime_report_from_existing_data,
+    )
+
+    sink = InMemoryUiProgressSink()
+    artifact = PortfolioMonitorActionService().run_regime_report(
+        RegimeReportRunInputs(output_regime_path=regime_json, output_html_path=regime_html),
+        sink=sink,
+    )
+
+    assert recorded["output_regime_path"] == regime_json
+    assert recorded["output_html_path"] == regime_html
+    assert artifact.report_type == "regime_engine_v2"
+    assert artifact.output_path == regime_html
+    assert artifact.exists is True
+    assert [event.label for event in sink.events] == ["Regime Engine v2", "Regime Engine v2"]
+
+
+def test_action_service_refreshes_regime_report(monkeypatch, tmp_path: Path) -> None:
+    recorded: dict[str, object] = {}
+    regime_json = tmp_path / "regime.json"
+    regime_html = tmp_path / "regime.html"
+    regime_html.write_text("<html>regime</html>", encoding="utf-8")
+
+    def fake_refresh_data_and_run_regime_report(**kwargs):
+        recorded.update(kwargs)
+        return app_services.regime_report_workflows.RegimeReportRunResult(
+            regime_path=regime_json,
+            html_path=regime_html,
+            macro_panel_path=tmp_path / "macro.feather",
+            market_panel_path=tmp_path / "market.feather",
+            market_config_path=tmp_path / "market.yml",
+            refreshed_market_panel=True,
+        )
+
+    monkeypatch.setattr(
+        app_services.regime_report_workflows,
+        "refresh_data_and_run_regime_report",
+        fake_refresh_data_and_run_regime_report,
+    )
+
+    artifact = PortfolioMonitorActionService().refresh_regime_report(
+        RegimeReportRefreshInputs(
+            output_regime_path=regime_json,
+            output_html_path=regime_html,
+            max_age_days=3,
+            force_refresh=True,
+        )
+    )
+
+    assert recorded["max_age_days"] == 3
+    assert recorded["force_refresh"] is True
+    assert artifact.output_path == regime_html
 
 
 def test_action_service_normalizes_combined_and_etf_calls(monkeypatch, tmp_path: Path) -> None:

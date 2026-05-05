@@ -16,6 +16,7 @@ from market_helper.presentation.dashboard.pages.portfolio import (
     PortfolioArtifactFormState,
     PortfolioPageState,
     ReferenceActionFormState,
+    RegimeActionFormState,
     _action_progress_summary,
     _build_initial_state,
     _cache_stale_page_state,
@@ -27,6 +28,8 @@ from market_helper.presentation.dashboard.pages.portfolio import (
     _initial_dashboard_status,
     _live_inputs_from_form,
     _positions_csv_ready_for_autoload,
+    _regime_refresh_inputs_from_form,
+    _regime_run_inputs_from_form,
     _report_data_matches_current_local_date,
 )
 
@@ -64,12 +67,28 @@ def test_action_form_converters_validate_numeric_and_symbol_inputs() -> None:
     etf = _etf_inputs_from_form(
         ReferenceActionFormState(etf_symbols="DBMF, qqq", etf_output_path="configs/sector.json", api_key="demo")
     )
+    regime_run = _regime_run_inputs_from_form(
+        RegimeActionFormState(output_regime_path="data/regime.json", output_html_path="data/regime.html")
+    )
+    regime_refresh = _regime_refresh_inputs_from_form(
+        RegimeActionFormState(
+            output_regime_path="data/regime.json",
+            output_html_path="data/regime.html",
+            max_age_days="3",
+            force_refresh=True,
+            latest_only=True,
+        )
+    )
 
     assert live.port == 7497
     assert live.client_id == 9
     assert live.timeout == 5.5
     assert flex.output_dir == "data/flex"
     assert etf.symbols == ["DBMF", "QQQ"]
+    assert regime_run.output_html_path == "data/regime.html"
+    assert regime_refresh.max_age_days == 3
+    assert regime_refresh.force_refresh is True
+    assert regime_refresh.latest_only is True
 
 
 def test_combined_export_form_reuses_artifact_form_inputs() -> None:
@@ -89,6 +108,7 @@ def test_combined_export_form_reuses_artifact_form_inputs() -> None:
         ),
         live_form=LiveActionFormState(),
         flex_form=FlexActionFormState(),
+        regime_form=RegimeActionFormState(),
         export_form=ExportActionFormState(output_path="outputs/combined.html"),
         reference_form=ReferenceActionFormState(),
     )
@@ -207,6 +227,7 @@ def test_action_progress_summary_uses_live_x_of_total_while_action_runs() -> Non
         artifact_form=PortfolioArtifactFormState(),
         live_form=LiveActionFormState(),
         flex_form=FlexActionFormState(),
+        regime_form=RegimeActionFormState(),
         export_form=ExportActionFormState(),
         reference_form=ReferenceActionFormState(),
         active_job="flex",
@@ -215,6 +236,8 @@ def test_action_progress_summary_uses_live_x_of_total_while_action_runs() -> Non
             "live": ActionStatusState(),
             "flex": ActionStatusState(status="running", progress_summary="Starting..."),
             "combined": ActionStatusState(),
+            "regime-run": ActionStatusState(),
+            "regime-refresh": ActionStatusState(),
             "security-reference": ActionStatusState(),
             "etf": ActionStatusState(),
         },
@@ -231,6 +254,7 @@ def test_restore_stale_page_state_rehydrates_cached_report_data() -> None:
         ),
         live_form=LiveActionFormState(account_id="U123"),
         flex_form=FlexActionFormState(query_id="cached-query"),
+        regime_form=RegimeActionFormState(output_html_path="outputs/regime.html"),
         export_form=ExportActionFormState(output_path="outputs/cached.html"),
         reference_form=ReferenceActionFormState(security_reference_output_path="data/security_reference.csv"),
         report_data="cached report data",  # type: ignore[arg-type]
@@ -242,6 +266,8 @@ def test_restore_stale_page_state_rehydrates_cached_report_data() -> None:
             "live": ActionStatusState(status="success", message="Live positions refreshed"),
             "flex": ActionStatusState(),
             "combined": ActionStatusState(),
+            "regime-run": ActionStatusState(),
+            "regime-refresh": ActionStatusState(),
             "security-reference": ActionStatusState(),
             "etf": ActionStatusState(),
         },
@@ -250,6 +276,7 @@ def test_restore_stale_page_state_rehydrates_cached_report_data() -> None:
         artifact_form=PortfolioArtifactFormState(),
         live_form=LiveActionFormState(),
         flex_form=FlexActionFormState(),
+        regime_form=RegimeActionFormState(),
         export_form=ExportActionFormState(),
         reference_form=ReferenceActionFormState(),
     )
@@ -271,6 +298,7 @@ def test_restore_stale_page_state_uses_deep_copy() -> None:
         artifact_form=PortfolioArtifactFormState(positions_csv_path="data/cached_positions.csv"),
         live_form=LiveActionFormState(),
         flex_form=FlexActionFormState(),
+        regime_form=RegimeActionFormState(),
         export_form=ExportActionFormState(),
         reference_form=ReferenceActionFormState(),
         report_data={"as_of": "2026-04-21"},  # type: ignore[arg-type]
@@ -280,6 +308,7 @@ def test_restore_stale_page_state_uses_deep_copy() -> None:
         artifact_form=PortfolioArtifactFormState(),
         live_form=LiveActionFormState(),
         flex_form=FlexActionFormState(),
+        regime_form=RegimeActionFormState(),
         export_form=ExportActionFormState(),
         reference_form=ReferenceActionFormState(),
     )
@@ -295,6 +324,7 @@ def test_restore_stale_page_state_uses_deep_copy() -> None:
         artifact_form=PortfolioArtifactFormState(),
         live_form=LiveActionFormState(),
         flex_form=FlexActionFormState(),
+        regime_form=RegimeActionFormState(),
         export_form=ExportActionFormState(),
         reference_form=ReferenceActionFormState(),
     )

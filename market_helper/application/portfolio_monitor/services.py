@@ -21,11 +21,18 @@ from market_helper.application.portfolio_monitor.contracts import (
     LivePortfolioRefreshInputs,
     PortfolioReportData,
     PortfolioReportInputs,
+    RegimeReportRefreshInputs,
+    RegimeReportRunInputs,
     UiProgressEvent,
     UiProgressSink,
 )
 from market_helper.application.portfolio_monitor.progress import UiProgressReporterAdapter
 from market_helper.common.models.security_reference import DEFAULT_SECURITY_REFERENCE_PATH
+from market_helper.data_sources.yahoo_finance import YahooFinanceClient
+from market_helper.domain.portfolio_monitor.services.benchmark_history import (
+    attach_cached_benchmark_returns,
+    refresh_benchmark_returns_in_history_feather,
+)
 from market_helper.reporting.performance_html import (
     build_performance_chart_specs,
     build_performance_report_view_model,
@@ -38,12 +45,14 @@ from market_helper.reporting.regime_html import (
 )
 from market_helper.reporting.risk_html import DEFAULT_RISK_REPORT_CONFIG_PATH, build_risk_report_view_model
 from market_helper.workflows import generate_report as report_workflows
+from market_helper.workflows import run_regime_report as regime_report_workflows
 
 
 DEFAULT_POSITIONS_CSV_PATH = PORTFOLIO_ARTIFACTS_DIR / "live_ibkr_position_report.csv"
 DEFAULT_COMBINED_REPORT_PATH = PORTFOLIO_ARTIFACTS_DIR / "portfolio_combined_report.html"
 DEFAULT_PERFORMANCE_OUTPUT_DIR = PORTFOLIO_ARTIFACTS_DIR / "flex"
 DEFAULT_REGIME_ARTIFACT_PATH = Path("data/artifacts/regime_detection/regime_snapshots.json")
+DEFAULT_REGIME_HTML_PATH = Path("data/artifacts/regime_detection/regime_report.html")
 
 
 @dataclass
@@ -105,6 +114,17 @@ def _resolve_regime_input_path(source: PortfolioReportInputs) -> Path | None:
     if isinstance(source, GenerateCombinedReportInputs) and DEFAULT_REGIME_ARTIFACT_PATH.exists():
         return DEFAULT_REGIME_ARTIFACT_PATH
     return None
+
+
+def _benchmark_returns_need_fill(history: pd.DataFrame) -> bool:
+    if history.empty:
+        return False
+    for column in ("bench_spy_return_usd", "bench_spy_return_sgd"):
+        if column not in history.columns:
+            return True
+        if not pd.to_numeric(history[column], errors="coerce").notna().any():
+            return True
+    return False
 
 
 class PortfolioMonitorQueryService:
@@ -349,6 +369,14 @@ class PortfolioMonitorQueryService:
         loaded = load_nav_cashflow_history_frame(path)
         if loaded.empty:
             warnings.append(f"Performance history file is empty: {path}")
+            return loaded
+        if _benchmark_returns_need_fill(loaded):
+            enriched = attach_cached_benchmark_returns(loaded)
+            if not _benchmark_returns_need_fill(enriched):
+                return enriched
+            warnings.append(
+                "SPY benchmark return cache is missing or empty; performance benchmark trace will be omitted."
+            )
         return loaded
 
 
@@ -381,7 +409,7 @@ class PortfolioMonitorActionService:
         sink: UiProgressSink | None = None,
     ) -> Path:
         reporter = UiProgressReporterAdapter(sink)
-        return report_workflows.generate_ibkr_flex_performance_report(
+        output_path = report_workflows.generate_ibkr_flex_performance_report(
             output_dir=Path(inputs.output_dir),
             flex_xml_path=Path(inputs.flex_xml_path) if inputs.flex_xml_path is not None else None,
             query_id=inputs.query_id,
@@ -392,6 +420,60 @@ class PortfolioMonitorActionService:
             xml_output_path=Path(inputs.xml_output_path) if inputs.xml_output_path is not None else None,
             progress=reporter,
         )
+        output_path = Path(output_path)
+        history_path = output_path.parent / "nav_cashflow_history.feather"
+        if history_path.exists():
+            try:
+                _record_manual_event(sink, kind="spinner", label="Benchmark history", detail="refreshing SPY")
+                refresh_benchmark_returns_in_history_feather(
+                    history_path,
+                    yahoo_client=YahooFinanceClient(),
+                )
+                _record_manual_event(sink, kind="done", label="Benchmark history", detail=f"wrote {history_path}")
+            except Exception as exc:  # noqa: BLE001 — performance report remains usable without benchmark.
+                logger.warning("Failed to refresh benchmark returns in %s: %s", history_path, exc)
+                _record_manual_event(sink, kind="done", label="Benchmark history", detail=f"skipped SPY ({exc})")
+        return output_path
+
+    def run_regime_report(
+        self,
+        inputs: RegimeReportRunInputs,
+        *,
+        sink: UiProgressSink | None = None,
+    ) -> GeneratedReportArtifact:
+        _record_manual_event(sink, kind="spinner", label="Regime Engine v2", detail="running from cached inputs")
+        result = regime_report_workflows.run_regime_report_from_existing_data(
+            output_regime_path=Path(inputs.output_regime_path) if inputs.output_regime_path else DEFAULT_REGIME_ARTIFACT_PATH,
+            output_html_path=Path(inputs.output_html_path) if inputs.output_html_path else DEFAULT_REGIME_HTML_PATH,
+            latest_only=inputs.latest_only,
+        )
+        _record_manual_event(sink, kind="done", label="Regime Engine v2", detail=f"wrote {result.html_path}")
+        return _regime_artifact_from_result(result)
+
+    def refresh_regime_report(
+        self,
+        inputs: RegimeReportRefreshInputs,
+        *,
+        sink: UiProgressSink | None = None,
+    ) -> GeneratedReportArtifact:
+        _record_manual_event(sink, kind="spinner", label="Regime Engine v2", detail="refreshing inputs")
+        result = regime_report_workflows.refresh_data_and_run_regime_report(
+            max_age_days=inputs.max_age_days,
+            force_refresh=inputs.force_refresh,
+            output_regime_path=Path(inputs.output_regime_path) if inputs.output_regime_path else DEFAULT_REGIME_ARTIFACT_PATH,
+            output_html_path=Path(inputs.output_html_path) if inputs.output_html_path else DEFAULT_REGIME_HTML_PATH,
+            latest_only=inputs.latest_only,
+        )
+        detail = f"wrote {result.html_path}"
+        if result.refreshed_macro_panel or result.refreshed_market_panel:
+            refreshed = []
+            if result.refreshed_macro_panel:
+                refreshed.append("macro")
+            if result.refreshed_market_panel:
+                refreshed.append("market")
+            detail = f"{detail}; refreshed {', '.join(refreshed)}"
+        _record_manual_event(sink, kind="done", label="Regime Engine v2", detail=detail)
+        return _regime_artifact_from_result(result)
 
     def generate_combined_report(
         self,
@@ -474,6 +556,18 @@ def _empty_nav_cashflow_history_frame() -> pd.DataFrame:
             "source_file": pd.Series(dtype=str),
             "source_as_of": pd.Series(dtype="datetime64[ns]"),
         }
+    )
+
+
+def _regime_artifact_from_result(result: regime_report_workflows.RegimeReportRunResult) -> GeneratedReportArtifact:
+    return GeneratedReportArtifact(
+        report_type="regime_engine_v2",
+        title="Regime Engine v2 HTML Report",
+        output_path=result.html_path,
+        as_of="n/a",
+        mirrored_output_path=None,
+        warnings=[],
+        exists=result.html_path.exists(),
     )
 
 

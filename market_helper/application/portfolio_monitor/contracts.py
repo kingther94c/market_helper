@@ -90,6 +90,19 @@ class FlexPerformanceRefreshInputs:
 
 
 @dataclass
+class RegimeReportRunInputs:
+    output_regime_path: str | Path | None = None
+    output_html_path: str | Path | None = None
+    latest_only: bool = False
+
+
+@dataclass
+class RegimeReportRefreshInputs(RegimeReportRunInputs):
+    max_age_days: int = 7
+    force_refresh: bool = False
+
+
+@dataclass
 class GenerateCombinedReportInputs(PortfolioReportInputs):
     output_path: str | Path | None = None
 

@@ -27,6 +27,8 @@ from market_helper.application.portfolio_monitor import (
     PortfolioMonitorQueryService,
     PortfolioReportData,
     PortfolioReportInputs,
+    RegimeReportRefreshInputs,
+    RegimeReportRunInputs,
 )
 from market_helper.common.datetime_display import format_local_datetime
 from market_helper.presentation.dashboard.components import render_action_card
@@ -88,6 +90,15 @@ class FlexActionFormState:
 
 
 @dataclass
+class RegimeActionFormState:
+    output_regime_path: str = "data/artifacts/regime_detection/regime_snapshots.json"
+    output_html_path: str = "data/artifacts/regime_detection/regime_report.html"
+    max_age_days: str = "7"
+    force_refresh: bool = False
+    latest_only: bool = False
+
+
+@dataclass
 class ExportActionFormState:
     output_path: str = ""
 
@@ -128,6 +139,7 @@ class PortfolioPageState:
     artifact_form: PortfolioArtifactFormState
     live_form: LiveActionFormState
     flex_form: FlexActionFormState
+    regime_form: RegimeActionFormState
     export_form: ExportActionFormState
     reference_form: ReferenceActionFormState
     report_data: PortfolioReportData | None = None
@@ -146,6 +158,8 @@ class PortfolioPageState:
             "live": ActionStatusState(),
             "flex": ActionStatusState(),
             "combined": ActionStatusState(message="Not generated yet"),
+            "regime-run": ActionStatusState(message="Not run yet"),
+            "regime-refresh": ActionStatusState(message="Not refreshed yet"),
             "security-reference": ActionStatusState(),
             "etf": ActionStatusState(),
         }
@@ -160,6 +174,7 @@ def _cache_stale_page_state(state: PortfolioPageState) -> None:
         "artifact_form": deepcopy(state.artifact_form),
         "live_form": deepcopy(state.live_form),
         "flex_form": deepcopy(state.flex_form),
+        "regime_form": deepcopy(state.regime_form),
         "export_form": deepcopy(state.export_form),
         "reference_form": deepcopy(state.reference_form),
         "report_data": deepcopy(state.report_data),
@@ -178,6 +193,7 @@ def _restore_stale_page_state(state: PortfolioPageState) -> None:
     state.artifact_form = deepcopy(_STALE_PAGE_CACHE["artifact_form"])
     state.live_form = deepcopy(_STALE_PAGE_CACHE["live_form"])
     state.flex_form = deepcopy(_STALE_PAGE_CACHE["flex_form"])
+    state.regime_form = deepcopy(_STALE_PAGE_CACHE.get("regime_form", state.regime_form))
     state.export_form = deepcopy(_STALE_PAGE_CACHE["export_form"])
     state.reference_form = deepcopy(_STALE_PAGE_CACHE["reference_form"])
     state.report_data = deepcopy(_STALE_PAGE_CACHE["report_data"])
@@ -407,6 +423,38 @@ def register_portfolio_page(
                     if artifact.mirrored_output_path is not None:
                         combined_message = "HTML report generated and mirrored to Google Drive"
                     _set_action_success(state, "combined", message=combined_message, output_path=str(artifact.output_path))
+                elif action_name == "regime-run":
+                    action_inputs = _regime_run_inputs_from_form(state.regime_form)
+                    artifact = await asyncio.to_thread(
+                        _ACTION_SERVICE.run_regime_report,
+                        action_inputs,
+                        sink=state.progress_sink,
+                    )
+                    state.artifact_form.regime_path = str(action_inputs.output_regime_path or "")
+                    _set_action_success(
+                        state,
+                        "regime-run",
+                        message="Regime report generated",
+                        output_path=str(artifact.output_path),
+                    )
+                    if _positions_csv_ready_for_autoload(state.artifact_form.positions_csv_path):
+                        await load_report_data()
+                elif action_name == "regime-refresh":
+                    action_inputs = _regime_refresh_inputs_from_form(state.regime_form)
+                    artifact = await asyncio.to_thread(
+                        _ACTION_SERVICE.refresh_regime_report,
+                        action_inputs,
+                        sink=state.progress_sink,
+                    )
+                    state.artifact_form.regime_path = str(action_inputs.output_regime_path or "")
+                    _set_action_success(
+                        state,
+                        "regime-refresh",
+                        message="Regime inputs refreshed and report generated",
+                        output_path=str(artifact.output_path),
+                    )
+                    if _positions_csv_ready_for_autoload(state.artifact_form.positions_csv_path):
+                        await load_report_data()
                 elif action_name == "security-reference":
                     output_path = await asyncio.to_thread(
                         _ACTION_SERVICE.sync_security_reference,
@@ -526,6 +574,7 @@ def _build_initial_state(query_service: PortfolioMonitorQueryService) -> Portfol
             query_id=_resolve_local_env_value(DEFAULT_IBKR_FLEX_QUERY_ID_ENV_VAR),
             token=_resolve_local_env_value(DEFAULT_IBKR_FLEX_TOKEN_ENV_VAR),
         ),
+        regime_form=RegimeActionFormState(),
         export_form=ExportActionFormState(output_path=default_output_path),
         reference_form=ReferenceActionFormState(
             security_reference_output_path=str(inputs.security_reference_path or "")
@@ -813,6 +862,15 @@ def _render_action_console(state: PortfolioPageState) -> None:
             body=lambda: _render_action_button(run_action, "combined", "Generate HTML Report"),
         )
         render_action_card(
+            title="Regime Engine v2",
+            subtitle="Run or refresh the standalone regime artifact consumed by the combined report.",
+            status=_merged_action_status(state, "regime-run", "regime-refresh").status,
+            message=_merged_action_status(state, "regime-run", "regime-refresh").message,
+            progress_summary=_regime_progress_summary(state),
+            last_output_path=_merged_action_status(state, "regime-run", "regime-refresh").last_output_path,
+            body=lambda: _render_regime_action_form(state, run_action),
+        )
+        render_action_card(
             title="Reference Sync",
             subtitle="Refresh supporting reference artifacts used by the report data pipeline.",
             status=state.action_statuses["security-reference"].status,
@@ -848,6 +906,19 @@ def _render_flex_action_form(state: PortfolioPageState, run_action) -> None:
             ui.input("Period").bind_value(state.flex_form, "period").classes("w-full")
             ui.input("XML output path").bind_value(state.flex_form, "xml_output_path").classes("w-full")
         _render_action_button(run_action, "flex", "Run Flex Refresh")
+
+
+def _render_regime_action_form(state: PortfolioPageState, run_action) -> None:
+    with ui.column().classes("w-full gap-2"):
+        ui.input("Regime JSON").bind_value(state.regime_form, "output_regime_path").classes("w-full")
+        ui.input("Regime HTML").bind_value(state.regime_form, "output_html_path").classes("w-full")
+        with ui.grid(columns=2).classes("w-full gap-2"):
+            ui.input("Max age days").bind_value(state.regime_form, "max_age_days").classes("w-full")
+            ui.checkbox("Force refresh").bind_value(state.regime_form, "force_refresh")
+            ui.checkbox("Latest only").bind_value(state.regime_form, "latest_only")
+        with ui.row().classes("gap-2 wrap"):
+            _render_action_button(run_action, "regime-run", "Run Cached Regime")
+            _render_action_button(run_action, "regime-refresh", "Refresh Regime")
 
 
 def _render_reference_action_form(state: PortfolioPageState, run_action) -> None:
@@ -976,6 +1047,24 @@ def _combined_inputs_from_form(state: PortfolioPageState) -> GenerateCombinedRep
         vol_method=artifact_inputs.vol_method,
         inter_asset_corr=artifact_inputs.inter_asset_corr,
         output_path=_required_text(state.export_form.output_path, "Combined report output path"),
+    )
+
+
+def _regime_run_inputs_from_form(form: RegimeActionFormState) -> RegimeReportRunInputs:
+    return RegimeReportRunInputs(
+        output_regime_path=_required_text(form.output_regime_path, "Regime JSON output path"),
+        output_html_path=_required_text(form.output_html_path, "Regime HTML output path"),
+        latest_only=bool(form.latest_only),
+    )
+
+
+def _regime_refresh_inputs_from_form(form: RegimeActionFormState) -> RegimeReportRefreshInputs:
+    return RegimeReportRefreshInputs(
+        output_regime_path=_required_text(form.output_regime_path, "Regime JSON output path"),
+        output_html_path=_required_text(form.output_html_path, "Regime HTML output path"),
+        latest_only=bool(form.latest_only),
+        max_age_days=_parse_int(form.max_age_days, "Regime max age days"),
+        force_refresh=bool(form.force_refresh),
     )
 
 
@@ -1125,6 +1214,24 @@ def _action_progress_summary(state: PortfolioPageState, action_name: str) -> str
     return state.action_statuses[action_name].progress_summary
 
 
+def _regime_progress_summary(state: PortfolioPageState) -> str:
+    if state.active_job in {"regime-run", "regime-refresh"} and state.progress_sink.events:
+        return _summarize_progress(state)
+    run_status = state.action_statuses["regime-run"]
+    refresh_status = state.action_statuses["regime-refresh"]
+    if refresh_status.status != "idle":
+        return refresh_status.progress_summary
+    return run_status.progress_summary
+
+
+def _merged_action_status(state: PortfolioPageState, primary: str, secondary: str) -> ActionStatusState:
+    primary_status = state.action_statuses[primary]
+    secondary_status = state.action_statuses[secondary]
+    if state.active_job == secondary or secondary_status.status != "idle":
+        return secondary_status
+    return primary_status
+
+
 def _summarize_progress(state: PortfolioPageState) -> str:
     if not state.progress_sink.events:
         return "No progress events"
@@ -1215,6 +1322,8 @@ _ACTION_PRETTY_NAMES: dict[str, str] = {
     "live": "Live refresh",
     "flex": "Flex refresh",
     "combined": "HTML report",
+    "regime-run": "Regime report",
+    "regime-refresh": "Regime refresh",
     "security-reference": "Security reference sync",
     "etf": "ETF sector sync",
 }

@@ -11,6 +11,8 @@ from .contracts import (
     LivePortfolioRefreshInputs,
     PortfolioReportData,
     PortfolioReportInputs,
+    RegimeReportRefreshInputs,
+    RegimeReportRunInputs,
     UiProgressEvent,
     UiProgressSink,
 )
@@ -42,6 +44,8 @@ __all__ = [
     "PortfolioMonitorActionService",
     "PortfolioMonitorQueryService",
     "PortfolioReportInputs",
+    "RegimeReportRefreshInputs",
+    "RegimeReportRunInputs",
     "UiProgressEvent",
     "UiProgressReporterAdapter",
     "UiProgressSink",

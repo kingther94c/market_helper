@@ -9,6 +9,7 @@ import pytest
 
 from market_helper.data_sources.yahoo_finance import YahooFinanceClient
 from market_helper.domain.portfolio_monitor.services.benchmark_history import (
+    attach_cached_benchmark_returns,
     attach_benchmark_returns,
     compound_returns_with_fx,
     refresh_benchmark_returns_in_history_feather,
@@ -21,7 +22,9 @@ from market_helper.domain.portfolio_monitor.services.performance_analytics impor
     percent_cumulative_plot_frame,
 )
 from market_helper.domain.portfolio_monitor.services.yahoo_returns import (
+    YahooReturnCache,
     clear_session_yahoo_cache,
+    write_symbol_return_cache,
 )
 
 
@@ -109,6 +112,40 @@ def test_attach_benchmark_returns_leaves_nan_when_yahoo_missing_dates(tmp_path: 
     )
     assert pd.isna(enriched.iloc[1]["bench_spy_return_usd"])
     assert pd.isna(enriched.iloc[1]["bench_spy_return_sgd"])
+
+
+def test_attach_cached_benchmark_returns_uses_local_cache_without_yahoo(tmp_path: Path) -> None:
+    history = _build_minimal_history(
+        rows=[
+            ("2025-01-02", 100.0, 1.30),
+            ("2025-01-03", 101.0, 1.31),
+            ("2025-01-06", 103.0, 1.32),
+        ],
+    )
+    write_symbol_return_cache(
+        YahooReturnCache(
+            symbol="SPY",
+            currency="USD",
+            source="yahoo_finance",
+            price_field="adjclose",
+            return_method="log",
+            interval="1d",
+            period="5y",
+            generated_at="2025-01-06T00:00:00",
+            series=pd.Series(
+                [np.log1p(0.01), np.log1p(0.02)],
+                index=pd.to_datetime(["2025-01-03", "2025-01-06"]),
+                dtype=float,
+            ),
+        ),
+        cache_dir=tmp_path / "yahoo_cache",
+    )
+
+    enriched = attach_cached_benchmark_returns(history, cache_dir=tmp_path / "yahoo_cache")
+
+    assert enriched.iloc[1]["bench_spy_return_usd"] == pytest.approx(0.01, abs=1e-12)
+    assert enriched.iloc[2]["bench_spy_return_usd"] == pytest.approx(0.02, abs=1e-12)
+    assert enriched.iloc[2]["bench_spy_return_sgd"] == pytest.approx((1.02 * (1.32 / 1.31)) - 1.0, abs=1e-12)
 
 
 def test_refresh_benchmark_returns_in_history_feather_round_trips(tmp_path: Path) -> None:
