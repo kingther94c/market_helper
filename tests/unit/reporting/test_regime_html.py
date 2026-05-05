@@ -5,6 +5,7 @@ from pathlib import Path
 
 from market_helper.reporting.regime_html import (
     build_regime_html_view_model,
+    render_regime_section_body,
     write_regime_html_report,
 )
 
@@ -155,16 +156,39 @@ def test_build_regime_html_view_model_accepts_v2_payload(tmp_path: Path) -> None
                     "disagreement_summary": "Layer disagreement",
                     "final_growth_score": 0.4,
                     "final_inflation_score": 0.6,
+                    "macro_growth_score": -0.5,
+                    "macro_inflation_score": 0.4,
+                    "market_growth_score": 0.9,
+                    "market_inflation_score": 0.8,
                     "risk_score": 0.8,
                     "risk_overlay_on": True,
+                    "top_contributors": [
+                        {"name": "credit spreads", "value": 0.42},
+                        {"name": "commodities", "value": 0.25},
+                    ],
                     "layer_outputs": [
                         {
                             "layer_name": "macro_nowcast",
                             "enabled": True,
                             "available": True,
+                            "growth_score": -0.5,
+                            "inflation_score": 0.4,
                             "growth_state": "Down",
                             "inflation_state": "Up",
                             "confidence": 0.5,
+                            "top_negative_contributors": [
+                                {"name": "payroll trend", "value": -0.2}
+                            ],
+                        },
+                        {
+                            "layer_name": "market_implied",
+                            "enabled": True,
+                            "available": True,
+                            "growth_score": 0.9,
+                            "inflation_score": 0.8,
+                            "growth_state": "Up",
+                            "inflation_state": "Up",
+                            "confidence": "Medium",
                         },
                         {
                             "layer_name": "macro_truth_ml",
@@ -174,7 +198,12 @@ def test_build_regime_html_view_model_accepts_v2_payload(tmp_path: Path) -> None
                             "inflation_state": "Disabled",
                         },
                     ],
-                    "risk_output": {"risk_state": "Stress"},
+                    "risk_output": {
+                        "risk_score": 0.8,
+                        "liquidity_score": -0.2,
+                        "risk_overlay_on": True,
+                        "risk_state": "Stress",
+                    },
                 }
             ]
         ),
@@ -189,6 +218,26 @@ def test_build_regime_html_view_model_accepts_v2_payload(tmp_path: Path) -> None
     assert view_model.disagreement_flag is True
     assert view_model.risk_state == "Stress"
     assert view_model.scores == {"GROWTH": 0.4, "INFLATION": 0.6, "RISK": 0.8}
+    assert view_model.base_regime == "Reflation"
+    assert [layer.layer_name for layer in view_model.layers] == [
+        "macro_nowcast",
+        "market_implied",
+        "macro_truth_ml",
+    ]
+    assert view_model.layers[2].status == "Disabled"
+    assert view_model.risk_overlay is not None
+    assert view_model.risk_overlay.risk_overlay_on is True
+
+    fragment = render_regime_section_body(view_model)
+    assert "Regime Engine v2" in fragment
+    assert "Base Regime" in fragment
+    assert "Growth / Inflation Axes" in fragment
+    assert "Independent Risk Overlay" in fragment
+    assert "Risk Overlay Score" in fragment
+    assert "Layer-State Heat Strip" in fragment
+    assert "Disagreement: Yes" in fragment
+    assert "credit spreads: +0.42" in fragment
+    assert "Crisis Intensity" not in fragment
 
 
 def test_crisis_intensity_chart_metadata_uses_view_model_as_of(tmp_path: Path) -> None:

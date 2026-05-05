@@ -219,9 +219,14 @@ def build_regime_ribbon_html(view_model: RegimeHtmlViewModel | None) -> str:
             + "</div>"
         )
     crisis_class = "regime-ribbon__crisis is-on" if view_model.crisis_flag else "regime-ribbon__crisis"
-    crisis_label = "Crisis on" if view_model.crisis_flag else "Crisis off"
-    if view_model.crisis_flag and view_model.crisis_intensity is not None:
-        crisis_label = f"Crisis on · {view_model.crisis_intensity:.2f}"
+    if view_model.schema == "regime-engine-v2":
+        crisis_label = "Risk overlay on" if view_model.crisis_flag else "Risk overlay off"
+        if view_model.crisis_flag and view_model.crisis_intensity is not None:
+            crisis_label = f"Risk overlay on · {view_model.crisis_intensity:.2f}"
+    else:
+        crisis_label = "Crisis on" if view_model.crisis_flag else "Crisis off"
+        if view_model.crisis_flag and view_model.crisis_intensity is not None:
+            crisis_label = f"Crisis on · {view_model.crisis_intensity:.2f}"
     pieces.append(f"<span class='{crisis_class}'>{html.escape(crisis_label)}</span>")
     if view_model.transitions:
         last = view_model.transitions[-1]
@@ -280,7 +285,7 @@ def build_portfolio_report_document(report_data: "PortfolioReportData") -> Repor
             ReportSection(
                 key="regime",
                 title="Regime",
-                summary="Multi-method regime ensemble: factor scores, crisis intensity, method-vote heat strip, and transition log.",
+                summary="Regime Engine context: growth/inflation axes, layer detail, independent risk overlay, disagreement, and history.",
                 body_html=render_regime_section_body(
                     report_data.regime_view_model,
                     parent_as_of=report_data.as_of,

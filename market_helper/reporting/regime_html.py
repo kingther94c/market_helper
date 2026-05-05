@@ -25,6 +25,32 @@ class RegimeHtmlMethodRow:
 
 
 @dataclass(frozen=True)
+class RegimeHtmlLayerRow:
+    layer_name: str
+    enabled: bool
+    available: bool
+    status: str
+    growth_score: float | None
+    inflation_score: float | None
+    growth_state: str
+    inflation_state: str
+    confidence: str | None = None
+    top_positive_contributors: list[str] = field(default_factory=list)
+    top_negative_contributors: list[str] = field(default_factory=list)
+
+
+@dataclass(frozen=True)
+class RegimeHtmlRiskOverlay:
+    risk_score: float | None
+    liquidity_score: float | None
+    risk_overlay_on: bool | None
+    risk_state: str
+    confidence: str | None = None
+    top_positive_contributors: list[str] = field(default_factory=list)
+    top_negative_contributors: list[str] = field(default_factory=list)
+
+
+@dataclass(frozen=True)
 class RegimeHtmlTimelineRow:
     as_of: str
     regime: str
@@ -81,6 +107,10 @@ class RegimeHtmlViewModel:
     disagreement_flag: bool | None = None
     disagreement_summary: str | None = None
     risk_state: str | None = None
+    base_regime: str | None = None
+    layers: list[RegimeHtmlLayerRow] = field(default_factory=list)
+    risk_overlay: RegimeHtmlRiskOverlay | None = None
+    top_contributors: list[str] = field(default_factory=list)
 
 
 def build_regime_html_view_model(
@@ -118,6 +148,8 @@ def render_regime_section_body(
     stale_tag = ""
     if _regime_is_stale(view_model.as_of, parent_as_of):
         stale_tag = " <span class='tag tag--warning regime-stale-tag'>regime stale</span>"
+    if _is_v2_view_model(view_model):
+        return _render_v2_regime_section_body(view_model, stale_tag=stale_tag)
     return (
         "<header class='regime-section__header'>"
         "<div>"
@@ -133,6 +165,41 @@ def render_regime_section_body(
         f"{_render_transitions(view_model)}"
         f"{_render_methods(view_model.methods)}"
         f"{_render_timeline(view_model.timeline)}"
+        f"{_render_counts(view_model.regime_counts)}"
+    )
+
+
+def _render_v2_regime_section_body(
+    view_model: RegimeHtmlViewModel,
+    *,
+    stale_tag: str,
+) -> str:
+    base_line = ""
+    if view_model.base_regime:
+        base_line = (
+            "<p class='regime-base-line'>"
+            f"<span>Base Regime</span><strong>{html.escape(view_model.base_regime)}</strong>"
+            "</p>"
+        )
+    return (
+        "<header class='regime-v2-hero'>"
+        "<div class='regime-v2-hero__main'>"
+        "<p class='regime-eyebrow'>Regime Engine v2</p>"
+        f"<h2 class='regime-headline'>{html.escape(view_model.regime)}{stale_tag}</h2>"
+        f"{base_line}"
+        f"<p class='regime-meta'>As of {html.escape(format_local_datetime(view_model.as_of))} · two macro axes with independent risk overlay</p>"
+        "</div>"
+        f"{_render_status_cards(view_model)}"
+        "</header>"
+        f"{_render_v2_disagreement(view_model)}"
+        f"{_render_v2_axis_panel(view_model)}"
+        f"{_render_v2_layer_detail(view_model)}"
+        f"{_render_v2_risk_overlay(view_model)}"
+        f"{_render_v2_top_contributors(view_model)}"
+        f"{_render_crisis_intensity_chart(view_model)}"
+        f"{_render_method_vote_strip(view_model)}"
+        f"{_render_transitions(view_model)}"
+        f"{_render_timeline(view_model.timeline, is_v2=True)}"
         f"{_render_counts(view_model.regime_counts)}"
     )
 
@@ -291,6 +358,14 @@ def _build_multi_method_view_model(
 def _build_v2_view_model(payload: list[Any]) -> RegimeHtmlViewModel:
     rows = [dict(row) for row in payload if isinstance(row, dict)]
     latest = rows[-1]
+    latest_layer_outputs = (
+        latest.get("layer_outputs") if isinstance(latest.get("layer_outputs"), list) else []
+    )
+    layers = [
+        _build_v2_layer_row(layer)
+        for layer in latest_layer_outputs
+        if isinstance(layer, dict)
+    ]
     axes_history = [
         RegimeHtmlAxisHistoryPoint(
             as_of=str(row.get("date") or ""),
@@ -324,6 +399,22 @@ def _build_v2_view_model(payload: list[Any]) -> RegimeHtmlViewModel:
                 )
             )
     risk_output = latest.get("risk_output") if isinstance(latest.get("risk_output"), dict) else {}
+    risk_overlay_on = _optional_bool(
+        latest.get("risk_overlay_on", risk_output.get("risk_overlay_on"))
+    )
+    risk_overlay = RegimeHtmlRiskOverlay(
+        risk_score=_optional_float(risk_output.get("risk_score", latest.get("risk_score"))),
+        liquidity_score=_optional_float(risk_output.get("liquidity_score")),
+        risk_overlay_on=risk_overlay_on,
+        risk_state=str(risk_output.get("risk_state") or latest.get("risk_state") or ""),
+        confidence=_format_confidence(risk_output.get("confidence")),
+        top_positive_contributors=_contributors_to_strings(
+            risk_output.get("top_positive_contributors")
+        ),
+        top_negative_contributors=_contributors_to_strings(
+            risk_output.get("top_negative_contributors")
+        ),
+    )
     return RegimeHtmlViewModel(
         schema=str(latest.get("version") or "regime-engine-v2"),
         as_of=str(latest.get("date") or ""),
@@ -334,7 +425,7 @@ def _build_v2_view_model(payload: list[Any]) -> RegimeHtmlViewModel:
             "RISK": float(latest.get("risk_score") or 0.0),
         },
         method_agreement=None,
-        crisis_flag=bool(latest.get("risk_overlay_on")),
+        crisis_flag=risk_overlay_on,
         crisis_intensity=_optional_float(latest.get("risk_score")),
         duration_days=None,
         methods=[
@@ -343,7 +434,7 @@ def _build_v2_view_model(payload: list[Any]) -> RegimeHtmlViewModel:
                 quadrant=_layer_label(layer),
                 native_label=_layer_status(layer),
             )
-            for layer in latest.get("layer_outputs", [])
+            for layer in latest_layer_outputs
             if isinstance(layer, dict)
         ],
         timeline=[
@@ -351,7 +442,7 @@ def _build_v2_view_model(payload: list[Any]) -> RegimeHtmlViewModel:
                 as_of=str(row.get("date") or ""),
                 regime=str(row.get("final_regime") or "Unknown"),
                 method_agreement=None,
-                crisis_flag=bool(row.get("risk_overlay_on")),
+                crisis_flag=_optional_bool(row.get("risk_overlay_on")),
                 crisis_intensity=_optional_float(row.get("risk_score")),
                 duration_days=None,
             )
@@ -362,9 +453,13 @@ def _build_v2_view_model(payload: list[Any]) -> RegimeHtmlViewModel:
         method_vote_history=method_vote_history,
         transitions=transitions[-8:],
         confidence=str(latest.get("confidence") or ""),
-        disagreement_flag=bool(latest.get("disagreement_flag")),
+        disagreement_flag=_optional_bool(latest.get("disagreement_flag")),
         disagreement_summary=str(latest.get("disagreement_summary") or ""),
-        risk_state=str(risk_output.get("risk_state") or ""),
+        risk_state=risk_overlay.risk_state,
+        base_regime=str(latest.get("base_regime") or ""),
+        layers=layers,
+        risk_overlay=risk_overlay,
+        top_contributors=_contributors_to_strings(latest.get("top_contributors")),
     )
 
 
@@ -424,17 +519,25 @@ def _render_status_cards(view_model: RegimeHtmlViewModel) -> str:
         cards.append(("Confidence", view_model.confidence))
     if view_model.disagreement_flag is not None:
         cards.append(("Disagreement", "Yes" if view_model.disagreement_flag else "No"))
-    if view_model.risk_state:
+    if _is_v2_view_model(view_model):
+        cards.extend(
+            [
+                ("Risk Overlay", _format_bool(view_model.crisis_flag)),
+                ("Risk State", view_model.risk_state or "n/a"),
+            ]
+        )
+    elif view_model.risk_state:
         cards.append(("Risk", view_model.risk_state))
     if view_model.method_agreement is not None:
         cards.append(("Agreement", _format_percent(view_model.method_agreement)))
-    cards.extend(
-        [
-            ("Crisis", _format_bool(view_model.crisis_flag)),
-            ("Intensity", _format_float(view_model.crisis_intensity)),
-            ("Duration", _format_days(view_model.duration_days)),
-        ]
-    )
+    if not _is_v2_view_model(view_model):
+        cards.extend(
+            [
+                ("Crisis", _format_bool(view_model.crisis_flag)),
+                ("Intensity", _format_float(view_model.crisis_intensity)),
+                ("Duration", _format_days(view_model.duration_days)),
+            ]
+        )
     return (
         "<section class='status-grid'>"
         + "".join(
@@ -445,6 +548,155 @@ def _render_status_cards(view_model: RegimeHtmlViewModel) -> str:
             for label, value in cards
         )
         + "</section>"
+    )
+
+
+def _render_v2_disagreement(view_model: RegimeHtmlViewModel) -> str:
+    if view_model.disagreement_flag is None and not view_model.disagreement_summary:
+        return ""
+    tone = "is-on" if view_model.disagreement_flag else "is-off"
+    label = "Disagreement: Yes" if view_model.disagreement_flag else "Disagreement: No"
+    summary = view_model.disagreement_summary or (
+        "Layer outputs are aligned enough for the current ensemble."
+    )
+    return (
+        f"<section class='panel regime-v2-disagreement {tone}'>"
+        "<div>"
+        f"<h2>{html.escape(label)}</h2>"
+        f"<p>{html.escape(summary)}</p>"
+        "</div>"
+        "</section>"
+    )
+
+
+def _render_v2_axis_panel(view_model: RegimeHtmlViewModel) -> str:
+    growth = view_model.scores.get("GROWTH")
+    inflation = view_model.scores.get("INFLATION")
+    rows = [
+        _render_v2_axis_card("Growth", growth, _axis_state(growth)),
+        _render_v2_axis_card("Inflation", inflation, _axis_state(inflation)),
+    ]
+    return (
+        "<section class='panel regime-v2-axis-panel'>"
+        "<header class='regime-panel__header'>"
+        "<h2>Growth / Inflation Axes</h2>"
+        "<span class='regime-panel__meta'>final ensemble scores</span>"
+        "</header>"
+        f"<div class='regime-v2-axis-grid'>{''.join(rows)}</div>"
+        "</section>"
+    )
+
+
+def _render_v2_axis_card(name: str, value: float | None, state: str) -> str:
+    numeric = float(value or 0.0)
+    clamped = max(-1.0, min(1.0, numeric))
+    width = abs(clamped) * 50.0
+    if clamped >= 0:
+        fill = (
+            f"<i class='axis-meter__fill axis-meter__fill--pos' "
+            f"style='left:50%;width:{width:.1f}%'></i>"
+        )
+    else:
+        fill = (
+            f"<i class='axis-meter__fill axis-meter__fill--neg' "
+            f"style='left:{50.0 - width:.1f}%;width:{width:.1f}%'></i>"
+        )
+    return (
+        "<article class='regime-v2-axis-card'>"
+        f"<span>{html.escape(name)}</span>"
+        f"<strong>{_format_signed(value)}</strong>"
+        f"<em>{html.escape(state)}</em>"
+        "<div class='axis-meter'>"
+        "<b class='axis-meter__mid'></b>"
+        f"{fill}"
+        "</div>"
+        "</article>"
+    )
+
+
+def _render_v2_layer_detail(view_model: RegimeHtmlViewModel) -> str:
+    if not view_model.layers:
+        return _render_methods(view_model.methods)
+    rows = []
+    for layer in view_model.layers:
+        status_class = _status_class(layer.status)
+        rows.append(
+            "<tr>"
+            f"<td><strong>{html.escape(layer.layer_name)}</strong></td>"
+            f"<td><span class='status-pill {status_class}'>{html.escape(layer.status)}</span></td>"
+            f"<td>{html.escape(layer.growth_state or 'n/a')} <span class='num-muted'>{_format_signed(layer.growth_score)}</span></td>"
+            f"<td>{html.escape(layer.inflation_state or 'n/a')} <span class='num-muted'>{_format_signed(layer.inflation_score)}</span></td>"
+            f"<td>{html.escape(layer.confidence or 'n/a')}</td>"
+            "</tr>"
+        )
+    return (
+        "<section class='panel regime-v2-layer-detail'>"
+        "<header class='regime-panel__header'>"
+        "<h2>Layer Detail</h2>"
+        "<span class='regime-panel__meta'>enabled + available layers with positive weights drive the ensemble</span>"
+        "</header>"
+        "<table><thead><tr><th>Layer</th><th>Status</th><th>Growth</th><th>Inflation</th><th>Confidence</th></tr></thead>"
+        f"<tbody>{''.join(rows)}</tbody></table>"
+        "</section>"
+    )
+
+
+def _render_v2_risk_overlay(view_model: RegimeHtmlViewModel) -> str:
+    risk = view_model.risk_overlay
+    if risk is None:
+        return ""
+    state = risk.risk_state or "n/a"
+    overlay = _format_bool(risk.risk_overlay_on)
+    metrics = [
+        ("Overlay", overlay),
+        ("State", state),
+        ("Risk Score", _format_float(risk.risk_score)),
+    ]
+    if risk.liquidity_score is not None:
+        metrics.append(("Liquidity", _format_float(risk.liquidity_score)))
+    if risk.confidence:
+        metrics.append(("Confidence", risk.confidence))
+    contributors = _render_inline_contributors(
+        risk.top_positive_contributors,
+        risk.top_negative_contributors,
+    )
+    return (
+        "<section class='panel regime-v2-risk'>"
+        "<header class='regime-panel__header'>"
+        "<h2>Independent Risk Overlay</h2>"
+        "<span class='regime-panel__meta'>risk is shown separately from growth and inflation</span>"
+        "</header>"
+        "<div class='regime-v2-risk__grid'>"
+        + "".join(
+            "<div class='mini-stat'>"
+            f"<span>{html.escape(label)}</span><strong>{html.escape(value)}</strong>"
+            "</div>"
+            for label, value in metrics
+        )
+        + "</div>"
+        f"{contributors}"
+        "</section>"
+    )
+
+
+def _render_v2_top_contributors(view_model: RegimeHtmlViewModel) -> str:
+    if not view_model.top_contributors:
+        layer_contributors: list[str] = []
+        for layer in view_model.layers:
+            layer_contributors.extend(layer.top_positive_contributors[:2])
+            layer_contributors.extend(layer.top_negative_contributors[:2])
+        contributors = layer_contributors[:8]
+    else:
+        contributors = view_model.top_contributors[:10]
+    if not contributors:
+        return ""
+    return (
+        "<section class='panel regime-v2-contributors'>"
+        "<h2>Top Contributors</h2>"
+        "<div class='contributor-list'>"
+        + "".join(f"<span>{html.escape(item)}</span>" for item in contributors)
+        + "</div>"
+        "</section>"
     )
 
 
@@ -513,6 +765,18 @@ _QUADRANT_CLASSES = {
     "Slowdown": "regime-cell--slowdown",
     "Deflationary Slowdown": "regime-cell--slowdown",
     "Crisis": "regime-cell--crisis",
+    "Up / Down": "regime-cell--goldilocks",
+    "Up / Neutral": "regime-cell--goldilocks",
+    "Up / Mixed": "regime-cell--goldilocks",
+    "Up / Up": "regime-cell--reflation",
+    "Down / Up": "regime-cell--stagflation",
+    "Down / Down": "regime-cell--slowdown",
+    "Down / Neutral": "regime-cell--slowdown",
+    "Neutral / Up": "regime-cell--stagflation",
+    "Neutral / Down": "regime-cell--slowdown",
+    "Neutral / Neutral": "regime-cell--unknown",
+    "Disabled": "regime-cell--unknown",
+    "Not available": "regime-cell--unknown",
 }
 
 
@@ -538,14 +802,17 @@ def _render_crisis_intensity_chart(view_model: RegimeHtmlViewModel) -> str:
     last_y = height - min(max(series[-1], 0.0), 1.0) * height
     current_value = view_model.crisis_intensity if view_model.crisis_intensity is not None else 0.0
     current_when = format_local_datetime(view_model.as_of)
+    is_v2 = _is_v2_view_model(view_model)
+    title = "Risk Overlay Score" if is_v2 else "Crisis Intensity"
+    aria_label = "Risk overlay score over time" if is_v2 else "Crisis intensity over time"
     return (
         "<section class='panel regime-crisis'>"
         "<header class='regime-panel__header'>"
-        "<h2>Crisis Intensity</h2>"
+        f"<h2>{html.escape(title)}</h2>"
         f"<span class='regime-panel__meta'>threshold {threshold:.1f} · current {current_value:.2f} · {html.escape(current_when)}</span>"
         "</header>"
         "<div class='regime-crisis__chart'>"
-        f"<svg viewBox='0 0 {width:.0f} {height:.0f}' preserveAspectRatio='none' role='img' aria-label='Crisis intensity over time'>"
+        f"<svg viewBox='0 0 {width:.0f} {height:.0f}' preserveAspectRatio='none' role='img' aria-label='{html.escape(aria_label)}'>"
         f"<line x1='0' y1='{threshold_y:.1f}' x2='{width:.0f}' y2='{threshold_y:.1f}' stroke='var(--neg-soft)' stroke-dasharray='3 3'/>"
         f"<polyline fill='none' stroke='var(--neg)' stroke-width='1.5' points='{line}'/>"
         f"<polygon fill='var(--neg-soft)' opacity='0.6' points='{line} {last_x:.1f},{height:.1f} 0,{height:.1f}'/>"
@@ -589,13 +856,24 @@ def _render_method_vote_strip(view_model: RegimeHtmlViewModel) -> str:
                 f"<span class='method-strip__cell {cls}' title='{html.escape(point.as_of)} · {html.escape(label)}'></span>"
             )
         rows_html.append("</div>")
-    legend_items = [
-        ("Goldilocks", "regime-cell--goldilocks"),
-        ("Reflation", "regime-cell--reflation"),
-        ("Stagflation", "regime-cell--stagflation"),
-        ("Slowdown", "regime-cell--slowdown"),
-        ("Crisis", "regime-cell--crisis"),
-    ]
+    if _is_v2_view_model(view_model):
+        legend_items = [
+            ("Up / Down", "regime-cell--goldilocks"),
+            ("Up / Up", "regime-cell--reflation"),
+            ("Down / Up", "regime-cell--stagflation"),
+            ("Down / Down", "regime-cell--slowdown"),
+            ("Disabled / N/A", "regime-cell--unknown"),
+        ]
+        title = "Layer-State Heat Strip"
+    else:
+        legend_items = [
+            ("Goldilocks", "regime-cell--goldilocks"),
+            ("Reflation", "regime-cell--reflation"),
+            ("Stagflation", "regime-cell--stagflation"),
+            ("Slowdown", "regime-cell--slowdown"),
+            ("Crisis", "regime-cell--crisis"),
+        ]
+        title = "Method-Vote Heat Strip"
     legend = "".join(
         f"<span class='method-strip__legend-item'><span class='method-strip__cell {cls}'></span>{html.escape(label)}</span>"
         for label, cls in legend_items
@@ -603,7 +881,7 @@ def _render_method_vote_strip(view_model: RegimeHtmlViewModel) -> str:
     return (
         "<section class='panel regime-method-strip-panel'>"
         "<header class='regime-panel__header'>"
-        "<h2>Method-Vote Heat Strip</h2>"
+        f"<h2>{html.escape(title)}</h2>"
         f"<span class='regime-panel__meta'>last {len(history)} sessions</span>"
         "</header>"
         f"<div class='method-strip' style='--method-strip-cols: {len(history)};'>"
@@ -621,8 +899,9 @@ def _render_transitions(view_model: RegimeHtmlViewModel) -> str:
     for event in reversed(view_model.transitions):
         intensity_html = ""
         if event.crisis_intensity is not None:
+            risk_label = "risk" if _is_v2_view_model(view_model) else "crisis"
             intensity_html = (
-                f"<span class='tag tag--warning'>crisis {event.crisis_intensity:.2f}</span>"
+                f"<span class='tag tag--warning'>{risk_label} {event.crisis_intensity:.2f}</span>"
             )
         rows.append(
             "<div class='transition-row'>"
@@ -660,24 +939,37 @@ def _render_methods(methods: list[RegimeHtmlMethodRow]) -> str:
     )
 
 
-def _render_timeline(rows: list[RegimeHtmlTimelineRow]) -> str:
+def _render_timeline(rows: list[RegimeHtmlTimelineRow], *, is_v2: bool = False) -> str:
     if not rows:
         return ""
-    body = "".join(
-        "<tr>"
-        f"<td>{html.escape(format_local_datetime(row.as_of))}</td>"
-        f"<td>{html.escape(row.regime)}</td>"
-        f"<td>{html.escape(_format_percent(row.method_agreement))}</td>"
-        f"<td>{html.escape(_format_bool(row.crisis_flag))}</td>"
-        f"<td>{html.escape(_format_float(row.crisis_intensity))}</td>"
-        f"<td>{html.escape(_format_days(row.duration_days))}</td>"
-        "</tr>"
-        for row in reversed(rows)
-    )
+    if is_v2:
+        body = "".join(
+            "<tr>"
+            f"<td>{html.escape(format_local_datetime(row.as_of))}</td>"
+            f"<td>{html.escape(row.regime)}</td>"
+            f"<td>{html.escape(_format_bool(row.crisis_flag))}</td>"
+            f"<td>{html.escape(_format_float(row.crisis_intensity))}</td>"
+            "</tr>"
+            for row in reversed(rows)
+        )
+        headers = "<th>Date</th><th>Final Regime</th><th>Risk Overlay</th><th>Risk Score</th>"
+    else:
+        body = "".join(
+            "<tr>"
+            f"<td>{html.escape(format_local_datetime(row.as_of))}</td>"
+            f"<td>{html.escape(row.regime)}</td>"
+            f"<td>{html.escape(_format_percent(row.method_agreement))}</td>"
+            f"<td>{html.escape(_format_bool(row.crisis_flag))}</td>"
+            f"<td>{html.escape(_format_float(row.crisis_intensity))}</td>"
+            f"<td>{html.escape(_format_days(row.duration_days))}</td>"
+            "</tr>"
+            for row in reversed(rows)
+        )
+        headers = "<th>Date</th><th>Regime</th><th>Agreement</th><th>Crisis</th><th>Intensity</th><th>Duration</th>"
     return (
         "<section class='panel'>"
         "<h2>Recent History</h2>"
-        "<table><thead><tr><th>Date</th><th>Regime</th><th>Agreement</th><th>Crisis</th><th>Intensity</th><th>Duration</th></tr></thead>"
+        f"<table><thead><tr>{headers}</tr></thead>"
         f"<tbody>{body}</tbody></table>"
         "</section>"
     )
@@ -738,6 +1030,155 @@ def _optional_float(value: object) -> float | None:
         return None
 
 
+def _optional_bool(value: object) -> bool | None:
+    if value is None:
+        return None
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, str):
+        normalized = value.strip().lower()
+        if normalized in {"true", "yes", "y", "1", "on"}:
+            return True
+        if normalized in {"false", "no", "n", "0", "off"}:
+            return False
+        return None
+    if isinstance(value, (int, float)):
+        return bool(value)
+    return None
+
+
+def _is_v2_view_model(view_model: RegimeHtmlViewModel) -> bool:
+    return view_model.schema == "regime-engine-v2"
+
+
+def _build_v2_layer_row(layer: dict[str, Any]) -> RegimeHtmlLayerRow:
+    enabled = bool(layer.get("enabled"))
+    available = bool(layer.get("available"))
+    return RegimeHtmlLayerRow(
+        layer_name=str(layer.get("layer_name") or "unknown"),
+        enabled=enabled,
+        available=available,
+        status=_layer_status_label(layer),
+        growth_score=_optional_float(layer.get("growth_score")),
+        inflation_score=_optional_float(layer.get("inflation_score")),
+        growth_state=str(layer.get("growth_state") or ("Disabled" if not enabled else "n/a")),
+        inflation_state=str(layer.get("inflation_state") or ("Disabled" if not enabled else "n/a")),
+        confidence=_format_confidence(layer.get("confidence")),
+        top_positive_contributors=_contributors_to_strings(
+            layer.get("top_positive_contributors")
+        ),
+        top_negative_contributors=_contributors_to_strings(
+            layer.get("top_negative_contributors")
+        ),
+    )
+
+
+def _layer_status_label(layer: dict[str, Any]) -> str:
+    if not bool(layer.get("enabled")):
+        return "Disabled"
+    if not bool(layer.get("available")):
+        return "Not available"
+    return "Available"
+
+
+def _format_confidence(value: object) -> str | None:
+    if value is None:
+        return None
+    if isinstance(value, str):
+        return value or None
+    numeric = _optional_float(value)
+    if numeric is None:
+        return str(value)
+    return f"{numeric:.2f}"
+
+
+def _contributors_to_strings(value: object) -> list[str]:
+    if not value:
+        return []
+    if isinstance(value, dict):
+        return [
+            f"{key}: {_format_contributor_value(val)}"
+            for key, val in value.items()
+        ]
+    if isinstance(value, (list, tuple)):
+        return [_contributor_to_string(item) for item in value if item is not None]
+    return [str(value)]
+
+
+def _contributor_to_string(item: object) -> str:
+    if isinstance(item, dict):
+        name = item.get("name") or item.get("signal") or item.get("feature") or item.get("label")
+        value = (
+            item.get("value")
+            if item.get("value") is not None
+            else item.get("score", item.get("contribution"))
+        )
+        if name and value is not None:
+            return f"{name}: {_format_contributor_value(value)}"
+        if name:
+            return str(name)
+        return ", ".join(f"{key}: {_format_contributor_value(val)}" for key, val in item.items())
+    if isinstance(item, (list, tuple)) and item:
+        if len(item) >= 2:
+            return f"{item[0]}: {_format_contributor_value(item[1])}"
+        return str(item[0])
+    return str(item)
+
+
+def _format_contributor_value(value: object) -> str:
+    numeric = _optional_float(value)
+    if numeric is not None:
+        return f"{numeric:+.2f}"
+    return str(value)
+
+
+def _axis_state(value: float | None) -> str:
+    if value is None:
+        return "n/a"
+    if value >= 0.35:
+        return "Up"
+    if value <= -0.35:
+        return "Down"
+    return "Neutral / Mixed"
+
+
+def _format_signed(value: float | None) -> str:
+    if value is None:
+        return "n/a"
+    return f"{value:+.2f}"
+
+
+def _status_class(status: str) -> str:
+    normalized = status.lower()
+    if "disabled" in normalized:
+        return "status-pill--muted"
+    if "not available" in normalized or "unavailable" in normalized:
+        return "status-pill--warning"
+    return "status-pill--ok"
+
+
+def _render_inline_contributors(
+    positive: list[str],
+    negative: list[str],
+) -> str:
+    if not positive and not negative:
+        return ""
+    groups = []
+    if positive:
+        groups.append(
+            "<div><span>Positive</span>"
+            + "".join(f"<b>{html.escape(item)}</b>" for item in positive[:5])
+            + "</div>"
+        )
+    if negative:
+        groups.append(
+            "<div><span>Negative</span>"
+            + "".join(f"<b>{html.escape(item)}</b>" for item in negative[:5])
+            + "</div>"
+        )
+    return f"<div class='inline-contributors'>{''.join(groups)}</div>"
+
+
 def _layer_label(layer: dict[str, Any]) -> str:
     if not bool(layer.get("enabled")):
         return "Disabled"
@@ -753,7 +1194,8 @@ def _layer_status(layer: dict[str, Any]) -> str:
         diagnostics = layer.get("diagnostics") if isinstance(layer.get("diagnostics"), dict) else {}
         return str(diagnostics.get("reason") or "Not available")
     confidence = layer.get("confidence")
-    return f"confidence {float(confidence):.2f}" if confidence is not None else "Available"
+    formatted = _format_confidence(confidence)
+    return f"confidence {formatted}" if formatted is not None else "Available"
 
 
 def regime_section_styles() -> str:
@@ -777,13 +1219,28 @@ def regime_section_styles() -> str:
     .regime-headline { margin: 0; font-size: 28px; line-height: 1.1; font-weight: 700; }
     .regime-stale-tag { margin-left: 12px; font-size: 11px; vertical-align: middle; }
     .regime-meta { margin: 8px 0 0; font-size: 12px; color: var(--muted-ink); }
+    .regime-v2-hero {
+      display: grid; grid-template-columns: minmax(0, 1fr) minmax(320px, 460px);
+      gap: 16px; align-items: stretch; padding: 20px 0 8px;
+    }
+    .regime-v2-hero__main {
+      background: var(--surface); border: 1px solid var(--border-soft);
+      border-radius: 8px; padding: 18px 20px; box-shadow: var(--shadow-1);
+    }
+    .regime-base-line {
+      display: inline-flex; align-items: center; gap: 8px; margin: 12px 0 0;
+      padding: 5px 9px; border-radius: 999px; background: var(--surface-2);
+      color: var(--muted-ink); font-size: 12px;
+    }
+    .regime-base-line span { font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em; font-size: 10px; }
+    .regime-base-line strong { color: var(--ink); font-weight: 700; }
     .status-grid {
       display: grid; grid-template-columns: repeat(4, minmax(0, 1fr));
       gap: 8px;
     }
     .status-card {
       background: var(--surface); border: 1px solid var(--border-soft);
-      border-radius: var(--r-2); padding: 10px 12px;
+      border-radius: 8px; padding: 10px 12px;
       box-shadow: var(--shadow-1);
     }
     .status-card span {
@@ -793,7 +1250,7 @@ def regime_section_styles() -> str:
     .status-card strong { display: block; margin-top: 4px; font-size: 18px; font-weight: 600; font-variant-numeric: tabular-nums; color: var(--ink); }
     .panel {
       background: var(--surface); border: 1px solid var(--border-soft);
-      border-radius: var(--r-3); padding: 16px;
+      border-radius: 8px; padding: 16px;
       box-shadow: var(--shadow-1);
     }
     .panel h2 { margin: 0 0 10px; font-size: 13px; font-weight: 700; letter-spacing: 0.02em; }
@@ -804,7 +1261,7 @@ def regime_section_styles() -> str:
     .score-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 10px; }
     .score-row {
       display: grid; gap: 4px;
-      border: 1px solid var(--border-soft); border-radius: var(--r-2);
+      border: 1px solid var(--border-soft); border-radius: 8px;
       padding: 10px 12px; background: var(--surface);
     }
     .score-row span, .count-row span {
@@ -818,6 +1275,50 @@ def regime_section_styles() -> str:
     .panel table { width: 100%; border-collapse: collapse; font-size: 13px; }
     .panel th, .panel td { padding: 8px 10px; border-bottom: 1px solid var(--border-soft); text-align: left; vertical-align: top; }
     .panel th { color: var(--muted-ink); font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em; background: var(--surface-2); }
+
+    .regime-v2-disagreement { border-left: 4px solid var(--border-soft); }
+    .regime-v2-disagreement.is-on { border-left-color: var(--warn); background: var(--warn-soft); }
+    .regime-v2-disagreement.is-off { border-left-color: var(--pos); }
+    .regime-v2-disagreement h2 { margin-bottom: 4px; }
+    .regime-v2-disagreement p { margin: 0; color: var(--ink-2); }
+
+    .regime-v2-axis-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+    .regime-v2-axis-card {
+      display: grid; grid-template-columns: 1fr auto; gap: 8px 12px;
+      padding: 14px; border: 1px solid var(--border-soft); border-radius: 8px; background: var(--surface);
+    }
+    .regime-v2-axis-card span {
+      font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em; color: var(--muted-ink);
+    }
+    .regime-v2-axis-card strong { font-size: 24px; line-height: 1; font-variant-numeric: tabular-nums; }
+    .regime-v2-axis-card em { justify-self: end; font-style: normal; font-size: 12px; font-weight: 700; color: var(--ink-2); }
+    .axis-meter { position: relative; grid-column: 1 / -1; height: 10px; border-radius: 999px; background: var(--surface-2); overflow: hidden; }
+    .axis-meter__mid { position: absolute; left: 50%; top: 0; bottom: 0; width: 1px; background: var(--muted-2); z-index: 2; }
+    .axis-meter__fill { position: absolute; top: 0; bottom: 0; }
+    .axis-meter__fill--pos { background: var(--pos); }
+    .axis-meter__fill--neg { background: var(--neg); }
+
+    .status-pill {
+      display: inline-flex; align-items: center; padding: 3px 8px; border-radius: 999px;
+      font-size: 11px; font-weight: 700; white-space: nowrap;
+    }
+    .status-pill--ok { color: var(--pos); background: var(--pos-soft); }
+    .status-pill--warning { color: var(--warn); background: var(--warn-soft); }
+    .status-pill--muted { color: var(--muted-ink); background: var(--surface-2); }
+    .num-muted { color: var(--muted-ink); font-family: var(--font-num); font-size: 12px; margin-left: 6px; }
+
+    .regime-v2-risk__grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 10px; }
+    .mini-stat { border: 1px solid var(--border-soft); border-radius: 8px; padding: 10px 12px; background: var(--surface); }
+    .mini-stat span { display: block; color: var(--muted-ink); font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em; }
+    .mini-stat strong { display: block; margin-top: 4px; font-size: 17px; font-weight: 700; font-variant-numeric: tabular-nums; }
+    .inline-contributors { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; margin-top: 12px; }
+    .inline-contributors div { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+    .inline-contributors span { color: var(--muted-ink); font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em; }
+    .inline-contributors b, .contributor-list span {
+      display: inline-flex; padding: 4px 8px; border-radius: 999px;
+      background: var(--surface-2); color: var(--ink-2); font-size: 12px; font-weight: 600;
+    }
+    .contributor-list { display: flex; flex-wrap: wrap; gap: 8px; }
 
     .count-grid { display: grid; gap: 8px; }
     .count-row { display: grid; grid-template-columns: 200px minmax(160px, 1fr) 56px; gap: 12px; align-items: center; }
@@ -862,9 +1363,11 @@ def regime_section_styles() -> str:
 
     @media (max-width: 760px) {
       .regime-section__header { grid-template-columns: 1fr; }
+      .regime-v2-hero { grid-template-columns: 1fr; }
       .status-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
       .regime-headline { font-size: 22px; }
       .count-row { grid-template-columns: 1fr; }
+      .regime-v2-axis-grid, .inline-contributors { grid-template-columns: 1fr; }
     }
     """
 
@@ -876,7 +1379,9 @@ def _styles() -> str:
 
 __all__ = [
     "RegimeHtmlAxisHistoryPoint",
+    "RegimeHtmlLayerRow",
     "RegimeHtmlMethodVoteHistoryPoint",
+    "RegimeHtmlRiskOverlay",
     "RegimeHtmlTransitionEvent",
     "RegimeHtmlViewModel",
     "build_regime_html_view_model",
