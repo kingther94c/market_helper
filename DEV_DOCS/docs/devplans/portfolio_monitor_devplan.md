@@ -46,7 +46,14 @@ Canonical artifacts/config:
    overrides with a small shared contract. Keep this narrow: paths, vol method,
    correlation assumption, regime artifact, output HTML.
 
-5. **Performance diagnostics**
+5. **Commodity spread risk treatment**
+   Add config-driven CM multi-leg spread synthesis for NG first: collapse
+   same-account/root/exchange futures legs into one risk row, estimate
+   front-contract beta with EWMA-weighted Huber regression, cache beta/spread
+   risk analytics for seven days, and keep residual-inclusive total vol hidden
+   behind the normal commodity position table.
+
+6. **Performance diagnostics**
    Add explicit warnings/logging for missing or unsafe performance metrics
    instead of silent `n/a`, especially per-currency metric failures and
    incomplete NAV/cashflow histories.

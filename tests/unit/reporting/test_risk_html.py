@@ -5,6 +5,7 @@ import json
 from pathlib import Path
 from urllib.error import HTTPError
 
+import numpy as np
 import pandas as pd
 import pytest
 
@@ -90,6 +91,128 @@ def _single_price_chart(level: float) -> dict[str, object]:
             ]
         }
     }
+
+
+class _FakeRiskYahooClient:
+    def __init__(self, payloads: dict[str, dict[str, object]]) -> None:
+        self.payloads = payloads
+
+    def fetch_price_history(self, symbol: str, *, period: str = "5y", interval: str = "1d") -> dict[str, object]:
+        if symbol not in self.payloads:
+            raise ValueError(f"missing symbol {symbol}")
+        return self.payloads[symbol]
+
+
+def _risk_price_payloads() -> dict[str, dict[str, object]]:
+    index = pd.bdate_range("2025-01-01", periods=180)
+    front_moves = pd.Series(0.006 * np.sin(np.arange(len(index)) / 5.0), index=index)
+    front = 4.0 + front_moves.cumsum()
+    near = 3.0 + (0.70 * front_moves).cumsum()
+    far = 4.6 + (0.45 * front_moves).cumsum()
+    gld = 180.0 + pd.Series(0.2 * np.sin(np.arange(len(index)) / 7.0), index=index).cumsum()
+    return {
+        "NG=F": _history_payload("NG=F", front),
+        "NGN26.NYM": _history_payload("NGN26.NYM", near),
+        "NGF27.NYM": _history_payload("NGF27.NYM", far),
+        "GLD": _history_payload("GLD", gld),
+    }
+
+
+def _history_payload(symbol: str, prices: pd.Series) -> dict[str, object]:
+    return {
+        "symbol": symbol,
+        "currency": "USD",
+        "prices": [
+            {
+                "timestamp": int(pd.Timestamp(index).tz_localize("UTC").timestamp()),
+                "close": float(value),
+                "adjclose": float(value),
+            }
+            for index, value in prices.items()
+        ],
+    }
+
+
+def _write_ng_spread_risk_config(tmp_path: Path) -> Path:
+    path = tmp_path / "report_config.yaml"
+    path.write_text(
+        "\n".join(
+            [
+                "risk_report:",
+                "  proxy:",
+                "    VIX: 20.0",
+                "    MOVE: 110.0",
+                "    OVX: 25.0",
+                "    GVZ: 25.0",
+                "    MACRO: 13.0",
+                "  commodity_sector_proxies: {}",
+                "  commodity_spreads:",
+                "    enabled: true",
+                "    cache_ttl_days: 7",
+                f"    cache_dir: {tmp_path / 'spread_cache'}",
+                "    defaults:",
+                "      window: 40",
+                "      half_life: 15",
+                "      clip_window: 20",
+                "      clip_z: 5.0",
+                "      huber_epsilon: 1.5",
+                "      min_observations: 20",
+                "    roots:",
+                "      NG:",
+                "        exchange: NYMEX",
+                "        front_yahoo_symbol: NG=F",
+                "        contract_yahoo_suffix: NYM",
+            ]
+        ),
+        encoding="utf-8",
+    )
+    return path
+
+
+def _write_ng_security_reference(tmp_path: Path) -> Path:
+    security_reference_path = tmp_path / "security_reference.csv"
+    export_security_reference_csv(
+        [
+            SecurityReference(
+                internal_id="FUT:NGN26:NYMEX",
+                asset_class="CM",
+                canonical_symbol="NG",
+                display_ticker="NG",
+                display_name="Natural Gas",
+                currency="USD",
+                primary_exchange="NYMEX",
+                multiplier=10000.0,
+                ibkr_sec_type="FUT",
+                ibkr_symbol="NG",
+                ibkr_exchange="NYMEX",
+                ibkr_conid="269460091",
+                yahoo_symbol="NG=F",
+                dir_exposure="L",
+                cm_sector="EN",
+                lookup_status="verified",
+            ),
+            SecurityReference(
+                internal_id="FUT:NGF27:NYMEX",
+                asset_class="CM",
+                canonical_symbol="NG",
+                display_ticker="NG",
+                display_name="Natural Gas",
+                currency="USD",
+                primary_exchange="NYMEX",
+                multiplier=10000.0,
+                ibkr_sec_type="FUT",
+                ibkr_symbol="NG",
+                ibkr_exchange="NYMEX",
+                ibkr_conid="269459992",
+                yahoo_symbol="NG=F",
+                dir_exposure="L",
+                cm_sector="EN",
+                lookup_status="verified",
+            ),
+        ],
+        security_reference_path,
+    )
+    return security_reference_path
 
 
 def test_historical_geomean_vol_uses_1m_3m_windows() -> None:
@@ -991,6 +1114,96 @@ def test_build_risk_report_view_model_prefers_local_symbol_for_mapped_commodity_
     names = {row.display_name for row in view_model.risk_rows if row.symbol == "NG"}
     assert tickers == {"NGN26:NYMEX", "NGQ26:NYMEX"}
     assert names == {"NGN26", "NGQ26"}
+
+
+def test_build_risk_report_view_model_synthesizes_configured_ng_spread(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    risk_html_module._YAHOO_FX_RATE_CACHE[risk_html_module.DEFAULT_USDSGD_YAHOO_SYMBOL] = 1.35
+    monkeypatch.setattr(risk_html_module, "DEFAULT_YAHOO_RETURNS_CACHE_DIR", tmp_path / "yahoo_cache")
+    positions_csv = tmp_path / "positions.csv"
+    positions_csv.write_text(
+        "\n".join(
+            [
+                "as_of,account,internal_id,con_id,symbol,local_symbol,exchange,currency,source,quantity,avg_cost,latest_price,market_value,cost_basis,unrealized_pnl,weight",
+                "2026-05-03T02:20:20+00:00,U1,FUT:NGN26:NYMEX,269460091,NG,NGN26,NYMEX,USD,ibkr,-1,30797.3077,3.10,-31000,-30797.3077,-42.6923,0.4",
+                "2026-05-03T02:20:20+00:00,U1,FUT:NGF27:NYMEX,269459992,NG,NGF27,NYMEX,USD,ibkr,1,46742.6923,4.80,48000,46742.6923,207.3077,0.6",
+            ]
+        ),
+        encoding="utf-8",
+    )
+    returns_json = tmp_path / "returns.json"
+    returns_json.write_text(json.dumps({}), encoding="utf-8")
+    security_reference_path = _write_ng_security_reference(tmp_path)
+    risk_config_path = _write_ng_spread_risk_config(tmp_path)
+
+    view_model = build_risk_report_view_model(
+        positions_csv_path=positions_csv,
+        returns_path=returns_json,
+        security_reference_path=security_reference_path,
+        risk_config_path=risk_config_path,
+        yahoo_client=_FakeRiskYahooClient(_risk_price_payloads()),
+    )
+
+    ng_rows = [row for row in view_model.risk_rows if row.symbol == "NG"]
+    assert len(ng_rows) == 1
+    spread = ng_rows[0]
+    assert spread.display_ticker == "NG spread"
+    assert spread.display_name == "NG[-1 N26 +1 F27]"
+    assert spread.quantity == -1.0
+    assert spread.gross_exposure_usd > 0
+    assert spread.exposure_usd > 0
+    assert spread.vol_geomean_1m_3m == pytest.approx(spread.vol_5y_realized)
+    assert spread.vol_forward_looking == pytest.approx(spread.vol_geomean_1m_3m)
+    rendered = risk_html_module.render_html_from_view_model(view_model)
+    assert "Multi-leg commodity spreads use cached EWMA Huber beta" in rendered
+    assert "residual risk" not in rendered.lower()
+    assert "beta vol" not in rendered.lower()
+
+
+def test_build_risk_report_view_model_keeps_ng_legs_when_spread_price_missing(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    risk_html_module._YAHOO_FX_RATE_CACHE[risk_html_module.DEFAULT_USDSGD_YAHOO_SYMBOL] = 1.35
+    monkeypatch.setattr(risk_html_module, "DEFAULT_YAHOO_RETURNS_CACHE_DIR", tmp_path / "yahoo_cache")
+    positions_csv = tmp_path / "positions.csv"
+    positions_csv.write_text(
+        "\n".join(
+            [
+                "as_of,account,internal_id,con_id,symbol,local_symbol,exchange,currency,source,quantity,avg_cost,latest_price,market_value,cost_basis,unrealized_pnl,weight",
+                "2026-05-03T02:20:20+00:00,U1,FUT:NGN26:NYMEX,269460091,NG,NGN26,NYMEX,USD,ibkr,-1,30797.3077,3.10,-31000,-30797.3077,-42.6923,0.4",
+                "2026-05-03T02:20:20+00:00,U1,FUT:NGF27:NYMEX,269459992,NG,NGF27,NYMEX,USD,ibkr,1,46742.6923,4.80,48000,46742.6923,207.3077,0.6",
+            ]
+        ),
+        encoding="utf-8",
+    )
+    returns_json = tmp_path / "returns.json"
+    returns_json.write_text(
+        json.dumps(
+            {
+                "FUT:NGN26:NYMEX": [0.001 * ((idx % 5) - 2) for idx in range(90)],
+                "FUT:NGF27:NYMEX": [0.0012 * ((idx % 5) - 2) for idx in range(90)],
+            }
+        ),
+        encoding="utf-8",
+    )
+    security_reference_path = _write_ng_security_reference(tmp_path)
+    risk_config_path = _write_ng_spread_risk_config(tmp_path)
+    payloads = _risk_price_payloads()
+    del payloads["NGF27.NYM"]
+
+    view_model = build_risk_report_view_model(
+        positions_csv_path=positions_csv,
+        returns_path=returns_json,
+        security_reference_path=security_reference_path,
+        risk_config_path=risk_config_path,
+        yahoo_client=_FakeRiskYahooClient(payloads),
+    )
+
+    tickers = {row.display_ticker for row in view_model.risk_rows if row.symbol == "NG"}
+    assert tickers == {"NGN26:NYMEX", "NGF27:NYMEX"}
 
 
 def test_annualized_vol_zero_for_short_series() -> None:

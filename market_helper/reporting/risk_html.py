@@ -45,6 +45,15 @@ from market_helper.domain.portfolio_monitor.services.yahoo_returns import (
     ensure_symbol_return_cache,
     load_internal_id_return_series_override,
 )
+from market_helper.domain.portfolio_monitor.services.commodity_spread_risk import (
+    DEFAULT_COMMODITY_SPREAD_CACHE_DIR,
+    CommoditySpreadLeg,
+    CommoditySpreadParameters,
+    CommoditySpreadRiskResult,
+    CommoditySpreadRootConfig,
+    CommoditySpreadRuntimeConfig,
+    compute_or_load_commodity_spread_risk,
+)
 from market_helper.data_sources.yahoo_finance import YahooFinanceTransientError
 from market_helper.reporting.html_tables import HtmlTableColumn, HtmlTableRow, render_html_table
 from market_helper.reporting._design_tokens import design_tokens_css
@@ -191,6 +200,8 @@ class RiskInputRow:
     yahoo_symbol: str
     currency: str = "USD"
     cm_sector: str = ""
+    special_vol: float | None = None
+    risk_note: str = ""
 
 
 @dataclass(frozen=True)
@@ -230,6 +241,7 @@ class RiskMetricsRow:
     eq_sector_proxy: str
     fi_tenor: str
     cm_sector: str = ""
+    risk_note: str = ""
 
 
 @dataclass(frozen=True)
@@ -376,6 +388,7 @@ class RiskReportConfig:
     vol_method_labels: dict[str, str]
     fx_excluded_asset_classes: tuple[str, ...]
     commodity_sector_proxies: tuple[tuple[str, str], ...]
+    commodity_spreads: CommoditySpreadRuntimeConfig
 
 
 def resolve_vol_method_key(
@@ -445,6 +458,13 @@ def build_risk_report_view_model(
         security_reference_table=reference_table,
         fi_10y_eq_mod_duration=fi_10y_eq_mod_duration,
     )
+    rows, synthetic_spread_returns = _apply_commodity_spread_synthesis(
+        rows,
+        config=risk_report_config.commodity_spreads,
+        yahoo_client=resolved_yahoo_client,
+        trading_days=risk_report_config.volatility.trading_days,
+        progress=reporter.child("Commodity spreads"),
+    )
     current_step += 1
     reporter.stage("Risk HTML: positions loaded", current=current_step, total=total_steps)
     funded_aum_usd, funded_aum_sgd = _funded_aum_dual(
@@ -465,17 +485,18 @@ def build_risk_report_view_model(
     vol_included_rows = [row for row in included_rows if _is_vol_included(row)]
     returns = _load_or_build_returns(
         returns_path=returns_path,
-        rows=vol_included_rows,
+        rows=[row for row in vol_included_rows if not _is_synthetic_commodity_spread(row)],
         yahoo_client=resolved_yahoo_client,
         progress=reporter.child("Returns"),
     )
+    returns.update(synthetic_spread_returns)
     current_step += 1
     reporter.stage("Risk HTML: returns ready", current=current_step, total=total_steps)
     regime_summary = _load_regime_summary(regime_path)
     allocation_policy = risk_report_config.policy
 
     vols_geomean_1m_3m = {
-        row.internal_id: _security_vol(
+        row.internal_id: row.special_vol if row.special_vol is not None else _security_vol(
             returns=returns.get(row.internal_id, []),
             asset_class=row.asset_class,
             duration=row.duration,
@@ -492,7 +513,7 @@ def build_risk_report_view_model(
         for row in rows
     }
     vols_5y_realized = {
-        row.internal_id: _security_vol(
+        row.internal_id: row.special_vol if row.special_vol is not None else _security_vol(
             returns=returns.get(row.internal_id, []),
             asset_class=row.asset_class,
             duration=row.duration,
@@ -509,7 +530,7 @@ def build_risk_report_view_model(
         for row in rows
     }
     vols_ewma = {
-        row.internal_id: _security_vol(
+        row.internal_id: row.special_vol if row.special_vol is not None else _security_vol(
             returns=returns.get(row.internal_id, []),
             asset_class=row.asset_class,
             duration=row.duration,
@@ -553,7 +574,7 @@ def build_risk_report_view_model(
         methodology=risk_report_config.volatility,
     )
     vols_forward_looking = {
-        row.internal_id: _adjusted_proxy_security_vol(
+        row.internal_id: row.special_vol if row.special_vol is not None else _adjusted_proxy_security_vol(
             returns=returns.get(row.internal_id, []),
             asset_class=row.asset_class,
             duration=row.duration,
@@ -684,6 +705,7 @@ def build_risk_report_view_model(
             eq_sector_proxy=row.eq_sector_proxy,
             fi_tenor=row.fi_tenor,
             cm_sector=row.cm_sector,
+            risk_note=row.risk_note,
         )
         for row in rows
     ]
@@ -948,6 +970,178 @@ def load_position_rows(
             )
         )
     return materialized_rows
+
+
+def _apply_commodity_spread_synthesis(
+    rows: list[RiskInputRow],
+    *,
+    config: CommoditySpreadRuntimeConfig,
+    yahoo_client: YahooFinanceClient,
+    trading_days: int,
+    progress: ProgressReporter | None = None,
+) -> tuple[list[RiskInputRow], dict[str, pd.Series]]:
+    if not config.enabled or not config.roots:
+        if progress is not None:
+            progress.done("Commodity spreads", detail="disabled")
+        return rows, {}
+
+    grouped: dict[tuple[str, str, str], list[RiskInputRow]] = {}
+    for row in rows:
+        key = (row.account, row.symbol.upper(), row.exchange.upper())
+        grouped.setdefault(key, []).append(row)
+
+    replacements: dict[tuple[str, str, str], tuple[RiskInputRow, pd.Series]] = {}
+    candidates = [
+        (key, group_rows)
+        for key, group_rows in grouped.items()
+        if key[1] in config.roots and len(group_rows) >= 2
+    ]
+    if progress is not None and candidates:
+        progress.stage("Commodity spreads", current=0, total=len(candidates))
+
+    completed = 0
+    portfolio_funded_aum = _funded_aum(rows)
+    for key, group_rows in candidates:
+        root_config = config.roots[key[1]]
+        if key[2] != root_config.exchange.upper():
+            continue
+        legs = _commodity_spread_legs_from_rows(group_rows)
+        if legs is None:
+            continue
+        result = compute_or_load_commodity_spread_risk(
+            legs,
+            config=root_config,
+            yahoo_client=yahoo_client,
+            cache_dir=config.cache_dir,
+            cache_ttl_days=config.cache_ttl_days,
+            trading_days=trading_days,
+        )
+        completed += 1
+        if progress is not None:
+            detail = f"{key[1]} cached" if result is not None and result.from_cache else f"{key[1]} computed"
+            progress.update("Commodity spreads", completed=completed, total=len(candidates), detail=detail)
+        if result is None:
+            continue
+        replacements[key] = (
+            _synthetic_spread_row(group_rows, result, funded_aum=portfolio_funded_aum),
+            result.spread_return_series,
+        )
+
+    if not replacements:
+        if progress is not None:
+            progress.done("Commodity spreads", detail="no synthetic spreads")
+        return rows, {}
+
+    output: list[RiskInputRow] = []
+    emitted: set[tuple[str, str, str]] = set()
+    synthetic_returns: dict[str, pd.Series] = {}
+    for row in rows:
+        key = (row.account, row.symbol.upper(), row.exchange.upper())
+        replacement = replacements.get(key)
+        if replacement is None:
+            output.append(row)
+            continue
+        if key in emitted:
+            continue
+        synthetic_row, return_series = replacement
+        output.append(synthetic_row)
+        synthetic_returns[synthetic_row.internal_id] = return_series
+        emitted.add(key)
+    if progress is not None:
+        progress.done("Commodity spreads", detail=f"synthesized {len(replacements)} spread group(s)")
+    return output, synthetic_returns
+
+
+def _commodity_spread_legs_from_rows(rows: list[RiskInputRow]) -> tuple[CommoditySpreadLeg, ...] | None:
+    candidates = [
+        row
+        for row in rows
+        if row.asset_class == "CM"
+        and row.instrument_type == "Futures"
+        and row.mapping_status == "mapped"
+        and row.local_symbol
+        and row.quantity != 0.0
+        and row.multiplier > 0
+        and row.latest_price > 0
+    ]
+    if len(candidates) < 2:
+        return None
+    signs = {1 if row.quantity > 0 else -1 for row in candidates}
+    if signs != {1, -1}:
+        return None
+    return tuple(
+        CommoditySpreadLeg(
+            account=row.account,
+            root=row.symbol,
+            exchange=row.exchange,
+            local_symbol=row.local_symbol,
+            quantity=row.quantity,
+            multiplier=row.multiplier,
+            latest_price=row.latest_price,
+            market_value=row.market_value,
+            cm_sector=row.cm_sector,
+        )
+        for row in candidates
+    )
+
+
+def _synthetic_spread_row(
+    source_rows: list[RiskInputRow],
+    result: CommoditySpreadRiskResult,
+    *,
+    funded_aum: float,
+) -> RiskInputRow:
+    root_row = source_rows[0]
+    gross = float(result.gross_exposure_usd)
+    signed = float(result.signed_exposure_usd)
+    internal_id = f"CM_SPREAD:{result.account}:{result.root}:{result.exchange}:{result.cache_key[:12]}"
+    return RiskInputRow(
+        internal_id=internal_id,
+        symbol=result.root,
+        canonical_symbol=result.root,
+        account=result.account,
+        market_value=sum(row.market_value for row in source_rows),
+        weight=sum(abs(row.weight) for row in source_rows),
+        asset_class="CM",
+        category="CM",
+        display_ticker=f"{result.root} spread",
+        display_name=result.display_name,
+        instrument_type="Futures",
+        quantity=result.display_quantity,
+        latest_price=next(
+            (row.latest_price for row in source_rows if row.local_symbol == result.base_leg_local_symbol),
+            root_row.latest_price,
+        ),
+        multiplier=next(
+            (row.multiplier for row in source_rows if row.local_symbol == result.base_leg_local_symbol),
+            root_row.multiplier,
+        ),
+        exposure_usd=signed,
+        gross_exposure_usd=gross,
+        signed_exposure_usd=signed,
+        dollar_weight=gross / funded_aum if funded_aum > 0 else sum(abs(row.weight) for row in source_rows),
+        display_exposure_usd=signed,
+        display_gross_exposure_usd=gross,
+        display_dollar_weight=gross / funded_aum if funded_aum > 0 else sum(abs(row.weight) for row in source_rows),
+        duration=None,
+        expected_vol=result.vol_ratio,
+        local_symbol=result.display_name,
+        exchange=result.exchange,
+        mapping_status="mapped",
+        dir_exposure="L",
+        eq_country="",
+        eq_sector_proxy="",
+        fi_tenor="",
+        cm_sector=next((row.cm_sector for row in source_rows if row.cm_sector), ""),
+        yahoo_symbol="",
+        currency=root_row.currency,
+        special_vol=result.vol_ratio,
+        risk_note="commodity_spread_special_vol",
+    )
+
+
+def _is_synthetic_commodity_spread(row: RiskInputRow | RiskMetricsRow) -> bool:
+    return row.risk_note == "commodity_spread_special_vol"
 
 
 def infer_asset_class(symbol: str, exchange: str) -> str:
@@ -1427,6 +1621,12 @@ def render_risk_tab(view_model: RiskReportViewModel) -> str:
         empty_message="No commodity positions available",
         data_attributes={"risk-method-table": "1"},
     )
+    commodity_spread_note = ""
+    if any(_is_synthetic_commodity_spread(row) for row in cm_rows):
+        commodity_spread_note = (
+            "<p class='risk-assumption-copy'>Multi-leg commodity spreads use cached EWMA Huber beta "
+            "and total spread volatility; vol-method columns intentionally match for those rows.</p>"
+        )
     fx_position_table = render_html_table(
         columns=_position_columns(),
         rows=_position_table_rows(fx_rows),
@@ -1609,6 +1809,7 @@ def render_risk_tab(view_model: RiskReportViewModel) -> str:
     <div class='card'>
       <h2>Commodity Positions</h2>
       <p>Rows marked <strong>excluded</strong> are shown for audit only and do not feed the portfolio summary, allocation breakdowns, or portfolio risk aggregation.</p>
+      {commodity_spread_note}
       {cm_position_table}
     </div>
   </section>
@@ -2749,6 +2950,10 @@ def _load_risk_report_config(
         for code, symbol in commodity_sector_proxies_payload.items()
         if str(symbol).strip()
     )
+    commodity_spreads = _parse_commodity_spread_config(
+        payload.get("commodity_spreads", {}),
+        base_dir=base_dir,
+    )
 
     return RiskReportConfig(
         eq_country_lookthrough_path=eq_path,
@@ -2762,6 +2967,7 @@ def _load_risk_report_config(
         vol_method_labels=vol_method_labels,
         fx_excluded_asset_classes=fx_excluded,
         commodity_sector_proxies=commodity_sector_proxies,
+        commodity_spreads=commodity_spreads,
     )
 
 
@@ -2855,6 +3061,90 @@ def _parse_fixed_income_config(payload: Mapping[str, Any]) -> FixedIncomeMethodo
         move_to_yield_vol_factor=_coerce_positive_float(
             payload.get("move_to_yield_vol_factor", DEFAULT_MOVE_TO_YIELD_VOL_FACTOR),
             "fixed_income.move_to_yield_vol_factor",
+        ),
+    )
+
+
+def _parse_commodity_spread_config(
+    payload: Any,
+    *,
+    base_dir: Path,
+) -> CommoditySpreadRuntimeConfig:
+    if payload in (None, ""):
+        payload = {}
+    if not isinstance(payload, Mapping):
+        raise ValueError("Risk report commodity_spreads config must be a mapping")
+    enabled = bool(payload.get("enabled", False))
+    cache_ttl_days = _coerce_positive_int(payload.get("cache_ttl_days", 7), "commodity_spreads.cache_ttl_days")
+    raw_cache_dir = payload.get("cache_dir", "")
+    cache_dir = DEFAULT_COMMODITY_SPREAD_CACHE_DIR
+    if raw_cache_dir not in (None, ""):
+        candidate = Path(str(raw_cache_dir))
+        cache_dir = candidate if candidate.is_absolute() else base_dir / candidate
+
+    defaults_payload = payload.get("defaults", {}) or {}
+    if not isinstance(defaults_payload, Mapping):
+        raise ValueError("commodity_spreads.defaults must be a mapping")
+    roots_payload = payload.get("roots", {}) or {}
+    if not isinstance(roots_payload, Mapping):
+        raise ValueError("commodity_spreads.roots must be a mapping")
+
+    roots: dict[str, CommoditySpreadRootConfig] = {}
+    for raw_root, raw_root_payload in roots_payload.items():
+        root = str(raw_root).strip().upper()
+        if not root:
+            raise ValueError("commodity_spreads root key must be non-empty")
+        if not isinstance(raw_root_payload, Mapping):
+            raise ValueError(f"commodity_spreads.roots.{root} must be a mapping")
+        root_payload = dict(raw_root_payload)
+        exchange = str(root_payload.get("exchange", "")).strip().upper()
+        front_yahoo_symbol = str(root_payload.get("front_yahoo_symbol", "")).strip()
+        contract_yahoo_suffix = str(root_payload.get("contract_yahoo_suffix", "")).strip().lstrip(".")
+        if enabled and not exchange:
+            raise ValueError(f"commodity_spreads.roots.{root}.exchange must be non-empty")
+        if enabled and not front_yahoo_symbol:
+            raise ValueError(f"commodity_spreads.roots.{root}.front_yahoo_symbol must be non-empty")
+        if enabled and not contract_yahoo_suffix:
+            raise ValueError(f"commodity_spreads.roots.{root}.contract_yahoo_suffix must be non-empty")
+        parameter_payload = dict(defaults_payload)
+        parameter_payload.update(
+            {
+                key: value
+                for key, value in root_payload.items()
+                if key in {"window", "half_life", "clip_window", "clip_z", "huber_epsilon", "min_observations"}
+            }
+        )
+        roots[root] = CommoditySpreadRootConfig(
+            root=root,
+            exchange=exchange,
+            front_yahoo_symbol=front_yahoo_symbol,
+            contract_yahoo_suffix=contract_yahoo_suffix,
+            parameters=_parse_commodity_spread_parameters(parameter_payload),
+        )
+
+    return CommoditySpreadRuntimeConfig(
+        enabled=enabled,
+        cache_ttl_days=cache_ttl_days,
+        roots=roots,
+        cache_dir=cache_dir,
+    )
+
+
+def _parse_commodity_spread_parameters(payload: Mapping[str, Any]) -> CommoditySpreadParameters:
+    if not isinstance(payload, Mapping):
+        raise ValueError("commodity spread parameters must be a mapping")
+    return CommoditySpreadParameters(
+        window=_coerce_positive_int(payload.get("window", 120), "commodity_spreads.window"),
+        half_life=_coerce_positive_float(payload.get("half_life", 40.0), "commodity_spreads.half_life"),
+        clip_window=_coerce_positive_int(payload.get("clip_window", 60), "commodity_spreads.clip_window"),
+        clip_z=_coerce_non_negative_float(payload.get("clip_z", 5.0), "commodity_spreads.clip_z"),
+        huber_epsilon=_coerce_positive_float(
+            payload.get("huber_epsilon", 1.5),
+            "commodity_spreads.huber_epsilon",
+        ),
+        min_observations=_coerce_positive_int(
+            payload.get("min_observations", 30),
+            "commodity_spreads.min_observations",
         ),
     )
 
