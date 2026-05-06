@@ -50,8 +50,9 @@ Canonical artifacts/config:
    Add config-driven CM multi-leg spread synthesis for NG first: collapse
    same-account/root/exchange futures legs into one risk row, estimate
    front-contract beta with EWMA-weighted Huber regression, cache beta/spread
-   risk analytics for seven days, and keep residual-inclusive total vol hidden
-   behind the normal commodity position table.
+   risk analytics for seven days, and combine cached spread diagnostics with
+   each selected front-contract vol method behind the normal commodity
+   position table.
 
 6. **Performance diagnostics**
    Add explicit warnings/logging for missing or unsafe performance metrics

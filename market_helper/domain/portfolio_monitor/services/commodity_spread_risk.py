@@ -18,7 +18,7 @@ from market_helper.data_sources.yahoo_finance import YahooFinanceClient
 DEFAULT_COMMODITY_SPREAD_CACHE_DIR = PORTFOLIO_ARTIFACTS_DIR / "commodity_spread_risk"
 DEFAULT_COMMODITY_SPREAD_PRICE_PERIOD = "5y"
 DEFAULT_COMMODITY_SPREAD_PRICE_INTERVAL = "1d"
-COMMODITY_SPREAD_CACHE_VERSION = 1
+COMMODITY_SPREAD_CACHE_VERSION = 2
 MONTH_CODE_ORDER = {
     "F": 1,
     "G": 2,
@@ -92,8 +92,10 @@ class CommoditySpreadRiskResult:
     residual_vol_usd: float
     total_vol_usd: float
     vol_ratio: float
+    front_notional_usd: float
     as_of_price_date: str
     spread_return_series: pd.Series
+    front_return_series: pd.Series
     from_cache: bool = False
 
 
@@ -286,12 +288,14 @@ def _compute_commodity_spread_risk(
     beta = regression["beta"]
     base = _base_leg(legs)
     exposure = _gross_exposure_from_beta(beta=beta, base_leg=base)
+    front_notional_usd = _front_notional_usd(base)
     if exposure <= 0:
         return None
     total_vol_usd = regression["total_vol_usd"]
     if total_vol_usd <= 0:
         return None
     spread_return_series = regression["spread_pnl_series"] / exposure
+    front_return_series = regression["front_pnl_series"] / front_notional_usd
     return CommoditySpreadRiskResult(
         cache_key=cache_key,
         account=base.account,
@@ -308,8 +312,10 @@ def _compute_commodity_spread_risk(
         residual_vol_usd=regression["residual_vol_usd"],
         total_vol_usd=total_vol_usd,
         vol_ratio=total_vol_usd / exposure,
+        front_notional_usd=front_notional_usd,
         as_of_price_date=regression["as_of_price_date"],
         spread_return_series=spread_return_series,
+        front_return_series=front_return_series,
         from_cache=False,
     )
 
@@ -359,6 +365,7 @@ def _rolling_robust_regression(
         **values,
         "as_of_price_date": _normalize_date_key(latest.index[-1]),
         "spread_pnl_series": result["spread_pnl"].dropna(),
+        "front_pnl_series": result["front_pnl"].dropna(),
     }
 
 
@@ -415,6 +422,8 @@ def _is_cache_payload_fresh(
 ) -> bool:
     if payload.get("cache_key") != cache_key:
         return False
+    if payload.get("version") != COMMODITY_SPREAD_CACHE_VERSION:
+        return False
     generated_at = _optional_timestamp(payload.get("generated_at"))
     if generated_at is None:
         return False
@@ -427,7 +436,7 @@ def _is_cache_payload_fresh(
     return all(
         _finite_float(payload.get(key)) is not None
         for key in ("alpha", "beta", "total_vol_usd", "beta_vol_usd", "residual_vol_usd")
-    )
+    ) and bool(payload.get("front_pnl_series"))
 
 
 def _result_from_cache_payload(
@@ -448,7 +457,12 @@ def _result_from_cache_payload(
     if exposure <= 0 or total_vol_usd is None or total_vol_usd <= 0:
         return None
     spread_pnl_series = _dated_mapping_to_series(payload.get("spread_pnl_series", {}))
+    front_pnl_series = _dated_mapping_to_series(payload.get("front_pnl_series", {}))
+    front_notional_usd = _front_notional_usd(base)
+    if front_pnl_series.empty or front_notional_usd <= 0:
+        return None
     spread_return_series = spread_pnl_series / exposure if not spread_pnl_series.empty else pd.Series(dtype=float)
+    front_return_series = front_pnl_series / front_notional_usd
     return CommoditySpreadRiskResult(
         cache_key=str(payload.get("cache_key") or ""),
         account=base.account,
@@ -465,8 +479,10 @@ def _result_from_cache_payload(
         residual_vol_usd=float(residual_vol_usd or 0.0),
         total_vol_usd=total_vol_usd,
         vol_ratio=total_vol_usd / exposure,
+        front_notional_usd=front_notional_usd,
         as_of_price_date=str(payload.get("as_of_price_date") or ""),
         spread_return_series=spread_return_series,
+        front_return_series=front_return_series,
         from_cache=True,
     )
 
@@ -503,9 +519,14 @@ def _result_to_cache_payload(
         "beta_vol_usd": result.beta_vol_usd,
         "residual_vol_usd": result.residual_vol_usd,
         "total_vol_usd": result.total_vol_usd,
+        "front_notional_usd": result.front_notional_usd,
         "spread_pnl_series": {
             _normalize_date_key(index): float(value)
             for index, value in (result.spread_return_series * result.gross_exposure_usd).dropna().items()
+        },
+        "front_pnl_series": {
+            _normalize_date_key(index): float(value)
+            for index, value in (result.front_return_series * result.front_notional_usd).dropna().items()
         },
     }
 
@@ -527,9 +548,16 @@ def _eligible_legs(
 
 
 def _gross_exposure_from_beta(*, beta: float, base_leg: CommoditySpreadLeg) -> float:
+    front_notional = _front_notional_usd(base_leg)
+    if front_notional <= 0:
+        return 0.0
+    return abs(beta) * front_notional
+
+
+def _front_notional_usd(base_leg: CommoditySpreadLeg) -> float:
     if base_leg.latest_price <= 0 or base_leg.multiplier <= 0:
         return 0.0
-    return abs(beta) * base_leg.latest_price * base_leg.multiplier
+    return base_leg.latest_price * base_leg.multiplier
 
 
 def _base_leg(legs: tuple[CommoditySpreadLeg, ...]) -> CommoditySpreadLeg:

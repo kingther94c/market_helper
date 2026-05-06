@@ -458,7 +458,7 @@ def build_risk_report_view_model(
         security_reference_table=reference_table,
         fi_10y_eq_mod_duration=fi_10y_eq_mod_duration,
     )
-    rows, synthetic_spread_returns = _apply_commodity_spread_synthesis(
+    rows, synthetic_spread_returns, synthetic_spread_results = _apply_commodity_spread_synthesis(
         rows,
         config=risk_report_config.commodity_spreads,
         yahoo_client=resolved_yahoo_client,
@@ -495,55 +495,45 @@ def build_risk_report_view_model(
     regime_summary = _load_regime_summary(regime_path)
     allocation_policy = risk_report_config.policy
 
-    vols_geomean_1m_3m = {
-        row.internal_id: row.special_vol if row.special_vol is not None else _security_vol(
+    def historical_row_vol(row: RiskInputRow, method: str) -> float:
+        if not _is_vol_included(row):
+            return 0.0
+        spread_result = synthetic_spread_results.get(row.internal_id)
+        if spread_result is not None:
+            return _commodity_spread_final_vol(
+                row=row,
+                result=spread_result,
+                method=method,
+                proxy=proxy,
+                volatility=risk_report_config.volatility,
+                proxy_defaults=risk_report_config.proxy_defaults,
+                move_to_yield_vol_factor=risk_report_config.fixed_income.move_to_yield_vol_factor,
+            )
+        if row.special_vol is not None:
+            return row.special_vol
+        return _security_vol(
             returns=returns.get(row.internal_id, []),
             asset_class=row.asset_class,
             duration=row.duration,
             proxy=proxy,
-            method="geomean_1m_3m",
+            method=method,
             volatility=risk_report_config.volatility,
             proxy_defaults=risk_report_config.proxy_defaults,
             move_to_yield_vol_factor=risk_report_config.fixed_income.move_to_yield_vol_factor,
             internal_id=row.internal_id,
             display_ticker=row.display_ticker,
         )
-        if _is_vol_included(row)
-        else 0.0
+
+    vols_geomean_1m_3m = {
+        row.internal_id: historical_row_vol(row, "geomean_1m_3m")
         for row in rows
     }
     vols_5y_realized = {
-        row.internal_id: row.special_vol if row.special_vol is not None else _security_vol(
-            returns=returns.get(row.internal_id, []),
-            asset_class=row.asset_class,
-            duration=row.duration,
-            proxy=proxy,
-            method="5y_realized",
-            volatility=risk_report_config.volatility,
-            proxy_defaults=risk_report_config.proxy_defaults,
-            move_to_yield_vol_factor=risk_report_config.fixed_income.move_to_yield_vol_factor,
-            internal_id=row.internal_id,
-            display_ticker=row.display_ticker,
-        )
-        if _is_vol_included(row)
-        else 0.0
+        row.internal_id: historical_row_vol(row, "5y_realized")
         for row in rows
     }
     vols_ewma = {
-        row.internal_id: row.special_vol if row.special_vol is not None else _security_vol(
-            returns=returns.get(row.internal_id, []),
-            asset_class=row.asset_class,
-            duration=row.duration,
-            proxy=proxy,
-            method="ewma",
-            volatility=risk_report_config.volatility,
-            proxy_defaults=risk_report_config.proxy_defaults,
-            move_to_yield_vol_factor=risk_report_config.fixed_income.move_to_yield_vol_factor,
-            internal_id=row.internal_id,
-            display_ticker=row.display_ticker,
-        )
-        if _is_vol_included(row)
-        else 0.0
+        row.internal_id: historical_row_vol(row, "ewma")
         for row in rows
     }
 
@@ -573,8 +563,25 @@ def build_risk_report_view_model(
         proxy_group_returns=proxy_group_returns,
         methodology=risk_report_config.volatility,
     )
-    vols_forward_looking = {
-        row.internal_id: row.special_vol if row.special_vol is not None else _adjusted_proxy_security_vol(
+
+    def forward_row_vol(row: RiskInputRow) -> float:
+        if not _is_vol_included(row):
+            return 0.0
+        spread_result = synthetic_spread_results.get(row.internal_id)
+        if spread_result is not None:
+            return _commodity_spread_final_vol(
+                row=row,
+                result=spread_result,
+                method="forward_looking",
+                proxy=proxy,
+                volatility=risk_report_config.volatility,
+                proxy_defaults=risk_report_config.proxy_defaults,
+                move_to_yield_vol_factor=risk_report_config.fixed_income.move_to_yield_vol_factor,
+                proxy_5y_realized=proxy_realized_5y_vol.get(row.asset_class),
+            )
+        if row.special_vol is not None:
+            return row.special_vol
+        return _adjusted_proxy_security_vol(
             returns=returns.get(row.internal_id, []),
             asset_class=row.asset_class,
             duration=row.duration,
@@ -586,8 +593,9 @@ def build_risk_report_view_model(
             internal_id=row.internal_id,
             display_ticker=row.display_ticker,
         )
-        if _is_vol_included(row)
-        else 0.0
+
+    vols_forward_looking = {
+        row.internal_id: forward_row_vol(row)
         for row in rows
     }
     forward_looking_group_loadings = _build_group_loadings(
@@ -979,18 +987,18 @@ def _apply_commodity_spread_synthesis(
     yahoo_client: YahooFinanceClient,
     trading_days: int,
     progress: ProgressReporter | None = None,
-) -> tuple[list[RiskInputRow], dict[str, pd.Series]]:
+) -> tuple[list[RiskInputRow], dict[str, pd.Series], dict[str, CommoditySpreadRiskResult]]:
     if not config.enabled or not config.roots:
         if progress is not None:
             progress.done("Commodity spreads", detail="disabled")
-        return rows, {}
+        return rows, {}, {}
 
     grouped: dict[tuple[str, str, str], list[RiskInputRow]] = {}
     for row in rows:
         key = (row.account, row.symbol.upper(), row.exchange.upper())
         grouped.setdefault(key, []).append(row)
 
-    replacements: dict[tuple[str, str, str], tuple[RiskInputRow, pd.Series]] = {}
+    replacements: dict[tuple[str, str, str], tuple[RiskInputRow, pd.Series, CommoditySpreadRiskResult]] = {}
     candidates = [
         (key, group_rows)
         for key, group_rows in grouped.items()
@@ -1025,16 +1033,18 @@ def _apply_commodity_spread_synthesis(
         replacements[key] = (
             _synthetic_spread_row(group_rows, result, funded_aum=portfolio_funded_aum),
             result.spread_return_series,
+            result,
         )
 
     if not replacements:
         if progress is not None:
             progress.done("Commodity spreads", detail="no synthetic spreads")
-        return rows, {}
+        return rows, {}, {}
 
     output: list[RiskInputRow] = []
     emitted: set[tuple[str, str, str]] = set()
     synthetic_returns: dict[str, pd.Series] = {}
+    synthetic_results: dict[str, CommoditySpreadRiskResult] = {}
     for row in rows:
         key = (row.account, row.symbol.upper(), row.exchange.upper())
         replacement = replacements.get(key)
@@ -1043,13 +1053,14 @@ def _apply_commodity_spread_synthesis(
             continue
         if key in emitted:
             continue
-        synthetic_row, return_series = replacement
+        synthetic_row, return_series, result = replacement
         output.append(synthetic_row)
         synthetic_returns[synthetic_row.internal_id] = return_series
+        synthetic_results[synthetic_row.internal_id] = result
         emitted.add(key)
     if progress is not None:
         progress.done("Commodity spreads", detail=f"synthesized {len(replacements)} spread group(s)")
-    return output, synthetic_returns
+    return output, synthetic_returns, synthetic_results
 
 
 def _commodity_spread_legs_from_rows(rows: list[RiskInputRow]) -> tuple[CommoditySpreadLeg, ...] | None:
@@ -1142,6 +1153,51 @@ def _synthetic_spread_row(
 
 def _is_synthetic_commodity_spread(row: RiskInputRow | RiskMetricsRow) -> bool:
     return row.risk_note == "commodity_spread_special_vol"
+
+
+def _commodity_spread_final_vol(
+    *,
+    row: RiskInputRow,
+    result: CommoditySpreadRiskResult,
+    method: str,
+    proxy: Mapping[str, float],
+    volatility: VolatilityMethodologyConfig,
+    proxy_defaults: Mapping[str, float],
+    move_to_yield_vol_factor: float,
+    proxy_5y_realized: float | None = None,
+) -> float:
+    if result.gross_exposure_usd <= 0 or result.front_notional_usd <= 0:
+        return 0.0
+    if method == "forward_looking":
+        front_vol_ratio = _adjusted_proxy_security_vol(
+            returns=result.front_return_series,
+            asset_class=row.asset_class,
+            duration=row.duration,
+            proxy=proxy,
+            volatility=volatility,
+            proxy_defaults=proxy_defaults,
+            move_to_yield_vol_factor=move_to_yield_vol_factor,
+            proxy_5y_realized=proxy_5y_realized,
+            internal_id=f"{row.internal_id}:front",
+            display_ticker=f"{row.display_ticker} front",
+        )
+    else:
+        front_vol_ratio = _security_vol(
+            returns=result.front_return_series,
+            asset_class=row.asset_class,
+            duration=row.duration,
+            proxy=proxy,
+            method=method,
+            volatility=volatility,
+            proxy_defaults=proxy_defaults,
+            move_to_yield_vol_factor=move_to_yield_vol_factor,
+            internal_id=f"{row.internal_id}:front",
+            display_ticker=f"{row.display_ticker} front",
+        )
+    front_vol_usd = front_vol_ratio * result.front_notional_usd
+    directional_vol_usd = abs(result.beta) * front_vol_usd
+    total_vol_usd = math.sqrt(directional_vol_usd**2 + result.residual_vol_usd**2)
+    return total_vol_usd / result.gross_exposure_usd
 
 
 def infer_asset_class(symbol: str, exchange: str) -> str:
@@ -1625,7 +1681,7 @@ def render_risk_tab(view_model: RiskReportViewModel) -> str:
     if any(_is_synthetic_commodity_spread(row) for row in cm_rows):
         commodity_spread_note = (
             "<p class='risk-assumption-copy'>Multi-leg commodity spreads use cached EWMA Huber beta "
-            "and total spread volatility; vol-method columns intentionally match for those rows.</p>"
+            "and full spread PnL variation; each vol-method column applies its own front-contract vol.</p>"
         )
     fx_position_table = render_html_table(
         columns=_position_columns(),

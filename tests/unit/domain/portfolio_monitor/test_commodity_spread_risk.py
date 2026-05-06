@@ -70,6 +70,8 @@ def test_commodity_spread_risk_computes_and_reuses_weekly_cache(tmp_path: Path) 
     assert first.display_quantity == -1.0
     assert first.total_vol_usd > 0
     assert first.vol_ratio == pytest.approx(first.total_vol_usd / first.gross_exposure_usd)
+    assert first.front_notional_usd > 0
+    assert not first.front_return_series.empty
     assert client.calls
 
     second = compute_or_load_commodity_spread_risk(
@@ -85,6 +87,7 @@ def test_commodity_spread_risk_computes_and_reuses_weekly_cache(tmp_path: Path) 
     assert second is not None
     assert second.from_cache is True
     assert second.beta == pytest.approx(first.beta)
+    assert not second.front_return_series.empty
 
 
 def test_stale_cache_recomputes_and_failed_recompute_returns_none(tmp_path: Path) -> None:
