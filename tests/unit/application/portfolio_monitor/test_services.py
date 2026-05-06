@@ -1,7 +1,9 @@
 from __future__ import annotations
 
 import json
+from dataclasses import dataclass
 from pathlib import Path
+from types import SimpleNamespace
 
 import pandas as pd
 
@@ -17,6 +19,11 @@ from market_helper.application.portfolio_monitor import (
     RegimeReportRunInputs,
 )
 from market_helper.application.portfolio_monitor import services as app_services
+
+
+@dataclass(frozen=True)
+class _FakeRiskViewModel:
+    as_of: str
 
 
 def test_query_service_load_report_data_resolves_expected_artifacts(tmp_path: Path) -> None:
@@ -120,6 +127,51 @@ def test_plain_report_inputs_do_not_implicitly_load_default_regime(
     )
 
     assert resolved.regime_path is None
+
+
+def test_report_data_keeps_regime_out_of_risk_view_model(
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+    positions_csv = _write_positions_csv(tmp_path / "positions.csv")
+    regime_path = tmp_path / "regime.json"
+    regime_path.write_text("[]", encoding="utf-8")
+    captured: dict[str, object] = {}
+
+    def fake_build_risk_report_view_model(**kwargs):
+        captured.update(kwargs)
+        return _FakeRiskViewModel(as_of="2026-04-08")
+
+    def fake_load_regime_view_model(**kwargs):
+        captured["loaded_regime_path"] = kwargs["regime_path"]
+        return SimpleNamespace(regime="Goldilocks")
+
+    fake_perf_entry = app_services._PerformanceCacheEntry(
+        date=app_services.datetime.date.today(),
+        history_path=None,
+        report_csv_path=None,
+        history_mtime=None,
+        usd_view_model=SimpleNamespace(as_of="2026-04-08"),
+        sgd_view_model=SimpleNamespace(as_of="2026-04-08"),
+        perf_warnings=[],
+    )
+
+    monkeypatch.setattr(app_services, "build_risk_report_view_model", fake_build_risk_report_view_model)
+    monkeypatch.setattr(PortfolioMonitorQueryService, "_load_perf_cached", lambda *args, **kwargs: fake_perf_entry)
+    monkeypatch.setattr(PortfolioMonitorQueryService, "_load_regime_view_model", staticmethod(fake_load_regime_view_model))
+
+    report_data = PortfolioMonitorQueryService().load_report_data(
+        PortfolioReportInputs(
+            positions_csv_path=positions_csv,
+            performance_output_dir=tmp_path / "flex",
+            regime_path=regime_path,
+        )
+    )
+
+    assert captured["regime_path"] is None
+    assert captured["loaded_regime_path"] == regime_path
+    assert report_data.risk_view_model.as_of == "2026-04-08T00:00:00+00:00"
+    assert report_data.regime_view_model.regime == "Goldilocks"
 
 
 def test_query_service_fills_missing_spy_benchmark_from_cached_returns(

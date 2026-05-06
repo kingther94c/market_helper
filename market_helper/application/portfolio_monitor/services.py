@@ -201,7 +201,7 @@ class PortfolioMonitorQueryService:
             positions_csv_path=positions_path,
             returns_path=resolved.returns_path,
             proxy_path=resolved.proxy_path,
-            regime_path=resolved.regime_path,
+            regime_path=None,
             security_reference_path=resolved.security_reference_path,
             risk_config_path=resolved.risk_config_path,
             allocation_policy_path=resolved.allocation_policy_path,
