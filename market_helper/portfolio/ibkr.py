@@ -166,6 +166,8 @@ def resolve_ibkr_contract(
 ) -> SecurityReference:
     existing = reference_table.resolve_by_ibkr_conid(contract.con_id)
     if existing is not None:
+        if _should_clone_runtime_future_identity(existing, contract):
+            return _clone_runtime_future_security(existing, contract)
         return existing
 
     existing_internal_id = reference_table.resolve_internal_id(IBKR_SOURCE, contract.con_id)
@@ -288,12 +290,15 @@ def normalize_ibkr_positions(
             multiplier=str(_first_non_null(row, "multiplier", default="1")),
         )
 
-        internal_id = (
-            reference_table.resolve_internal_id(IBKR_SOURCE, contract.con_id)
-            if contract.con_id
-            else None
+        existing_security = (
+            reference_table.resolve_by_ibkr_conid(contract.con_id) if contract.con_id else None
         )
-        if internal_id is None:
+        if existing_security is not None and not _should_clone_runtime_future_identity(
+            existing_security,
+            contract,
+        ):
+            internal_id = existing_security.internal_id
+        else:
             internal_id = register_ibkr_contract(reference_table, contract)
 
         normalized.append(

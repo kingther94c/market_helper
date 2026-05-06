@@ -103,6 +103,49 @@ def test_normalize_ibkr_positions_uses_contract_specific_identity_for_commodity_
     assert table.require_internal_id("ibkr", "880002") == "FUT:NGQ26:NYMEX"
 
 
+def test_normalize_ibkr_positions_repairs_cached_generic_commodity_future_mapping() -> None:
+    table = SecurityReferenceTable()
+    normalize_ibkr_positions(
+        [
+            {
+                "account": "U12345",
+                "con_id": "880001",
+                "sec_type": "FUT",
+                "symbol": "NG",
+                "currency": "USD",
+                "exchange": "NYMEX",
+                "position": "1",
+            }
+        ],
+        table,
+        as_of="2026-05-03T00:00:00+00:00",
+    )
+    assert table.require_internal_id("ibkr", "880001") == "FUT:NG:NYMEX"
+
+    positions = normalize_ibkr_positions(
+        [
+            {
+                "account": "U12345",
+                "con_id": "880001",
+                "sec_type": "FUT",
+                "symbol": "NG",
+                "currency": "USD",
+                "exchange": "NYMEX",
+                "local_symbol": "NGF27",
+                "multiplier": "10000",
+                "position": "1",
+                "avg_cost": "4.60",
+                "market_value": "46000",
+            }
+        ],
+        table,
+        as_of="2026-05-04T00:00:00+00:00",
+    )
+
+    assert positions[0].internal_id == "FUT:NGF27:NYMEX"
+    assert table.require_internal_id("ibkr", "880001") == "FUT:NGF27:NYMEX"
+
+
 def test_normalize_ibkr_latest_prices_uses_fallback_price_fields() -> None:
     table = SecurityReferenceTable.from_default_csv()
     normalize_ibkr_positions(
