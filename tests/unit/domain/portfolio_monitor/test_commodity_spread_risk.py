@@ -71,6 +71,7 @@ def test_commodity_spread_risk_computes_and_reuses_weekly_cache(tmp_path: Path) 
     assert first.total_vol_usd > 0
     assert first.vol_ratio == pytest.approx(first.total_vol_usd / first.gross_exposure_usd)
     assert first.front_notional_usd > 0
+    assert first.gross_exposure_usd == pytest.approx(first.front_notional_usd)
     assert not first.front_return_series.empty
     assert client.calls
 
@@ -81,7 +82,7 @@ def test_commodity_spread_risk_computes_and_reuses_weekly_cache(tmp_path: Path) 
         cache_dir=tmp_path,
         cache_ttl_days=7,
         trading_days=252,
-        now=pd.Timestamp("2026-05-07"),
+        now=pd.Timestamp("2026-05-08"),
     )
 
     assert second is not None

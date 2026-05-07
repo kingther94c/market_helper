@@ -18,7 +18,7 @@ from market_helper.data_sources.yahoo_finance import YahooFinanceClient
 DEFAULT_COMMODITY_SPREAD_CACHE_DIR = PORTFOLIO_ARTIFACTS_DIR / "commodity_spread_risk"
 DEFAULT_COMMODITY_SPREAD_PRICE_PERIOD = "5y"
 DEFAULT_COMMODITY_SPREAD_PRICE_INTERVAL = "1d"
-COMMODITY_SPREAD_CACHE_VERSION = 2
+COMMODITY_SPREAD_CACHE_VERSION = 3
 MONTH_CODE_ORDER = {
     "F": 1,
     "G": 2,
@@ -287,8 +287,8 @@ def _compute_commodity_spread_risk(
 
     beta = regression["beta"]
     base = _base_leg(legs)
-    exposure = _gross_exposure_from_beta(beta=beta, base_leg=base)
     front_notional_usd = _front_notional_usd(base)
+    exposure = _synthetic_exposure_usd(base)
     if exposure <= 0:
         return None
     total_vol_usd = regression["total_vol_usd"]
@@ -453,7 +453,7 @@ def _result_from_cache_payload(
     if None in {alpha, beta, beta_vol_usd, residual_vol_usd, total_vol_usd} or abs(beta or 0.0) <= 1e-12:
         return None
     base = _base_leg(legs)
-    exposure = _gross_exposure_from_beta(beta=beta or 0.0, base_leg=base)
+    exposure = _synthetic_exposure_usd(base)
     if exposure <= 0 or total_vol_usd is None or total_vol_usd <= 0:
         return None
     spread_pnl_series = _dated_mapping_to_series(payload.get("spread_pnl_series", {}))
@@ -547,11 +547,8 @@ def _eligible_legs(
     return 1 in signs and -1 in signs and all(leg.local_symbol for leg in legs)
 
 
-def _gross_exposure_from_beta(*, beta: float, base_leg: CommoditySpreadLeg) -> float:
-    front_notional = _front_notional_usd(base_leg)
-    if front_notional <= 0:
-        return 0.0
-    return abs(beta) * front_notional
+def _synthetic_exposure_usd(base_leg: CommoditySpreadLeg) -> float:
+    return _front_notional_usd(base_leg)
 
 
 def _front_notional_usd(base_leg: CommoditySpreadLeg) -> float:

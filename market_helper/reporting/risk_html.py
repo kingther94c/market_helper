@@ -2117,7 +2117,6 @@ def _policy_drift_table_rows(rows: Iterable[PolicyDriftRow]) -> list[HtmlTableRo
 
 def _position_columns() -> list[HtmlTableColumn]:
     return [
-        HtmlTableColumn("account", "Account"),
         HtmlTableColumn("display_ticker", "Ticker"),
         HtmlTableColumn("display_name", "Name"),
         HtmlTableColumn("asset_class", "Asset Class"),
@@ -2185,7 +2184,6 @@ def _position_table_rows(rows: Iterable[RiskMetricsRow]) -> list[HtmlTableRow]:
         output.append(
             HtmlTableRow(
                 cells={
-                    "account": row.account,
                     "display_ticker": row.display_ticker,
                     "display_name": row.display_name,
                     "asset_class": row.asset_class,

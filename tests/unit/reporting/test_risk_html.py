@@ -1152,14 +1152,16 @@ def test_build_risk_report_view_model_synthesizes_configured_ng_spread(
     assert spread.display_ticker == "NG spread"
     assert spread.display_name == "NG[-1 N26 +1 F27]"
     assert spread.quantity == -1.0
-    assert spread.gross_exposure_usd > 0
+    assert spread.gross_exposure_usd == pytest.approx(31_000.0)
     assert spread.exposure_usd > 0
     assert spread.vol_geomean_1m_3m > 0
     assert spread.vol_5y_realized > 0
     assert spread.vol_ewma > 0
     assert spread.vol_forward_looking > 0
+    assert spread.vol_5y_realized < 1.0
     assert spread.vol_geomean_1m_3m != pytest.approx(spread.vol_5y_realized)
     rendered = risk_html_module.render_html_from_view_model(view_model)
+    assert ">Account<" not in rendered
     assert "Multi-leg commodity spreads use cached EWMA Huber beta" in rendered
     assert "each vol-method column applies its own front-contract vol" in rendered
     assert "residual risk" not in rendered.lower()
