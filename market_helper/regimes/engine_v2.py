@@ -6,7 +6,7 @@ the final growth or inflation scores.
 """
 from __future__ import annotations
 
-from dataclasses import asdict, dataclass, field
+from dataclasses import asdict, dataclass, field, replace
 from pathlib import Path
 from typing import Any, Mapping, Sequence
 
@@ -260,6 +260,7 @@ def run_regime_engine_v2(
     config: RegimeEngineConfig | None = None,
     macro_panel: pd.DataFrame | None = None,
     macro_specs: Sequence[SeriesSpec] | None = None,
+    macro_method_config: MacroRegimeConfig | None = None,
     market_panel: pd.DataFrame | None = None,
     market_config: MarketRegimeConfig | None = None,
     model_selector: RegimeModelSelector | None = None,
@@ -274,7 +275,8 @@ def run_regime_engine_v2(
         if macro_panel is None or macro_specs is None:
             layer_status["macro_nowcast"] = _unavailable_layer("macro_nowcast", "macro_panel or macro_specs not provided")
         else:
-            results = MacroRegimeMethod(list(macro_specs), config=MacroRegimeConfig()).classify(macro_panel)
+            macro_method_cfg = macro_method_config or MacroRegimeConfig()
+            results = MacroRegimeMethod(list(macro_specs), config=macro_method_cfg).classify(macro_panel)
             layer_series["macro_nowcast"] = {
                 result.as_of: _layer_from_quadrant("macro_nowcast", result.quadrant, cfg)
                 for result in results
@@ -283,11 +285,14 @@ def run_regime_engine_v2(
         layer_status["macro_nowcast"] = _disabled_layer("macro_nowcast")
 
     market_cfg = cfg.layers.get("market_implied", LayerConfig())
+    market_config_with_engine_risk = (
+        _market_config_with_engine_risk(market_config, cfg) if market_config else None
+    )
     if market_cfg.enabled:
-        if market_panel is None or market_config is None:
+        if market_panel is None or market_config_with_engine_risk is None:
             layer_status["market_implied"] = _unavailable_layer("market_implied", "market_panel or market_config not provided")
         else:
-            results = MarketRegimeMethod(market_config).classify(market_panel)
+            results = MarketRegimeMethod(market_config_with_engine_risk).classify(market_panel)
             layer_series["market_implied"] = {
                 result.as_of: _layer_from_quadrant("market_implied", result.quadrant, cfg)
                 for result in results
@@ -320,7 +325,7 @@ def run_regime_engine_v2(
 
     risk_by_date = _risk_outputs_by_date(
         market_panel=market_panel,
-        market_config=market_config,
+        market_config=market_config_with_engine_risk,
         config=cfg,
     )
 
@@ -375,6 +380,25 @@ def run_regime_engine_v2(
             )
         )
     return out
+
+
+def _market_config_with_engine_risk(
+    market_config: MarketRegimeConfig,
+    engine_config: RegimeEngineConfig,
+) -> MarketRegimeConfig:
+    """Override the market-config risk thresholds with the engine-level values.
+
+    Risk overlay thresholds live in ``regime_engine.yml`` (the single source of
+    truth); this keeps the market-method classifier's crisis flag aligned with
+    the engine config without duplicating values in ``market_regime.yml``.
+    """
+    overlay = engine_config.risk_overlay
+    return replace(
+        market_config,
+        risk_enter_threshold=float(overlay.enter_threshold),
+        risk_exit_threshold=float(overlay.exit_threshold),
+        risk_min_consecutive_days=int(overlay.min_consecutive_days),
+    )
 
 
 def _layer_from_quadrant(

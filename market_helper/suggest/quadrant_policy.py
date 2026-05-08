@@ -1,8 +1,7 @@
 """4-quadrant policy table + crisis overlay for the 2D regime framework.
 
-Pairs with :mod:`market_helper.regimes.axes`. Uses the same
-:class:`RegimePolicyDecision` dataclass as the legacy 7-regime policy so
-downstream renderers only need to understand one output type.
+Pairs with :mod:`market_helper.regimes.axes`. Maps each quadrant to a
+:class:`RegimePolicyDecision` (vol multiplier + asset-class targets + notes).
 
 When a :class:`QuadrantSnapshot` arrives with ``crisis_flag=True``, a crisis
 overlay is applied on top of the base quadrant policy:
@@ -15,7 +14,7 @@ This keeps the quadrant call and the risk-off dial orthogonal.
 """
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Mapping
 
@@ -29,7 +28,18 @@ from market_helper.regimes.axes import (
     QUADRANT_STAGFLATION,
     QuadrantSnapshot,
 )
-from market_helper.suggest.regime_policy import RegimePolicyDecision
+
+
+@dataclass(frozen=True)
+class RegimePolicyDecision:
+    """Policy output for a single regime/quadrant: vol scaling, allocation, notes."""
+
+    as_of: str
+    regime: str
+    vol_multiplier: float
+    asset_class_targets: dict[str, float] = field(default_factory=dict)
+    notes: str = ""
+    corr_overrides: dict[str, float] | None = None
 
 
 DEFAULT_QUADRANT_POLICY: dict[str, dict[str, Any]] = {

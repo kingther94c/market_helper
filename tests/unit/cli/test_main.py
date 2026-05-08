@@ -317,48 +317,40 @@ def test_cli_combined_html_report_dispatches_to_workflow(monkeypatch, tmp_path) 
 def test_cli_regime_detect_dispatches_to_workflow(monkeypatch, tmp_path) -> None:
     captured: dict[str, object] = {}
 
-    def fake_generate_regime_snapshots(
-        *,
-        returns_path,
-        proxy_path,
-        output_path,
-        config_path,
-        latest_only,
-        indicator_output_path,
-    ):
-        captured["returns_path"] = returns_path
-        captured["proxy_path"] = proxy_path
-        captured["output_path"] = output_path
-        captured["config_path"] = config_path
-        captured["latest_only"] = latest_only
-        captured["indicator_output_path"] = indicator_output_path
+    def fake_run_regime_engine_v2_detection(**kwargs):
+        captured.update(kwargs)
         return []
 
     monkeypatch.setattr(
-        "market_helper.cli.main.generate_regime_snapshots",
-        fake_generate_regime_snapshots,
+        "market_helper.cli.main.run_regime_engine_v2_detection",
+        fake_run_regime_engine_v2_detection,
     )
 
     exit_code = main(
         [
             "regime-detect",
-            "--returns",
-            str(tmp_path / "returns.json"),
-            "--proxy",
-            str(tmp_path / "proxy.json"),
+            "--config",
+            str(tmp_path / "regime_engine.yml"),
+            "--macro-panel",
+            str(tmp_path / "macro_panel.feather"),
+            "--fred-series-config",
+            str(tmp_path / "fred_series.yml"),
+            "--market-panel",
+            str(tmp_path / "market_panel.feather"),
+            "--market-regime-config",
+            str(tmp_path / "market_regime.yml"),
             "--output",
             str(tmp_path / "regime.json"),
-            "--indicators-output",
-            str(tmp_path / "indicators.json"),
-            "--config",
-            str(tmp_path / "regime.yml"),
             "--latest-only",
         ]
     )
 
     assert exit_code == 0
     assert captured["latest_only"] is True
-    assert str(captured["returns_path"]).endswith("returns.json")
+    assert str(captured["regime_engine_config"]).endswith("regime_engine.yml")
+    assert str(captured["fred_series_config"]).endswith("fred_series.yml")
+    assert str(captured["market_regime_config"]).endswith("market_regime.yml")
+    assert str(captured["output_path"]).endswith("regime.json")
 
 
 def test_cli_regime_html_report_dispatches_to_workflow(monkeypatch, tmp_path) -> None:
@@ -391,53 +383,6 @@ def test_cli_regime_html_report_dispatches_to_workflow(monkeypatch, tmp_path) ->
     assert captured["policy_path"] is None
 
 
-def test_cli_regime_input_sync_dispatches_to_workflow(monkeypatch, tmp_path) -> None:
-    captured: dict[str, object] = {}
-
-    class Result:
-        returns_path = tmp_path / "regime_returns.json"
-        proxy_path = tmp_path / "regime_proxies.json"
-
-    def fake_sync_regime_inputs(**kwargs):
-        captured.update(kwargs)
-        return Result()
-
-    monkeypatch.setattr(
-        "market_helper.cli.main.sync_regime_inputs",
-        fake_sync_regime_inputs,
-    )
-
-    exit_code = main(
-        [
-            "regime-input-sync",
-            "--returns-output",
-            str(tmp_path / "regime_returns.json"),
-            "--proxy-output",
-            str(tmp_path / "regime_proxies.json"),
-            "--eq-symbol",
-            "ACWI",
-            "--fi-symbol",
-            "AGG",
-            "--vix-symbol",
-            "^VIX",
-            "--move-symbol",
-            "^MOVE",
-            "--fred-api-key",
-            "test-key",
-            "--hy-oas-history",
-            str(tmp_path / "hy_oas_history.csv"),
-        ]
-    )
-
-    assert exit_code == 0
-    assert str(captured["returns_output_path"]).endswith("regime_returns.json")
-    assert str(captured["proxy_output_path"]).endswith("regime_proxies.json")
-    assert captured["eq_symbol"] == "ACWI"
-    assert captured["vix_symbol"] == "^VIX"
-    assert captured["fred_api_key"] == "test-key"
-    assert str(captured["hy_oas_history_path"]).endswith("hy_oas_history.csv")
-
-
 def test_cli_regime_run_report_dispatches_to_existing_data_workflow(monkeypatch, tmp_path) -> None:
     captured: dict[str, object] = {}
 
@@ -464,7 +409,7 @@ def test_cli_regime_run_report_dispatches_to_existing_data_workflow(monkeypatch,
             "--market-regime-config",
             str(tmp_path / "market_regime.yml"),
             "--regime-engine-config",
-            str(tmp_path / "regime_engine_v2.yml"),
+            str(tmp_path / "regime_engine.yml"),
             "--output-regime",
             str(tmp_path / "regime_multi.json"),
             "--output-html",
@@ -476,7 +421,7 @@ def test_cli_regime_run_report_dispatches_to_existing_data_workflow(monkeypatch,
     assert captured["methods"] == ["macro_regime"]
     assert str(captured["market_panel_path"]).endswith("market_panel.feather")
     assert str(captured["market_regime_config"]).endswith("market_regime.yml")
-    assert str(captured["regime_engine_config"]).endswith("regime_engine_v2.yml")
+    assert str(captured["regime_engine_config"]).endswith("regime_engine.yml")
     assert str(captured["output_html_path"]).endswith("regime_report.html")
 
 
@@ -512,7 +457,7 @@ def test_cli_regime_refresh_report_dispatches_to_refresh_workflow(monkeypatch, t
             "--market-regime-config",
             str(tmp_path / "market_regime.yml"),
             "--regime-engine-config",
-            str(tmp_path / "regime_engine_v2.yml"),
+            str(tmp_path / "regime_engine.yml"),
             "--fred-api-key",
             "test-key",
         ]
@@ -523,7 +468,7 @@ def test_cli_regime_refresh_report_dispatches_to_refresh_workflow(monkeypatch, t
     assert captured["max_age_days"] == 7
     assert captured["force_refresh"] is True
     assert str(captured["market_regime_config"]).endswith("market_regime.yml")
-    assert str(captured["regime_engine_config"]).endswith("regime_engine_v2.yml")
+    assert str(captured["regime_engine_config"]).endswith("regime_engine.yml")
     assert captured["fred_api_key"] == "test-key"
 
 

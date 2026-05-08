@@ -3,10 +3,15 @@
 The macro method consumes the FRED macro panel and classifies each date from
 signed growth/inflation evidence. Series are grouped into fast/slow buckets per
 axis; defaults weight fast data at 70% and slow data at 30%.
+
+All knobs (bucket weights, normalization windows, clip, hysteresis) come from
+the ``engine:`` block of ``configs/regime_detection/fred_series.yml``; the
+dataclass defaults exist only as fallbacks when no config is provided.
 """
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from pathlib import Path
 from typing import Dict, List, Mapping, Sequence
 
 import math
@@ -14,7 +19,11 @@ import math
 import numpy as np
 import pandas as pd
 
-from market_helper.data_sources.fred.macro_panel import SeriesSpec, specs_by_axis
+from market_helper.data_sources.fred.macro_panel import (
+    SeriesSpec,
+    load_engine_block,
+    specs_by_axis,
+)
 from market_helper.regimes.axes import (
     GrowthInflationAxes,
     QuadrantSnapshot,
@@ -35,8 +44,65 @@ class MacroRegimeConfig:
     zscore_window_bdays: int = 2520
     min_periods: int = 252
     zscore_clip: float = 3.0
+    minmax_default_window_bdays: int = 1260
+    minmax_default_lower: float = -1.0
+    minmax_default_upper: float = 1.0
+    percentile_default_window_bdays: int = 1260
     min_consecutive_days: int = 10
     warmup_bdays: int = 0
+
+
+def load_macro_regime_config(
+    config_path: str | Path | None,
+) -> MacroRegimeConfig:
+    """Build a :class:`MacroRegimeConfig` from the ``engine:`` block of
+    ``fred_series.yml``. Missing fields fall back to defaults."""
+    if config_path is None:
+        return MacroRegimeConfig()
+    block = load_engine_block(config_path)
+    defaults = MacroRegimeConfig()
+    bucket_weights = block.get("bucket_weights")
+    if isinstance(bucket_weights, Mapping):
+        bucket_weights = {
+            str(name): float(weight) for name, weight in bucket_weights.items()
+        }
+    else:
+        bucket_weights = dict(defaults.bucket_weights)
+    return MacroRegimeConfig(
+        bucket_weights=bucket_weights,
+        min_available_bucket_weight=float(
+            block.get("min_available_bucket_weight", defaults.min_available_bucket_weight)
+        ),
+        default_normalization=str(
+            block.get("default_normalization", defaults.default_normalization)
+        ),
+        zscore_window_bdays=int(
+            block.get("zscore_window_bdays", defaults.zscore_window_bdays)
+        ),
+        min_periods=int(
+            block.get("zscore_min_periods", block.get("min_periods", defaults.min_periods))
+        ),
+        zscore_clip=float(block.get("zscore_clip", defaults.zscore_clip)),
+        minmax_default_window_bdays=int(
+            block.get("minmax_default_window_bdays", defaults.minmax_default_window_bdays)
+        ),
+        minmax_default_lower=float(
+            block.get("minmax_default_lower", defaults.minmax_default_lower)
+        ),
+        minmax_default_upper=float(
+            block.get("minmax_default_upper", defaults.minmax_default_upper)
+        ),
+        percentile_default_window_bdays=int(
+            block.get(
+                "percentile_default_window_bdays",
+                defaults.percentile_default_window_bdays,
+            )
+        ),
+        min_consecutive_days=int(
+            block.get("min_consecutive_days", defaults.min_consecutive_days)
+        ),
+        warmup_bdays=int(block.get("warmup_bdays", defaults.warmup_bdays)),
+    )
 
 
 def _rolling_zscore(series: pd.Series, window: int, min_periods: int) -> pd.Series:
@@ -47,6 +113,48 @@ def _rolling_zscore(series: pd.Series, window: int, min_periods: int) -> pd.Seri
     with np.errstate(invalid="ignore", divide="ignore"):
         z = (s - mu) / sigma
     return z.where(sigma > 0)
+
+
+def _rolling_minmax(
+    series: pd.Series,
+    *,
+    window: int,
+    lower: float,
+    upper: float,
+) -> pd.Series:
+    """Map series into [lower, upper] using a rolling min/max window.
+
+    NaN where the window has not yet accumulated a min and max (i.e. before
+    ``min_periods``); infinite-flat windows (min == max) collapse to the
+    midpoint of [lower, upper]."""
+    s = series.astype(float)
+    min_periods = max(2, min(window, 30))
+    roll = s.rolling(window=window, min_periods=min_periods)
+    rmin = roll.min()
+    rmax = roll.max()
+    span = rmax - rmin
+    midpoint = 0.5 * (lower + upper)
+    with np.errstate(invalid="ignore", divide="ignore"):
+        scaled = (s - rmin) / span
+    out = lower + scaled * (upper - lower)
+    out = out.where(span > 0, midpoint)
+    return out
+
+
+def _rolling_percentile(series: pd.Series, *, window: int) -> pd.Series:
+    """Rolling rank in [-1, 1]: 2 * percentile - 1."""
+    s = series.astype(float)
+    min_periods = max(2, min(window, 30))
+
+    def _rank(values: np.ndarray) -> float:
+        last = values[-1]
+        valid = values[~np.isnan(values)]
+        if valid.size == 0 or np.isnan(last):
+            return float("nan")
+        rank = float((valid <= last).sum()) / float(valid.size)
+        return 2.0 * rank - 1.0
+
+    return s.rolling(window=window, min_periods=min_periods).apply(_rank, raw=True)
 
 
 def _clip(series: pd.Series, limit: float) -> pd.Series:
@@ -83,14 +191,29 @@ def _normalize_signal(
             return signal
         return signal / float(spec.threshold)
     if mode == "zscore":
+        window = spec.zscore_window_bdays or config.zscore_window_bdays
+        min_periods = spec.zscore_min_periods or config.min_periods
+        clip = spec.zscore_clip if spec.zscore_clip is not None else config.zscore_clip
         return _clip(
-            _rolling_zscore(
-                signal,
-                window=config.zscore_window_bdays,
-                min_periods=config.min_periods,
-            ),
-            config.zscore_clip,
+            _rolling_zscore(signal, window=window, min_periods=min_periods),
+            clip,
         )
+    if mode == "minmax":
+        window = spec.minmax_window_bdays or config.minmax_default_window_bdays
+        lower = (
+            spec.minmax_lower
+            if spec.minmax_lower is not None
+            else config.minmax_default_lower
+        )
+        upper = (
+            spec.minmax_upper
+            if spec.minmax_upper is not None
+            else config.minmax_default_upper
+        )
+        return _rolling_minmax(signal, window=window, lower=float(lower), upper=float(upper))
+    if mode == "percentile":
+        window = spec.percentile_window_bdays or config.percentile_default_window_bdays
+        return _rolling_percentile(signal, window=window)
     raise ValueError(f"unsupported macro normalization: {mode!r}")
 
 
@@ -325,4 +448,9 @@ def _combine_confidence(g: object, i: object) -> float:
     return max(0.0, min(1.0, 0.5 * (gf + inf)))
 
 
-__all__ = ["MacroRegimeConfig", "MacroRegimeMethod", "compute_macro_axis_scores"]
+__all__ = [
+    "MacroRegimeConfig",
+    "MacroRegimeMethod",
+    "compute_macro_axis_scores",
+    "load_macro_regime_config",
+]

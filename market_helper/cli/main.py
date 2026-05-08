@@ -19,28 +19,17 @@ from market_helper.workflows.generate_report import (
     generate_risk_snapshot_report,
     generate_security_reference_sync,
 )
-from market_helper.workflows.generate_regime import generate_regime_snapshots
 from market_helper.workflows.generate_regime_html import generate_regime_html_report
-from market_helper.workflows.generate_multi_method_regime import (
-    ALL_METHODS as MULTI_METHOD_ALL,
-    load_multi_method_snapshots,
-    run_multi_method_detection,
-)
-from market_helper.workflows.generate_regime_v2 import run_regime_engine_v2_detection
-from market_helper.workflows.regime_v2_calibration import run_regime_v2_calibration
+from market_helper.workflows.generate_regime import run_regime_engine_v2_detection
+from market_helper.workflows.regime_calibration import run_regime_v2_calibration
 from market_helper.workflows.run_regime_report import (
+    ALL_METHODS as REGIME_METHODS_ALL,
     refresh_data_and_run_regime_report,
     run_regime_report_from_existing_data,
 )
 from market_helper.workflows.sync_fred_macro_panel import run_fred_macro_sync
 from market_helper.data_sources.yahoo_finance.market_panel import DEFAULT_INCREMENTAL_PERIOD
 from market_helper.workflows.sync_market_regime_panel import run_market_regime_sync
-from market_helper.workflows.sync_regime_inputs import sync_regime_inputs
-from market_helper.domain.regime_detection.policies.regime_policy import (
-    load_regime_policy,
-    resolve_policy,
-)
-from market_helper.domain.regime_detection.services.detection_service import load_regime_snapshots
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -252,108 +241,14 @@ def build_parser() -> argparse.ArgumentParser:
         help="Optional FRED API key. Falls back to FRED_API_KEY env var or configs/portfolio_monitor/local.env.",
     )
 
-    regime_input_sync = subparsers.add_parser(
-        "regime-input-sync",
-        help="Fetch online inputs for the legacy regime rulebook and write processed JSON.",
-    )
-    regime_input_sync.add_argument(
-        "--returns-output",
-        default="data/processed/regime_returns.json",
-        help="Path to output EQ/FI returns JSON.",
-    )
-    regime_input_sync.add_argument(
-        "--proxy-output",
-        default="data/processed/regime_proxies.json",
-        help="Path to output VIX/MOVE/HY_OAS/UST2Y/UST10Y proxy JSON.",
-    )
-    regime_input_sync.add_argument("--eq-symbol", default="SPY", help="Yahoo symbol for EQ returns.")
-    regime_input_sync.add_argument("--fi-symbol", default="AGG", help="Yahoo symbol for FI returns.")
-    regime_input_sync.add_argument("--vix-symbol", default="^VIX", help="Yahoo symbol for VIX levels.")
-    regime_input_sync.add_argument("--move-symbol", default="^MOVE", help="Yahoo symbol for MOVE levels.")
-    regime_input_sync.add_argument("--yahoo-period", default="max", help="Yahoo history period.")
-    regime_input_sync.add_argument("--yahoo-interval", default="1d", help="Yahoo history interval.")
-    regime_input_sync.add_argument(
-        "--fred-observation-start",
-        default=None,
-        help="Optional first FRED observation date.",
-    )
-    regime_input_sync.add_argument(
-        "--fred-api-key",
-        default=None,
-        help="Optional FRED API key. Falls back to FRED_API_KEY env var or configs/portfolio_monitor/local.env.",
-    )
-    regime_input_sync.add_argument(
-        "--hy-oas-history",
-        default="data/external/regime_detection/hy_oas_history.csv",
-        help="Optional Date/Value CSV used to seed and update long HY OAS history.",
-    )
-
-    regime_detect = subparsers.add_parser(
-        "regime-detect",
-        help="Deprecated: run deterministic legacy rule-based regime detection and write JSON snapshots.",
-    )
-    regime_detect.add_argument("--returns", required=True, help="Path to returns JSON with EQ/FI series.")
-    regime_detect.add_argument("--proxy", required=True, help="Path to proxy JSON with VIX/MOVE/HY_OAS/UST2Y/UST10Y.")
-    regime_detect.add_argument("--output", required=True, help="Path to output regime snapshots JSON.")
-    regime_detect.add_argument("--indicators-output", required=False, help="Optional indicator snapshot output JSON.")
-    regime_detect.add_argument(
-        "--config",
-        required=False,
-        help="Optional regime config YAML path. Example: configs/regime_detection/regime_config.yml.",
-    )
-    regime_detect.add_argument("--latest-only", action="store_true", help="Write latest snapshot only.")
-
-    regime_detect_multi = subparsers.add_parser(
-        "regime-detect-multi",
-        help="Deprecated: run legacy multi-method regime detection and write regime-multi-v1 JSON.",
-    )
-    regime_detect_multi.add_argument(
-        "--methods",
-        default="all",
-        help=(
-            "Comma-separated subset of methods to enable, or 'all'. "
-            "Options: macro_regime, market_regime."
-        ),
-    )
-    regime_detect_multi.add_argument(
-        "--macro-panel",
-        default=None,
-        help="Path to the joined FRED panel feather. Defaults to data/interim/fred/macro_panel.feather.",
-    )
-    regime_detect_multi.add_argument(
-        "--fred-series-config",
-        default=None,
-        help="Path to FRED series YAML. Defaults to configs/regime_detection/fred_series.yml.",
-    )
-    regime_detect_multi.add_argument(
-        "--market-panel",
-        default=None,
-        help="Path to the joined market price panel feather. Defaults to data/interim/market_regime/market_panel.feather.",
-    )
-    regime_detect_multi.add_argument(
-        "--market-regime-config",
-        default=None,
-        help="Path to market regime YAML. Defaults to configs/regime_detection/market_regime.yml.",
-    )
-    regime_detect_multi.add_argument(
-        "--output",
-        required=True,
-        help="Path to output MultiMethodRegimeSnapshot JSON array.",
-    )
-    regime_detect_multi.add_argument(
-        "--latest-only",
-        action="store_true",
-        help="Emit only the most-recent snapshot.",
-    )
-
     regime_detect_v2 = subparsers.add_parser(
-        "regime-detect-v2",
-        help="Run isolated Regime Engine v2 and write dashboard-ready JSON.",
+        "regime-detect",
+        help="Run the regime engine and write dashboard-ready JSON.",
     )
     regime_detect_v2.add_argument(
         "--config",
         default=None,
-        help="Path to Regime Engine v2 YAML. Defaults to built-in v2 config.",
+        help="Path to regime engine YAML. Defaults to configs/regime_detection/regime_engine.yml.",
     )
     regime_detect_v2.add_argument(
         "--macro-panel",
@@ -387,13 +282,13 @@ def build_parser() -> argparse.ArgumentParser:
     )
 
     regime_calibrate_v2 = subparsers.add_parser(
-        "regime-calibrate-v2",
-        help="Generate research-only Regime Engine v2 calibration HTML and notebook artifacts.",
+        "regime-calibrate",
+        help="Generate research-only regime calibration HTML and notebook artifacts.",
     )
     regime_calibrate_v2.add_argument(
         "--config",
         default=None,
-        help="Path to Regime Engine v2 YAML. Defaults to built-in v2 config.",
+        help="Path to regime engine YAML. Defaults to configs/regime_detection/regime_engine.yml.",
     )
     regime_calibrate_v2.add_argument(
         "--macro-panel",
@@ -517,18 +412,9 @@ def build_parser() -> argparse.ArgumentParser:
         help="Re-download full symbol history instead of merging recent data into cached history.",
     )
 
-    regime_report_multi = subparsers.add_parser(
-        "regime-report-multi",
-        help="Deprecated: print a human-readable summary of the latest regime-multi-v1 snapshot.",
-    )
-    regime_report_multi.add_argument(
-        "--regime",
-        required=True,
-        help="Path to multi-method regime snapshots JSON.",
-    )
     regime_html_report = subparsers.add_parser(
         "regime-html-report",
-        help="Generate a standalone HTML report from Regime Engine v2 or legacy regime snapshots.",
+        help="Generate a standalone HTML report from regime engine output.",
     )
     regime_html_report.add_argument(
         "--regime",
@@ -539,17 +425,6 @@ def build_parser() -> argparse.ArgumentParser:
         "--output",
         required=True,
         help="Path to output HTML.",
-    )
-
-    regime_report = subparsers.add_parser(
-        "regime-report",
-        help="Print human-readable summary of latest regime plus policy suggestion.",
-    )
-    regime_report.add_argument("--regime", required=True, help="Path to regime snapshots JSON.")
-    regime_report.add_argument(
-        "--policy",
-        required=False,
-        help="Optional policy YAML overrides. Example: configs/regime_detection/regime_policy.yml.",
     )
 
     mapping_table_report = subparsers.add_parser(
@@ -609,7 +484,7 @@ def _add_regime_report_run_args(parser: argparse.ArgumentParser) -> None:
     parser.add_argument(
         "--regime-engine-config",
         default=None,
-        help="Path to Regime Engine v2 YAML. Defaults to configs/regime_detection/regime_engine_v2.yml.",
+        help="Path to regime engine YAML. Defaults to configs/regime_detection/regime_engine.yml.",
     )
     parser.add_argument(
         "--output-regime",
@@ -752,56 +627,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             return 2
         print(f"panel={panel_path}")
         return 0
-    if args.command == "regime-input-sync":
-        try:
-            result = sync_regime_inputs(
-                returns_output_path=Path(args.returns_output),
-                proxy_output_path=Path(args.proxy_output),
-                eq_symbol=args.eq_symbol,
-                fi_symbol=args.fi_symbol,
-                vix_symbol=args.vix_symbol,
-                move_symbol=args.move_symbol,
-                yahoo_period=args.yahoo_period,
-                yahoo_interval=args.yahoo_interval,
-                fred_observation_start=args.fred_observation_start,
-                fred_api_key=args.fred_api_key,
-                hy_oas_history_path=Path(args.hy_oas_history) if args.hy_oas_history else None,
-            )
-        except (RuntimeError, ValueError) as exc:
-            print(f"regime-input-sync: {exc}", file=sys.stderr)
-            return 2
-        print(f"returns={result.returns_path}")
-        print(f"proxy={result.proxy_path}")
-        return 0
     if args.command == "regime-detect":
-        generate_regime_snapshots(
-            returns_path=Path(args.returns),
-            proxy_path=Path(args.proxy),
-            output_path=Path(args.output),
-            config_path=Path(args.config) if args.config else None,
-            latest_only=bool(args.latest_only),
-            indicator_output_path=Path(args.indicators_output) if args.indicators_output else None,
-        )
-        return 0
-    if args.command == "regime-detect-multi":
-        method_list = [m.strip() for m in str(args.methods).split(",") if m.strip()]
-        if not method_list:
-            method_list = list(MULTI_METHOD_ALL)
-        try:
-            run_multi_method_detection(
-                methods=method_list,
-                macro_panel_path=args.macro_panel,
-                fred_series_config=args.fred_series_config,
-                market_panel_path=args.market_panel,
-                market_regime_config=args.market_regime_config,
-                output_path=Path(args.output),
-                latest_only=bool(args.latest_only),
-            )
-        except ValueError as exc:
-            print(f"regime-detect-multi: {exc}", file=sys.stderr)
-            return 2
-        return 0
-    if args.command == "regime-detect-v2":
         try:
             run_regime_engine_v2_detection(
                 regime_engine_config=args.config,
@@ -813,10 +639,10 @@ def main(argv: Sequence[str] | None = None) -> int:
                 latest_only=bool(args.latest_only),
             )
         except ValueError as exc:
-            print(f"regime-detect-v2: {exc}", file=sys.stderr)
+            print(f"regime-detect: {exc}", file=sys.stderr)
             return 2
         return 0
-    if args.command == "regime-calibrate-v2":
+    if args.command == "regime-calibrate":
         try:
             artifacts = run_regime_v2_calibration(
                 regime_engine_config=args.config,
@@ -829,7 +655,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                 notebook_output=args.notebook_output,
             )
         except ValueError as exc:
-            print(f"regime-calibrate-v2: {exc}", file=sys.stderr)
+            print(f"regime-calibrate: {exc}", file=sys.stderr)
             return 2
         print(f"html={artifacts.html_path}")
         print(f"notebook={artifacts.notebook_path}")
@@ -839,7 +665,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     if args.command == "regime-run-report":
         method_list = [m.strip() for m in str(args.methods).split(",") if m.strip()]
         if not method_list:
-            method_list = list(MULTI_METHOD_ALL)
+            method_list = list(REGIME_METHODS_ALL)
         try:
             result = run_regime_report_from_existing_data(
                 methods=method_list,
@@ -861,7 +687,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     if args.command == "regime-refresh-report":
         method_list = [m.strip() for m in str(args.methods).split(",") if m.strip()]
         if not method_list:
-            method_list = list(MULTI_METHOD_ALL)
+            method_list = list(REGIME_METHODS_ALL)
         try:
             result = refresh_data_and_run_regime_report(
                 methods=method_list,
@@ -897,23 +723,6 @@ def main(argv: Sequence[str] | None = None) -> int:
         print(f"refreshed_macro_panel={result.refreshed_macro_panel}")
         print(f"refreshed_market_panel={result.refreshed_market_panel}")
         return 0
-    if args.command == "regime-report-multi":
-        snapshots = load_multi_method_snapshots(Path(args.regime))
-        if not snapshots:
-            print("No multi-method regime snapshots found.")
-            return 0
-        latest = snapshots[-1]
-        print(f"as_of={latest.as_of}")
-        print(f"ensemble_quadrant={latest.ensemble.quadrant}")
-        print(f"crisis_flag={latest.ensemble.crisis_flag}")
-        print(f"crisis_intensity={latest.ensemble.crisis_intensity:.2f}")
-        print(
-            f"method_agreement={latest.ensemble.diagnostics.get('method_agreement', 0.0):.2f}"
-        )
-        for name, result in latest.per_method.items():
-            native = f" native={result.native_label}" if result.native_label else ""
-            print(f"  method={name} quadrant={result.quadrant.quadrant}{native}")
-        return 0
     if args.command == "regime-html-report":
         try:
             generate_regime_html_report(
@@ -924,22 +733,6 @@ def main(argv: Sequence[str] | None = None) -> int:
         except (FileNotFoundError, ValueError) as exc:
             print(f"regime-html-report: {exc}", file=sys.stderr)
             return 2
-        return 0
-    if args.command == "regime-report":
-        snapshots = load_regime_snapshots(Path(args.regime))
-        if not snapshots:
-            print("No regime snapshots found.")
-            return 0
-        latest = snapshots[-1]
-        policy = load_regime_policy(Path(args.policy) if args.policy else None)
-        decision = resolve_policy(latest, policy=policy)
-        print(f"as_of={latest.as_of}")
-        print(f"regime={latest.regime}")
-        print(f"stress={latest.scores.get('STRESS', 0.0):.3f}")
-        print(f"vol_multiplier={decision.vol_multiplier:.2f}")
-        print(f"asset_class_targets={decision.asset_class_targets}")
-        if decision.notes:
-            print(f"notes={decision.notes}")
         return 0
 
     parser.error(f"Unsupported command: {args.command}")

@@ -63,7 +63,16 @@ from market_helper.portfolio.security_reference import (
     SecurityReferenceTable,
     build_security_reference_table,
 )
-from market_helper.regimes.taxonomy import REGIME_INTERPRETATIONS
+# One-line summaries keyed by regime engine output. Covers the four quadrant
+# labels emitted by ``_base_regime`` in ``regimes/engine_v2.py`` plus generic
+# axis-state combinations as fallback. Risk-overlay annotations append
+# " + Stress Overlay" to the base regime; we drop that suffix when looking up.
+REGIME_INTERPRETATIONS = {
+    "Goldilocks / Expansion": "Growth resilient with cooling or contained inflation.",
+    "Reflation": "Growth and inflation pushing up together.",
+    "Stagflation-like": "Weak growth coinciding with sticky or rising inflation.",
+    "Slowdown / Deflationary Slowdown": "Growth fading with no inflation impulse.",
+}
 
 
 TRADING_DAYS = 252
@@ -1707,7 +1716,8 @@ def render_risk_tab(view_model: RiskReportViewModel) -> str:
 
     regime_block = ""
     if regime_summary is not None:
-        banner = REGIME_INTERPRETATIONS.get(regime_summary.regime, "Regime-aware view active.")
+        regime_label = (regime_summary.regime or "").replace(" + Stress Overlay", "")
+        banner = REGIME_INTERPRETATIONS.get(regime_label, "Regime-aware view active.")
         regime_badges = []
         if regime_summary.method_agreement is not None:
             regime_badges.append(
@@ -4246,69 +4256,8 @@ def _load_regime_summary(path: str | Path | None) -> RegimeReportSummary | None:
     row = loaded[-1]
     if not isinstance(row, dict):
         return None
-    if str(row.get("version") or "") == "regime-engine-v2":
-        return _load_v2_regime_summary(row)
-    if str(row.get("version") or "") == "regime-multi-v1" or isinstance(row.get("ensemble"), dict):
-        return _load_multi_method_regime_summary(row)
-    scores = row.get("scores") if isinstance(row.get("scores"), dict) else {}
-    return RegimeReportSummary(
-        as_of=str(row.get("as_of") or ""),
-        regime=str(row.get("regime") or "Unknown"),
-        scores={str(k): float(v) for k, v in scores.items()},
-        version=str(row.get("version") or "regime-v1"),
-    )
+    return _load_v2_regime_summary(row)
 
-
-def _load_multi_method_regime_summary(row: dict[str, Any]) -> RegimeReportSummary:
-    ensemble = row.get("ensemble") if isinstance(row.get("ensemble"), dict) else {}
-    axes = ensemble.get("axes") if isinstance(ensemble.get("axes"), dict) else {}
-    diagnostics = (
-        ensemble.get("diagnostics")
-        if isinstance(ensemble.get("diagnostics"), dict)
-        else {}
-    )
-    scores: dict[str, float] = {}
-    if axes.get("growth_score") is not None:
-        scores["GROWTH"] = float(axes.get("growth_score") or 0.0)
-    if axes.get("inflation_score") is not None:
-        scores["INFLATION"] = float(axes.get("inflation_score") or 0.0)
-
-    method_summaries: list[dict[str, str]] = []
-    per_method = row.get("per_method") if isinstance(row.get("per_method"), dict) else {}
-    for name, payload in sorted(per_method.items()):
-        if not isinstance(payload, dict):
-            continue
-        quadrant = payload.get("quadrant") if isinstance(payload.get("quadrant"), dict) else {}
-        method_summaries.append(
-            {
-                "method": str(name),
-                "quadrant": str(quadrant.get("quadrant") or "Unknown"),
-                "native_label": str(payload.get("native_label") or ""),
-            }
-        )
-
-    return RegimeReportSummary(
-        as_of=str(row.get("as_of") or ensemble.get("as_of") or ""),
-        regime=str(ensemble.get("quadrant") or "Unknown"),
-        scores=scores,
-        version=str(row.get("version") or "regime-multi-v1"),
-        method_agreement=(
-            float(diagnostics["method_agreement"])
-            if diagnostics.get("method_agreement") is not None
-            else None
-        ),
-        crisis_flag=(
-            bool(ensemble["crisis_flag"])
-            if ensemble.get("crisis_flag") is not None
-            else None
-        ),
-        crisis_intensity=(
-            float(ensemble["crisis_intensity"])
-            if ensemble.get("crisis_intensity") is not None
-            else None
-        ),
-        per_method=method_summaries,
-    )
 
 
 def _load_v2_regime_summary(row: dict[str, Any]) -> RegimeReportSummary:

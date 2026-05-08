@@ -4,24 +4,56 @@
 #
 # Transforms:
 #   level                  raw observation value
-#   centered(c)            value - c
+#   centered(c)            value - c                       (transform_param: c)
 #   yoy_pct                100 * (v_t / v_{t-12m} - 1)
-#   yoy_diff               v_t - v_{t-12m} (arithmetic)
-#   inverted_yoy_diff      -(v_t - v_{t-12m})       # rising unemployment hurts growth
+#   yoy_diff               v_t - v_{t-12m}
+#   inverted_yoy_diff      -(v_t - v_{t-12m})              # rising unemployment hurts growth
+#   mom_pct                100 * (v_t / v_{t-1} - 1)
+#   mom_diff               v_t - v_{t-1}
+#   qoq_annualized         ((v_t / v_{t-1Q})^4 - 1) * 100
 #
-# publication_lag_days approximates the delay between observation-period end
-# and public release. Applied as: the value for period P is visible on
-# period_end(P) + lag_days. Prevents lookahead bias during backtest without
-# needing the ALFRED vintage API.
+# direction maps the transformed value into the axis sign. Use ``negative`` when
+# a higher transformed value is bad for the axis (e.g. rising initial claims
+# hurts growth).
 #
-# bucket separates fast and slow macro evidence. The macro_regime method
-# weights fast=70% and slow=30% per axis by default.
-# direction maps raw transformed values into the axis sign. Use negative when a
-# higher transformed value is bad for the axis, e.g. rising unemployment hurts
-# growth.
+# normalization (per series, falls back to engine.default_normalization):
+#   none         pass-through after transform + direction + threshold
+#   centered     subtract expanding mean of the signal
+#   threshold    divide signed signal by `threshold` (uses absolute units)
+#   zscore       rolling z-score with engine or per-series window/clip
+#   minmax       rolling min/max scaling into [minmax_lower, minmax_upper]
+#   percentile   rolling percentile rank scaled to [-1, 1]
+#
+# Per-series overrides (any can be omitted to inherit engine defaults):
+#   zscore_window_bdays, zscore_min_periods, zscore_clip
+#   minmax_lower, minmax_upper, minmax_window_bdays
+#   percentile_window_bdays
+#
+# bucket separates fast and slow macro evidence; engine.bucket_weights weights
+# them. publication_lag_days approximates the delay between observation-period
+# end and public release; the value for period P becomes visible on
+# period_end(P) + lag_days. Prevents lookahead bias during backtests.
+
+engine:
+  bucket_weights:
+    fast: 0.70
+    slow: 0.30
+  min_available_bucket_weight: 0.0
+  default_normalization: none
+  zscore_window_bdays: 2520
+  zscore_min_periods: 252
+  zscore_clip: 3.0
+  minmax_default_window_bdays: 1260
+  minmax_default_lower: -1.0
+  minmax_default_upper: 1.0
+  percentile_default_window_bdays: 1260
+  min_consecutive_days: 10
+  warmup_bdays: 0
 
 series:
-  # --- Growth axis ---
+  # ============================================================
+  # Growth axis — currently active
+  # ============================================================
   - series_id: UNRATE
     axis: growth
     transform: inverted_yoy_diff
@@ -77,7 +109,89 @@ series:
     title: State coincident leading index (diffusion)
     frequency_hint: monthly
 
-  # --- Inflation axis ---
+  # ============================================================
+  # Growth axis — dormant (weight: 0). Flip weight to activate.
+  # ============================================================
+  - series_id: T10Y2Y
+    axis: growth
+    transform: level
+    bucket: fast
+    direction: positive
+    normalization: zscore
+    weight: 0.0
+    publication_lag_days: 1
+    title: 10y - 2y Treasury yield curve (steeper = pro-growth)
+    frequency_hint: daily
+
+  - series_id: T10Y3M
+    axis: growth
+    transform: level
+    bucket: fast
+    direction: positive
+    normalization: zscore
+    weight: 0.0
+    publication_lag_days: 1
+    title: 10y - 3m Treasury yield curve
+    frequency_hint: daily
+
+  - series_id: ICSA
+    axis: growth
+    transform: yoy_pct
+    bucket: fast
+    direction: negative
+    normalization: zscore
+    weight: 0.0
+    publication_lag_days: 5
+    title: Initial claims (rising = bad for growth)
+    frequency_hint: weekly
+
+  - series_id: HOUST
+    axis: growth
+    transform: yoy_pct
+    bucket: slow
+    direction: positive
+    normalization: zscore
+    weight: 0.0
+    publication_lag_days: 18
+    title: Housing starts (YoY %)
+    frequency_hint: monthly
+
+  - series_id: PERMIT
+    axis: growth
+    transform: yoy_pct
+    bucket: slow
+    direction: positive
+    normalization: zscore
+    weight: 0.0
+    publication_lag_days: 18
+    title: Building permits (YoY %)
+    frequency_hint: monthly
+
+  - series_id: UMCSENT
+    axis: growth
+    transform: yoy_diff
+    bucket: fast
+    direction: positive
+    normalization: zscore
+    weight: 0.0
+    publication_lag_days: 14
+    title: U. Michigan consumer sentiment (YoY diff)
+    frequency_hint: monthly
+
+  - series_id: MANEMP
+    axis: growth
+    transform: yoy_pct
+    bucket: slow
+    direction: positive
+    normalization: zscore
+    weight: 0.0
+    publication_lag_days: 7
+    title: Manufacturing employment (YoY %, ISM proxy)
+    frequency_hint: monthly
+
+  # ============================================================
+  # Inflation axis — currently active
+  # ============================================================
   - series_id: CPIAUCSL
     axis: inflation
     transform: yoy_pct
@@ -167,4 +281,53 @@ series:
     weight: 0.5
     publication_lag_days: 7
     title: Average hourly earnings (YoY %)
+    frequency_hint: monthly
+
+  # ============================================================
+  # Inflation axis — dormant (weight: 0). Flip weight to activate.
+  # ============================================================
+  - series_id: T5YIE
+    axis: inflation
+    transform: level
+    bucket: fast
+    direction: positive
+    neutral_level: 2.25
+    threshold: 0.25
+    normalization: threshold
+    weight: 0.0
+    publication_lag_days: 1
+    title: 5y breakeven inflation
+    frequency_hint: daily
+
+  - series_id: DFII10
+    axis: inflation
+    transform: level
+    bucket: fast
+    direction: negative
+    normalization: zscore
+    weight: 0.0
+    publication_lag_days: 1
+    title: 10y real yield (rising real yield = disinflation pressure)
+    frequency_hint: daily
+
+  - series_id: PPIACO
+    axis: inflation
+    transform: yoy_pct
+    bucket: fast
+    direction: positive
+    normalization: zscore
+    weight: 0.0
+    publication_lag_days: 14
+    title: PPI all commodities (YoY %)
+    frequency_hint: monthly
+
+  - series_id: M2SL
+    axis: inflation
+    transform: yoy_pct
+    bucket: slow
+    direction: positive
+    normalization: zscore
+    weight: 0.0
+    publication_lag_days: 28
+    title: M2 money supply (YoY %)
     frequency_hint: monthly

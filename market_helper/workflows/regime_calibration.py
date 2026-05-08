@@ -26,7 +26,7 @@ from market_helper.regimes.methods.market_regime import MarketRegimeConfig, load
 
 DEFAULT_CALIBRATION_DIR = Path("data/artifacts/regime_detection/calibration")
 DEFAULT_NOTEBOOK_PATH = Path("notebooks/regime_detection/regime_v2_calibration_questions.ipynb")
-DEFAULT_REGIME_ENGINE_CONFIG = Path("configs/regime_detection/regime_engine_v2.yml")
+DEFAULT_REGIME_ENGINE_CONFIG = Path("configs/regime_detection/regime_engine.yml")
 DAILY_ROW_KEYS = (
     "date",
     "final_regime",

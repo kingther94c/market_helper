@@ -660,18 +660,23 @@ def test_build_risk_report_view_model_renders_summary_and_tables(tmp_path: Path)
         json.dumps(
             [
                 {
-                    "as_of": "2026-03-26",
-                    "regime": "Goldilocks Expansion",
-                    "scores": {
-                        "VOL": 0.2,
-                        "CREDIT": 0.2,
-                        "RATES": -0.1,
-                        "GROWTH": 0.6,
-                        "TREND": 0.7,
-                        "STRESS": 0.2,
+                    "date": "2026-03-26",
+                    "version": "regime-engine-v2",
+                    "final_regime": "Goldilocks / Expansion",
+                    "base_regime": "Goldilocks / Expansion",
+                    "confidence": "Medium",
+                    "disagreement_flag": False,
+                    "disagreement_summary": "",
+                    "final_growth_score": 0.6,
+                    "final_inflation_score": -0.1,
+                    "risk_score": 0.2,
+                    "risk_overlay_on": False,
+                    "layer_outputs": [],
+                    "risk_output": {
+                        "risk_score": 0.2,
+                        "risk_overlay_on": False,
+                        "risk_state": "Neutral",
                     },
-                    "inputs": {},
-                    "flags": {},
                 }
             ]
         ),
@@ -694,92 +699,10 @@ def test_build_risk_report_view_model_renders_summary_and_tables(tmp_path: Path)
     assert view_model.policy_drift_country
     assert view_model.policy_drift_sector
     assert view_model.regime_summary is not None
-    assert view_model.regime_summary.regime == "Goldilocks Expansion"
+    assert view_model.regime_summary.regime == "Goldilocks / Expansion"
     assert any(row.display_ticker == "SPY" for row in view_model.risk_rows)
     assert any(row.display_name == "10Y US" for row in view_model.risk_rows)
     assert any("svg" in row.sparkline_3m_svg for row in view_model.risk_rows)
-
-
-def test_load_regime_summary_accepts_multi_method_payload(tmp_path: Path) -> None:
-    regime_json = tmp_path / "regime_multi.json"
-    regime_json.write_text(
-        json.dumps(
-            [
-                {
-                    "as_of": "2026-03-26",
-                    "version": "regime-multi-v1",
-                    "ensemble": {
-                        "as_of": "2026-03-26",
-                        "quadrant": "Goldilocks",
-                        "axes": {
-                            "as_of": "2026-03-26",
-                            "growth_score": 0.7,
-                            "inflation_score": -0.4,
-                            "growth_drivers": {},
-                            "inflation_drivers": {},
-                            "confidence": 0.5,
-                        },
-                        "crisis_flag": False,
-                        "crisis_intensity": 0.0,
-                        "duration_days": 12,
-                        "diagnostics": {
-                            "method_agreement": 0.5,
-                            "per_method_quadrant": {
-                                "macro_regime": "Goldilocks",
-                                "market_regime": "Reflation",
-                            },
-                        },
-                    },
-                    "per_method": {
-                        "market_regime": {
-                            "as_of": "2026-03-26",
-                            "method_name": "market_regime",
-                            "quadrant": {"quadrant": "Reflation"},
-                            "native_label": "Reflation / neutral",
-                            "native_detail": {},
-                        },
-                        "macro_regime": {
-                            "as_of": "2026-03-26",
-                            "method_name": "macro_regime",
-                            "quadrant": {"quadrant": "Goldilocks"},
-                            "native_label": "Goldilocks",
-                            "native_detail": {},
-                        },
-                    },
-                }
-            ]
-        ),
-        encoding="utf-8",
-    )
-
-    summary = risk_html_module._load_regime_summary(regime_json)
-    assert summary is not None
-    assert summary.version == "regime-multi-v1"
-    assert summary.regime == "Goldilocks"
-    assert summary.scores == {"GROWTH": 0.7, "INFLATION": -0.4}
-    assert summary.method_agreement == 0.5
-    assert summary.crisis_flag is False
-    assert summary.crisis_intensity == 0.0
-    assert summary.per_method == [
-        {
-            "method": "macro_regime",
-            "quadrant": "Goldilocks",
-            "native_label": "Goldilocks",
-        },
-        {
-            "method": "market_regime",
-            "quadrant": "Reflation",
-            "native_label": "Reflation / neutral",
-        },
-    ]
-
-    html = risk_html_module.render_risk_tab(
-        _minimal_risk_view_model(regime_summary=summary)
-    )
-    assert "Goldilocks" in html
-    assert "Agreement" in html
-    assert "market_regime" in html
-    assert "Unknown" not in html
 
 
 def test_load_regime_summary_accepts_v2_payload(tmp_path: Path) -> None:

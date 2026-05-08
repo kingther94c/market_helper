@@ -40,6 +40,18 @@ _ALLOWED_TRANSFORMS = {
     "yoy_pct",
     "yoy_diff",
     "inverted_yoy_diff",
+    "mom_pct",
+    "mom_diff",
+    "qoq_annualized",
+}
+
+_ALLOWED_NORMALIZATIONS = {
+    "none",
+    "centered",
+    "threshold",
+    "zscore",
+    "minmax",
+    "percentile",
 }
 
 
@@ -57,7 +69,15 @@ class SeriesSpec:
     direction: str = "positive"  # "positive" | "negative"
     neutral_level: Optional[float] = None
     threshold: Optional[float] = None
-    normalization: str = "none"  # "none" | "centered" | "threshold" | "zscore"
+    normalization: str = "none"
+    # per-series overrides for normalization knobs (None = inherit engine default)
+    zscore_window_bdays: Optional[int] = None
+    zscore_min_periods: Optional[int] = None
+    zscore_clip: Optional[float] = None
+    minmax_lower: Optional[float] = None
+    minmax_upper: Optional[float] = None
+    minmax_window_bdays: Optional[int] = None
+    percentile_window_bdays: Optional[int] = None
 
     def validate(self) -> None:
         if self.axis not in {"growth", "inflation"}:
@@ -84,12 +104,20 @@ class SeriesSpec:
             raise ValueError(
                 f"{self.series_id}: direction must be 'positive' or 'negative', got {self.direction!r}"
             )
-        if self.normalization not in {"none", "centered", "threshold", "zscore"}:
+        if self.normalization not in _ALLOWED_NORMALIZATIONS:
             raise ValueError(
                 f"{self.series_id}: unsupported normalization {self.normalization!r}"
             )
         if self.threshold is not None and self.threshold < 0:
             raise ValueError(f"{self.series_id}: threshold must be non-negative")
+        if self.normalization == "minmax":
+            if self.minmax_lower is None or self.minmax_upper is None:
+                # engine defaults will be applied; only require ordering when both set
+                pass
+            elif self.minmax_lower >= self.minmax_upper:
+                raise ValueError(
+                    f"{self.series_id}: minmax_lower must be < minmax_upper"
+                )
 
 
 def load_series_specs(config_path: str | Path) -> List[SeriesSpec]:
@@ -97,37 +125,56 @@ def load_series_specs(config_path: str | Path) -> List[SeriesSpec]:
     if not isinstance(raw, dict) or "series" not in raw:
         raise ValueError(f"{config_path}: missing top-level 'series' key")
     specs: List[SeriesSpec] = []
+
+    def _opt_float(entry: Mapping, key: str) -> Optional[float]:
+        value = entry.get(key)
+        return float(value) if value is not None else None
+
+    def _opt_int(entry: Mapping, key: str) -> Optional[int]:
+        value = entry.get(key)
+        return int(value) if value is not None else None
+
     for entry in raw["series"]:
         spec = SeriesSpec(
             series_id=str(entry["series_id"]),
             axis=str(entry["axis"]),
             transform=str(entry.get("transform", "level")),
-            transform_param=(
-                float(entry["transform_param"])
-                if entry.get("transform_param") is not None
-                else None
-            ),
+            transform_param=_opt_float(entry, "transform_param"),
             weight=float(entry.get("weight", 1.0)),
             publication_lag_days=int(entry.get("publication_lag_days", 0)),
             title=entry.get("title"),
             frequency_hint=entry.get("frequency_hint"),
             bucket=str(entry.get("bucket", "fast")),
             direction=str(entry.get("direction", "positive")),
-            neutral_level=(
-                float(entry["neutral_level"])
-                if entry.get("neutral_level") is not None
-                else None
-            ),
-            threshold=(
-                float(entry["threshold"])
-                if entry.get("threshold") is not None
-                else None
-            ),
+            neutral_level=_opt_float(entry, "neutral_level"),
+            threshold=_opt_float(entry, "threshold"),
             normalization=str(entry.get("normalization", "none")),
+            zscore_window_bdays=_opt_int(entry, "zscore_window_bdays"),
+            zscore_min_periods=_opt_int(entry, "zscore_min_periods"),
+            zscore_clip=_opt_float(entry, "zscore_clip"),
+            minmax_lower=_opt_float(entry, "minmax_lower"),
+            minmax_upper=_opt_float(entry, "minmax_upper"),
+            minmax_window_bdays=_opt_int(entry, "minmax_window_bdays"),
+            percentile_window_bdays=_opt_int(entry, "percentile_window_bdays"),
         )
         spec.validate()
         specs.append(spec)
     return specs
+
+
+def load_engine_block(config_path: str | Path) -> Mapping[str, object]:
+    """Return the top-level ``engine:`` block from ``fred_series.yml``.
+
+    Returns an empty mapping when the file has no engine block, so callers can
+    safely apply their own defaults.
+    """
+    raw = yaml.safe_load(Path(config_path).read_text()) or {}
+    block = raw.get("engine") if isinstance(raw, dict) else None
+    if block is None:
+        return {}
+    if not isinstance(block, dict):
+        raise ValueError(f"{config_path}: 'engine' must be a mapping if present")
+    return block
 
 
 # ---------------------------------------------------------------------------
@@ -310,6 +357,19 @@ def apply_transform(spec: SeriesSpec, frame: pd.DataFrame) -> pd.DataFrame:
             working["value"] = working["value"] - shifted
         else:  # inverted_yoy_diff
             working["value"] = -(working["value"] - shifted)
+    elif spec.transform in ("mom_pct", "mom_diff"):
+        shifted = working["value"].shift(1)
+        if spec.transform == "mom_pct":
+            working["value"] = (working["value"] / shifted - 1.0) * 100.0
+        else:
+            working["value"] = working["value"] - shifted
+    elif spec.transform == "qoq_annualized":
+        periods_per_year = _observation_periods_per_year(working)
+        # Quarterly step measured in this series' native cadence.
+        step = max(1, int(round(periods_per_year / 4)))
+        shifted = working["value"].shift(step)
+        ratio = working["value"] / shifted
+        working["value"] = (ratio.pow(4) - 1.0) * 100.0
     else:  # pragma: no cover — guarded by validate()
         raise ValueError(f"unsupported transform {spec.transform!r}")
 
@@ -459,6 +519,13 @@ def write_series_meta(
                 "neutral_level": s.neutral_level,
                 "threshold": s.threshold,
                 "normalization": s.normalization,
+                "zscore_window_bdays": s.zscore_window_bdays,
+                "zscore_min_periods": s.zscore_min_periods,
+                "zscore_clip": s.zscore_clip,
+                "minmax_lower": s.minmax_lower,
+                "minmax_upper": s.minmax_upper,
+                "minmax_window_bdays": s.minmax_window_bdays,
+                "percentile_window_bdays": s.percentile_window_bdays,
             }
             for s in specs
         ]
@@ -520,6 +587,7 @@ __all__ = [
     "DEFAULT_PANEL_FILENAME",
     "DEFAULT_META_FILENAME",
     "load_series_specs",
+    "load_engine_block",
     "load_series_meta",
     "write_series_meta",
     "load_cached_series",

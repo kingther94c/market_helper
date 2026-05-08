@@ -10,7 +10,7 @@ from market_helper.cli.main import main
 from market_helper.data_sources.fred.macro_panel import SeriesSpec
 from market_helper.regimes.engine_v2 import LayerConfig, RegimeEngineConfig, run_regime_engine_v2
 from market_helper.regimes.methods.market_regime import MarketRegimeConfig, MarketSignalSpec
-from market_helper.workflows.regime_v2_calibration import (
+from market_helper.workflows.regime_calibration import (
     AnchorPeriod,
     run_regime_v2_calibration,
     summarize_anchor_period_rows,
@@ -68,13 +68,22 @@ def _market_config() -> MarketRegimeConfig:
 
 
 def test_liberation_day_style_window_surfaces_market_stagflation_dislocation() -> None:
+    from market_helper.regimes.engine_v2 import RiskOverlayConfig
+
     cfg = RegimeEngineConfig(
         layers={
             "macro_nowcast": LayerConfig(enabled=True, weight_growth=0.5, weight_inflation=0.5),
             "market_implied": LayerConfig(enabled=True, weight_growth=0.5, weight_inflation=0.5),
             "macro_truth_ml": LayerConfig(enabled=False, model_type="svm"),
             "return_truth_ml": LayerConfig(enabled=False, model_type="svm"),
-        }
+        },
+        risk_overlay=RiskOverlayConfig(
+            enabled=True,
+            independent=True,
+            enter_threshold=0.02,
+            exit_threshold=0.0,
+            min_consecutive_days=1,
+        ),
     )
     results = run_regime_engine_v2(
         config=cfg,
@@ -241,7 +250,7 @@ def test_cli_regime_calibrate_v2_dispatches(tmp_path: Path) -> None:
 
     exit_code = main(
         [
-            "regime-calibrate-v2",
+            "regime-calibrate",
             "--macro-panel",
             str(macro_panel),
             "--fred-series-config",

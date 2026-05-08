@@ -215,7 +215,7 @@ def test_weights_and_zero_weight_layers_control_final_scores() -> None:
 
 
 def test_config_loader_accepts_v2_yaml(tmp_path: Path) -> None:
-    path = tmp_path / "regime_engine_v2.yml"
+    path = tmp_path / "regime_engine.yml"
     path.write_text(
         yaml.safe_dump(
             {
@@ -266,7 +266,7 @@ def test_cli_regime_detect_v2_writes_schema(tmp_path: Path) -> None:
 
     exit_code = main(
         [
-            "regime-detect-v2",
+            "regime-detect",
             "--macro-panel",
             str(macro_panel),
             "--fred-series-config",

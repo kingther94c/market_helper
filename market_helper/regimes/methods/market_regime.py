@@ -22,6 +22,23 @@ from market_helper.regimes.axes import (
 from market_helper.regimes.methods.base import MethodResult
 
 
+_ALLOWED_TRANSFORMS = {
+    "return",
+    "relative_return",
+    "spread",
+    "level",
+    "change",
+    "realized_vol",
+    "raw_sign",
+    # legacy aliases retained so the new schema can be adopted incrementally
+    "level_zscore",
+    "change_zscore",
+    "realized_vol_zscore",
+}
+
+_ALLOWED_NORMALIZATIONS = {"zscore", "minmax", "percentile", "raw"}
+
+
 @dataclass(frozen=True)
 class MarketSignalSpec:
     name: str
@@ -33,24 +50,44 @@ class MarketSignalSpec:
     direction: str = "positive"
     weight: float = 1.0
     lookback_days: int = 63
+    normalization: str = "zscore"
     zscore_window_days: int = 756
     threshold: float = 0.0
+    minmax_lower: float | None = None
+    minmax_upper: float | None = None
+    minmax_window_days: int | None = None
+    percentile_window_days: int | None = None
 
     def validate(self) -> None:
         if self.axis not in {"growth", "inflation", "risk"}:
             raise ValueError(f"{self.name}: unsupported axis {self.axis!r}")
         if self.direction not in {"positive", "negative"}:
             raise ValueError(f"{self.name}: unsupported direction {self.direction!r}")
-        if self.transform not in {
-            "return",
-            "relative_return",
-            "spread",
-            "level_zscore",
-            "change_zscore",
-            "realized_vol_zscore",
-            "raw_sign",
-        }:
+        if self.transform not in _ALLOWED_TRANSFORMS:
             raise ValueError(f"{self.name}: unsupported transform {self.transform!r}")
+        if self.normalization not in _ALLOWED_NORMALIZATIONS:
+            raise ValueError(
+                f"{self.name}: unsupported normalization {self.normalization!r}"
+            )
+
+    @property
+    def effective_transform(self) -> str:
+        # Map legacy combined tokens onto the new (transform, normalization) pair.
+        if self.transform == "level_zscore":
+            return "level"
+        if self.transform == "change_zscore":
+            return "change"
+        if self.transform == "realized_vol_zscore":
+            return "realized_vol"
+        return self.transform
+
+    @property
+    def effective_normalization(self) -> str:
+        if self.transform in {"level_zscore", "change_zscore", "realized_vol_zscore"}:
+            return "zscore"
+        if self.transform == "raw_sign":
+            return "raw"
+        return self.normalization
 
 
 @dataclass(frozen=True)
@@ -61,25 +98,47 @@ class MarketRegimeConfig:
     min_consecutive_days: int = 5
     risk_min_consecutive_days: int = 3
     zscore_clip: float = 3.0
+    default_normalization: str = "zscore"
+    zscore_default_window_days: int = 756
+    minmax_default_window_days: int = 504
+    minmax_default_lower: float = -1.0
+    minmax_default_upper: float = 1.0
+    percentile_default_window_days: int = 504
 
 
 def load_market_regime_config(path: str | Path) -> MarketRegimeConfig:
     raw = yaml.safe_load(Path(path).read_text(encoding="utf-8"))
     if not isinstance(raw, Mapping):
         raise ValueError(f"{path}: expected YAML mapping")
+    normalization = raw.get("normalization", {}) if isinstance(raw.get("normalization"), Mapping) else {}
+    default_normalization = str(normalization.get("default", "zscore"))
+    zscore_default_window_days = int(normalization.get("zscore_window_days", 756))
     signals: list[MarketSignalSpec] = []
     for axis in ("growth", "inflation"):
         for entry in raw.get(axis, {}).get("signals", []):
             if not isinstance(entry, Mapping):
                 continue
-            signals.append(_signal_from_entry(axis, entry))
+            signals.append(
+                _signal_from_entry(
+                    axis,
+                    entry,
+                    default_normalization=default_normalization,
+                    default_zscore_window=zscore_default_window_days,
+                )
+            )
     for entry in raw.get("risk_overlay", {}).get("signals", []):
         if not isinstance(entry, Mapping):
             continue
-        signals.append(_signal_from_entry("risk", entry))
+        signals.append(
+            _signal_from_entry(
+                "risk",
+                entry,
+                default_normalization=default_normalization,
+                default_zscore_window=zscore_default_window_days,
+            )
+        )
     risk = raw.get("risk_overlay", {}) if isinstance(raw.get("risk_overlay"), Mapping) else {}
     hysteresis = raw.get("hysteresis", {}) if isinstance(raw.get("hysteresis"), Mapping) else {}
-    normalization = raw.get("normalization", {}) if isinstance(raw.get("normalization"), Mapping) else {}
     cfg = MarketRegimeConfig(
         signals=signals,
         risk_enter_threshold=float(risk.get("enter_threshold", 0.75)),
@@ -87,6 +146,16 @@ def load_market_regime_config(path: str | Path) -> MarketRegimeConfig:
         min_consecutive_days=int(hysteresis.get("min_consecutive_days", 5)),
         risk_min_consecutive_days=int(risk.get("min_consecutive_days", 3)),
         zscore_clip=float(normalization.get("zscore_clip", 3.0)),
+        default_normalization=default_normalization,
+        zscore_default_window_days=zscore_default_window_days,
+        minmax_default_window_days=int(
+            normalization.get("minmax_default_window_days", 504)
+        ),
+        minmax_default_lower=float(normalization.get("minmax_default_lower", -1.0)),
+        minmax_default_upper=float(normalization.get("minmax_default_upper", 1.0)),
+        percentile_default_window_days=int(
+            normalization.get("percentile_default_window_days", 504)
+        ),
     )
     for signal in cfg.signals:
         signal.validate()
@@ -125,7 +194,7 @@ def compute_market_axis_scores(
 
     contribs: dict[str, pd.Series] = {}
     for signal in config.signals:
-        raw = _compute_signal(frame, signal)
+        raw = _compute_signal(frame, signal, config)
         if raw is None:
             continue
         if signal.direction == "negative":
@@ -254,19 +323,53 @@ class MarketRegimeMethod:
         return results
 
 
-def _signal_from_entry(axis: str, entry: Mapping[str, Any]) -> MarketSignalSpec:
+def _signal_from_entry(
+    axis: str,
+    entry: Mapping[str, Any],
+    *,
+    default_normalization: str = "zscore",
+    default_zscore_window: int = 756,
+) -> MarketSignalSpec:
+    transform = str(entry.get("transform", "return"))
+    legacy_zscore_token = transform in {
+        "level_zscore",
+        "change_zscore",
+        "realized_vol_zscore",
+    }
+    if "normalization" in entry:
+        normalization = str(entry["normalization"])
+    elif legacy_zscore_token:
+        normalization = "zscore"
+    elif transform == "raw_sign":
+        normalization = "raw"
+    else:
+        normalization = default_normalization
+
+    def _opt_float(key: str) -> float | None:
+        value = entry.get(key)
+        return float(value) if value is not None else None
+
+    def _opt_int(key: str) -> int | None:
+        value = entry.get(key)
+        return int(value) if value is not None else None
+
     return MarketSignalSpec(
         name=str(entry["name"]),
         axis=axis,
-        transform=str(entry.get("transform", "return")),
+        transform=transform,
         symbol=str(entry["symbol"]) if entry.get("symbol") is not None else None,
         numerator=str(entry["numerator"]) if entry.get("numerator") is not None else None,
         denominator=str(entry["denominator"]) if entry.get("denominator") is not None else None,
         direction=str(entry.get("direction", "positive")),
         weight=float(entry.get("weight", 1.0)),
         lookback_days=int(entry.get("lookback_days", 63)),
-        zscore_window_days=int(entry.get("zscore_window_days", 756)),
+        normalization=normalization,
+        zscore_window_days=int(entry.get("zscore_window_days", default_zscore_window)),
         threshold=float(entry.get("threshold", 0.0)),
+        minmax_lower=_opt_float("minmax_lower"),
+        minmax_upper=_opt_float("minmax_upper"),
+        minmax_window_days=_opt_int("minmax_window_days"),
+        percentile_window_days=_opt_int("percentile_window_days"),
     )
 
 
@@ -280,38 +383,79 @@ def _collect_symbols(symbols: dict[str, MarketSymbolSpec], entry: object) -> Non
             symbols.setdefault(text, MarketSymbolSpec(symbol=text, alias=text))
 
 
-def _compute_signal(frame: pd.DataFrame, signal: MarketSignalSpec) -> pd.Series | None:
-    if signal.transform in {"return", "raw_sign"}:
+def _compute_signal(
+    frame: pd.DataFrame,
+    signal: MarketSignalSpec,
+    config: MarketRegimeConfig,
+) -> pd.Series | None:
+    raw = _raw_transform(frame, signal)
+    if raw is None:
+        return None
+    return _normalize(raw, signal, config)
+
+
+def _raw_transform(frame: pd.DataFrame, signal: MarketSignalSpec) -> pd.Series | None:
+    transform = signal.effective_transform
+    if transform in {"return"}:
         if signal.symbol not in frame.columns:
             return None
-        ret = frame[signal.symbol].pct_change(signal.lookback_days)
-        return ret if signal.transform == "raw_sign" else _zscore(ret, signal.zscore_window_days)
-    if signal.transform == "relative_return":
+        return frame[signal.symbol].pct_change(signal.lookback_days)
+    if transform == "raw_sign":
+        if signal.symbol not in frame.columns:
+            return None
+        return frame[signal.symbol].pct_change(signal.lookback_days)
+    if transform == "relative_return":
         if signal.numerator not in frame.columns or signal.denominator not in frame.columns:
             return None
-        rel = frame[signal.numerator].pct_change(signal.lookback_days) - frame[
+        return frame[signal.numerator].pct_change(signal.lookback_days) - frame[
             signal.denominator
         ].pct_change(signal.lookback_days)
-        return _zscore(rel, signal.zscore_window_days)
-    if signal.transform == "spread":
+    if transform == "spread":
         if signal.numerator not in frame.columns or signal.denominator not in frame.columns:
             return None
-        spread = frame[signal.numerator] / frame[signal.denominator] - 1.0
-        return _zscore(spread, signal.zscore_window_days)
-    if signal.transform == "level_zscore":
+        return frame[signal.numerator] / frame[signal.denominator] - 1.0
+    if transform == "level":
         if signal.symbol not in frame.columns:
             return None
-        return _zscore(frame[signal.symbol], signal.zscore_window_days)
-    if signal.transform == "change_zscore":
+        return frame[signal.symbol].astype(float)
+    if transform == "change":
         if signal.symbol not in frame.columns:
             return None
-        return _zscore(frame[signal.symbol].diff(signal.lookback_days), signal.zscore_window_days)
-    if signal.transform == "realized_vol_zscore":
+        return frame[signal.symbol].diff(signal.lookback_days)
+    if transform == "realized_vol":
         if signal.symbol not in frame.columns:
             return None
-        realized = frame[signal.symbol].pct_change().rolling(signal.lookback_days).std()
-        return _zscore(realized, signal.zscore_window_days)
+        return frame[signal.symbol].pct_change().rolling(signal.lookback_days).std()
     raise ValueError(f"unsupported transform {signal.transform!r}")
+
+
+def _normalize(
+    series: pd.Series,
+    signal: MarketSignalSpec,
+    config: MarketRegimeConfig,
+) -> pd.Series:
+    mode = signal.effective_normalization
+    if mode == "raw":
+        return series.astype(float)
+    if mode == "zscore":
+        return _zscore(series, signal.zscore_window_days or config.zscore_default_window_days)
+    if mode == "minmax":
+        window = signal.minmax_window_days or config.minmax_default_window_days
+        lower = (
+            signal.minmax_lower
+            if signal.minmax_lower is not None
+            else config.minmax_default_lower
+        )
+        upper = (
+            signal.minmax_upper
+            if signal.minmax_upper is not None
+            else config.minmax_default_upper
+        )
+        return _rolling_minmax(series, window=window, lower=float(lower), upper=float(upper))
+    if mode == "percentile":
+        window = signal.percentile_window_days or config.percentile_default_window_days
+        return _rolling_percentile(series, window=window)
+    raise ValueError(f"unsupported market normalization: {mode!r}")
 
 
 def _zscore(series: pd.Series, window: int) -> pd.Series:
@@ -321,6 +465,41 @@ def _zscore(series: pd.Series, window: int) -> pd.Series:
     with np.errstate(invalid="ignore", divide="ignore"):
         z = (series - mu) / sigma
     return z.where(sigma > 0)
+
+
+def _rolling_minmax(
+    series: pd.Series,
+    *,
+    window: int,
+    lower: float,
+    upper: float,
+) -> pd.Series:
+    s = series.astype(float)
+    min_periods = max(2, min(window, 30))
+    roll = s.rolling(window=window, min_periods=min_periods)
+    rmin = roll.min()
+    rmax = roll.max()
+    span = rmax - rmin
+    midpoint = 0.5 * (lower + upper)
+    with np.errstate(invalid="ignore", divide="ignore"):
+        scaled = (s - rmin) / span
+    out = lower + scaled * (upper - lower)
+    return out.where(span > 0, midpoint)
+
+
+def _rolling_percentile(series: pd.Series, *, window: int) -> pd.Series:
+    s = series.astype(float)
+    min_periods = max(2, min(window, 30))
+
+    def _rank(values: np.ndarray) -> float:
+        last = values[-1]
+        valid = values[~np.isnan(values)]
+        if valid.size == 0 or np.isnan(last):
+            return float("nan")
+        rank = float((valid <= last).sum()) / float(valid.size)
+        return 2.0 * rank - 1.0
+
+    return s.rolling(window=window, min_periods=min_periods).apply(_rank, raw=True)
 
 
 def _risk_overlay(

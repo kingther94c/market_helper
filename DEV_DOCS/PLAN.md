@@ -6,7 +6,7 @@
 ## Objective
 
 Build a broker-agnostic, **read-only** market monitoring stack around IBKR data:
-live positions, Flex performance, portfolio risk, Regime Engine v2 context,
+live positions, Flex performance, portfolio risk, regime engine context,
 static HTML reports, and the NiceGUI dashboard.
 
 ## Boundaries
@@ -66,15 +66,26 @@ Keep for later, not active:
 
 Detail: `DEV_DOCS/docs/devplans/portfolio_monitor_devplan.md`.
 
-### Regime Engine v2
+### Regime Engine
 
 Goal: keep regime as market context: growth and inflation axes plus independent
-risk/stress overlay.
+risk/stress overlay. The legacy 7-regime rulebook has been removed; the engine
+is the only path.
 
 Landed:
-- V2 contracts, engine coordinator, CLI/report paths, calibration workflow.
+- Engine coordinator, CLI (`regime-detect`, `regime-calibrate`), HTML report.
 - GUI actions for cached run and input-refresh run.
-- Combined report includes Regime Engine v2 when the artifact exists.
+- Combined report includes regime context when the artifact exists.
+- Config-driven inputs: every macro and market signal — axis (growth /
+  inflation / risk), direction, weight, transform, and normalization
+  (none/centered/threshold/zscore/minmax/percentile) — comes from
+  `configs/regime_detection/{fred_series,market_regime,regime_engine}.yml`.
+  Engine knobs (bucket weights, z-score window/clip, hysteresis days) live in
+  the `engine:` block of `fred_series.yml`. Risk-overlay thresholds are owned
+  by `regime_engine.yml` only.
+- New macro and market signals shipped at `weight: 0.0` (curve / breakeven /
+  DXY / ISM proxy / housing / consumer sentiment / growth-vs-value / extra
+  sector pairs) — flip the weight in YAML to activate.
 
 Near-term work:
 1. Calibration decision pass: review the HTML report and notebook questions,
@@ -85,7 +96,7 @@ Near-term work:
 4. Keep ML layers as unavailable/zero-weight until model artifacts and feature
    schemas are explicit.
 
-Detail: `DEV_DOCS/docs/devplans/regime_engine_v2_devplan.md`.
+Detail: `DEV_DOCS/docs/devplans/regime_engine_devplan.md`.
 
 ## Backlog
 
@@ -102,7 +113,7 @@ Detail: `DEV_DOCS/docs/devplans/regime_engine_v2_devplan.md`.
 ## Archived Active Plans
 
 The following files were retired from active planning because they were either
-landed, superseded by Regime Engine v2, or too speculative for near-term work:
+landed, superseded by regime engine, or too speculative for near-term work:
 
 - `regime_detection_devplan.md` -> `DEV_DOCS/archive/devplans/regime_detection_devplan_retired.md`
 - `ui_redesign_devplan.md` -> `DEV_DOCS/archive/devplans/ui_redesign_devplan_retired.md`
@@ -120,7 +131,7 @@ landed, superseded by Regime Engine v2, or too speculative for near-term work:
 - `fx_usdsgd_eod` is SGD per 1 USD.
 - Yahoo return cache stores log returns; use `expm1` when compounding simple
   chart returns.
-- Risk/stress is not a macro axis in Regime Engine v2.
+- Risk/stress is not a macro axis in regime engine.
 
 ## Testing
 

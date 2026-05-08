@@ -99,3 +99,94 @@ def test_market_axis_scores_include_driver_contributions() -> None:
     )
     scores = compute_market_axis_scores(_panel(10), cfg)
     assert "contrib:spy" in scores.columns
+
+
+def test_market_transform_and_normalization_can_be_decoupled() -> None:
+    cfg = MarketRegimeConfig(
+        signals=[
+            MarketSignalSpec(
+                name="spy_level",
+                axis="growth",
+                symbol="SPY",
+                transform="level",
+                normalization="zscore",
+                zscore_window_days=63,
+            )
+        ],
+    )
+    scores = compute_market_axis_scores(_panel(100), cfg)
+    assert "contrib:spy_level" in scores.columns
+
+
+def test_market_legacy_level_zscore_token_still_works() -> None:
+    cfg = MarketRegimeConfig(
+        signals=[
+            MarketSignalSpec(
+                name="vix_legacy",
+                axis="risk",
+                symbol="VIX",
+                transform="level_zscore",
+                zscore_window_days=63,
+            )
+        ],
+    )
+    scores = compute_market_axis_scores(_panel(100), cfg)
+    assert "contrib:vix_legacy" in scores.columns
+
+
+def test_market_minmax_normalization_produces_bounded_contribution() -> None:
+    cfg = MarketRegimeConfig(
+        signals=[
+            MarketSignalSpec(
+                name="spy_minmax",
+                axis="growth",
+                symbol="SPY",
+                transform="level",
+                normalization="minmax",
+                minmax_lower=-1.0,
+                minmax_upper=1.0,
+                minmax_window_days=20,
+            )
+        ],
+    )
+    scores = compute_market_axis_scores(_panel(60), cfg)
+    contrib = scores["contrib:spy_minmax"].dropna()
+    assert ((contrib >= -1.0 - 1e-9) & (contrib <= 1.0 + 1e-9)).all()
+
+
+def test_market_dormant_zero_weight_signal_does_not_affect_axis_score() -> None:
+    base = MarketRegimeConfig(
+        signals=[
+            MarketSignalSpec(
+                name="spy",
+                axis="growth",
+                symbol="SPY",
+                transform="return",
+                lookback_days=5,
+                weight=1.0,
+            )
+        ],
+    )
+    extended = MarketRegimeConfig(
+        signals=[
+            MarketSignalSpec(
+                name="spy",
+                axis="growth",
+                symbol="SPY",
+                transform="return",
+                lookback_days=5,
+                weight=1.0,
+            ),
+            MarketSignalSpec(
+                name="dormant_oil",
+                axis="growth",
+                symbol="USO",
+                transform="return",
+                lookback_days=5,
+                weight=0.0,
+            ),
+        ],
+    )
+    a = compute_market_axis_scores(_panel(100), base)["growth"].dropna().tolist()
+    b = compute_market_axis_scores(_panel(100), extended)["growth"].dropna().tolist()
+    assert a == b

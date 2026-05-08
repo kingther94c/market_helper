@@ -10,10 +10,6 @@ from pathlib import Path
 from typing import Any
 
 from market_helper.common.datetime_display import format_local_datetime
-from market_helper.domain.regime_detection.services.detection_service import (
-    load_regime_snapshots,
-)
-from market_helper.regimes.models import MultiMethodRegimeSnapshot
 from market_helper.reporting._design_tokens import design_tokens_css
 
 
@@ -124,11 +120,7 @@ def build_regime_html_view_model(
     latest = payload[-1]
     if not isinstance(latest, dict):
         raise ValueError("Regime HTML report requires object rows")
-    if str(latest.get("version") or "") == "regime-engine-v2":
-        return _build_v2_view_model(payload)
-    if str(latest.get("version") or "") == "regime-multi-v1" or isinstance(latest.get("ensemble"), dict):
-        return _build_multi_method_view_model(payload, policy_path=policy_path)
-    return _build_legacy_view_model(regime_path=regime_path, policy_path=policy_path)
+    return _build_v2_view_model(payload)
 
 
 def render_regime_section_body(
@@ -262,99 +254,6 @@ def write_regime_html_report(
     return out
 
 
-def _build_multi_method_view_model(
-    payload: list[Any],
-    *,
-    policy_path: str | Path | None,
-) -> RegimeHtmlViewModel:
-    snapshots = [
-        MultiMethodRegimeSnapshot.from_dict(dict(row))
-        for row in payload
-        if isinstance(row, dict)
-    ]
-    if not snapshots:
-        raise ValueError("No valid multi-method regime snapshots found")
-    latest = snapshots[-1]
-    ensemble = latest.ensemble
-    diagnostics = ensemble.diagnostics or {}
-    axes_history = [
-        RegimeHtmlAxisHistoryPoint(
-            as_of=snap.as_of,
-            growth=getattr(snap.ensemble.axes, "growth_score", None),
-            inflation=getattr(snap.ensemble.axes, "inflation_score", None),
-        )
-        for snap in snapshots[-180:]
-    ]
-    method_vote_history = [
-        RegimeHtmlMethodVoteHistoryPoint(
-            as_of=snap.as_of,
-            quadrants={
-                name: result.quadrant.quadrant for name, result in snap.per_method.items()
-            },
-            crisis_flag=snap.ensemble.crisis_flag,
-        )
-        for snap in snapshots[-30:]
-    ]
-    transitions: list[RegimeHtmlTransitionEvent] = []
-    for prev, curr in zip(snapshots, snapshots[1:]):
-        if prev.ensemble.quadrant != curr.ensemble.quadrant:
-            transitions.append(
-                RegimeHtmlTransitionEvent(
-                    as_of=curr.as_of,
-                    from_regime=prev.ensemble.quadrant,
-                    to_regime=curr.ensemble.quadrant,
-                    crisis_intensity=curr.ensemble.crisis_intensity,
-                    duration_days=curr.ensemble.duration_days,
-                )
-            )
-    transitions = transitions[-8:]
-    return RegimeHtmlViewModel(
-        schema=latest.version,
-        as_of=latest.as_of,
-        regime=ensemble.quadrant,
-        scores={
-            "GROWTH": ensemble.axes.growth_score,
-            "INFLATION": ensemble.axes.inflation_score,
-        },
-        method_agreement=(
-            float(diagnostics["method_agreement"])
-            if diagnostics.get("method_agreement") is not None
-            else None
-        ),
-        crisis_flag=ensemble.crisis_flag,
-        crisis_intensity=ensemble.crisis_intensity,
-        duration_days=ensemble.duration_days,
-        methods=[
-            RegimeHtmlMethodRow(
-                method=name,
-                quadrant=result.quadrant.quadrant,
-                native_label=result.native_label or "",
-            )
-            for name, result in sorted(latest.per_method.items())
-        ],
-        timeline=[
-            RegimeHtmlTimelineRow(
-                as_of=snap.as_of,
-                regime=snap.ensemble.quadrant,
-                method_agreement=(
-                    float(snap.ensemble.diagnostics["method_agreement"])
-                    if snap.ensemble.diagnostics
-                    and snap.ensemble.diagnostics.get("method_agreement") is not None
-                    else None
-                ),
-                crisis_flag=snap.ensemble.crisis_flag,
-                crisis_intensity=snap.ensemble.crisis_intensity,
-                duration_days=snap.ensemble.duration_days,
-            )
-            for snap in snapshots[-60:]
-        ],
-        regime_counts=dict(Counter(snap.ensemble.quadrant for snap in snapshots)),
-        axes_history=axes_history,
-        method_vote_history=method_vote_history,
-        transitions=transitions,
-    )
-
-
 def _build_v2_view_model(payload: list[Any]) -> RegimeHtmlViewModel:
     rows = [dict(row) for row in payload if isinstance(row, dict)]
     latest = rows[-1]
@@ -460,56 +359,6 @@ def _build_v2_view_model(payload: list[Any]) -> RegimeHtmlViewModel:
         layers=layers,
         risk_overlay=risk_overlay,
         top_contributors=_contributors_to_strings(latest.get("top_contributors")),
-    )
-
-
-def _build_legacy_view_model(
-    *,
-    regime_path: str | Path,
-    policy_path: str | Path | None,
-) -> RegimeHtmlViewModel:
-    snapshots = load_regime_snapshots(regime_path)
-    if not snapshots:
-        raise ValueError("No valid legacy regime snapshots found")
-    latest = snapshots[-1]
-    transitions: list[RegimeHtmlTransitionEvent] = []
-    for prev, curr in zip(snapshots, snapshots[1:]):
-        if prev.regime != curr.regime:
-            transitions.append(
-                RegimeHtmlTransitionEvent(
-                    as_of=curr.as_of,
-                    from_regime=prev.regime,
-                    to_regime=curr.regime,
-                    crisis_intensity=None,
-                    duration_days=None,
-                )
-            )
-    return RegimeHtmlViewModel(
-        schema=latest.version,
-        as_of=latest.as_of,
-        regime=latest.regime,
-        scores=dict(latest.scores),
-        method_agreement=None,
-        crisis_flag=bool(latest.flags.get("crisis_active")) if latest.flags else None,
-        crisis_intensity=None,
-        duration_days=None,
-        methods=[],
-        timeline=[
-            RegimeHtmlTimelineRow(
-                as_of=snap.as_of,
-                regime=snap.regime,
-                method_agreement=None,
-                crisis_flag=bool(snap.flags.get("crisis_active")) if snap.flags else None,
-                crisis_intensity=None,
-                duration_days=None,
-            )
-            for snap in snapshots[-60:]
-        ],
-        regime_counts=dict(Counter(snap.regime for snap in snapshots)),
-        # Legacy snapshots don't carry per-axis or per-method data; new visuals stay empty.
-        axes_history=[],
-        method_vote_history=[],
-        transitions=transitions[-8:],
     )
 
 

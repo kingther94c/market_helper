@@ -13,7 +13,7 @@ from market_helper.data_sources.yahoo_finance.market_panel import (
     DEFAULT_MARKET_CACHE_DIR,
     DEFAULT_MARKET_PANEL_FILENAME,
 )
-from market_helper.workflows.generate_regime_v2 import run_regime_engine_v2_detection
+from market_helper.workflows.generate_regime import run_regime_engine_v2_detection
 from market_helper.workflows.generate_regime_html import generate_regime_html_report
 from market_helper.workflows.sync_fred_macro_panel import run_fred_macro_sync
 from market_helper.workflows.sync_market_regime_panel import run_market_regime_sync
@@ -24,7 +24,7 @@ DEFAULT_REGIME_HTML_PATH = Path("data/artifacts/regime_detection/regime_report.h
 DEFAULT_FRED_CACHE_DIR = Path("data/interim/fred")
 DEFAULT_FRED_SERIES_CONFIG = Path("configs/regime_detection/fred_series.yml")
 DEFAULT_MARKET_REGIME_CONFIG = Path("configs/regime_detection/market_regime.yml")
-DEFAULT_REGIME_ENGINE_CONFIG = Path("configs/regime_detection/regime_engine_v2.yml")
+DEFAULT_REGIME_ENGINE_CONFIG = Path("configs/regime_detection/regime_engine.yml")
 ALL_METHODS = ("macro_nowcast", "market_implied", "macro_truth_ml", "return_truth_ml")
 
 
