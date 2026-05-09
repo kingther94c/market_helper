@@ -25,8 +25,16 @@ def _macro_panel(n: int = 120) -> pd.DataFrame:
 
 def _macro_specs() -> list[SeriesSpec]:
     return [
-        SeriesSpec(series_id="G", axis="growth", transform="level", bucket="fast"),
-        SeriesSpec(series_id="I", axis="inflation", transform="level", bucket="fast"),
+        SeriesSpec(series_id="G", axis="growth", transform="level"),
+        SeriesSpec(series_id="I", axis="inflation", transform="level"),
+    ]
+
+
+def _macro_concepts():
+    from market_helper.data_sources.fred.macro_panel import ConceptSpec
+    return [
+        ConceptSpec(name="g", axis="growth", weight=1.0, members={"G": 1.0}),
+        ConceptSpec(name="i", axis="inflation", weight=1.0, members={"I": 1.0}),
     ]
 
 
@@ -89,6 +97,7 @@ def test_liberation_day_style_window_surfaces_market_stagflation_dislocation() -
         config=cfg,
         macro_panel=_macro_panel(),
         macro_specs=_macro_specs(),
+        macro_concepts=_macro_concepts(),
         market_panel=_tariff_shock_market_panel(),
         market_config=_market_config(),
     )
@@ -111,9 +120,11 @@ def test_calibration_workflow_writes_html_summary_and_question_notebook(tmp_path
         yaml.safe_dump(
             {
                 "series": [
-                    {"series_id": "G", "axis": "growth", "transform": "level", "bucket": "fast"},
-                    {"series_id": "I", "axis": "inflation", "transform": "level", "bucket": "fast"},
-                ]
+                    {"series_id": "G", "axis": "growth", "transform": "level"},
+                    {"series_id": "I", "axis": "inflation", "transform": "level"},
+                ],
+                "growth_concepts": {"g": {"weight": 1.0, "series": {"G": 1.0}}},
+                "inflation_concepts": {"i": {"weight": 1.0, "series": {"I": 1.0}}},
             }
         ),
         encoding="utf-8",
@@ -161,6 +172,7 @@ def test_summarize_anchor_periods_reports_missing_windows() -> None:
         config=cfg,
         macro_panel=_macro_panel(n=30),
         macro_specs=_macro_specs(),
+        macro_concepts=_macro_concepts(),
     )
     summaries = summarize_anchor_periods(
         results,
@@ -184,6 +196,7 @@ def test_summarize_anchor_periods_exposes_layer_coverage_limits() -> None:
         config=cfg,
         macro_panel=_macro_panel(n=30),
         macro_specs=_macro_specs(),
+        macro_concepts=_macro_concepts(),
     )
     summaries = summarize_anchor_periods(
         results,
@@ -240,9 +253,11 @@ def test_cli_regime_calibrate_v2_dispatches(tmp_path: Path) -> None:
         yaml.safe_dump(
             {
                 "series": [
-                    {"series_id": "G", "axis": "growth", "transform": "level", "bucket": "fast"},
-                    {"series_id": "I", "axis": "inflation", "transform": "level", "bucket": "fast"},
-                ]
+                    {"series_id": "G", "axis": "growth", "transform": "level"},
+                    {"series_id": "I", "axis": "inflation", "transform": "level"},
+                ],
+                "growth_concepts": {"g": {"weight": 1.0, "series": {"G": 1.0}}},
+                "inflation_concepts": {"i": {"weight": 1.0, "series": {"I": 1.0}}},
             }
         ),
         encoding="utf-8",

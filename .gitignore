@@ -28,3 +28,4 @@ data/processed/*.json
 notebooks/dev_lab/**
 !notebooks/dev_lab/.gitkeep
 DEV_DOCS/archive/
+notebooks/regime_detection/.cal/__pycache__/

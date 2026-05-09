@@ -177,6 +177,65 @@ def load_engine_block(config_path: str | Path) -> Mapping[str, object]:
     return block
 
 
+@dataclass(frozen=True)
+class ConceptSpec:
+    """A concept aggregates several supporting FRED series into one latent
+    measurement of the same economic state. The concept's ``weight`` is its
+    semantic importance on the axis; ``members`` maps series_id to a within-
+    concept weight that compensates for redundancy among supporting series.
+    """
+
+    name: str
+    axis: str  # "growth" | "inflation"
+    weight: float
+    members: Mapping[str, float]
+
+    def validate(self) -> None:
+        if self.axis not in {"growth", "inflation"}:
+            raise ValueError(f"concept {self.name!r}: axis must be growth|inflation")
+        if self.weight < 0:
+            raise ValueError(f"concept {self.name!r}: weight must be non-negative")
+        if not self.members:
+            raise ValueError(f"concept {self.name!r}: must have at least one member")
+        for sid, w in self.members.items():
+            if w < 0:
+                raise ValueError(
+                    f"concept {self.name!r}: within-weight for {sid} must be non-negative"
+                )
+
+
+def load_concept_specs(config_path: str | Path) -> List[ConceptSpec]:
+    """Load ``growth_concepts:`` and ``inflation_concepts:`` blocks.
+
+    Returns an empty list when neither block is present; callers can fall back
+    to flat per-series aggregation in that case.
+    """
+    raw = yaml.safe_load(Path(config_path).read_text()) or {}
+    specs: List[ConceptSpec] = []
+    for axis_key, axis in (("growth_concepts", "growth"), ("inflation_concepts", "inflation")):
+        block = raw.get(axis_key)
+        if block is None:
+            continue
+        if not isinstance(block, dict):
+            raise ValueError(f"{config_path}: {axis_key!r} must be a mapping if present")
+        for name, body in block.items():
+            if not isinstance(body, dict):
+                raise ValueError(
+                    f"{config_path}: concept {name!r} must be a mapping with 'weight' and 'series'"
+                )
+            weight = float(body.get("weight", 1.0))
+            members_raw = body.get("series", {})
+            if not isinstance(members_raw, dict):
+                raise ValueError(
+                    f"{config_path}: concept {name!r} 'series' must map series_id -> within_weight"
+                )
+            members = {str(sid): float(w) for sid, w in members_raw.items()}
+            spec = ConceptSpec(name=str(name), axis=axis, weight=weight, members=members)
+            spec.validate()
+            specs.append(spec)
+    return specs
+
+
 # ---------------------------------------------------------------------------
 # Raw-cache I/O
 # ---------------------------------------------------------------------------
@@ -583,10 +642,12 @@ def specs_by_axis(specs: Iterable[SeriesSpec]) -> Dict[str, List[SeriesSpec]]:
 
 __all__ = [
     "SeriesSpec",
+    "ConceptSpec",
     "DEFAULT_CACHE_DIR",
     "DEFAULT_PANEL_FILENAME",
     "DEFAULT_META_FILENAME",
     "load_series_specs",
+    "load_concept_specs",
     "load_engine_block",
     "load_series_meta",
     "write_series_meta",

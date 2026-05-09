@@ -12,6 +12,7 @@ import pandas as pd
 from market_helper.data_sources.fred.macro_panel import (
     DEFAULT_CACHE_DIR as FRED_DEFAULT_CACHE_DIR,
     DEFAULT_PANEL_FILENAME as FRED_DEFAULT_PANEL_FILENAME,
+    load_concept_specs,
     load_panel,
     load_series_specs,
 )
@@ -165,11 +166,13 @@ def run_regime_v2_calibration(
     cfg_path = Path(regime_engine_config) if regime_engine_config else DEFAULT_REGIME_ENGINE_CONFIG
     cfg = load_regime_engine_config(cfg_path if cfg_path.exists() else None)
     macro_specs = None
+    macro_concepts = None
     macro_panel = None
     specs_path = Path(fred_series_config) if fred_series_config else Path("configs/regime_detection/fred_series.yml")
     panel_path = Path(macro_panel_path) if macro_panel_path else Path(FRED_DEFAULT_CACHE_DIR) / FRED_DEFAULT_PANEL_FILENAME
     if specs_path.exists() and panel_path.exists():
         macro_specs = load_series_specs(specs_path)
+        macro_concepts = load_concept_specs(specs_path)
         macro_panel = load_panel(panel_path, columns=_macro_panel_columns(macro_specs))
 
     market_config = None
@@ -184,6 +187,7 @@ def run_regime_v2_calibration(
         config=cfg,
         macro_panel=macro_panel,
         macro_specs=macro_specs,
+        macro_concepts=macro_concepts,
         market_panel=market_panel,
         market_config=market_config,
     )

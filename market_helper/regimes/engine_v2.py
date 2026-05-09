@@ -15,7 +15,7 @@ import math
 import pandas as pd
 import yaml
 
-from market_helper.data_sources.fred.macro_panel import SeriesSpec
+from market_helper.data_sources.fred.macro_panel import ConceptSpec, SeriesSpec
 from market_helper.regimes.axes import QuadrantSnapshot
 from market_helper.regimes.methods.macro_regime import MacroRegimeConfig, MacroRegimeMethod
 from market_helper.regimes.methods.market_regime import (
@@ -72,6 +72,10 @@ class RegimeThresholds:
     growth_down: float = -0.35
     inflation_up: float = 0.50
     inflation_down: float = -0.50
+    # Label-level hysteresis: require this many consecutive business days past
+    # the threshold before flipping the axis state (Up / Neutral/Mixed / Down).
+    # 1 disables hysteresis (every day evaluated independently — old behaviour).
+    min_consecutive_days: int = 1
 
 
 @dataclass(frozen=True)
@@ -221,6 +225,9 @@ def load_regime_engine_config(path: str | Path | None = None) -> RegimeEngineCon
             growth_down=float(thresholds_raw.get("growth_down", thresholds.growth_down)),
             inflation_up=float(thresholds_raw.get("inflation_up", thresholds.inflation_up)),
             inflation_down=float(thresholds_raw.get("inflation_down", thresholds.inflation_down)),
+            min_consecutive_days=int(
+                thresholds_raw.get("min_consecutive_days", thresholds.min_consecutive_days)
+            ),
         )
     confidence_raw = root.get("confidence", {})
     confidence = defaults.confidence
@@ -260,6 +267,7 @@ def run_regime_engine_v2(
     config: RegimeEngineConfig | None = None,
     macro_panel: pd.DataFrame | None = None,
     macro_specs: Sequence[SeriesSpec] | None = None,
+    macro_concepts: Sequence[ConceptSpec] | None = None,
     macro_method_config: MacroRegimeConfig | None = None,
     market_panel: pd.DataFrame | None = None,
     market_config: MarketRegimeConfig | None = None,
@@ -272,11 +280,18 @@ def run_regime_engine_v2(
 
     macro_cfg = cfg.layers.get("macro_nowcast", LayerConfig())
     if macro_cfg.enabled:
-        if macro_panel is None or macro_specs is None:
-            layer_status["macro_nowcast"] = _unavailable_layer("macro_nowcast", "macro_panel or macro_specs not provided")
+        if macro_panel is None or macro_specs is None or macro_concepts is None:
+            layer_status["macro_nowcast"] = _unavailable_layer(
+                "macro_nowcast",
+                "macro_panel, macro_specs, or macro_concepts not provided",
+            )
         else:
             macro_method_cfg = macro_method_config or MacroRegimeConfig()
-            results = MacroRegimeMethod(list(macro_specs), config=macro_method_cfg).classify(macro_panel)
+            results = MacroRegimeMethod(
+                list(macro_specs),
+                list(macro_concepts),
+                config=macro_method_cfg,
+            ).classify(macro_panel)
             layer_series["macro_nowcast"] = {
                 result.as_of: _layer_from_quadrant("macro_nowcast", result.quadrant, cfg)
                 for result in results
@@ -330,7 +345,12 @@ def run_regime_engine_v2(
     )
 
     dates = sorted({date for by_date in layer_series.values() for date in by_date})
-    out: list[FinalRegimeResult] = []
+
+    # First pass: compute final scores per date so we can apply label-level
+    # hysteresis on the axis state classification before building regime labels.
+    final_growth_by_date: list[float] = []
+    final_inflation_by_date: list[float] = []
+    layer_outputs_by_date: list[list[RegimeLayerResult]] = []
     for date in dates:
         layer_outputs = [
             layer_series.get(layer_name, {}).get(date)
@@ -338,15 +358,25 @@ def run_regime_engine_v2(
             or _unavailable_layer(layer_name, "no result for date")
             for layer_name in cfg.layers.keys()
         ]
-        final_growth = _weighted_axis(layer_outputs, cfg, axis="growth")
-        final_inflation = _weighted_axis(layer_outputs, cfg, axis="inflation")
+        layer_outputs_by_date.append(layer_outputs)
+        final_growth_by_date.append(_weighted_axis(layer_outputs, cfg, axis="growth"))
+        final_inflation_by_date.append(_weighted_axis(layer_outputs, cfg, axis="inflation"))
+
+    growth_states = _apply_axis_state_hysteresis(final_growth_by_date, "growth", cfg)
+    inflation_states = _apply_axis_state_hysteresis(final_inflation_by_date, "inflation", cfg)
+
+    out: list[FinalRegimeResult] = []
+    for idx, date in enumerate(dates):
+        layer_outputs = layer_outputs_by_date[idx]
+        final_growth = final_growth_by_date[idx]
+        final_inflation = final_inflation_by_date[idx]
         risk_output = risk_by_date.get(date) or RiskOverlayResult(
             risk_score=0.0,
             risk_overlay_on=False,
             risk_state="Disabled" if not cfg.risk_overlay.enabled else STATE_UNAVAILABLE,
             diagnostics={"reason": "risk inputs not available"},
         )
-        base_regime = _base_regime(final_growth, final_inflation, cfg)
+        base_regime = _base_regime_from_states(growth_states[idx], inflation_states[idx])
         final_regime = (
             f"{base_regime} + Stress Overlay"
             if risk_output.risk_overlay_on
@@ -380,6 +410,52 @@ def run_regime_engine_v2(
             )
         )
     return out
+
+
+def _apply_axis_state_hysteresis(
+    scores: Sequence[float],
+    axis: str,
+    cfg: RegimeEngineConfig,
+) -> list[str]:
+    """Smooth Up/Down/Neutral state transitions: require N consecutive days
+    past the threshold before flipping the axis state. ``min_consecutive_days
+    == 1`` reduces to no hysteresis (every day evaluated independently)."""
+    min_days = max(1, int(cfg.regime_thresholds.min_consecutive_days))
+    instant = [_axis_state(score, axis, cfg) for score in scores]
+    if min_days <= 1:
+        return instant
+    smoothed: list[str] = []
+    current = instant[0] if instant else STATE_NEUTRAL
+    pending: str | None = None
+    pending_count = 0
+    for state in instant:
+        if state == current:
+            pending = None
+            pending_count = 0
+        else:
+            if state == pending:
+                pending_count += 1
+            else:
+                pending = state
+                pending_count = 1
+            if pending_count >= min_days:
+                current = state
+                pending = None
+                pending_count = 0
+        smoothed.append(current)
+    return smoothed
+
+
+def _base_regime_from_states(growth_state: str, inflation_state: str) -> str:
+    if growth_state == STATE_UP and inflation_state in {STATE_DOWN, STATE_NEUTRAL}:
+        return "Goldilocks / Expansion"
+    if growth_state == STATE_UP and inflation_state == STATE_UP:
+        return "Reflation"
+    if growth_state == STATE_DOWN and inflation_state == STATE_UP:
+        return "Stagflation-like"
+    if growth_state == STATE_DOWN and inflation_state == STATE_DOWN:
+        return "Slowdown / Deflationary Slowdown"
+    return f"{growth_state} Growth / {inflation_state} Inflation"
 
 
 def _market_config_with_engine_risk(
@@ -472,20 +548,6 @@ def _axis_state(score: float | None, axis: str, cfg: RegimeEngineConfig) -> str:
         if score <= thresholds.inflation_down:
             return STATE_DOWN
     return STATE_NEUTRAL
-
-
-def _base_regime(growth: float, inflation: float, cfg: RegimeEngineConfig) -> str:
-    growth_state = _axis_state(growth, "growth", cfg)
-    inflation_state = _axis_state(inflation, "inflation", cfg)
-    if growth_state == STATE_UP and inflation_state in {STATE_DOWN, STATE_NEUTRAL}:
-        return "Goldilocks / Expansion"
-    if growth_state == STATE_UP and inflation_state == STATE_UP:
-        return "Reflation"
-    if growth_state == STATE_DOWN and inflation_state == STATE_UP:
-        return "Stagflation-like"
-    if growth_state == STATE_DOWN and inflation_state == STATE_DOWN:
-        return "Slowdown / Deflationary Slowdown"
-    return f"{growth_state} Growth / {inflation_state} Inflation"
 
 
 def _weighted_axis(

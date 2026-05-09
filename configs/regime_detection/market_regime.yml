@@ -67,6 +67,11 @@ normalization:
   minmax_default_lower: -1.0
   minmax_default_upper: 1.0
   percentile_default_window_days: 504
+  # Smooth bound applied AFTER per-signal normalization so each contribution
+  # lands in (-1, 1). Mirrors the macro-side compression so both layers live
+  # in the same latent space — the architectural invariant.
+  compression: tanh
+  compression_k: 2.0
 
 hysteresis:
   min_consecutive_days: 5

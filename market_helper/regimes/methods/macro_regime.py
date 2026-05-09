@@ -1,12 +1,17 @@
 """Config-driven macro regime method.
 
 The macro method consumes the FRED macro panel and classifies each date from
-signed growth/inflation evidence. Series are grouped into fast/slow buckets per
-axis; defaults weight fast data at 70% and slow data at 30%.
+signed growth/inflation evidence. The aggregation is concept-based: each
+``ConceptSpec`` (e.g. ``labor`` = UNRATE + PAYEMS, ``realized_broad`` = CPI +
+core CPI + PCE + core PCE) aggregates several supporting series into one
+latent measurement and carries its own ``weight`` for axis aggregation.
+Within-concept weights compensate for redundancy among supporting series; the
+concept weight expresses semantic importance.
 
-All knobs (bucket weights, normalization windows, clip, hysteresis) come from
-the ``engine:`` block of ``configs/regime_detection/fred_series.yml``; the
-dataclass defaults exist only as fallbacks when no config is provided.
+All knobs (normalization window, clip, hysteresis, optional ``tanh``
+compression) come from the ``engine:`` block of
+``configs/regime_detection/fred_series.yml``; dataclass defaults exist only as
+fallbacks when no config is provided.
 """
 from __future__ import annotations
 
@@ -20,7 +25,9 @@ import numpy as np
 import pandas as pd
 
 from market_helper.data_sources.fred.macro_panel import (
+    ConceptSpec,
     SeriesSpec,
+    load_concept_specs,
     load_engine_block,
     specs_by_axis,
 )
@@ -36,10 +43,6 @@ from market_helper.regimes.methods.base import MethodResult
 
 @dataclass(frozen=True)
 class MacroRegimeConfig:
-    bucket_weights: Mapping[str, float] = field(
-        default_factory=lambda: {"fast": 0.70, "slow": 0.30}
-    )
-    min_available_bucket_weight: float = 0.0
     default_normalization: str = "none"
     zscore_window_bdays: int = 2520
     min_periods: int = 252
@@ -48,6 +51,14 @@ class MacroRegimeConfig:
     minmax_default_lower: float = -1.0
     minmax_default_upper: float = 1.0
     percentile_default_window_bdays: int = 1260
+    # Optional smooth bound applied AFTER per-series normalization so a single
+    # series can never dominate concept aggregation. Default is "none" to keep
+    # the existing hard-clip behaviour; set to "tanh" with `compression_k` to
+    # land each contribution in (-1, 1).
+    compression: str = "none"  # "none" | "tanh"
+    compression_k: float = 2.0
+    # Concept-aggregation tuning.
+    min_concept_coverage: float = 0.0  # min fraction of within-weight available
     min_consecutive_days: int = 10
     warmup_bdays: int = 0
 
@@ -61,18 +72,7 @@ def load_macro_regime_config(
         return MacroRegimeConfig()
     block = load_engine_block(config_path)
     defaults = MacroRegimeConfig()
-    bucket_weights = block.get("bucket_weights")
-    if isinstance(bucket_weights, Mapping):
-        bucket_weights = {
-            str(name): float(weight) for name, weight in bucket_weights.items()
-        }
-    else:
-        bucket_weights = dict(defaults.bucket_weights)
     return MacroRegimeConfig(
-        bucket_weights=bucket_weights,
-        min_available_bucket_weight=float(
-            block.get("min_available_bucket_weight", defaults.min_available_bucket_weight)
-        ),
         default_normalization=str(
             block.get("default_normalization", defaults.default_normalization)
         ),
@@ -97,6 +97,11 @@ def load_macro_regime_config(
                 "percentile_default_window_bdays",
                 defaults.percentile_default_window_bdays,
             )
+        ),
+        compression=str(block.get("compression", defaults.compression)),
+        compression_k=float(block.get("compression_k", defaults.compression_k)),
+        min_concept_coverage=float(
+            block.get("min_concept_coverage", defaults.min_concept_coverage)
         ),
         min_consecutive_days=int(
             block.get("min_consecutive_days", defaults.min_consecutive_days)
@@ -189,7 +194,12 @@ def _normalize_signal(
     if mode == "threshold":
         if spec.threshold is None or spec.threshold <= 0:
             return signal
-        return signal / float(spec.threshold)
+        # Clip after dividing by the threshold so a tail print (e.g. CPI 9% YoY
+        # against a 0.5pp threshold and 2.5% neutral) can't dominate the bucket
+        # score. Re-uses the z-score clip so all "signed" normalizations share
+        # one tail bound.
+        clip = spec.zscore_clip if spec.zscore_clip is not None else config.zscore_clip
+        return _clip(signal / float(spec.threshold), clip)
     if mode == "zscore":
         window = spec.zscore_window_bdays or config.zscore_window_bdays
         min_periods = spec.zscore_min_periods or config.min_periods
@@ -217,12 +227,37 @@ def _normalize_signal(
     raise ValueError(f"unsupported macro normalization: {mode!r}")
 
 
+def _compress(series: pd.Series, config: MacroRegimeConfig) -> pd.Series:
+    """Apply optional smooth compression after per-series normalization.
+
+    ``tanh`` lands the contribution in (-1, 1) without a hard kink so a single
+    series can never dominate concept aggregation, even before within-weights
+    are applied. ``none`` is a passthrough — the upstream normalization may
+    already clip.
+    """
+    if config.compression == "tanh":
+        k = max(float(config.compression_k), 1e-9)
+        return np.tanh(series.astype(float) / k)
+    return series
+
+
 def compute_macro_axis_scores(
     panel: pd.DataFrame,
     specs: Sequence[SeriesSpec],
+    concepts: Sequence[ConceptSpec],
     *,
     config: MacroRegimeConfig = MacroRegimeConfig(),
 ) -> pd.DataFrame:
+    """Aggregate per-series signals into per-concept scores and per-axis scores.
+
+    Pipeline per date:
+        signed_signal -> normalize -> compress (optional tanh)
+                      -> within-concept weighted mean
+                      -> across-concept weighted mean
+    Output columns:
+        date, growth, inflation, growth_confidence, inflation_confidence,
+        contrib:{series_id}, concept:{axis}:{concept_name}.
+    """
     if panel.empty:
         return pd.DataFrame(
             columns=[
@@ -239,65 +274,59 @@ def compute_macro_axis_scores(
         frame = frame.set_index(pd.to_datetime(frame["date"])).drop(columns=["date"])
     frame.index.name = "date"
 
-    by_axis = specs_by_axis(specs)
+    spec_by_id = {s.series_id: s for s in specs}
     contribs: dict[str, pd.Series] = {}
-    for spec in specs:
-        if spec.series_id not in frame.columns:
+    for sid, spec in spec_by_id.items():
+        if sid not in frame.columns:
             continue
-        signal = _signed_signal(frame[spec.series_id], spec)
+        signal = _signed_signal(frame[sid], spec)
         normalized = _normalize_signal(signal, spec, config=config)
-        contribs[spec.series_id] = normalized * float(spec.weight)
+        contribs[sid] = _compress(normalized, config)
 
-    bucket_scores: dict[tuple[str, str], pd.Series] = {}
-    bucket_available: dict[tuple[str, str], pd.Series] = {}
+    concepts_by_axis: dict[str, list[ConceptSpec]] = {"growth": [], "inflation": []}
+    for c in concepts:
+        concepts_by_axis.setdefault(c.axis, []).append(c)
 
-    def _bucket_mean(axis: str, bucket: str) -> tuple[pd.Series, pd.Series]:
-        axis_specs = [
-            s
-            for s in by_axis.get(axis, [])
-            if s.bucket == bucket and s.series_id in contribs
-        ]
-        if not axis_specs:
-            empty = pd.Series(np.nan, index=frame.index)
-            return empty, pd.Series(0.0, index=frame.index)
-        cols = pd.DataFrame({s.series_id: contribs[s.series_id] for s in axis_specs})
-        weights = pd.Series(
-            {s.series_id: float(s.weight) for s in axis_specs}
-        ).reindex(cols.columns)
-        mask = cols.notna().astype(float)
-        effective = mask.mul(weights, axis=1).sum(axis=1)
-        score = cols.fillna(0.0).sum(axis=1) / effective.replace(0.0, np.nan)
-        availability = effective / float(weights.sum()) if weights.sum() else 0.0
-        return score, availability
+    concept_scores: dict[tuple[str, str], pd.Series] = {}
+    concept_avail: dict[tuple[str, str], pd.Series] = {}
 
-    for axis in ("growth", "inflation"):
-        for bucket in ("fast", "slow"):
-            score, availability = _bucket_mean(axis, bucket)
-            bucket_scores[(axis, bucket)] = score
-            bucket_available[(axis, bucket)] = availability
+    for axis, axis_concepts in concepts_by_axis.items():
+        for concept in axis_concepts:
+            available_members = [
+                (sid, w) for sid, w in concept.members.items() if sid in contribs
+            ]
+            if not available_members:
+                concept_scores[(axis, concept.name)] = pd.Series(np.nan, index=frame.index)
+                concept_avail[(axis, concept.name)] = pd.Series(0.0, index=frame.index)
+                continue
+            cols = pd.DataFrame({sid: contribs[sid] for sid, _ in available_members})
+            weights = pd.Series({sid: float(w) for sid, w in available_members}).reindex(cols.columns)
+            mask = cols.notna().astype(float)
+            effective = mask.mul(weights, axis=1).sum(axis=1)
+            score = cols.fillna(0.0).mul(weights, axis=1).sum(axis=1) / effective.replace(0.0, np.nan)
+            total_weight = float(sum(concept.members.values())) or 1.0
+            availability = (effective / total_weight).clip(lower=0.0, upper=1.0)
+            score = score.where(availability >= float(config.min_concept_coverage))
+            concept_scores[(axis, concept.name)] = score
+            concept_avail[(axis, concept.name)] = availability
 
     def _axis_score(axis: str) -> tuple[pd.Series, pd.Series]:
-        parts = []
-        avail_parts = []
-        total_available_weight = pd.Series(0.0, index=frame.index)
-        for bucket, bucket_weight in config.bucket_weights.items():
-            score = bucket_scores.get((axis, bucket), pd.Series(np.nan, index=frame.index))
-            availability = bucket_available.get((axis, bucket), pd.Series(0.0, index=frame.index))
-            usable = availability > 0
-            weighted = score.where(usable) * float(bucket_weight)
-            parts.append(weighted)
-            available_weight = usable.astype(float) * float(bucket_weight)
-            avail_parts.append(available_weight)
-            total_available_weight = total_available_weight + available_weight
-        weighted_sum = pd.concat(parts, axis=1).sum(axis=1, min_count=1)
-        available_weight_sum = pd.concat(avail_parts, axis=1).sum(axis=1)
-        score = weighted_sum / available_weight_sum.replace(0.0, np.nan)
-        score = score.where(
-            available_weight_sum >= float(config.min_available_bucket_weight)
-        )
-        confidence = (available_weight_sum / max(1e-9, sum(config.bucket_weights.values()))).clip(
-            lower=0.0, upper=1.0
-        )
+        axis_concepts = concepts_by_axis.get(axis, [])
+        if not axis_concepts:
+            empty = pd.Series(np.nan, index=frame.index)
+            return empty, pd.Series(0.0, index=frame.index)
+        weighted_sum = pd.Series(0.0, index=frame.index)
+        weight_sum = pd.Series(0.0, index=frame.index)
+        total_weight = float(sum(c.weight for c in axis_concepts)) or 1.0
+        for concept in axis_concepts:
+            score = concept_scores[(axis, concept.name)]
+            availability = concept_avail[(axis, concept.name)]
+            usable = (availability > 0) & score.notna()
+            w = float(concept.weight)
+            weighted_sum = weighted_sum + score.where(usable, 0.0) * w
+            weight_sum = weight_sum + usable.astype(float) * w
+        score = weighted_sum / weight_sum.replace(0.0, np.nan)
+        confidence = (weight_sum / total_weight).clip(lower=0.0, upper=1.0)
         return score, confidence
 
     growth_score, growth_conf = _axis_score("growth")
@@ -311,9 +340,8 @@ def compute_macro_axis_scores(
         },
         index=frame.index,
     )
-    for axis in ("growth", "inflation"):
-        for bucket in ("fast", "slow"):
-            out[f"bucket:{axis}:{bucket}"] = bucket_scores[(axis, bucket)]
+    for (axis, name), score in concept_scores.items():
+        out[f"concept:{axis}:{name}"] = score
     for sid, series in contribs.items():
         out[f"contrib:{sid}"] = series
     return out.reset_index().rename(columns={"index": "date"})
@@ -325,14 +353,16 @@ class MacroRegimeMethod:
     def __init__(
         self,
         specs: Sequence[SeriesSpec],
+        concepts: Sequence[ConceptSpec],
         *,
         config: MacroRegimeConfig | None = None,
     ) -> None:
         self.specs = list(specs)
+        self.concepts = list(concepts)
         self.config = config or MacroRegimeConfig()
 
     def classify(self, panel: pd.DataFrame) -> List[MethodResult]:
-        scores = compute_macro_axis_scores(panel, self.specs, config=self.config)
+        scores = compute_macro_axis_scores(panel, self.specs, self.concepts, config=self.config)
         if scores.empty:
             return []
         scores = scores.sort_values("date").reset_index(drop=True)
@@ -353,17 +383,16 @@ class MacroRegimeMethod:
         ]
         durations = compute_duration_days(quadrants)
 
-        by_axis = specs_by_axis(self.specs)
-        growth_ids = [s.series_id for s in by_axis.get("growth", [])]
-        inflation_ids = [s.series_id for s in by_axis.get("inflation", [])]
+        concept_growth = [c.name for c in self.concepts if c.axis == "growth"]
+        concept_inflation = [c.name for c in self.concepts if c.axis == "inflation"]
         records = usable.to_dict(orient="records")
         results: List[MethodResult] = []
         for row_dict, qlabel, duration, g_pos, i_pos in zip(
             records, quadrants, durations, growth_sides, inflation_sides
         ):
             as_of = pd.Timestamp(row_dict["date"]).strftime("%Y-%m-%d")
-            growth_drivers = _driver_map(row_dict, growth_ids)
-            inflation_drivers = _driver_map(row_dict, inflation_ids)
+            growth_drivers = _concept_driver_map(row_dict, "growth", concept_growth)
+            inflation_drivers = _concept_driver_map(row_dict, "inflation", concept_inflation)
             confidence = _combine_confidence(
                 row_dict.get("growth_confidence"), row_dict.get("inflation_confidence")
             )
@@ -387,15 +416,12 @@ class MacroRegimeMethod:
                     "raw_inflation_sign_positive": bool(_safe_float(row_dict.get("inflation")) >= 0.0),
                     "hysteresis_growth_positive": bool(g_pos),
                     "hysteresis_inflation_positive": bool(i_pos),
-                    "bucket_scores": {
-                        "growth": {
-                            "fast": _safe_float(row_dict.get("bucket:growth:fast")),
-                            "slow": _safe_float(row_dict.get("bucket:growth:slow")),
-                        },
-                        "inflation": {
-                            "fast": _safe_float(row_dict.get("bucket:inflation:fast")),
-                            "slow": _safe_float(row_dict.get("bucket:inflation:slow")),
-                        },
+                    "concept_scores": {
+                        axis: {
+                            name: _safe_float(row_dict.get(f"concept:{axis}:{name}"))
+                            for name in (concept_growth if axis == "growth" else concept_inflation)
+                        }
+                        for axis in ("growth", "inflation")
                     },
                 },
             )
@@ -408,7 +434,9 @@ class MacroRegimeMethod:
                     native_detail={
                         "growth_confidence": _safe_float(row_dict.get("growth_confidence")),
                         "inflation_confidence": _safe_float(row_dict.get("inflation_confidence")),
-                        "bucket_weights": dict(self.config.bucket_weights),
+                        "concept_weights": {
+                            c.name: float(c.weight) for c in self.concepts
+                        },
                     },
                 )
             )
@@ -420,6 +448,17 @@ def _driver_map(row_dict: Mapping[str, object], ids: Sequence[str]) -> dict[str,
         sid: float(row_dict.get(f"contrib:{sid}", float("nan")))
         for sid in ids
         if f"contrib:{sid}" in row_dict and not _is_nan(row_dict.get(f"contrib:{sid}"))
+    }
+
+
+def _concept_driver_map(
+    row_dict: Mapping[str, object], axis: str, names: Sequence[str]
+) -> dict[str, float]:
+    return {
+        name: float(row_dict.get(f"concept:{axis}:{name}", float("nan")))
+        for name in names
+        if f"concept:{axis}:{name}" in row_dict
+        and not _is_nan(row_dict.get(f"concept:{axis}:{name}"))
     }
 
 
@@ -449,8 +488,10 @@ def _combine_confidence(g: object, i: object) -> float:
 
 
 __all__ = [
+    "ConceptSpec",
     "MacroRegimeConfig",
     "MacroRegimeMethod",
     "compute_macro_axis_scores",
+    "load_concept_specs",
     "load_macro_regime_config",
 ]

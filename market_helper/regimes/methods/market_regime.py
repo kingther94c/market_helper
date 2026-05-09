@@ -104,6 +104,11 @@ class MarketRegimeConfig:
     minmax_default_lower: float = -1.0
     minmax_default_upper: float = 1.0
     percentile_default_window_days: int = 504
+    # Optional smooth bound applied AFTER per-signal normalization so the
+    # market layer lives in the same (-1, 1) latent space as the macro layer
+    # post-Q2. Mirror of MacroRegimeConfig.compression.
+    compression: str = "none"  # "none" | "tanh"
+    compression_k: float = 2.0
 
 
 def load_market_regime_config(path: str | Path) -> MarketRegimeConfig:
@@ -156,6 +161,8 @@ def load_market_regime_config(path: str | Path) -> MarketRegimeConfig:
         percentile_default_window_days=int(
             normalization.get("percentile_default_window_days", 504)
         ),
+        compression=str(normalization.get("compression", "none")),
+        compression_k=float(normalization.get("compression_k", 2.0)),
     )
     for signal in cfg.signals:
         signal.validate()
@@ -201,7 +208,11 @@ def compute_market_axis_scores(
             raw = -raw
         if signal.threshold > 0:
             raw = raw.where(raw.abs() >= float(signal.threshold), 0.0)
-        contribs[signal.name] = _clip(raw, config.zscore_clip) * float(signal.weight)
+        bounded = _clip(raw, config.zscore_clip)
+        if config.compression == "tanh":
+            k = max(float(config.compression_k), 1e-9)
+            bounded = np.tanh(bounded / k)
+        contribs[signal.name] = bounded * float(signal.weight)
 
     def _axis_mean(axis: str) -> tuple[pd.Series, pd.Series]:
         axis_signals = [s for s in config.signals if s.axis == axis and s.name in contribs]

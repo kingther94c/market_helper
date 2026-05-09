@@ -1,45 +1,29 @@
-# FRED macro panel for the regime-detection macro_regime method.
-# Each series is fetched, transformed into a signal comparable across series,
-# and contributes to either the growth or inflation axis.
+# FRED macro panel — concept-based aggregation.
 #
-# Transforms:
-#   level                  raw observation value
-#   centered(c)            value - c                       (transform_param: c)
-#   yoy_pct                100 * (v_t / v_{t-12m} - 1)
-#   yoy_diff               v_t - v_{t-12m}
-#   inverted_yoy_diff      -(v_t - v_{t-12m})              # rising unemployment hurts growth
-#   mom_pct                100 * (v_t / v_{t-1} - 1)
-#   mom_diff               v_t - v_{t-1}
-#   qoq_annualized         ((v_t / v_{t-1Q})^4 - 1) * 100
+# Aggregation pipeline (per date):
+#   raw observation
+#     -> transform              (yoy_pct / yoy_diff / inverted_yoy_diff / level / centered / mom_pct / qoq_annualized)
+#     -> direction sign         (positive | negative)
+#     -> normalization          (none / centered / threshold / zscore / minmax / percentile)
+#     -> compression (optional) (engine.compression: tanh)
+#     -> within-concept weighted mean
+#     -> across-concept weighted mean (axis score)
 #
-# direction maps the transformed value into the axis sign. Use ``negative`` when
-# a higher transformed value is bad for the axis (e.g. rising initial claims
-# hurts growth).
+# Design principle:
+#   * Concept weight = semantic importance on the axis.
+#   * Series within_weight = vote share inside the concept (compensates for
+#     redundancy among supporting series; e.g. UNRATE / PAYEMS are 0.93
+#     correlated and split a single labor-market concept 50/50).
+#   * Series's own ``weight`` field is no longer used for aggregation. Series
+#     listed in a concept block are active; series omitted from every concept
+#     block are dormant (preview-only) regardless of their ``weight``.
 #
-# normalization (per series, falls back to engine.default_normalization):
-#   none         pass-through after transform + direction + threshold
-#   centered     subtract expanding mean of the signal
-#   threshold    divide signed signal by `threshold` (uses absolute units)
-#   zscore       rolling z-score with engine or per-series window/clip
-#   minmax       rolling min/max scaling into [minmax_lower, minmax_upper]
-#   percentile   rolling percentile rank scaled to [-1, 1]
-#
-# Per-series overrides (any can be omitted to inherit engine defaults):
-#   zscore_window_bdays, zscore_min_periods, zscore_clip
-#   minmax_lower, minmax_upper, minmax_window_bdays
-#   percentile_window_bdays
-#
-# bucket separates fast and slow macro evidence; engine.bucket_weights weights
-# them. publication_lag_days approximates the delay between observation-period
-# end and public release; the value for period P becomes visible on
-# period_end(P) + lag_days. Prevents lookahead bias during backtests.
+# Add a new factor by:
+#   1. Append to ``series:`` with axis/transform/direction/normalization.
+#   2. Plug the series into a concept (existing or new).
 
 engine:
-  bucket_weights:
-    fast: 0.70
-    slow: 0.30
-  min_available_bucket_weight: 0.0
-  default_normalization: none
+  default_normalization: zscore
   zscore_window_bdays: 2520
   zscore_min_periods: 252
   zscore_clip: 3.0
@@ -47,287 +31,283 @@ engine:
   minmax_default_lower: -1.0
   minmax_default_upper: 1.0
   percentile_default_window_bdays: 1260
+  # Smooth bound applied AFTER per-series normalization. ``tanh`` lands each
+  # contribution in (-1, 1) so a single 5σ print can never dominate concept
+  # aggregation.
+  compression: tanh
+  compression_k: 2.0
+  min_concept_coverage: 0.0
   min_consecutive_days: 10
   warmup_bdays: 0
 
+# ============================================================
+# Series declarations (transform / normalization / metadata).
+# Concept membership and within-weights live in growth_concepts /
+# inflation_concepts below.
+# ============================================================
 series:
-  # ============================================================
-  # Growth axis — currently active
-  # ============================================================
+  # ---- Growth axis ----
   - series_id: UNRATE
     axis: growth
     transform: inverted_yoy_diff
-    bucket: fast
     direction: positive
-    normalization: none
-    weight: 1.0
+    normalization: zscore
     publication_lag_days: 7
     title: Unemployment rate (inverted YoY change)
     frequency_hint: monthly
-
   - series_id: PAYEMS
     axis: growth
     transform: yoy_pct
-    bucket: fast
     direction: positive
-    normalization: none
-    weight: 1.0
+    normalization: zscore
     publication_lag_days: 7
     title: Non-farm payrolls (YoY %)
     frequency_hint: monthly
-
   - series_id: INDPRO
     axis: growth
     transform: yoy_pct
-    bucket: slow
     direction: positive
-    normalization: none
-    weight: 1.0
+    normalization: zscore
     publication_lag_days: 18
     title: Industrial production (YoY %)
     frequency_hint: monthly
-
   - series_id: RSAFS
     axis: growth
     transform: yoy_pct
-    bucket: fast
     direction: positive
-    normalization: none
-    weight: 1.0
+    normalization: zscore
     publication_lag_days: 16
     title: Retail sales (YoY %)
     frequency_hint: monthly
-
   - series_id: USSLIND
     axis: growth
     transform: level
-    bucket: fast
     direction: positive
-    normalization: none
-    weight: 1.0
+    normalization: zscore
     publication_lag_days: 28
     title: State coincident leading index (diffusion)
     frequency_hint: monthly
 
-  # ============================================================
-  # Growth axis — dormant (weight: 0). Flip weight to activate.
-  # ============================================================
+  # Dormant growth — declared but not in any concept block. Preview-only;
+  # add to a concept (or create a new concept) to activate.
   - series_id: T10Y2Y
     axis: growth
     transform: level
-    bucket: fast
     direction: positive
     normalization: zscore
-    weight: 0.0
     publication_lag_days: 1
     title: 10y - 2y Treasury yield curve (steeper = pro-growth)
     frequency_hint: daily
-
   - series_id: T10Y3M
     axis: growth
     transform: level
-    bucket: fast
     direction: positive
     normalization: zscore
-    weight: 0.0
     publication_lag_days: 1
     title: 10y - 3m Treasury yield curve
     frequency_hint: daily
-
   - series_id: ICSA
     axis: growth
     transform: yoy_pct
-    bucket: fast
     direction: negative
     normalization: zscore
-    weight: 0.0
     publication_lag_days: 5
     title: Initial claims (rising = bad for growth)
     frequency_hint: weekly
-
   - series_id: HOUST
     axis: growth
     transform: yoy_pct
-    bucket: slow
     direction: positive
     normalization: zscore
-    weight: 0.0
     publication_lag_days: 18
     title: Housing starts (YoY %)
     frequency_hint: monthly
-
   - series_id: PERMIT
     axis: growth
     transform: yoy_pct
-    bucket: slow
     direction: positive
     normalization: zscore
-    weight: 0.0
     publication_lag_days: 18
     title: Building permits (YoY %)
     frequency_hint: monthly
-
   - series_id: UMCSENT
     axis: growth
     transform: yoy_diff
-    bucket: fast
     direction: positive
     normalization: zscore
-    weight: 0.0
     publication_lag_days: 14
     title: U. Michigan consumer sentiment (YoY diff)
     frequency_hint: monthly
-
   - series_id: MANEMP
     axis: growth
     transform: yoy_pct
-    bucket: slow
     direction: positive
     normalization: zscore
-    weight: 0.0
     publication_lag_days: 7
     title: Manufacturing employment (YoY %, ISM proxy)
     frequency_hint: monthly
 
-  # ============================================================
-  # Inflation axis — currently active
-  # ============================================================
+  # ---- Inflation axis ----
   - series_id: CPIAUCSL
     axis: inflation
     transform: yoy_pct
-    bucket: slow
     direction: positive
     neutral_level: 2.5
     threshold: 0.5
     normalization: threshold
-    weight: 1.0
     publication_lag_days: 14
     title: CPI all items (YoY %)
     frequency_hint: monthly
-
   - series_id: CPILFESL
     axis: inflation
     transform: yoy_pct
-    bucket: slow
     direction: positive
     neutral_level: 2.5
     threshold: 0.5
     normalization: threshold
-    weight: 1.0
     publication_lag_days: 14
     title: Core CPI (YoY %)
     frequency_hint: monthly
-
   - series_id: PCEPI
     axis: inflation
     transform: yoy_pct
-    bucket: slow
     direction: positive
     neutral_level: 2.2
     threshold: 0.5
     normalization: threshold
-    weight: 1.0
     publication_lag_days: 30
     title: PCE price index (YoY %)
     frequency_hint: monthly
-
   - series_id: PCEPILFE
     axis: inflation
     transform: yoy_pct
-    bucket: slow
     direction: positive
     neutral_level: 2.2
     threshold: 0.5
     normalization: threshold
-    weight: 1.0
     publication_lag_days: 30
     title: Core PCE (YoY %)
     frequency_hint: monthly
-
   - series_id: CORESTICKM159SFRBATL
     axis: inflation
     transform: level
-    bucket: slow
     direction: positive
     neutral_level: 3.0
     threshold: 0.5
     normalization: threshold
-    weight: 1.0
     publication_lag_days: 14
     title: Sticky-price CPI (YoY %, as published)
     frequency_hint: monthly
-
   - series_id: T5YIFR
     axis: inflation
     transform: level
-    bucket: fast
     direction: positive
     neutral_level: 2.25
     threshold: 0.25
     normalization: threshold
-    weight: 1.0
     publication_lag_days: 1
     title: 5y5y forward inflation expectation
     frequency_hint: daily
-
   - series_id: AHETPI
     axis: inflation
     transform: yoy_pct
-    bucket: fast
     direction: positive
-    neutral_level: 4.0
+    # Re-centered from 4.0 to 3.0 — the prior anchor reflected the 2022 wage
+    # spike, but long-run U.S. wage growth averages ~3.0–3.3% YoY so the old
+    # neutral biased the wage-pressure concept disinflationary by default.
+    neutral_level: 3.0
     threshold: 0.5
     normalization: threshold
-    weight: 0.5
     publication_lag_days: 7
     title: Average hourly earnings (YoY %)
     frequency_hint: monthly
 
-  # ============================================================
-  # Inflation axis — dormant (weight: 0). Flip weight to activate.
-  # ============================================================
+  # Dormant inflation — declared but not in any concept block.
   - series_id: T5YIE
     axis: inflation
     transform: level
-    bucket: fast
     direction: positive
     neutral_level: 2.25
     threshold: 0.25
     normalization: threshold
-    weight: 0.0
     publication_lag_days: 1
     title: 5y breakeven inflation
     frequency_hint: daily
-
   - series_id: DFII10
     axis: inflation
     transform: level
-    bucket: fast
     direction: negative
     normalization: zscore
-    weight: 0.0
     publication_lag_days: 1
     title: 10y real yield (rising real yield = disinflation pressure)
     frequency_hint: daily
-
   - series_id: PPIACO
     axis: inflation
     transform: yoy_pct
-    bucket: fast
     direction: positive
     normalization: zscore
-    weight: 0.0
     publication_lag_days: 14
     title: PPI all commodities (YoY %)
     frequency_hint: monthly
-
   - series_id: M2SL
     axis: inflation
     transform: yoy_pct
-    bucket: slow
     direction: positive
     normalization: zscore
-    weight: 0.0
     publication_lag_days: 28
     title: M2 money supply (YoY %)
     frequency_hint: monthly
+
+# ============================================================
+# Growth concepts — semantic groupings on the growth axis.
+# weight = concept's importance for the axis score.
+# series.{name} = within-concept vote share (compensates for redundancy).
+# ============================================================
+growth_concepts:
+  labor:
+    weight: 1.0
+    series:
+      UNRATE: 0.5
+      PAYEMS: 0.5
+
+  consumption:
+    weight: 1.0
+    series:
+      RSAFS: 1.0
+
+  production:
+    weight: 0.75
+    series:
+      INDPRO: 1.0
+
+  broad_leading:
+    weight: 0.75
+    series:
+      USSLIND: 1.0
+
+# ============================================================
+# Inflation concepts — semantic groupings on the inflation axis.
+# ============================================================
+inflation_concepts:
+  realized_broad:
+    weight: 1.0
+    series:
+      CPIAUCSL: 0.25
+      CPILFESL: 0.25
+      PCEPI: 0.25
+      PCEPILFE: 0.25
+
+  persistence:
+    weight: 1.0
+    series:
+      CORESTICKM159SFRBATL: 1.0
+
+  market_expectations:
+    weight: 1.25
+    series:
+      T5YIFR: 1.0
+
+  wage_pressure:
+    weight: 0.5
+    series:
+      AHETPI: 1.0

@@ -36,16 +36,26 @@ regime_engine:
     min_consecutive_days: 3
 
   regime_thresholds:
-    growth_up: 0.35
-    growth_down: -0.35
-    inflation_up: 0.50
-    inflation_down: -0.50
+    # Lowered from 0.35 / 0.50 after macro+market both moved to tanh-compressed
+    # (-1, 1). With both layers in the same latent space the final score is
+    # also bounded; ±0.20 puts the threshold at roughly the abs-p25 of the new
+    # distribution and keeps the Up/Down regions interesting.
+    growth_up: 0.20
+    growth_down: -0.20
+    inflation_up: 0.20
+    inflation_down: -0.20
+    # Require this many consecutive bdays past the threshold before flipping
+    # the axis state (Up / Neutral/Mixed / Down). Cuts whipsaw turnover —
+    # without this hysteresis the median regime run was 3 bdays.
+    min_consecutive_days: 5
 
   confidence:
+    # Tightened to match the post-Q3 (-1, 1) score scale — old 0.35/0.75
+    # thresholds rarely fired now that macro is no longer wide-tailed.
     enabled: true
     score_strength_thresholds:
-      medium: 0.35
-      high: 0.75
+      medium: 0.20
+      high: 0.45
     disagreement_penalty: true
 
   disagreement:

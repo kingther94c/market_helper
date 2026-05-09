@@ -76,25 +76,40 @@ Landed:
 - Engine coordinator, CLI (`regime-detect`, `regime-calibrate`), HTML report.
 - GUI actions for cached run and input-refresh run.
 - Combined report includes regime context when the artifact exists.
-- Config-driven inputs: every macro and market signal — axis (growth /
-  inflation / risk), direction, weight, transform, and normalization
-  (none/centered/threshold/zscore/minmax/percentile) — comes from
-  `configs/regime_detection/{fred_series,market_regime,regime_engine}.yml`.
-  Engine knobs (bucket weights, z-score window/clip, hysteresis days) live in
-  the `engine:` block of `fred_series.yml`. Risk-overlay thresholds are owned
-  by `regime_engine.yml` only.
-- New macro and market signals shipped at `weight: 0.0` (curve / breakeven /
+- **Concept-level macro aggregation** (`growth_concepts:` and
+  `inflation_concepts:` blocks in `fred_series.yml`). Series → concept (with
+  within-concept weights compensating for redundancy) → axis (with concept
+  weight expressing semantic importance). No more raw per-series voting on
+  the macro side.
+- **Symmetric tanh compression** on macro and market layers so both occupy the
+  same (-1, 1) latent space — weights now express semantic importance, not
+  magnitude compensation.
+- **Label-level hysteresis** on axis-state transitions
+  (`regime_thresholds.min_consecutive_days` in `regime_engine.yml`); cut
+  median regime run length from 3 bdays to 18.
+- Per-series normalization options: none/centered/threshold/zscore/minmax/
+  percentile, with per-spec window/clip overrides and post-normalization
+  smooth bound (`compression: tanh`).
+- New macro and market signals shipped dormant (declared but absent from any
+  concept block, or `weight: 0.0` for market signals): curve / breakeven /
   DXY / ISM proxy / housing / consumer sentiment / growth-vs-value / extra
-  sector pairs) — flip the weight in YAML to activate.
+  sector pairs. Flip a series into a concept (or set weight > 0) to activate.
 
 Near-term work:
-1. Calibration decision pass: review the HTML report and notebook questions,
-   then decide config changes before writing more code.
-2. Apply a narrow config tuning pass if calibration decisions are clear.
-3. Add a small backtest sanity harness with pinned fixture snapshots for anchor
-   periods.
+1. Mirror the concept-aggregation pass for the market layer
+   (`market_regime.yml` is still flat per-signal; group VIX/MOVE/realized-vol
+   into a `risk_volatility` concept, HYG/LQD into `credit_appetite`, sector
+   relatives into `cyclical_rotation`, etc.).
+2. Sync the dormant FRED series so they can be activated via config flip.
+3. Add a small backtest sanity harness with pinned fixture snapshots for
+   anchor periods.
 4. Keep ML layers as unavailable/zero-weight until model artifacts and feature
    schemas are explicit.
+
+Calibration session record:
+`notebooks/regime_detection/regime_v2_calibration_index.ipynb` (TOC) +
+per-round notebooks (Q1+Q2 macro scale fix and concept aggregation; Q3
+market tanh, lower thresholds, label hysteresis).
 
 Detail: `DEV_DOCS/docs/devplans/regime_engine_devplan.md`.
 

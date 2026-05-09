@@ -6,7 +6,7 @@ from pathlib import Path
 import pandas as pd
 import yaml
 
-from market_helper.data_sources.fred.macro_panel import SeriesSpec
+from market_helper.data_sources.fred.macro_panel import ConceptSpec, SeriesSpec
 from market_helper.regimes.engine_v2 import (
     LayerConfig,
     RegimeEngineConfig,
@@ -25,8 +25,15 @@ def _macro_panel(values: tuple[float, float] = (1.0, -1.0), n: int = 12) -> pd.D
 
 def _macro_specs() -> list[SeriesSpec]:
     return [
-        SeriesSpec(series_id="G", axis="growth", transform="level", bucket="fast"),
-        SeriesSpec(series_id="I", axis="inflation", transform="level", bucket="fast"),
+        SeriesSpec(series_id="G", axis="growth", transform="level"),
+        SeriesSpec(series_id="I", axis="inflation", transform="level"),
+    ]
+
+
+def _macro_concepts() -> list[ConceptSpec]:
+    return [
+        ConceptSpec(name="g", axis="growth", weight=1.0, members={"G": 1.0}),
+        ConceptSpec(name="i", axis="inflation", weight=1.0, members={"I": 1.0}),
     ]
 
 
@@ -89,6 +96,7 @@ def test_risk_overlay_does_not_change_growth_or_inflation_scores() -> None:
         ),
         "macro_panel": _macro_panel((1.0, 1.0), n=90),
         "macro_specs": _macro_specs(),
+        "macro_concepts": _macro_concepts(),
         "market_config": _market_config(),
     }
     no_stress = run_regime_engine_v2(market_panel=_market_panel(risk_high=False), **common)[-1]
@@ -105,6 +113,7 @@ def test_disabled_ml_layers_and_missing_contributors_do_not_break_output() -> No
         config=RegimeEngineConfig(),
         macro_panel=_macro_panel(),
         macro_specs=_macro_specs(),
+        macro_concepts=_macro_concepts(),
         market_panel=_market_panel(inflation_up=False),
         market_config=_market_config(),
     )
@@ -129,6 +138,7 @@ def test_enabled_ml_without_model_artifact_is_not_available() -> None:
         config=cfg,
         macro_panel=_macro_panel(),
         macro_specs=_macro_specs(),
+        macro_concepts=_macro_concepts(),
     )[-1]
     ml = {layer.layer_name: layer for layer in latest.layer_outputs}["macro_truth_ml"]
     assert ml.enabled is True
@@ -164,6 +174,7 @@ def test_disagreement_and_confidence_penalty_are_exposed() -> None:
         config=cfg,
         macro_panel=_macro_panel((1.0, -1.0), n=90),
         macro_specs=_macro_specs(),
+        macro_concepts=_macro_concepts(),
         market_panel=_market_panel(growth_up=False, inflation_up=True),
         market_config=_market_config(),
     )[-1]
@@ -187,6 +198,7 @@ def test_neutral_layer_difference_is_not_strong_disagreement() -> None:
         config=cfg,
         macro_panel=_macro_panel((0.4, 0.0), n=90),
         macro_specs=_macro_specs(),
+        macro_concepts=_macro_concepts(),
         market_panel=_market_panel(growth_up=True, inflation_up=True),
         market_config=_market_config(),
     )[-1]
@@ -207,6 +219,7 @@ def test_weights_and_zero_weight_layers_control_final_scores() -> None:
         config=cfg,
         macro_panel=_macro_panel((1.0, -1.0), n=90),
         macro_specs=_macro_specs(),
+        macro_concepts=_macro_concepts(),
         market_panel=_market_panel(growth_up=False, inflation_up=True),
         market_config=_market_config(),
     )[-1]
