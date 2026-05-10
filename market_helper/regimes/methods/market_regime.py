@@ -25,6 +25,7 @@ from market_helper.regimes.methods.base import MethodResult
 _ALLOWED_TRANSFORMS = {
     "return",
     "relative_return",
+    "beta_adjusted_relative_return",
     "spread",
     "level",
     "change",
@@ -37,6 +38,33 @@ _ALLOWED_TRANSFORMS = {
 }
 
 _ALLOWED_NORMALIZATIONS = {"zscore", "minmax", "percentile", "raw"}
+
+
+@dataclass(frozen=True)
+class MarketConceptSpec:
+    """A market concept aggregates several supporting signals into one latent
+    measurement of the same market narrative. Mirrors macro `ConceptSpec`:
+    concept ``weight`` is semantic importance on the axis; ``members`` maps
+    signal name to within-concept weight (compensates for redundancy among
+    correlated signals like SPY/QQQ/IWM)."""
+
+    name: str
+    axis: str  # "growth" | "inflation" | "risk"
+    weight: float
+    members: Mapping[str, float]
+
+    def validate(self) -> None:
+        if self.axis not in {"growth", "inflation", "risk"}:
+            raise ValueError(f"market concept {self.name!r}: unsupported axis {self.axis!r}")
+        if self.weight < 0:
+            raise ValueError(f"market concept {self.name!r}: weight must be non-negative")
+        if not self.members:
+            raise ValueError(f"market concept {self.name!r}: must have at least one member")
+        for sid, w in self.members.items():
+            if w < 0:
+                raise ValueError(
+                    f"market concept {self.name!r}: within-weight for {sid} must be non-negative"
+                )
 
 
 @dataclass(frozen=True)
@@ -57,6 +85,11 @@ class MarketSignalSpec:
     minmax_upper: float | None = None
     minmax_window_days: int | None = None
     percentile_window_days: int | None = None
+    # Beta-adjusted-relative-return tuning. EWMA span for the rolling beta of
+    # numerator returns regressed on denominator returns; clipping bounds the
+    # estimate so a tail print can't flip beta sign.
+    beta_window_days: int = 60
+    beta_clip: float = 3.0
 
     def validate(self) -> None:
         if self.axis not in {"growth", "inflation", "risk"}:
@@ -93,6 +126,7 @@ class MarketSignalSpec:
 @dataclass(frozen=True)
 class MarketRegimeConfig:
     signals: Sequence[MarketSignalSpec]
+    concepts: Sequence[MarketConceptSpec] = field(default_factory=tuple)
     risk_enter_threshold: float = 0.75
     risk_exit_threshold: float = 0.55
     min_consecutive_days: int = 5
@@ -109,6 +143,9 @@ class MarketRegimeConfig:
     # post-Q2. Mirror of MacroRegimeConfig.compression.
     compression: str = "none"  # "none" | "tanh"
     compression_k: float = 2.0
+    # Min fraction of within-concept weight that must be present for a concept
+    # score to be defined; reweights remaining members across the available set.
+    min_concept_coverage: float = 0.0
 
 
 def load_market_regime_config(path: str | Path) -> MarketRegimeConfig:
@@ -144,8 +181,35 @@ def load_market_regime_config(path: str | Path) -> MarketRegimeConfig:
         )
     risk = raw.get("risk_overlay", {}) if isinstance(raw.get("risk_overlay"), Mapping) else {}
     hysteresis = raw.get("hysteresis", {}) if isinstance(raw.get("hysteresis"), Mapping) else {}
+
+    concepts: list[MarketConceptSpec] = []
+    for axis_key, axis in (
+        ("growth_concepts", "growth"),
+        ("inflation_concepts", "inflation"),
+        ("risk_concepts", "risk"),
+    ):
+        block = raw.get(axis_key)
+        if block is None:
+            continue
+        if not isinstance(block, Mapping):
+            raise ValueError(f"{path}: {axis_key!r} must be a mapping")
+        for cname, body in block.items():
+            if not isinstance(body, Mapping):
+                raise ValueError(f"{path}: market concept {cname!r} must be a mapping")
+            cweight = float(body.get("weight", 1.0))
+            members_raw = body.get("signals", body.get("members", {}))
+            if not isinstance(members_raw, Mapping):
+                raise ValueError(
+                    f"{path}: concept {cname!r} 'signals' must map signal name -> within_weight"
+                )
+            members = {str(name): float(w) for name, w in members_raw.items()}
+            spec = MarketConceptSpec(name=str(cname), axis=axis, weight=cweight, members=members)
+            spec.validate()
+            concepts.append(spec)
+
     cfg = MarketRegimeConfig(
         signals=signals,
+        concepts=tuple(concepts),
         risk_enter_threshold=float(risk.get("enter_threshold", 0.75)),
         risk_exit_threshold=float(risk.get("exit_threshold", 0.55)),
         min_consecutive_days=int(hysteresis.get("min_consecutive_days", 5)),
@@ -199,7 +263,12 @@ def compute_market_axis_scores(
         frame = frame.set_index(pd.to_datetime(frame["date"])).drop(columns=["date"])
     frame.index.name = "date"
 
+    # Per-signal contributions live in (-1, 1) post-tanh. We store the
+    # *normalized* contribution (no within-weight applied yet) so the concept
+    # aggregator can apply within-weights cleanly. When concepts are absent we
+    # fall back to flat per-signal aggregation using the signal's own weight.
     contribs: dict[str, pd.Series] = {}
+    contribs_signal_only: dict[str, pd.Series] = {}
     for signal in config.signals:
         raw = _compute_signal(frame, signal, config)
         if raw is None:
@@ -212,20 +281,68 @@ def compute_market_axis_scores(
         if config.compression == "tanh":
             k = max(float(config.compression_k), 1e-9)
             bounded = np.tanh(bounded / k)
+        contribs_signal_only[signal.name] = bounded
         contribs[signal.name] = bounded * float(signal.weight)
 
-    def _axis_mean(axis: str) -> tuple[pd.Series, pd.Series]:
-        axis_signals = [s for s in config.signals if s.axis == axis and s.name in contribs]
-        if not axis_signals:
-            empty = pd.Series(np.nan, index=frame.index)
-            return empty, pd.Series(0.0, index=frame.index)
-        cols = pd.DataFrame({s.name: contribs[s.name] for s in axis_signals})
-        weights = pd.Series({s.name: float(s.weight) for s in axis_signals}).reindex(cols.columns)
-        mask = cols.notna().astype(float)
-        effective = mask.mul(weights, axis=1).sum(axis=1)
-        score = cols.fillna(0.0).sum(axis=1) / effective.replace(0.0, np.nan)
-        confidence = (effective / float(weights.sum())).clip(lower=0.0, upper=1.0)
-        return score, confidence
+    if config.concepts:
+        # Concept aggregation: signal -> concept (within-weighted) -> axis
+        # (concept-weighted). Mirror of the macro side.
+        concepts_by_axis: dict[str, list[MarketConceptSpec]] = {"growth": [], "inflation": [], "risk": []}
+        for c in config.concepts:
+            concepts_by_axis.setdefault(c.axis, []).append(c)
+
+        concept_scores: dict[tuple[str, str], pd.Series] = {}
+
+        for axis, axis_concepts in concepts_by_axis.items():
+            for concept in axis_concepts:
+                available = [
+                    (sid, w) for sid, w in concept.members.items() if sid in contribs_signal_only
+                ]
+                if not available:
+                    concept_scores[(axis, concept.name)] = pd.Series(np.nan, index=frame.index)
+                    continue
+                cols = pd.DataFrame({sid: contribs_signal_only[sid] for sid, _ in available})
+                weights = pd.Series({sid: float(w) for sid, w in available}).reindex(cols.columns)
+                mask = cols.notna().astype(float)
+                effective = mask.mul(weights, axis=1).sum(axis=1)
+                score = cols.fillna(0.0).mul(weights, axis=1).sum(axis=1) / effective.replace(0.0, np.nan)
+                total_weight = float(sum(concept.members.values())) or 1.0
+                availability = (effective / total_weight).clip(lower=0.0, upper=1.0)
+                score = score.where(availability >= float(config.min_concept_coverage))
+                concept_scores[(axis, concept.name)] = score
+
+        def _axis_mean(axis: str) -> tuple[pd.Series, pd.Series]:
+            axis_concepts = concepts_by_axis.get(axis, [])
+            if not axis_concepts:
+                empty = pd.Series(np.nan, index=frame.index)
+                return empty, pd.Series(0.0, index=frame.index)
+            weighted_sum = pd.Series(0.0, index=frame.index)
+            weight_sum = pd.Series(0.0, index=frame.index)
+            total_weight = float(sum(c.weight for c in axis_concepts)) or 1.0
+            for concept in axis_concepts:
+                score = concept_scores[(axis, concept.name)]
+                usable = score.notna()
+                w = float(concept.weight)
+                weighted_sum = weighted_sum + score.where(usable, 0.0) * w
+                weight_sum = weight_sum + usable.astype(float) * w
+            score = weighted_sum / weight_sum.replace(0.0, np.nan)
+            confidence = (weight_sum / total_weight).clip(lower=0.0, upper=1.0)
+            return score, confidence
+    else:
+        # Backward-compatible flat per-signal aggregation when no concepts
+        # block is present in the YAML.
+        def _axis_mean(axis: str) -> tuple[pd.Series, pd.Series]:
+            axis_signals = [s for s in config.signals if s.axis == axis and s.name in contribs]
+            if not axis_signals:
+                empty = pd.Series(np.nan, index=frame.index)
+                return empty, pd.Series(0.0, index=frame.index)
+            cols = pd.DataFrame({s.name: contribs[s.name] for s in axis_signals})
+            weights = pd.Series({s.name: float(s.weight) for s in axis_signals}).reindex(cols.columns)
+            mask = cols.notna().astype(float)
+            effective = mask.mul(weights, axis=1).sum(axis=1)
+            score = cols.fillna(0.0).sum(axis=1) / effective.replace(0.0, np.nan)
+            confidence = (effective / float(weights.sum())).clip(lower=0.0, upper=1.0)
+            return score, confidence
 
     growth, growth_conf = _axis_mean("growth")
     inflation, inflation_conf = _axis_mean("inflation")
@@ -243,6 +360,9 @@ def compute_market_axis_scores(
     )
     for name, series in contribs.items():
         out[f"contrib:{name}"] = series
+    if config.concepts:
+        for (axis, name), score in concept_scores.items():
+            out[f"concept:{axis}:{name}"] = score
     return out.reset_index().rename(columns={"index": "date"})
 
 
@@ -381,6 +501,8 @@ def _signal_from_entry(
         minmax_upper=_opt_float("minmax_upper"),
         minmax_window_days=_opt_int("minmax_window_days"),
         percentile_window_days=_opt_int("percentile_window_days"),
+        beta_window_days=int(entry.get("beta_window_days", 60)),
+        beta_clip=float(entry.get("beta_clip", 3.0)),
     )
 
 
@@ -421,6 +543,25 @@ def _raw_transform(frame: pd.DataFrame, signal: MarketSignalSpec) -> pd.Series |
         return frame[signal.numerator].pct_change(signal.lookback_days) - frame[
             signal.denominator
         ].pct_change(signal.lookback_days)
+    if transform == "beta_adjusted_relative_return":
+        if signal.numerator not in frame.columns or signal.denominator not in frame.columns:
+            return None
+        # Daily returns of numerator and denominator
+        num_daily = frame[signal.numerator].pct_change()
+        den_daily = frame[signal.denominator].pct_change()
+        span = max(int(signal.beta_window_days), 5)
+        cov = num_daily.ewm(span=span, adjust=False, min_periods=max(20, span // 2)).cov(den_daily)
+        var = den_daily.ewm(span=span, adjust=False, min_periods=max(20, span // 2)).var()
+        beta = (cov / var.replace(0.0, np.nan)).clip(
+            lower=-float(signal.beta_clip), upper=float(signal.beta_clip)
+        )
+        # Daily residual: numerator return minus market-beta * benchmark return
+        residual_daily = num_daily - beta * den_daily
+        # Cumulative residual over the lookback window
+        return residual_daily.rolling(
+            signal.lookback_days,
+            min_periods=max(20, signal.lookback_days // 2),
+        ).sum()
     if transform == "spread":
         if signal.numerator not in frame.columns or signal.denominator not in frame.columns:
             return None
@@ -589,6 +730,7 @@ def _combine_confidence(g: object, i: object) -> float:
 
 
 __all__ = [
+    "MarketConceptSpec",
     "MarketRegimeConfig",
     "MarketRegimeMethod",
     "MarketSignalSpec",

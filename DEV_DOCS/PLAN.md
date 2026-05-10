@@ -76,14 +76,18 @@ Landed:
 - Engine coordinator, CLI (`regime-detect`, `regime-calibrate`), HTML report.
 - GUI actions for cached run and input-refresh run.
 - Combined report includes regime context when the artifact exists.
-- **Concept-level macro aggregation** (`growth_concepts:` and
-  `inflation_concepts:` blocks in `fred_series.yml`). Series → concept (with
-  within-concept weights compensating for redundancy) → axis (with concept
-  weight expressing semantic importance). No more raw per-series voting on
-  the macro side.
+- **Concept-level aggregation on both layers** — macro
+  (`growth_concepts:` / `inflation_concepts:` in `fred_series.yml`) and market
+  (`growth_concepts:` / `inflation_concepts:` / `risk_concepts:` in
+  `market_regime.yml`). Signals → concept (within-concept weights compensate
+  for redundancy) → axis (concept weight expresses semantic importance).
 - **Symmetric tanh compression** on macro and market layers so both occupy the
   same (-1, 1) latent space — weights now express semantic importance, not
   magnitude compensation.
+- **Beta-adjusted relative returns** for equity-style and sector-rotation
+  market signals (`r_num - β·r_den`, β = 60-day EWMA rolling regression slope,
+  clipped ±3). Strips out market-beta exposure so signals measure genuine
+  regime preference rather than volatility ride.
 - **Label-level hysteresis** on axis-state transitions
   (`regime_thresholds.min_consecutive_days` in `regime_engine.yml`); cut
   median regime run length from 3 bdays to 18.
@@ -96,10 +100,10 @@ Landed:
   sector pairs. Flip a series into a concept (or set weight > 0) to activate.
 
 Near-term work:
-1. Mirror the concept-aggregation pass for the market layer
-   (`market_regime.yml` is still flat per-signal; group VIX/MOVE/realized-vol
-   into a `risk_volatility` concept, HYG/LQD into `credit_appetite`, sector
-   relatives into `cyclical_rotation`, etc.).
+1. Dashboard: surface per-concept contributions, internal disagreement, and
+   confidence degradation in the HTML report (the engine emits these in
+   `layer_outputs[].diagnostics.concept_scores`; renderer just needs to
+   display them).
 2. Sync the dormant FRED series so they can be activated via config flip.
 3. Add a small backtest sanity harness with pinned fixture snapshots for
    anchor periods.
@@ -108,8 +112,9 @@ Near-term work:
 
 Calibration session record:
 `notebooks/regime_detection/regime_v2_calibration_index.ipynb` (TOC) +
-per-round notebooks (Q1+Q2 macro scale fix and concept aggregation; Q3
-market tanh, lower thresholds, label hysteresis).
+per-round notebooks: Q1+Q2 (macro scale fix and concept aggregation), Q3
+(market tanh, lower thresholds, label hysteresis), Q4 (market concept
+aggregation, beta-adjusted returns, S&P GSCI).
 
 Detail: `DEV_DOCS/docs/devplans/regime_engine_devplan.md`.
 

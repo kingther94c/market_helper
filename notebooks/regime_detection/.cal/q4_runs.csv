@@ -1,0 +1,317 @@
+regime,start,end,days
+Neutral/Mixed Growth / Up Inflation,1995-01-02,1995-01-11,8
+Neutral/Mixed Growth / Neutral/Mixed Inflation,1995-01-12,1995-02-06,18
+Goldilocks / Expansion,1995-02-07,1995-04-10,45
+Reflation,1995-04-11,1995-06-20,51
+Goldilocks / Expansion,1995-06-21,1995-08-31,52
+Neutral/Mixed Growth / Neutral/Mixed Inflation,1995-09-01,1995-09-08,6
+Goldilocks / Expansion,1995-09-11,1995-09-15,5
+Reflation,1995-09-18,1995-10-06,15
+Neutral/Mixed Growth / Up Inflation,1995-10-09,1995-12-07,44
+Reflation,1995-12-08,1995-12-15,6
+Neutral/Mixed Growth / Up Inflation,1995-12-18,1996-02-06,37
+Reflation,1996-02-07,1996-02-28,16
+Neutral/Mixed Growth / Up Inflation + Stress Overlay,1996-02-29,1996-03-05,4
+Neutral/Mixed Growth / Neutral/Mixed Inflation + Stress Overlay,1996-03-06,1996-04-10,26
+Neutral/Mixed Growth / Up Inflation + Stress Overlay,1996-04-11,1996-04-22,8
+Neutral/Mixed Growth / Up Inflation,1996-04-23,1996-05-07,11
+Stagflation-like,1996-05-08,1996-05-16,7
+Neutral/Mixed Growth / Up Inflation,1996-05-17,1996-06-10,17
+Neutral/Mixed Growth / Neutral/Mixed Inflation,1996-06-11,1996-06-24,10
+Neutral/Mixed Growth / Down Inflation,1996-06-25,1996-07-16,16
+Neutral/Mixed Growth / Down Inflation + Stress Overlay,1996-07-17,1996-07-18,2
+Slowdown / Deflationary Slowdown + Stress Overlay,1996-07-19,1996-08-06,13
+Neutral/Mixed Growth / Down Inflation + Stress Overlay,1996-08-07,1996-08-14,6
+Slowdown / Deflationary Slowdown + Stress Overlay,1996-08-15,1996-08-15,1
+Slowdown / Deflationary Slowdown,1996-08-16,1996-09-11,19
+Down Growth / Neutral/Mixed Inflation,1996-09-12,1996-09-12,1
+Neutral/Mixed Growth / Neutral/Mixed Inflation,1996-09-13,1996-10-07,17
+Goldilocks / Expansion,1996-10-08,1996-10-18,9
+Reflation,1996-10-21,1996-11-05,12
+Goldilocks / Expansion,1996-11-06,1996-11-20,11
+Reflation,1996-11-21,1996-12-31,29
+Reflation + Stress Overlay,1997-01-01,1997-01-02,2
+Goldilocks / Expansion + Stress Overlay,1997-01-03,1997-01-03,1
+Neutral/Mixed Growth / Neutral/Mixed Inflation + Stress Overlay,1997-01-06,1997-01-15,8
+Goldilocks / Expansion + Stress Overlay,1997-01-16,1997-03-21,47
+Neutral/Mixed Growth / Down Inflation + Stress Overlay,1997-03-24,1997-04-14,16
+Slowdown / Deflationary Slowdown + Stress Overlay,1997-04-15,1997-05-01,13
+Neutral/Mixed Growth / Down Inflation + Stress Overlay,1997-05-02,1997-05-09,6
+Neutral/Mixed Growth / Neutral/Mixed Inflation + Stress Overlay,1997-05-12,1997-06-04,18
+Neutral/Mixed Growth / Neutral/Mixed Inflation,1997-06-05,1997-06-12,6
+Goldilocks / Expansion,1997-06-13,1997-07-21,27
+Goldilocks / Expansion + Stress Overlay,1997-07-22,1997-08-29,29
+Neutral/Mixed Growth / Neutral/Mixed Inflation + Stress Overlay,1997-09-01,1997-09-10,8
+Neutral/Mixed Growth / Up Inflation + Stress Overlay,1997-09-11,1997-10-06,18
+Neutral/Mixed Growth / Up Inflation,1997-10-07,1997-10-28,16
+Stagflation-like + Stress Overlay,1997-10-29,1997-11-06,7
+Down Growth / Neutral/Mixed Inflation + Stress Overlay,1997-11-07,1997-11-21,11
+Neutral/Mixed Growth / Neutral/Mixed Inflation + Stress Overlay,1997-11-24,1997-12-05,10
+Neutral/Mixed Growth / Neutral/Mixed Inflation,1997-12-08,1997-12-08,1
+Neutral/Mixed Growth / Down Inflation,1997-12-09,1997-12-23,11
+Slowdown / Deflationary Slowdown,1997-12-24,1998-01-28,26
+Neutral/Mixed Growth / Down Inflation,1998-01-29,1998-02-09,8
+Goldilocks / Expansion,1998-02-10,1998-03-03,16
+Neutral/Mixed Growth / Down Inflation,1998-03-04,1998-03-13,8
+Goldilocks / Expansion,1998-03-16,1998-05-11,41
+Neutral/Mixed Growth / Neutral/Mixed Inflation,1998-05-12,1998-06-18,28
+Neutral/Mixed Growth / Down Inflation,1998-06-19,1998-08-07,36
+Slowdown / Deflationary Slowdown,1998-08-10,1998-08-21,10
+Slowdown / Deflationary Slowdown + Stress Overlay,1998-08-24,1998-09-11,15
+Down Growth / Neutral/Mixed Inflation + Stress Overlay,1998-09-14,1998-11-02,36
+Down Growth / Neutral/Mixed Inflation,1998-11-03,1998-11-04,2
+Neutral/Mixed Growth / Neutral/Mixed Inflation,1998-11-05,1998-11-26,16
+Goldilocks / Expansion,1998-11-27,1999-02-17,59
+Neutral/Mixed Growth / Down Inflation,1999-02-18,1999-02-23,4
+Neutral/Mixed Growth / Neutral/Mixed Inflation,1999-02-24,1999-03-11,12
+Neutral/Mixed Growth / Up Inflation,1999-03-12,1999-03-15,2
+Reflation,1999-03-16,1999-03-24,7
+Neutral/Mixed Growth / Up Inflation,1999-03-25,1999-06-25,67
+Neutral/Mixed Growth / Neutral/Mixed Inflation,1999-06-28,1999-08-09,31
+Down Growth / Neutral/Mixed Inflation,1999-08-10,1999-08-11,2
+Stagflation-like,1999-08-12,1999-08-16,3
+Neutral/Mixed Growth / Up Inflation,1999-08-17,1999-11-02,56
+Neutral/Mixed Growth / Neutral/Mixed Inflation,1999-11-03,1999-11-17,11
+Goldilocks / Expansion,1999-11-18,1999-11-24,5
+Reflation,1999-11-25,1999-12-02,6
+Goldilocks / Expansion,1999-12-03,2000-01-21,36
+Reflation,2000-01-24,2000-02-10,14
+Goldilocks / Expansion,2000-02-11,2000-02-14,2
+Neutral/Mixed Growth / Neutral/Mixed Inflation,2000-02-15,2000-02-29,11
+Neutral/Mixed Growth / Up Inflation,2000-03-01,2000-03-23,17
+Neutral/Mixed Growth / Neutral/Mixed Inflation,2000-03-24,2000-06-19,62
+Neutral/Mixed Growth / Up Inflation,2000-06-20,2000-06-21,2
+Stagflation-like,2000-06-22,2000-07-13,16
+Neutral/Mixed Growth / Up Inflation,2000-07-14,2000-07-28,11
+Neutral/Mixed Growth / Neutral/Mixed Inflation,2000-07-31,2000-08-31,24
+Neutral/Mixed Growth / Up Inflation,2000-09-01,2000-09-26,18
+Stagflation-like,2000-09-27,2000-09-27,1
+Down Growth / Neutral/Mixed Inflation,2000-09-28,2000-10-12,11
+Stagflation-like,2000-10-13,2000-11-30,35
+Down Growth / Neutral/Mixed Inflation,2000-12-01,2001-02-14,54
+Slowdown / Deflationary Slowdown,2001-02-15,2001-05-17,66
+Down Growth / Neutral/Mixed Inflation,2001-05-18,2001-06-28,30
+Neutral/Mixed Growth / Neutral/Mixed Inflation,2001-06-29,2001-07-04,4
+Neutral/Mixed Growth / Down Inflation,2001-07-05,2001-07-18,10
+Slowdown / Deflationary Slowdown,2001-07-19,2001-09-25,49
+Slowdown / Deflationary Slowdown + Stress Overlay,2001-09-26,2001-10-22,19
+Slowdown / Deflationary Slowdown,2001-10-23,2001-12-07,34
+Neutral/Mixed Growth / Down Inflation,2001-12-10,2002-01-07,21
+Neutral/Mixed Growth / Neutral/Mixed Inflation,2002-01-08,2002-01-22,11
+Neutral/Mixed Growth / Down Inflation,2002-01-23,2002-01-31,7
+Neutral/Mixed Growth / Neutral/Mixed Inflation,2002-02-01,2002-02-05,3
+Down Growth / Neutral/Mixed Inflation,2002-02-06,2002-03-08,23
+Stagflation-like,2002-03-11,2002-05-31,60
+Down Growth / Neutral/Mixed Inflation,2002-06-03,2002-07-16,32
+Down Growth / Neutral/Mixed Inflation + Stress Overlay,2002-07-17,2002-09-09,39
+Stagflation-like + Stress Overlay,2002-09-10,2002-10-21,30
+Neutral/Mixed Growth / Up Inflation + Stress Overlay,2002-10-22,2002-11-04,10
+Neutral/Mixed Growth / Up Inflation,2002-11-05,2002-11-06,2
+Neutral/Mixed Growth / Neutral/Mixed Inflation,2002-11-07,2003-01-21,54
+Neutral/Mixed Growth / Up Inflation,2003-01-22,2003-02-04,10
+Stagflation-like,2003-02-05,2003-03-18,30
+Neutral/Mixed Growth / Neutral/Mixed Inflation,2003-03-19,2003-03-25,5
+Neutral/Mixed Growth / Down Inflation,2003-03-26,2003-06-20,63
+Neutral/Mixed Growth / Neutral/Mixed Inflation,2003-06-23,2003-09-05,55
+Neutral/Mixed Growth / Down Inflation,2003-09-08,2003-09-12,5
+Neutral/Mixed Growth / Neutral/Mixed Inflation,2003-09-15,2003-12-11,64
+Neutral/Mixed Growth / Up Inflation,2003-12-12,2003-12-25,10
+Neutral/Mixed Growth / Neutral/Mixed Inflation,2003-12-26,2004-05-06,95
+Neutral/Mixed Growth / Up Inflation,2004-05-07,2004-06-11,26
+Neutral/Mixed Growth / Neutral/Mixed Inflation,2004-06-14,2004-08-11,43
+Neutral/Mixed Growth / Down Inflation,2004-08-12,2004-09-27,33
+Neutral/Mixed Growth / Neutral/Mixed Inflation,2004-09-28,2004-11-08,30
+Goldilocks / Expansion,2004-11-09,2005-01-11,46
+Neutral/Mixed Growth / Neutral/Mixed Inflation,2005-01-12,2005-03-07,39
+Neutral/Mixed Growth / Up Inflation,2005-03-08,2005-03-25,14
+Neutral/Mixed Growth / Neutral/Mixed Inflation,2005-03-28,2005-04-05,7
+Neutral/Mixed Growth / Up Inflation,2005-04-06,2005-04-12,5
+Neutral/Mixed Growth / Neutral/Mixed Inflation,2005-04-13,2005-05-23,29
+Neutral/Mixed Growth / Down Inflation,2005-05-24,2005-06-22,22
+Neutral/Mixed Growth / Neutral/Mixed Inflation,2005-06-23,2005-07-01,7
+Neutral/Mixed Growth / Down Inflation,2005-07-04,2005-07-08,5
+Neutral/Mixed Growth / Neutral/Mixed Inflation,2005-07-11,2005-07-20,8
+Neutral/Mixed Growth / Down Inflation,2005-07-21,2005-07-21,1
+Goldilocks / Expansion,2005-07-22,2005-08-19,21
+Neutral/Mixed Growth / Neutral/Mixed Inflation,2005-08-22,2005-09-22,24
+Neutral/Mixed Growth / Up Inflation,2005-09-23,2005-11-03,30
+Neutral/Mixed Growth / Neutral/Mixed Inflation,2005-11-04,2006-01-10,48
+Goldilocks / Expansion,2006-01-11,2006-01-23,9
+Neutral/Mixed Growth / Neutral/Mixed Inflation,2006-01-24,2006-05-10,77
+Neutral/Mixed Growth / Up Inflation,2006-05-11,2006-06-13,24
+Neutral/Mixed Growth / Neutral/Mixed Inflation,2006-06-14,2006-06-29,12
+Down Growth / Neutral/Mixed Inflation,2006-06-30,2006-09-12,53
+Neutral/Mixed Growth / Neutral/Mixed Inflation,2006-09-13,2006-09-22,8
+Neutral/Mixed Growth / Down Inflation,2006-09-25,2006-10-12,14
+Goldilocks / Expansion,2006-10-13,2006-12-21,50
+Neutral/Mixed Growth / Neutral/Mixed Inflation,2006-12-22,2007-04-03,73
+Neutral/Mixed Growth / Up Inflation,2007-04-04,2007-05-03,22
+Neutral/Mixed Growth / Neutral/Mixed Inflation,2007-05-04,2007-07-27,61
+Neutral/Mixed Growth / Neutral/Mixed Inflation + Stress Overlay,2007-07-30,2007-09-13,34
+Down Growth / Neutral/Mixed Inflation + Stress Overlay,2007-09-14,2007-09-19,4
+Down Growth / Neutral/Mixed Inflation,2007-09-20,2007-09-28,7
+Neutral/Mixed Growth / Neutral/Mixed Inflation,2007-10-01,2007-11-05,26
+Neutral/Mixed Growth / Up Inflation,2007-11-06,2007-11-26,15
+Stagflation-like,2007-11-27,2008-01-07,30
+Stagflation-like + Stress Overlay,2008-01-08,2008-01-25,14
+Down Growth / Neutral/Mixed Inflation + Stress Overlay,2008-01-28,2008-02-14,14
+Down Growth / Neutral/Mixed Inflation,2008-02-15,2008-02-27,9
+Stagflation-like,2008-02-28,2008-03-24,18
+Down Growth / Neutral/Mixed Inflation,2008-03-25,2008-04-07,10
+Neutral/Mixed Growth / Neutral/Mixed Inflation,2008-04-08,2008-04-16,7
+Neutral/Mixed Growth / Up Inflation,2008-04-17,2008-04-29,9
+Neutral/Mixed Growth / Neutral/Mixed Inflation,2008-04-30,2008-05-07,6
+Neutral/Mixed Growth / Up Inflation,2008-05-08,2008-06-06,22
+Neutral/Mixed Growth / Neutral/Mixed Inflation,2008-06-09,2008-06-16,6
+Neutral/Mixed Growth / Up Inflation,2008-06-17,2008-07-01,11
+Stagflation-like,2008-07-02,2008-08-04,24
+Down Growth / Neutral/Mixed Inflation,2008-08-05,2008-08-14,8
+Slowdown / Deflationary Slowdown,2008-08-15,2008-10-09,40
+Slowdown / Deflationary Slowdown + Stress Overlay,2008-10-10,2009-01-05,62
+Slowdown / Deflationary Slowdown,2009-01-06,2009-02-11,27
+Down Growth / Neutral/Mixed Inflation,2009-02-12,2009-02-18,5
+Neutral/Mixed Growth / Neutral/Mixed Inflation,2009-02-19,2009-02-25,5
+Down Growth / Neutral/Mixed Inflation,2009-02-26,2009-04-14,34
+Neutral/Mixed Growth / Neutral/Mixed Inflation,2009-04-15,2009-06-09,40
+Neutral/Mixed Growth / Up Inflation,2009-06-10,2009-06-17,6
+Neutral/Mixed Growth / Neutral/Mixed Inflation,2009-06-18,2009-07-06,13
+Down Growth / Neutral/Mixed Inflation,2009-07-07,2009-09-01,41
+Slowdown / Deflationary Slowdown,2009-09-02,2009-09-14,9
+Down Growth / Neutral/Mixed Inflation,2009-09-15,2009-09-15,1
+Neutral/Mixed Growth / Neutral/Mixed Inflation,2009-09-16,2009-11-02,34
+Down Growth / Neutral/Mixed Inflation,2009-11-03,2009-11-13,9
+Neutral/Mixed Growth / Neutral/Mixed Inflation,2009-11-16,2010-03-01,76
+Neutral/Mixed Growth / Down Inflation,2010-03-02,2010-03-08,5
+Neutral/Mixed Growth / Neutral/Mixed Inflation,2010-03-09,2010-04-22,33
+Goldilocks / Expansion,2010-04-23,2010-05-20,20
+Neutral/Mixed Growth / Neutral/Mixed Inflation,2010-05-21,2010-05-24,2
+Neutral/Mixed Growth / Down Inflation,2010-05-25,2010-06-18,19
+Neutral/Mixed Growth / Neutral/Mixed Inflation,2010-06-21,2010-07-01,9
+Neutral/Mixed Growth / Down Inflation,2010-07-02,2010-10-01,66
+Neutral/Mixed Growth / Neutral/Mixed Inflation,2010-10-04,2010-10-27,18
+Goldilocks / Expansion,2010-10-28,2011-03-14,98
+Neutral/Mixed Growth / Neutral/Mixed Inflation,2011-03-15,2011-03-29,11
+Goldilocks / Expansion,2011-03-30,2011-04-07,7
+Neutral/Mixed Growth / Neutral/Mixed Inflation,2011-04-08,2011-09-28,124
+Neutral/Mixed Growth / Down Inflation,2011-09-29,2011-11-04,27
+Neutral/Mixed Growth / Neutral/Mixed Inflation,2011-11-07,2011-11-22,12
+Neutral/Mixed Growth / Down Inflation,2011-11-23,2011-12-23,23
+Neutral/Mixed Growth / Neutral/Mixed Inflation,2011-12-26,2012-01-24,22
+Neutral/Mixed Growth / Down Inflation,2012-01-25,2012-02-14,15
+Neutral/Mixed Growth / Neutral/Mixed Inflation,2012-02-15,2012-02-16,2
+Goldilocks / Expansion,2012-02-17,2012-04-19,45
+Neutral/Mixed Growth / Neutral/Mixed Inflation,2012-04-20,2012-05-07,12
+Neutral/Mixed Growth / Down Inflation,2012-05-08,2012-08-08,67
+Neutral/Mixed Growth / Neutral/Mixed Inflation,2012-08-09,2012-09-11,24
+Goldilocks / Expansion,2012-09-12,2012-09-19,6
+Reflation,2012-09-20,2012-10-01,8
+Goldilocks / Expansion,2012-10-02,2012-10-03,2
+Neutral/Mixed Growth / Neutral/Mixed Inflation,2012-10-04,2013-01-22,79
+Goldilocks / Expansion,2013-01-23,2013-02-25,24
+Neutral/Mixed Growth / Neutral/Mixed Inflation,2013-02-26,2013-04-11,33
+Neutral/Mixed Growth / Down Inflation,2013-04-12,2013-07-15,67
+Goldilocks / Expansion,2013-07-16,2013-08-30,34
+Neutral/Mixed Growth / Neutral/Mixed Inflation,2013-09-02,2013-09-06,5
+Goldilocks / Expansion,2013-09-09,2013-10-10,24
+Neutral/Mixed Growth / Neutral/Mixed Inflation,2013-10-11,2013-11-01,16
+Neutral/Mixed Growth / Down Inflation,2013-11-04,2013-11-27,18
+Goldilocks / Expansion,2013-11-28,2013-12-06,7
+Neutral/Mixed Growth / Down Inflation,2013-12-09,2013-12-26,14
+Neutral/Mixed Growth / Neutral/Mixed Inflation,2013-12-27,2014-01-02,5
+Goldilocks / Expansion,2014-01-03,2014-01-28,18
+Neutral/Mixed Growth / Neutral/Mixed Inflation,2014-01-29,2014-07-11,118
+Goldilocks / Expansion,2014-07-14,2014-08-05,17
+Neutral/Mixed Growth / Neutral/Mixed Inflation,2014-08-06,2014-08-22,13
+Neutral/Mixed Growth / Down Inflation,2014-08-25,2015-04-07,162
+Neutral/Mixed Growth / Neutral/Mixed Inflation,2015-04-08,2015-04-14,5
+Goldilocks / Expansion,2015-04-15,2015-05-18,24
+Neutral/Mixed Growth / Neutral/Mixed Inflation,2015-05-19,2015-07-20,45
+Neutral/Mixed Growth / Down Inflation,2015-07-21,2015-08-24,25
+Slowdown / Deflationary Slowdown,2015-08-25,2015-09-11,14
+Neutral/Mixed Growth / Down Inflation,2015-09-14,2015-09-23,8
+Slowdown / Deflationary Slowdown,2015-09-24,2015-10-22,21
+Neutral/Mixed Growth / Down Inflation,2015-10-23,2016-01-11,57
+Slowdown / Deflationary Slowdown,2016-01-12,2016-02-09,21
+Slowdown / Deflationary Slowdown + Stress Overlay,2016-02-10,2016-02-18,7
+Slowdown / Deflationary Slowdown,2016-02-19,2016-03-04,11
+Neutral/Mixed Growth / Down Inflation,2016-03-07,2016-03-08,2
+Neutral/Mixed Growth / Neutral/Mixed Inflation,2016-03-09,2016-04-18,29
+Reflation,2016-04-19,2016-05-18,22
+Neutral/Mixed Growth / Up Inflation,2016-05-19,2016-05-27,7
+Neutral/Mixed Growth / Neutral/Mixed Inflation,2016-05-30,2016-08-04,49
+Goldilocks / Expansion,2016-08-05,2016-08-24,14
+Neutral/Mixed Growth / Neutral/Mixed Inflation,2016-08-25,2016-09-12,13
+Goldilocks / Expansion,2016-09-13,2016-10-14,24
+Neutral/Mixed Growth / Neutral/Mixed Inflation,2016-10-17,2016-11-18,25
+Goldilocks / Expansion,2016-11-21,2017-03-24,90
+Neutral/Mixed Growth / Neutral/Mixed Inflation,2017-03-27,2017-05-08,31
+Neutral/Mixed Growth / Down Inflation,2017-05-09,2017-07-14,49
+Goldilocks / Expansion,2017-07-17,2017-07-25,7
+Neutral/Mixed Growth / Down Inflation,2017-07-26,2017-08-02,6
+Neutral/Mixed Growth / Neutral/Mixed Inflation,2017-08-03,2017-08-18,12
+Neutral/Mixed Growth / Down Inflation,2017-08-21,2017-09-05,12
+Neutral/Mixed Growth / Neutral/Mixed Inflation,2017-09-06,2017-11-23,57
+Goldilocks / Expansion,2017-11-24,2017-12-07,10
+Neutral/Mixed Growth / Neutral/Mixed Inflation,2017-12-08,2017-12-21,10
+Goldilocks / Expansion,2017-12-22,2018-03-22,65
+Neutral/Mixed Growth / Neutral/Mixed Inflation,2018-03-23,2018-06-19,63
+Goldilocks / Expansion,2018-06-20,2018-07-13,18
+Neutral/Mixed Growth / Neutral/Mixed Inflation,2018-07-16,2018-08-15,23
+Neutral/Mixed Growth / Down Inflation,2018-08-16,2018-08-27,8
+Neutral/Mixed Growth / Neutral/Mixed Inflation,2018-08-28,2018-11-02,49
+Neutral/Mixed Growth / Down Inflation,2018-11-05,2018-12-12,28
+Slowdown / Deflationary Slowdown,2018-12-13,2018-12-21,7
+Slowdown / Deflationary Slowdown + Stress Overlay,2018-12-24,2019-01-09,13
+Slowdown / Deflationary Slowdown,2019-01-10,2019-02-11,23
+Neutral/Mixed Growth / Down Inflation,2019-02-12,2019-02-25,10
+Neutral/Mixed Growth / Neutral/Mixed Inflation,2019-02-26,2019-05-22,62
+Slowdown / Deflationary Slowdown,2019-05-23,2019-08-15,61
+Slowdown / Deflationary Slowdown + Stress Overlay,2019-08-16,2019-09-06,16
+Slowdown / Deflationary Slowdown,2019-09-09,2019-09-10,2
+Down Growth / Neutral/Mixed Inflation,2019-09-11,2019-10-03,17
+Slowdown / Deflationary Slowdown,2019-10-04,2019-10-28,17
+Down Growth / Neutral/Mixed Inflation,2019-10-29,2019-11-01,4
+Neutral/Mixed Growth / Neutral/Mixed Inflation,2019-11-04,2020-02-28,85
+Neutral/Mixed Growth / Down Inflation,2020-03-02,2020-03-04,3
+Neutral/Mixed Growth / Down Inflation + Stress Overlay,2020-03-05,2020-03-06,2
+Slowdown / Deflationary Slowdown + Stress Overlay,2020-03-09,2020-04-20,31
+Slowdown / Deflationary Slowdown,2020-04-21,2020-06-05,34
+Neutral/Mixed Growth / Down Inflation,2020-06-08,2020-06-09,2
+Neutral/Mixed Growth / Neutral/Mixed Inflation,2020-06-10,2020-11-03,105
+Neutral/Mixed Growth / Down Inflation,2020-11-04,2020-11-11,6
+Neutral/Mixed Growth / Neutral/Mixed Inflation,2020-11-12,2021-02-19,72
+Goldilocks / Expansion,2021-02-22,2021-03-08,11
+Neutral/Mixed Growth / Neutral/Mixed Inflation,2021-03-09,2021-04-28,37
+Goldilocks / Expansion,2021-04-29,2021-05-05,5
+Neutral/Mixed Growth / Neutral/Mixed Inflation,2021-05-06,2021-05-12,5
+Goldilocks / Expansion,2021-05-13,2021-06-23,30
+Reflation,2021-06-24,2021-07-22,21
+Goldilocks / Expansion,2021-07-23,2021-08-23,22
+Neutral/Mixed Growth / Neutral/Mixed Inflation,2021-08-24,2021-09-02,8
+Goldilocks / Expansion,2021-09-03,2021-09-22,14
+Neutral/Mixed Growth / Neutral/Mixed Inflation,2021-09-23,2021-10-18,18
+Reflation,2021-10-19,2021-12-01,32
+Goldilocks / Expansion,2021-12-02,2021-12-03,2
+Neutral/Mixed Growth / Neutral/Mixed Inflation,2021-12-06,2021-12-27,16
+Goldilocks / Expansion,2021-12-28,2022-01-17,15
+Neutral/Mixed Growth / Neutral/Mixed Inflation,2022-01-18,2022-02-25,29
+Neutral/Mixed Growth / Up Inflation,2022-02-28,2022-06-21,82
+Neutral/Mixed Growth / Neutral/Mixed Inflation,2022-06-22,2022-12-30,138
+Neutral/Mixed Growth / Up Inflation,2023-01-02,2023-01-06,5
+Neutral/Mixed Growth / Neutral/Mixed Inflation,2023-01-09,2023-07-27,144
+Neutral/Mixed Growth / Up Inflation,2023-07-28,2023-11-17,81
+Neutral/Mixed Growth / Neutral/Mixed Inflation,2023-11-20,2024-03-06,78
+Neutral/Mixed Growth / Up Inflation,2024-03-07,2024-06-28,82
+Neutral/Mixed Growth / Neutral/Mixed Inflation,2024-07-01,2024-11-01,90
+Neutral/Mixed Growth / Up Inflation,2024-11-04,2024-12-20,35
+Neutral/Mixed Growth / Neutral/Mixed Inflation,2024-12-23,2025-01-15,18
+Neutral/Mixed Growth / Up Inflation,2025-01-16,2025-04-07,58
+Neutral/Mixed Growth / Up Inflation + Stress Overlay,2025-04-08,2025-04-08,1
+Down Growth / Neutral/Mixed Inflation + Stress Overlay,2025-04-09,2025-04-14,4
+Down Growth / Neutral/Mixed Inflation,2025-04-15,2025-05-06,16
+Neutral/Mixed Growth / Neutral/Mixed Inflation,2025-05-07,2025-07-04,43
+Goldilocks / Expansion,2025-07-07,2025-07-07,1
+Reflation,2025-07-08,2025-07-18,9
+Goldilocks / Expansion,2025-07-21,2025-08-04,11
+Neutral/Mixed Growth / Neutral/Mixed Inflation,2025-08-05,2026-01-26,125
+Neutral/Mixed Growth / Up Inflation,2026-01-27,2026-05-08,74

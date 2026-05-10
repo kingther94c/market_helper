@@ -1,63 +1,58 @@
-# Market regime detection config.
-# Signals are sourced from a cached Yahoo Finance market panel.
+# Market regime detection — concept-based aggregation.
 #
-# Schema:
-#   data_sources.symbols   list of {symbol, alias}
-#   normalization          defaults applied when a signal omits its own choice
-#   growth.signals         list of MarketSignalSpec entries (axis is implicit)
-#   inflation.signals      list of MarketSignalSpec entries
-#   risk_overlay.signals   list of MarketSignalSpec entries (axis = "risk")
-#                          NOTE: risk-overlay thresholds and hysteresis live in
-#                          configs/regime_detection/regime_engine.yml — single
-#                          source of truth. This file owns *which signals* feed
-#                          the risk score, not the on/off thresholds.
+# Pipeline (per date):
+#   raw price -> transform (return / relative_return / beta_adjusted_relative_return / level / change / realized_vol / spread)
+#             -> direction sign
+#             -> normalization (zscore / minmax / percentile / raw)
+#             -> compression (engine.normalization.compression: tanh)
+#             -> within-concept weighted mean
+#             -> across-concept weighted mean (axis score)
 #
-# Per-signal fields:
-#   transform         return | relative_return | spread | level | change |
-#                     realized_vol | raw_sign
-#                     (legacy combined tokens level_zscore / change_zscore /
-#                     realized_vol_zscore are still accepted; prefer the
-#                     decoupled form for new signals)
-#   normalization     zscore | minmax | percentile | raw
-#                     (defaults to normalization.default when omitted; raw_sign
-#                     transform always implies raw)
-#   direction         positive | negative
-#   weight            float (0 to deactivate without removing the entry)
-#   lookback_days     window for return / change / realized_vol
-#   zscore_window_days, threshold
-#   minmax_lower, minmax_upper, minmax_window_days
-#   percentile_window_days
+# Design principle (mirror of the macro side):
+#   * Concept weight = semantic importance on the axis.
+#   * Signal within_weight = vote share inside the concept (compensates for
+#     correlation among supporting signals such as SPY/QQQ/IWM).
+#
+# Beta-adjusted relative return:
+#   For QQQ vs SPY, IWM vs SPY, and the sector-rotation pairs we use the
+#   residual after stripping the denominator's contribution: r_num - β * r_den
+#   where β is a 60-day EWMA rolling regression slope (cov(num, den) / var(den)),
+#   clipped to ±3. This strips out beta-driven moves so the signal measures
+#   genuine regime preference rather than market-volatility exposure.
+#   We do NOT beta-adjust commodity, rates, vol, or credit signals — they
+#   measure different latent states.
 
 data_sources:
   symbols:
     - {symbol: SPY, alias: SPY}
     - {symbol: QQQ, alias: QQQ}
     - {symbol: IWM, alias: IWM}
-    - {symbol: IWF, alias: IWF}        # growth-vs-value (dormant)
+    - {symbol: IWF, alias: IWF}        # growth-vs-value (dormant — not in any concept)
     - {symbol: IWD, alias: IWD}        # growth-vs-value (dormant)
     - {symbol: XLK, alias: XLK}
     - {symbol: XLY, alias: XLY}
     - {symbol: XLP, alias: XLP}
     - {symbol: XLI, alias: XLI}
     - {symbol: XLU, alias: XLU}
-    - {symbol: XLF, alias: XLF}
-    - {symbol: XLB, alias: XLB}        # materials (dormant)
-    - {symbol: XLE, alias: XLE}        # energy (dormant)
-    - {symbol: XLV, alias: XLV}        # health care (dormant)
+    - {symbol: XLF, alias: XLF}        # dormant
+    - {symbol: XLB, alias: XLB}        # dormant
+    - {symbol: XLE, alias: XLE}        # dormant
+    - {symbol: XLV, alias: XLV}        # dormant
     - {symbol: HYG, alias: HYG}
     - {symbol: LQD, alias: LQD}
-    - {symbol: AGG, alias: AGG}        # broad bonds (dormant)
+    - {symbol: AGG, alias: AGG}        # dormant
     - {symbol: TLT, alias: TLT}
     - {symbol: USO, alias: USO}
-    - {symbol: DBE, alias: DBE}
+    - {symbol: DBE, alias: DBE}        # dormant after Q4 (SPGSCI replaces broad commodity component)
     - {symbol: CPER, alias: CPER}
     - {symbol: DBC, alias: DBC}
     - {symbol: GLD, alias: GLD}
     - {symbol: TIP, alias: TIP}
     - {symbol: IEF, alias: IEF}
-    - {symbol: UUP, alias: UUP}        # USD index proxy (dormant)
+    - {symbol: UUP, alias: UUP}        # dormant
     - {symbol: ^VIX, alias: VIX}
     - {symbol: ^MOVE, alias: MOVE}
+    - {symbol: ^SPGSCI, alias: SPGSCI} # institutional commodity benchmark; needs sync to populate panel
 
 normalization:
   default: zscore
@@ -67,55 +62,149 @@ normalization:
   minmax_default_lower: -1.0
   minmax_default_upper: 1.0
   percentile_default_window_days: 504
-  # Smooth bound applied AFTER per-signal normalization so each contribution
-  # lands in (-1, 1). Mirrors the macro-side compression so both layers live
-  # in the same latent space — the architectural invariant.
   compression: tanh
   compression_k: 2.0
 
 hysteresis:
   min_consecutive_days: 5
 
-# NOTE: risk-overlay thresholds are owned by regime_engine.yml; the block here
-# only enumerates signals.
+# ---- Per-axis signal definitions (transform / direction / lookback) ----
+# Concept membership and within-weights live in the *_concepts blocks below.
 
 growth:
   signals:
-    # --- active ---
-    - {name: spy_momentum, symbol: SPY, transform: return, lookback_days: 63, direction: positive, weight: 1.0}
-    - {name: qqq_momentum, symbol: QQQ, transform: return, lookback_days: 63, direction: positive, weight: 0.8}
-    - {name: small_caps_momentum, symbol: IWM, transform: return, lookback_days: 63, direction: positive, weight: 0.6}
-    - {name: discretionary_vs_staples, numerator: XLY, denominator: XLP, transform: relative_return, lookback_days: 63, direction: positive, weight: 0.8}
-    - {name: industrials_vs_utilities, numerator: XLI, denominator: XLU, transform: relative_return, lookback_days: 63, direction: positive, weight: 0.7}
-    - {name: tech_vs_utilities, numerator: XLK, denominator: XLU, transform: relative_return, lookback_days: 63, direction: positive, weight: 0.7}
-    - {name: credit_risk_appetite, numerator: HYG, denominator: LQD, transform: relative_return, lookback_days: 63, direction: positive, weight: 0.8}
-    - {name: copper_momentum, symbol: CPER, transform: return, lookback_days: 63, direction: positive, weight: 0.5}
-    - {name: defensive_treasury_outperformance, numerator: TLT, denominator: SPY, transform: relative_return, lookback_days: 63, direction: negative, weight: 0.7}
-    # --- dormant (weight 0) ---
-    - {name: growth_vs_value, numerator: IWF, denominator: IWD, transform: relative_return, lookback_days: 63, direction: positive, weight: 0.0}
-    - {name: materials_vs_staples, numerator: XLB, denominator: XLP, transform: relative_return, lookback_days: 63, direction: positive, weight: 0.0}
-    - {name: energy_vs_market, numerator: XLE, denominator: SPY, transform: relative_return, lookback_days: 63, direction: positive, weight: 0.0}
-    - {name: health_vs_market, numerator: XLV, denominator: SPY, transform: relative_return, lookback_days: 63, direction: negative, weight: 0.0}
-    - {name: financials_vs_market, numerator: XLF, denominator: SPY, transform: relative_return, lookback_days: 63, direction: positive, weight: 0.0}
-    - {name: bonds_vs_equity, numerator: AGG, denominator: SPY, transform: relative_return, lookback_days: 63, direction: negative, weight: 0.0}
+    # Broad equity beta — SPY is the benchmark itself; QQQ and IWM are
+    # beta-adjusted vs SPY so they measure tech / small-cap *preference*
+    # rather than just riding the broad market.
+    - {name: spy_momentum, symbol: SPY, transform: return, lookback_days: 63, direction: positive}
+    - {name: qqq_vs_spy_beta_adj, numerator: QQQ, denominator: SPY,
+       transform: beta_adjusted_relative_return, lookback_days: 63, direction: positive,
+       beta_window_days: 60, beta_clip: 3.0}
+    - {name: iwm_vs_spy_beta_adj, numerator: IWM, denominator: SPY,
+       transform: beta_adjusted_relative_return, lookback_days: 63, direction: positive,
+       beta_window_days: 60, beta_clip: 3.0}
+    # Cyclical-vs-defensive sector pairs — beta-adjusted so we read
+    # rotation preference instead of dispersion-driven beta.
+    - {name: discretionary_vs_staples, numerator: XLY, denominator: XLP,
+       transform: beta_adjusted_relative_return, lookback_days: 63, direction: positive,
+       beta_window_days: 60, beta_clip: 3.0}
+    - {name: industrials_vs_utilities, numerator: XLI, denominator: XLU,
+       transform: beta_adjusted_relative_return, lookback_days: 63, direction: positive,
+       beta_window_days: 60, beta_clip: 3.0}
+    - {name: tech_vs_utilities, numerator: XLK, denominator: XLU,
+       transform: beta_adjusted_relative_return, lookback_days: 63, direction: positive,
+       beta_window_days: 60, beta_clip: 3.0}
+    # Credit risk-appetite — same HYG/LQD data as risk_overlay's credit_stress
+    # but signed positive (HYG outperforming = risk-on); concept aggregation
+    # compensates for the within-concept correlation, axis aggregation makes
+    # the same data live in two distinct narratives.
+    - {name: credit_risk_appetite, numerator: HYG, denominator: LQD,
+       transform: relative_return, lookback_days: 63, direction: positive}
+    # Commodity demand — copper as a real-economy growth proxy (orthogonal
+    # to inflation oil/energy). Raw return; not beta-adjusted because it's a
+    # macro signal not an equity style.
+    - {name: copper_momentum, symbol: CPER, transform: return, lookback_days: 63, direction: positive}
+    # Per Q4 we drop defensive_treasury_outperformance (TLT/SPY) from growth —
+    # it was 0.73 correlated with broad equity momentum. The flight-to-quality
+    # signal lives only in the risk overlay now.
 
 inflation:
   signals:
-    # --- active ---
-    - {name: oil_momentum, symbol: USO, transform: return, lookback_days: 63, direction: positive, weight: 1.0}
-    - {name: energy_basket_momentum, symbol: DBE, transform: return, lookback_days: 63, direction: positive, weight: 0.8}
-    - {name: broad_commodity_momentum, symbol: DBC, transform: return, lookback_days: 63, direction: positive, weight: 0.7}
-    - {name: tip_vs_nominal_treasury, numerator: TIP, denominator: IEF, transform: relative_return, lookback_days: 63, direction: positive, weight: 0.6}
-    - {name: gold_momentum, symbol: GLD, transform: return, lookback_days: 63, direction: positive, weight: 0.3}
-    # --- dormant (weight 0) ---
-    - {name: usd_strength, symbol: UUP, transform: return, lookback_days: 63, direction: negative, weight: 0.0}
-    - {name: gold_vs_usd, numerator: GLD, denominator: UUP, transform: relative_return, lookback_days: 63, direction: positive, weight: 0.0}
-    - {name: copper_vs_gold, numerator: CPER, denominator: GLD, transform: relative_return, lookback_days: 63, direction: positive, weight: 0.0}
+    # Commodity inflation — SPGSCI is the institutional benchmark; oil and DBC
+    # are supporting members. Once SPGSCI is in the cached panel it dominates
+    # the concept; until then USO + DBC carry the load.
+    - {name: sp_gsci_momentum, symbol: SPGSCI, transform: return, lookback_days: 63, direction: positive}
+    - {name: oil_momentum, symbol: USO, transform: return, lookback_days: 63, direction: positive}
+    - {name: broad_commodity_momentum, symbol: DBC, transform: return, lookback_days: 63, direction: positive}
+    # Inflation pricing proxy — TIP outperforming nominal IEF means breakeven
+    # widening; not beta-adjusted because both legs are duration-similar
+    # treasuries; raw spread already isolates the inflation premium.
+    - {name: tip_vs_nominal_treasury, numerator: TIP, denominator: IEF,
+       transform: relative_return, lookback_days: 63, direction: positive}
+    # Gold — dual-purpose (inflation + haven) so it gets its own concept
+    # rather than being mixed into the commodity inflation cluster.
+    - {name: gold_momentum, symbol: GLD, transform: return, lookback_days: 63, direction: positive}
 
 risk_overlay:
   signals:
-    - {name: vix_level, symbol: VIX, transform: level, normalization: zscore, direction: positive, weight: 1.0}
-    - {name: move_level, symbol: MOVE, transform: level, normalization: zscore, direction: positive, weight: 0.8}
-    - {name: equity_realized_vol, symbol: SPY, transform: realized_vol, normalization: zscore, lookback_days: 21, direction: positive, weight: 0.7}
-    - {name: credit_stress, numerator: HYG, denominator: LQD, transform: relative_return, lookback_days: 63, direction: negative, weight: 0.8}
-    - {name: flight_to_quality, numerator: TLT, denominator: SPY, transform: relative_return, lookback_days: 21, direction: positive, weight: 0.6}
+    # Volatility cluster — VIX (equity-vol) and SPY realized are 0.81
+    # correlated; MOVE is rates-vol, partially independent.
+    - {name: vix_level, symbol: VIX, transform: level, normalization: zscore, direction: positive}
+    - {name: move_level, symbol: MOVE, transform: level, normalization: zscore, direction: positive}
+    - {name: equity_realized_vol, symbol: SPY, transform: realized_vol, normalization: zscore,
+       lookback_days: 21, direction: positive}
+    # Credit stress — same HYG/LQD data as growth's credit_risk_appetite,
+    # signed negative so widening = risk-on overlay.
+    - {name: credit_stress, numerator: HYG, denominator: LQD,
+       transform: relative_return, lookback_days: 63, direction: negative}
+    # Flight to quality — TLT outperforming SPY = risk-off shift; not
+    # beta-adjusted (cross-asset comparison).
+    - {name: flight_to_quality, numerator: TLT, denominator: SPY,
+       transform: relative_return, lookback_days: 21, direction: positive}
+
+# ============================================================
+# Concept blocks — semantic groupings within each axis.
+# weight = concept's importance for the axis score.
+# signals.{name} = within-concept vote share (compensates for redundancy).
+# ============================================================
+
+growth_concepts:
+  broad_equity_momentum:
+    weight: 0.8
+    signals:
+      spy_momentum: 0.5
+      qqq_vs_spy_beta_adj: 0.3
+      iwm_vs_spy_beta_adj: 0.2
+
+  cyclical_rotation:
+    weight: 1.0
+    signals:
+      discretionary_vs_staples: 0.4
+      industrials_vs_utilities: 0.3
+      tech_vs_utilities: 0.3
+
+  risk_appetite:
+    weight: 0.8
+    signals:
+      credit_risk_appetite: 1.0
+
+  commodity_demand:
+    weight: 0.5
+    signals:
+      copper_momentum: 1.0
+
+inflation_concepts:
+  commodity_inflation:
+    weight: 1.0
+    signals:
+      sp_gsci_momentum: 0.5
+      oil_momentum: 0.3
+      broad_commodity_momentum: 0.2
+
+  inflation_pricing_proxy:
+    weight: 1.0
+    signals:
+      tip_vs_nominal_treasury: 1.0
+
+  gold_haven_inflation_proxy:
+    weight: 0.5
+    signals:
+      gold_momentum: 1.0
+
+risk_concepts:
+  volatility:
+    weight: 1.0
+    signals:
+      vix_level: 0.45
+      move_level: 0.30
+      equity_realized_vol: 0.25
+
+  credit_stress:
+    weight: 1.0
+    signals:
+      credit_stress: 1.0
+
+  flight_to_quality:
+    weight: 0.75
+    signals:
+      flight_to_quality: 1.0

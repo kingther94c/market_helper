@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+import numpy as np
 import pandas as pd
+import pytest
 
 from market_helper.regimes.axes import QUADRANT_GOLDILOCKS
 from market_helper.regimes.methods.market_regime import (
@@ -190,3 +192,79 @@ def test_market_dormant_zero_weight_signal_does_not_affect_axis_score() -> None:
     a = compute_market_axis_scores(_panel(100), base)["growth"].dropna().tolist()
     b = compute_market_axis_scores(_panel(100), extended)["growth"].dropna().tolist()
     assert a == b
+
+
+def test_market_concept_aggregation_two_concepts() -> None:
+    """Concept-axis blend: A weight 1 (two members 50/50), B weight 0.5
+    (one member). axis = (A_score*1 + B_score*0.5) / 1.5."""
+    from market_helper.regimes.methods.market_regime import MarketConceptSpec
+
+    n = 200
+    dates = pd.bdate_range("2024-01-01", periods=n)
+    panel = pd.DataFrame({
+        "date": dates,
+        "X": [100.0 * (1.0 + 0.001 * idx) for idx in range(n)],
+        "Y": [100.0 * (1.0 - 0.001 * idx) for idx in range(n)],
+        "Z": [100.0 * (1.0 + 0.002 * idx) for idx in range(n)],
+        "VIX": [15.0] * n,
+    })
+    cfg = MarketRegimeConfig(
+        signals=[
+            MarketSignalSpec(name="x", axis="growth", symbol="X", transform="return", lookback_days=5, normalization="raw"),
+            MarketSignalSpec(name="y", axis="growth", symbol="Y", transform="return", lookback_days=5, normalization="raw"),
+            MarketSignalSpec(name="z", axis="growth", symbol="Z", transform="return", lookback_days=5, normalization="raw"),
+        ],
+        concepts=[
+            MarketConceptSpec(name="A", axis="growth", weight=1.0, members={"x": 0.5, "y": 0.5}),
+            MarketConceptSpec(name="B", axis="growth", weight=0.5, members={"z": 1.0}),
+        ],
+    )
+    scores = compute_market_axis_scores(panel, cfg)
+    assert "concept:growth:A" in scores.columns
+    assert "concept:growth:B" in scores.columns
+    g = scores["growth"].dropna()
+    a = scores["concept:growth:A"].dropna()
+    b = scores["concept:growth:B"].dropna()
+    expected = (a.iloc[-1] * 1.0 + b.iloc[-1] * 0.5) / 1.5
+    assert g.iloc[-1] == pytest.approx(expected)
+
+
+def test_market_beta_adjusted_relative_return_strips_systematic_beta() -> None:
+    """When numerator = beta * denominator (perfectly), the beta-adjusted
+    residual is ~zero on average over the lookback. Use a strongly-trending
+    denominator so the raw relative_return diverges meaningfully from zero
+    while the residual stays near zero."""
+    n = 240
+    dates = pd.bdate_range("2024-01-01", periods=n)
+    # Linear-growth denominator: ~+0.1% per day
+    den = np.array([100.0 * (1.0 + 0.001 * i) for i in range(n)])
+    den_ret = np.diff(den, prepend=den[0]) / den
+    den_ret[0] = 0.0
+    # Numerator = denominator with beta 1.5 (so it grows ~+0.15% per day)
+    num = np.zeros(n); num[0] = 100.0
+    for i in range(1, n):
+        num[i] = num[i-1] * (1.0 + 1.5 * den_ret[i])
+    panel = pd.DataFrame({"date": dates, "NUM": num, "DEN": den})
+
+    cfg = MarketRegimeConfig(
+        signals=[
+            MarketSignalSpec(
+                name="raw", axis="growth",
+                numerator="NUM", denominator="DEN",
+                transform="relative_return", lookback_days=21, normalization="raw",
+            ),
+            MarketSignalSpec(
+                name="beta_adj", axis="growth",
+                numerator="NUM", denominator="DEN",
+                transform="beta_adjusted_relative_return", lookback_days=21, normalization="raw",
+                beta_window_days=60, beta_clip=3.0,
+            ),
+        ],
+    )
+    scores = compute_market_axis_scores(panel, cfg)
+    raw = scores["contrib:raw"].dropna()
+    adj = scores["contrib:beta_adj"].dropna()
+    # Raw relative is meaningfully positive (NUM outperforms DEN by 1.5x).
+    assert raw.iloc[-1] > 0.005
+    # Beta-adjusted residual is dramatically smaller (β fits the 1.5 ratio).
+    assert abs(adj.iloc[-1]) < 0.2 * abs(raw.iloc[-1])
