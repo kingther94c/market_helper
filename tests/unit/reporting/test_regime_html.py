@@ -175,3 +175,62 @@ def test_crisis_intensity_chart_metadata_uses_view_model_as_of(tmp_path: Path) -
     assert "current 0.00" in fragment
     assert "2026-04-27" in fragment
     assert "current 0.74" not in fragment
+
+
+def test_v2_heat_strip_maps_neutral_mixed_states_to_regime_classes(tmp_path: Path) -> None:
+    regime_path = tmp_path / "regime_v2_heat_strip.json"
+    regime_path.write_text(
+        json.dumps(
+            [
+                {
+                    "date": "2026-05-04",
+                    "version": "regime-engine-v2",
+                    "final_regime": "Neutral/Mixed Growth / Up Inflation",
+                    "base_regime": "Neutral/Mixed Growth / Up Inflation",
+                    "confidence": "Low",
+                    "disagreement_flag": False,
+                    "disagreement_summary": "",
+                    "final_growth_score": 0.1,
+                    "final_inflation_score": 0.8,
+                    "risk_score": -0.1,
+                    "risk_overlay_on": False,
+                    "layer_outputs": [
+                        {
+                            "layer_name": "market_implied",
+                            "enabled": True,
+                            "available": True,
+                            "growth_score": 0.1,
+                            "inflation_score": 0.8,
+                            "growth_state": "Neutral/Mixed",
+                            "inflation_state": "Up",
+                            "confidence": 1.0,
+                        },
+                        {
+                            "layer_name": "macro_nowcast",
+                            "enabled": True,
+                            "available": True,
+                            "growth_score": 0.7,
+                            "inflation_score": 0.0,
+                            "growth_state": "Up",
+                            "inflation_state": "Neutral/Mixed",
+                            "confidence": 0.7,
+                        },
+                    ],
+                    "risk_output": {
+                        "risk_score": -0.1,
+                        "risk_overlay_on": False,
+                        "risk_state": "Risk On",
+                    },
+                }
+            ]
+        ),
+        encoding="utf-8",
+    )
+
+    view_model = build_regime_html_view_model(regime_path=regime_path)
+
+    fragment = render_regime_section_body(view_model)
+    assert "title='2026-05-04 · Neutral/Mixed / Up'" in fragment
+    assert "title='2026-05-04 · Up / Neutral/Mixed'" in fragment
+    assert "regime-cell--stagflation" in fragment
+    assert "regime-cell--goldilocks" in fragment
