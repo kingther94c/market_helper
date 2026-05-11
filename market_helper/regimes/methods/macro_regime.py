@@ -423,6 +423,14 @@ class MacroRegimeMethod:
                         }
                         for axis in ("growth", "inflation")
                     },
+                    "concept_weights": {
+                        axis: {
+                            c.name: float(c.weight)
+                            for c in self.concepts
+                            if c.axis == axis
+                        }
+                        for axis in ("growth", "inflation")
+                    },
                 },
             )
             results.append(

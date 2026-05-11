@@ -399,9 +399,33 @@ class MarketRegimeMethod:
             zscore_clip=self.config.zscore_clip,
         )
         records = usable.to_dict(orient="records")
-        growth_names = [s.name for s in self.config.signals if s.axis == "growth"]
-        inflation_names = [s.name for s in self.config.signals if s.axis == "inflation"]
-        risk_names = [s.name for s in self.config.signals if s.axis == "risk"]
+        growth_signal_names = [s.name for s in self.config.signals if s.axis == "growth"]
+        inflation_signal_names = [s.name for s in self.config.signals if s.axis == "inflation"]
+        risk_signal_names = [s.name for s in self.config.signals if s.axis == "risk"]
+        growth_concept_names = [c.name for c in self.config.concepts if c.axis == "growth"]
+        inflation_concept_names = [c.name for c in self.config.concepts if c.axis == "inflation"]
+        risk_concept_names = [c.name for c in self.config.concepts if c.axis == "risk"]
+        # When concepts are present, drivers expose CONCEPT contributions so
+        # downstream consumers (regime HTML, top-contributor lists) speak the
+        # same semantic vocabulary as the macro layer. Without concepts the
+        # signal-level drivers are kept for backward compat.
+        use_concepts = bool(self.config.concepts)
+
+        def _growth_drivers(row_dict: Mapping[str, object]) -> dict[str, float]:
+            if use_concepts:
+                return _concept_driver_map_market(row_dict, "growth", growth_concept_names)
+            return _driver_map(row_dict, growth_signal_names)
+
+        def _inflation_drivers(row_dict: Mapping[str, object]) -> dict[str, float]:
+            if use_concepts:
+                return _concept_driver_map_market(row_dict, "inflation", inflation_concept_names)
+            return _driver_map(row_dict, inflation_signal_names)
+
+        def _risk_drivers(row_dict: Mapping[str, object]) -> dict[str, float]:
+            if use_concepts:
+                return _concept_driver_map_market(row_dict, "risk", risk_concept_names)
+            return _driver_map(row_dict, risk_signal_names)
+
         results: List[MethodResult] = []
         for row, qlabel, duration, g_pos, i_pos, crisis, intensity, risk_regime in zip(
             records,
@@ -418,12 +442,42 @@ class MarketRegimeMethod:
                 as_of=as_of,
                 growth_score=_safe_float(row.get("growth")),
                 inflation_score=_safe_float(row.get("inflation")),
-                growth_drivers=_driver_map(row, growth_names),
-                inflation_drivers=_driver_map(row, inflation_names),
+                growth_drivers=_growth_drivers(row),
+                inflation_drivers=_inflation_drivers(row),
                 confidence=_combine_confidence(
                     row.get("growth_confidence"), row.get("inflation_confidence")
                 ),
             )
+            diag: dict[str, Any] = {
+                "risk_regime": risk_regime,
+                "risk_score": _safe_float(row.get("risk_score")),
+                "risk_drivers": _risk_drivers(row),
+                "hysteresis_growth_positive": bool(g_pos),
+                "hysteresis_inflation_positive": bool(i_pos),
+            }
+            if use_concepts:
+                diag["concept_scores"] = {
+                    "growth": {
+                        name: _safe_float(row.get(f"concept:growth:{name}"))
+                        for name in growth_concept_names
+                    },
+                    "inflation": {
+                        name: _safe_float(row.get(f"concept:inflation:{name}"))
+                        for name in inflation_concept_names
+                    },
+                    "risk": {
+                        name: _safe_float(row.get(f"concept:risk:{name}"))
+                        for name in risk_concept_names
+                    },
+                }
+                diag["concept_weights"] = {
+                    axis: {
+                        c.name: float(c.weight)
+                        for c in self.config.concepts
+                        if c.axis == axis
+                    }
+                    for axis in ("growth", "inflation", "risk")
+                }
             quadrant = QuadrantSnapshot(
                 as_of=as_of,
                 quadrant=qlabel,
@@ -431,13 +485,7 @@ class MarketRegimeMethod:
                 crisis_flag=bool(crisis),
                 crisis_intensity=float(intensity),
                 duration_days=int(duration),
-                diagnostics={
-                    "risk_regime": risk_regime,
-                    "risk_score": _safe_float(row.get("risk_score")),
-                    "risk_drivers": _driver_map(row, risk_names),
-                    "hysteresis_growth_positive": bool(g_pos),
-                    "hysteresis_inflation_positive": bool(i_pos),
-                },
+                diagnostics=diag,
             )
             results.append(
                 MethodResult(
@@ -704,6 +752,17 @@ def _driver_map(row: Mapping[str, object], names: Sequence[str]) -> dict[str, fl
         for name in names
         if f"contrib:{name}" in row and not _is_nan(row.get(f"contrib:{name}"))
     }
+
+
+def _concept_driver_map_market(
+    row: Mapping[str, object], axis: str, concept_names: Sequence[str]
+) -> dict[str, float]:
+    out: dict[str, float] = {}
+    for name in concept_names:
+        key = f"concept:{axis}:{name}"
+        if key in row and not _is_nan(row.get(key)):
+            out[name] = float(row[key])
+    return out
 
 
 def _safe_float(value: object) -> float:

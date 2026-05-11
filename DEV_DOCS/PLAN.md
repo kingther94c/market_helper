@@ -100,14 +100,19 @@ Landed:
   sector pairs. Flip a series into a concept (or set weight > 0) to activate.
 
 Near-term work:
-1. Dashboard: surface per-concept contributions, internal disagreement, and
-   confidence degradation in the HTML report (the engine emits these in
-   `layer_outputs[].diagnostics.concept_scores`; renderer just needs to
-   display them).
-2. Sync the dormant FRED series so they can be activated via config flip.
-3. Add a small backtest sanity harness with pinned fixture snapshots for
+1. ~~Dashboard: surface per-concept contributions, internal disagreement,
+   and confidence degradation~~ — landed in Q5. The standalone regime HTML
+   report now shows the per-layer concept table, per-axis macro-vs-market
+   disagreement breakdown, and a confidence-reasoning blurb. Engine emits
+   `concept_weights` alongside `concept_scores` in `layer_outputs.diagnostics`
+   and `confidence_strength` / `confidence_thresholds` /
+   `disagreement_penalty_active` on `FinalRegimeResult`.
+2. Propagate the same concept panel into the combined portfolio report (the
+   regime ribbon there still shows only the summary card).
+3. Sync the dormant FRED series so they can be activated via config flip.
+4. Add a small backtest sanity harness with pinned fixture snapshots for
    anchor periods.
-4. Keep ML layers as unavailable/zero-weight until model artifacts and feature
+5. Keep ML layers as unavailable/zero-weight until model artifacts and feature
    schemas are explicit.
 
 Calibration session record:

@@ -171,6 +171,12 @@ class FinalRegimeResult:
     layer_outputs: list[RegimeLayerResult]
     risk_output: RiskOverlayResult
     top_contributors: list[tuple[str, float]] = field(default_factory=list)
+    # min(|final_growth_score|, |final_inflation_score|) — same expression
+    # the confidence rule uses; surfaced so the dashboard can show *why*
+    # confidence landed where it did.
+    confidence_strength: float = 0.0
+    confidence_thresholds: dict[str, float] = field(default_factory=dict)
+    disagreement_penalty_active: bool = False
     version: str = "regime-engine-v2"
 
     def to_dict(self) -> dict[str, Any]:
@@ -384,6 +390,14 @@ def run_regime_engine_v2(
         )
         disagreement_flag, disagreement_summary = _disagreement(layer_outputs, cfg)
         confidence = _confidence(final_growth, final_inflation, disagreement_flag, cfg)
+        confidence_strength = min(abs(final_growth), abs(final_inflation))
+        confidence_thresholds = {
+            "medium": float(cfg.confidence.medium),
+            "high": float(cfg.confidence.high),
+        }
+        disagreement_penalty_active = bool(
+            disagreement_flag and cfg.confidence.disagreement_penalty
+        )
         out.append(
             FinalRegimeResult(
                 date=date,
@@ -406,6 +420,9 @@ def run_regime_engine_v2(
                 ml_return_inflation_score=_score_for(layer_outputs, "return_truth_ml", "inflation"),
                 layer_outputs=layer_outputs,
                 risk_output=risk_output,
+                confidence_strength=float(confidence_strength),
+                confidence_thresholds=confidence_thresholds,
+                disagreement_penalty_active=disagreement_penalty_active,
                 top_contributors=_top_contributors(layer_outputs),
             )
         )

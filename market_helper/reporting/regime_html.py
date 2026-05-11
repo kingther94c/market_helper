@@ -83,6 +83,29 @@ class RegimeHtmlTransitionEvent:
 
 
 @dataclass(frozen=True)
+class RegimeHtmlConceptRow:
+    """One row of the per-layer concept-contribution table (Q5)."""
+    layer: str        # macro_nowcast / market_implied
+    axis: str         # growth / inflation / risk
+    concept: str
+    weight: float     # semantic weight on the axis
+    score: float      # concept score in (-1, 1)
+    contribution: float  # score * weight / sum(weights) — the effective axis pull
+    state: str        # Up / Neutral/Mixed / Down (per the engine thresholds)
+
+
+@dataclass(frozen=True)
+class RegimeHtmlAxisDisagreementRow:
+    """Per-axis macro-vs-market state comparison (Q5)."""
+    axis: str  # growth / inflation
+    macro_state: str
+    market_state: str
+    macro_score: float | None
+    market_score: float | None
+    disagrees: bool
+
+
+@dataclass(frozen=True)
 class RegimeHtmlViewModel:
     schema: str
     as_of: str
@@ -107,6 +130,13 @@ class RegimeHtmlViewModel:
     layers: list[RegimeHtmlLayerRow] = field(default_factory=list)
     risk_overlay: RegimeHtmlRiskOverlay | None = None
     top_contributors: list[str] = field(default_factory=list)
+    # Q5 additions
+    concept_rows: list[RegimeHtmlConceptRow] = field(default_factory=list)
+    axis_disagreement: list[RegimeHtmlAxisDisagreementRow] = field(default_factory=list)
+    confidence_reasoning: str | None = None
+    confidence_strength: float | None = None
+    confidence_threshold_medium: float | None = None
+    confidence_threshold_high: float | None = None
 
 
 def build_regime_html_view_model(
@@ -186,6 +216,7 @@ def _render_v2_regime_section_body(
         f"{_render_v2_disagreement(view_model)}"
         f"{_render_v2_axis_panel(view_model)}"
         f"{_render_v2_layer_detail(view_model)}"
+        f"{_render_v2_concept_panel(view_model)}"
         f"{_render_v2_risk_overlay(view_model)}"
         f"{_render_v2_top_contributors(view_model)}"
         f"{_render_crisis_intensity_chart(view_model)}"
@@ -314,6 +345,33 @@ def _build_v2_view_model(payload: list[Any]) -> RegimeHtmlViewModel:
             risk_output.get("top_negative_contributors")
         ),
     )
+    # ---- Q5: per-layer concept-contribution table ----
+    concept_rows = _derive_concept_rows(latest_layer_outputs)
+
+    # ---- Q5: per-axis macro-vs-market disagreement breakdown ----
+    axis_disagreement = _derive_axis_disagreement(latest_layer_outputs)
+
+    # ---- Q5: confidence-reasoning blurb ----
+    confidence_label = str(latest.get("confidence") or "")
+    confidence_strength = _optional_float(latest.get("confidence_strength"))
+    thresholds_raw = latest.get("confidence_thresholds") or {}
+    threshold_medium = _optional_float(
+        thresholds_raw.get("medium") if isinstance(thresholds_raw, dict) else None
+    )
+    threshold_high = _optional_float(
+        thresholds_raw.get("high") if isinstance(thresholds_raw, dict) else None
+    )
+    disagreement_flag_value = _optional_bool(latest.get("disagreement_flag"))
+    penalty_active = _optional_bool(latest.get("disagreement_penalty_active"))
+    confidence_reasoning = _confidence_reasoning(
+        label=confidence_label,
+        strength=confidence_strength,
+        threshold_medium=threshold_medium,
+        threshold_high=threshold_high,
+        disagreement_flag=disagreement_flag_value,
+        penalty_active=penalty_active,
+    )
+
     return RegimeHtmlViewModel(
         schema=str(latest.get("version") or "regime-engine-v2"),
         as_of=str(latest.get("date") or ""),
@@ -351,15 +409,169 @@ def _build_v2_view_model(payload: list[Any]) -> RegimeHtmlViewModel:
         axes_history=axes_history,
         method_vote_history=method_vote_history,
         transitions=transitions[-8:],
-        confidence=str(latest.get("confidence") or ""),
-        disagreement_flag=_optional_bool(latest.get("disagreement_flag")),
+        confidence=confidence_label,
+        disagreement_flag=disagreement_flag_value,
         disagreement_summary=str(latest.get("disagreement_summary") or ""),
         risk_state=risk_overlay.risk_state,
         base_regime=str(latest.get("base_regime") or ""),
         layers=layers,
         risk_overlay=risk_overlay,
         top_contributors=_contributors_to_strings(latest.get("top_contributors")),
+        concept_rows=concept_rows,
+        axis_disagreement=axis_disagreement,
+        confidence_reasoning=confidence_reasoning,
+        confidence_strength=confidence_strength,
+        confidence_threshold_medium=threshold_medium,
+        confidence_threshold_high=threshold_high,
     )
+
+
+def _derive_concept_rows(
+    layer_outputs: list[Any],
+) -> list[RegimeHtmlConceptRow]:
+    """Flatten per-layer concept_scores / concept_weights into a sortable list.
+
+    Contribution is ``score * weight / sum(axis_weights)`` so it shows the
+    effective pull this concept exerts on its layer's axis score before any
+    layer-level blending. Skips layers with no concept diagnostics.
+    """
+    rows: list[RegimeHtmlConceptRow] = []
+    for layer in layer_outputs:
+        if not isinstance(layer, dict) or not layer.get("available"):
+            continue
+        diagnostics = layer.get("diagnostics") or {}
+        scores_by_axis = diagnostics.get("concept_scores")
+        weights_by_axis = diagnostics.get("concept_weights")
+        if not isinstance(scores_by_axis, dict) or not isinstance(weights_by_axis, dict):
+            continue
+        layer_name = str(layer.get("layer_name") or "unknown")
+        for axis, scores in scores_by_axis.items():
+            weights = weights_by_axis.get(axis) or {}
+            if not isinstance(scores, dict) or not isinstance(weights, dict):
+                continue
+            total_weight = float(sum(float(w) for w in weights.values())) or 1.0
+            for concept_name, score_value in scores.items():
+                score = _optional_float(score_value)
+                weight = _optional_float(weights.get(concept_name))
+                if score is None or weight is None:
+                    continue
+                contribution = score * (weight / total_weight)
+                rows.append(
+                    RegimeHtmlConceptRow(
+                        layer=layer_name,
+                        axis=str(axis),
+                        concept=str(concept_name),
+                        weight=weight,
+                        score=score,
+                        contribution=contribution,
+                        state=_concept_axis_state(score, str(axis)),
+                    )
+                )
+    # Stable ordering: layer, axis (growth, inflation, risk), then by |score| desc.
+    axis_order = {"growth": 0, "inflation": 1, "risk": 2}
+    rows.sort(
+        key=lambda r: (r.layer, axis_order.get(r.axis, 99), -abs(r.score), r.concept)
+    )
+    return rows
+
+
+def _concept_axis_state(score: float, axis: str) -> str:
+    """Tri-state classification for concept scores using the same ±0.20 thresholds
+    the engine applies to the final axis score. We don't have the YAML config
+    here so we use the engine's runtime defaults; the dashboard tolerates being
+    slightly off-threshold because state is decorative, not actionable."""
+    threshold = 0.20
+    if score >= threshold:
+        return "Up"
+    if score <= -threshold:
+        return "Down"
+    return "Neutral/Mixed"
+
+
+def _derive_axis_disagreement(
+    layer_outputs: list[Any],
+) -> list[RegimeHtmlAxisDisagreementRow]:
+    """For each axis, surface the macro vs market state pair. Used to expose
+    *what* is disagreeing — Q5 enhancement on top of the existing generic
+    disagreement_flag."""
+    by_layer = {
+        str(layer.get("layer_name")): layer
+        for layer in layer_outputs
+        if isinstance(layer, dict)
+    }
+    macro = by_layer.get("macro_nowcast")
+    market = by_layer.get("market_implied")
+    if not macro or not market:
+        return []
+    out: list[RegimeHtmlAxisDisagreementRow] = []
+    for axis in ("growth", "inflation"):
+        macro_state = str(macro.get(f"{axis}_state") or "n/a")
+        market_state = str(market.get(f"{axis}_state") or "n/a")
+        macro_score = _optional_float(macro.get(f"{axis}_score"))
+        market_score = _optional_float(market.get(f"{axis}_score"))
+        disagrees = (
+            macro.get("available")
+            and market.get("available")
+            and macro_state != market_state
+            and macro_state not in {"n/a", "Disabled", "Not available"}
+            and market_state not in {"n/a", "Disabled", "Not available"}
+        )
+        out.append(
+            RegimeHtmlAxisDisagreementRow(
+                axis=axis,
+                macro_state=macro_state,
+                market_state=market_state,
+                macro_score=macro_score,
+                market_score=market_score,
+                disagrees=bool(disagrees),
+            )
+        )
+    return out
+
+
+def _confidence_reasoning(
+    *,
+    label: str,
+    strength: float | None,
+    threshold_medium: float | None,
+    threshold_high: float | None,
+    disagreement_flag: bool | None,
+    penalty_active: bool | None,
+) -> str:
+    """Compose a single-sentence explanation of why confidence landed where
+    it did. Engine logic (in ``_confidence``):
+
+        if strength >= high and not disagreement -> High
+        if strength >= medium and not (disagreement and penalty) -> Medium
+        if strength >= high and disagreement -> Medium (downgraded)
+        else -> Low
+    """
+    parts: list[str] = []
+    if strength is not None:
+        parts.append(f"strength {strength:.2f}")
+    if threshold_medium is not None and threshold_high is not None:
+        parts.append(
+            f"vs thresholds medium≥{threshold_medium:.2f} / high≥{threshold_high:.2f}"
+        )
+    if disagreement_flag:
+        parts.append("layer disagreement" + (" with penalty" if penalty_active else ""))
+    label_norm = (label or "").strip().lower()
+    if label_norm == "low":
+        reason = "weak score strength"
+        if strength is not None and threshold_medium is not None and strength < threshold_medium:
+            reason = f"score strength {strength:.2f} below medium threshold {threshold_medium:.2f}"
+        if disagreement_flag and penalty_active:
+            reason += " and active disagreement penalty"
+        return f"Low confidence — {reason}."
+    if label_norm == "medium":
+        if disagreement_flag and strength is not None and threshold_high is not None and strength >= threshold_high:
+            return f"Medium confidence — strong axis strength downgraded by layer disagreement."
+        return "Medium confidence — axis strength meets the medium threshold; no penalty applied."
+    if label_norm == "high":
+        return "High confidence — strong axis strength with no layer disagreement."
+    if parts:
+        return ", ".join(parts).capitalize()
+    return ""
 
 
 def _render_status_cards(view_model: RegimeHtmlViewModel) -> str:
@@ -401,21 +613,127 @@ def _render_status_cards(view_model: RegimeHtmlViewModel) -> str:
 
 
 def _render_v2_disagreement(view_model: RegimeHtmlViewModel) -> str:
-    if view_model.disagreement_flag is None and not view_model.disagreement_summary:
+    if (
+        view_model.disagreement_flag is None
+        and not view_model.disagreement_summary
+        and not view_model.axis_disagreement
+        and not view_model.confidence_reasoning
+    ):
         return ""
     tone = "is-on" if view_model.disagreement_flag else "is-off"
     label = "Disagreement: Yes" if view_model.disagreement_flag else "Disagreement: No"
     summary = view_model.disagreement_summary or (
         "Layer outputs are aligned enough for the current ensemble."
     )
+    breakdown = _render_v2_axis_disagreement_breakdown(view_model.axis_disagreement)
+    reasoning = ""
+    if view_model.confidence_reasoning:
+        reasoning = (
+            "<p class='regime-v2-confidence-reasoning'>"
+            f"{html.escape(view_model.confidence_reasoning)}"
+            "</p>"
+        )
     return (
         f"<section class='panel regime-v2-disagreement {tone}'>"
         "<div>"
         f"<h2>{html.escape(label)}</h2>"
         f"<p>{html.escape(summary)}</p>"
+        f"{breakdown}"
+        f"{reasoning}"
         "</div>"
         "</section>"
     )
+
+
+def _render_v2_axis_disagreement_breakdown(
+    rows: list[RegimeHtmlAxisDisagreementRow],
+) -> str:
+    """Per-axis macro-vs-market state table. Empty string when both layers
+    aren't available (e.g. macro panel out of date)."""
+    if not rows:
+        return ""
+    body_rows: list[str] = []
+    for row in rows:
+        flag_html = (
+            "<span class='tag tag--warning'>disagrees</span>"
+            if row.disagrees
+            else "<span class='tag tag--ok'>aligned</span>"
+        )
+        body_rows.append(
+            "<tr>"
+            f"<td><strong>{html.escape(row.axis.capitalize())}</strong></td>"
+            f"<td>{html.escape(row.macro_state)} <span class='num-muted'>{_format_signed(row.macro_score)}</span></td>"
+            f"<td>{html.escape(row.market_state)} <span class='num-muted'>{_format_signed(row.market_score)}</span></td>"
+            f"<td>{flag_html}</td>"
+            "</tr>"
+        )
+    return (
+        "<div class='regime-v2-axis-disagreement'>"
+        "<table>"
+        "<thead><tr><th>Axis</th><th>Macro</th><th>Market</th><th></th></tr></thead>"
+        f"<tbody>{''.join(body_rows)}</tbody>"
+        "</table>"
+        "</div>"
+    )
+
+
+def _render_v2_concept_panel(view_model: RegimeHtmlViewModel) -> str:
+    """Per-layer concept-contribution table. One panel total, grouped by layer
+    then axis; concepts within an axis are listed in order of |score|."""
+    if not view_model.concept_rows:
+        return ""
+    by_layer: dict[str, list[RegimeHtmlConceptRow]] = {}
+    for row in view_model.concept_rows:
+        by_layer.setdefault(row.layer, []).append(row)
+    sections: list[str] = []
+    layer_display = {
+        "macro_nowcast": "Macro (FRED concepts)",
+        "market_implied": "Market (price-based concepts)",
+    }
+    for layer_name, rows in by_layer.items():
+        body_rows: list[str] = []
+        prev_axis: str | None = None
+        for row in rows:
+            axis_cell = ""
+            if row.axis != prev_axis:
+                axis_cell = f"<td rowspan='{sum(1 for r in rows if r.axis == row.axis)}'><strong>{html.escape(row.axis.capitalize())}</strong></td>"
+                prev_axis = row.axis
+            state_class = _concept_state_class(row.state)
+            body_rows.append(
+                "<tr>"
+                f"{axis_cell}"
+                f"<td>{html.escape(row.concept)}</td>"
+                f"<td class='num-muted'>w={row.weight:.2f}</td>"
+                f"<td>{_format_signed(row.score)}</td>"
+                f"<td>{_format_signed(row.contribution)}</td>"
+                f"<td><span class='status-pill {state_class}'>{html.escape(row.state)}</span></td>"
+                "</tr>"
+            )
+        sections.append(
+            "<div class='regime-v2-concept-layer'>"
+            f"<h3>{html.escape(layer_display.get(layer_name, layer_name))}</h3>"
+            "<table><thead><tr><th>Axis</th><th>Concept</th><th>Weight</th><th>Score</th><th>Contribution</th><th>State</th></tr></thead>"
+            f"<tbody>{''.join(body_rows)}</tbody>"
+            "</table>"
+            "</div>"
+        )
+    return (
+        "<section class='panel regime-v2-concept'>"
+        "<header class='regime-panel__header'>"
+        "<h2>Concept Contributions</h2>"
+        "<span class='regime-panel__meta'>per-layer concept score × weight = effective axis pull</span>"
+        "</header>"
+        + "".join(sections)
+        + "</section>"
+    )
+
+
+def _concept_state_class(state: str) -> str:
+    if state == "Up":
+        return "is-up"
+    if state == "Down":
+        return "is-down"
+    return "is-neutral"
 
 
 def _render_v2_axis_panel(view_model: RegimeHtmlViewModel) -> str:
@@ -1106,6 +1424,23 @@ def regime_section_styles() -> str:
     .regime-panel__header { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; margin-bottom: 12px; }
     .regime-panel__header h2 { margin: 0; }
     .regime-panel__meta { font-size: 12px; color: var(--muted-ink); font-variant-numeric: tabular-nums; }
+
+    /* Q5: per-axis macro-vs-market disagreement table + concept-contribution panel */
+    .regime-v2-axis-disagreement { margin-top: 10px; }
+    .regime-v2-axis-disagreement table { width: 100%; border-collapse: collapse; font-size: 12px; }
+    .regime-v2-axis-disagreement th, .regime-v2-axis-disagreement td { padding: 6px 8px; border-bottom: 1px solid var(--border-soft); text-align: left; }
+    .regime-v2-axis-disagreement .tag { display: inline-block; padding: 1px 8px; border-radius: 999px; font-size: 11px; font-weight: 600; }
+    .tag--warning { background: rgba(217, 121, 47, 0.16); color: #b9601a; }
+    .tag--ok      { background: rgba( 78, 156, 96, 0.16); color: #2b6f3a; }
+    .regime-v2-confidence-reasoning { margin: 8px 0 0; font-size: 12px; color: var(--muted-ink); }
+
+    .regime-v2-concept { display: grid; gap: 14px; }
+    .regime-v2-concept-layer h3 { margin: 0 0 6px; font-size: 12px; text-transform: uppercase; letter-spacing: 0.04em; color: var(--muted-ink); }
+    .regime-v2-concept-layer table { width: 100%; border-collapse: collapse; font-size: 12px; }
+    .regime-v2-concept-layer th, .regime-v2-concept-layer td { padding: 5px 8px; border-bottom: 1px solid var(--border-soft); text-align: left; vertical-align: top; }
+    .status-pill.is-up      { background: rgba( 78, 156, 96, 0.18); color: #2b6f3a; }
+    .status-pill.is-down    { background: rgba(189,  60,  60, 0.18); color: #8b2e2e; }
+    .status-pill.is-neutral { background: rgba(148, 148, 148, 0.18); color: #555555; }
 
     .score-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 10px; }
     .score-row {

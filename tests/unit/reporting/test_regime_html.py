@@ -175,3 +175,156 @@ def test_crisis_intensity_chart_metadata_uses_view_model_as_of(tmp_path: Path) -
     assert "current 0.00" in fragment
     assert "2026-04-27" in fragment
     assert "current 0.74" not in fragment
+
+
+def _q5_v2_payload_with_concepts() -> list[dict]:
+    """Minimal v2 payload with the Q5-era concept diagnostics + confidence
+    plumbing so the new derivations can be exercised end-to-end."""
+    return [
+        {
+            "date": "2026-05-10",
+            "version": "regime-engine-v2",
+            "final_regime": "Neutral/Mixed Growth / Up Inflation",
+            "base_regime": "Neutral/Mixed Growth / Up Inflation",
+            "confidence": "Low",
+            "confidence_strength": 0.05,
+            "confidence_thresholds": {"medium": 0.20, "high": 0.45},
+            "disagreement_flag": True,
+            "disagreement_penalty_active": True,
+            "disagreement_summary": "macro_nowcast: Up/Down; market_implied: Down/Up",
+            "final_growth_score": 0.05,
+            "final_inflation_score": 0.30,
+            "risk_score": 0.10,
+            "risk_overlay_on": False,
+            "macro_growth_score": 0.40,
+            "macro_inflation_score": -0.30,
+            "market_growth_score": -0.30,
+            "market_inflation_score": 0.40,
+            "ml_macro_growth_score": None,
+            "ml_macro_inflation_score": None,
+            "ml_return_growth_score": None,
+            "ml_return_inflation_score": None,
+            "risk_output": {
+                "risk_score": 0.10,
+                "risk_overlay_on": False,
+                "risk_state": "Neutral",
+                "liquidity_score": None,
+                "confidence": None,
+                "top_positive_contributors": [],
+                "top_negative_contributors": [],
+                "diagnostics": {},
+            },
+            "layer_outputs": [
+                {
+                    "layer_name": "macro_nowcast",
+                    "enabled": True,
+                    "available": True,
+                    "growth_score": 0.40,
+                    "inflation_score": -0.30,
+                    "growth_state": "Up",
+                    "inflation_state": "Down",
+                    "confidence": "Medium",
+                    "top_positive_contributors": [["labor", 0.5]],
+                    "top_negative_contributors": [["realized_broad", -0.4]],
+                    "diagnostics": {
+                        "concept_scores": {
+                            "growth": {"labor": 0.6, "consumption": 0.15},
+                            "inflation": {"realized_broad": -0.4, "persistence": -0.1},
+                        },
+                        "concept_weights": {
+                            "growth": {"labor": 1.0, "consumption": 1.0},
+                            "inflation": {"realized_broad": 1.0, "persistence": 1.0},
+                        },
+                    },
+                },
+                {
+                    "layer_name": "market_implied",
+                    "enabled": True,
+                    "available": True,
+                    "growth_score": -0.30,
+                    "inflation_score": 0.40,
+                    "growth_state": "Down",
+                    "inflation_state": "Up",
+                    "confidence": "Medium",
+                    "top_positive_contributors": [["commodity_inflation", 0.7]],
+                    "top_negative_contributors": [["broad_equity_momentum", -0.5]],
+                    "diagnostics": {
+                        "concept_scores": {
+                            "growth": {"broad_equity_momentum": -0.5},
+                            "inflation": {"commodity_inflation": 0.7},
+                            "risk": {"volatility": 0.1},
+                        },
+                        "concept_weights": {
+                            "growth": {"broad_equity_momentum": 0.8},
+                            "inflation": {"commodity_inflation": 1.0},
+                            "risk": {"volatility": 1.0},
+                        },
+                    },
+                },
+            ],
+            "top_contributors": [],
+        }
+    ]
+
+
+def test_view_model_emits_concept_rows_from_layer_diagnostics(tmp_path: Path) -> None:
+    p = tmp_path / "regime_v2.json"
+    p.write_text(json.dumps(_q5_v2_payload_with_concepts()), encoding="utf-8")
+    vm = build_regime_html_view_model(regime_path=p)
+    # Macro: 2 growth concepts + 2 inflation concepts = 4 rows; market: 1+1+1 = 3.
+    assert len(vm.concept_rows) == 7
+    layers = {r.layer for r in vm.concept_rows}
+    assert layers == {"macro_nowcast", "market_implied"}
+    # State classification uses ±0.20 thresholds.
+    by_concept = {(r.layer, r.concept): r for r in vm.concept_rows}
+    assert by_concept[("macro_nowcast", "labor")].state == "Up"
+    assert by_concept[("macro_nowcast", "consumption")].state == "Neutral/Mixed"
+    assert by_concept[("macro_nowcast", "realized_broad")].state == "Down"
+    # Contribution = score * weight / sum(axis_weights).
+    labor = by_concept[("macro_nowcast", "labor")]
+    assert labor.contribution == 0.6 * (1.0 / 2.0)  # two growth concepts, weights 1.0 each
+
+
+def test_view_model_emits_axis_disagreement_breakdown(tmp_path: Path) -> None:
+    p = tmp_path / "regime_v2.json"
+    p.write_text(json.dumps(_q5_v2_payload_with_concepts()), encoding="utf-8")
+    vm = build_regime_html_view_model(regime_path=p)
+    rows = {r.axis: r for r in vm.axis_disagreement}
+    assert set(rows) == {"growth", "inflation"}
+    # Macro Up vs Market Down on growth -> disagrees.
+    assert rows["growth"].macro_state == "Up"
+    assert rows["growth"].market_state == "Down"
+    assert rows["growth"].disagrees is True
+    # Macro Down vs Market Up on inflation -> also disagrees.
+    assert rows["inflation"].macro_state == "Down"
+    assert rows["inflation"].market_state == "Up"
+    assert rows["inflation"].disagrees is True
+
+
+def test_confidence_reasoning_surfaces_thresholds_and_penalty(tmp_path: Path) -> None:
+    p = tmp_path / "regime_v2.json"
+    p.write_text(json.dumps(_q5_v2_payload_with_concepts()), encoding="utf-8")
+    vm = build_regime_html_view_model(regime_path=p)
+    assert vm.confidence == "Low"
+    assert vm.confidence_strength == 0.05
+    assert vm.confidence_threshold_medium == 0.20
+    assert vm.confidence_threshold_high == 0.45
+    reasoning = vm.confidence_reasoning or ""
+    assert "below medium threshold" in reasoning
+    assert "disagreement penalty" in reasoning
+
+
+def test_regime_section_body_renders_concept_panel_and_breakdown(tmp_path: Path) -> None:
+    p = tmp_path / "regime_v2.json"
+    p.write_text(json.dumps(_q5_v2_payload_with_concepts()), encoding="utf-8")
+    vm = build_regime_html_view_model(regime_path=p)
+    fragment = render_regime_section_body(vm)
+    # New concept-contribution panel renders concept names from both layers.
+    assert "Concept Contributions" in fragment
+    assert "labor" in fragment
+    assert "commodity_inflation" in fragment
+    # Per-axis disagreement table appears inside the disagreement section.
+    assert "regime-v2-axis-disagreement" in fragment
+    # Confidence-reasoning blurb is visible.
+    assert "Low" in fragment
+    assert "below medium threshold" in fragment
