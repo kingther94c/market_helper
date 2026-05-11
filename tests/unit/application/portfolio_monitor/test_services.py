@@ -129,7 +129,7 @@ def test_plain_report_inputs_do_not_implicitly_load_default_regime(
     assert resolved.regime_path is None
 
 
-def test_report_data_keeps_regime_out_of_risk_view_model(
+def test_report_data_passes_regime_into_risk_view_model(
     monkeypatch,
     tmp_path: Path,
 ) -> None:
@@ -168,7 +168,7 @@ def test_report_data_keeps_regime_out_of_risk_view_model(
         )
     )
 
-    assert captured["regime_path"] is None
+    assert captured["regime_path"] == regime_path
     assert captured["loaded_regime_path"] == regime_path
     assert report_data.risk_view_model.as_of == "2026-04-08T00:00:00+00:00"
     assert report_data.regime_view_model.regime == "Goldilocks"
