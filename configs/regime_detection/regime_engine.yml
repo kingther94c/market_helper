@@ -5,14 +5,16 @@ regime_engine:
     macro_nowcast:
       enabled: true
       available_required: false
-      weight_growth: 0.45
-      weight_inflation: 0.40
+      # Q6: modestly reduce slow macro weight after fixing the calibration
+      # baseline so recovery windows can respond to faster market pricing.
+      weight_growth: 0.35
+      weight_inflation: 0.30
 
     market_implied:
       enabled: true
       available_required: false
-      weight_growth: 0.55
-      weight_inflation: 0.60
+      weight_growth: 0.65
+      weight_inflation: 0.70
 
     macro_truth_ml:
       enabled: false
@@ -36,14 +38,13 @@ regime_engine:
     min_consecutive_days: 3
 
   regime_thresholds:
-    # Lowered from 0.35 / 0.50 after macro+market both moved to tanh-compressed
-    # (-1, 1). With both layers in the same latent space the final score is
-    # also bounded; ±0.20 puts the threshold at roughly the abs-p25 of the new
-    # distribution and keeps the Up/Down regions interesting.
-    growth_up: 0.20
-    growth_down: -0.20
-    inflation_up: 0.20
-    inflation_down: -0.20
+    # Q6: lowered from ±0.20 on the corrected Q5 calibration baseline. The
+    # narrower deadband makes 2017 and 2020H2-2021 recoveries show through
+    # without pushing 2022 or 2023-24 back into persistent inflation-hot labels.
+    growth_up: 0.15
+    growth_down: -0.15
+    inflation_up: 0.12
+    inflation_down: -0.12
     # Require this many consecutive bdays past the threshold before flipping
     # the axis state (Up / Neutral/Mixed / Down). Cuts whipsaw turnover —
     # without this hysteresis the median regime run was 3 bdays.

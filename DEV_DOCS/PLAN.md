@@ -119,7 +119,10 @@ Calibration session record:
 `notebooks/regime_detection/regime_v2_calibration_index.ipynb` (TOC) +
 per-round notebooks: Q1+Q2 (macro scale fix and concept aggregation), Q3
 (market tanh, lower thresholds, label hysteresis), Q4 (market concept
-aggregation, beta-adjusted returns, S&P GSCI).
+aggregation, beta-adjusted returns, S&P GSCI), Q5 (calibration workflow
+macro-config fix; rebuilt the post-Q4 baseline before the next tuning pass),
+Q6 (market-heavier blend and narrower deadband to improve recovery-window
+responsiveness).
 
 Detail: `DEV_DOCS/docs/devplans/regime_engine_devplan.md`.
 

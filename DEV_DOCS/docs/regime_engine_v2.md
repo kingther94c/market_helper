@@ -47,13 +47,24 @@ write `regime-engine-v2` rows by default. `regime-detect-multi` and
 `regime-report-multi` are deprecated compatibility commands for old
 `regime-multi-v1` payloads.
 
-Calibration status: `regime-calibrate-v2` is a research-only workflow that runs
+Calibration status: `regime-calibrate` is a research-only workflow that runs
 v2 over local macro and market panels, then writes a static HTML report plus a
 question-driven notebook. The anchor set includes GFC, 2011 stress, 2014-16 oil
 collapse, 2017 soft landing, 2018 Q4, COVID, 2022 inflation/tightening,
 2023-24 disinflation, and the April 2025 Liberation Day tariff-shock window.
 The workflow is for product calibration only; it does not alter configs, train
 ML models, produce trading signals, or emit allocation changes.
+
+Q5 calibration note: the calibration workflow now loads the macro-method
+`engine:` block from `fred_series.yml` before running v2, so the research
+baseline matches the calibrated macro compression path used by the engine
+contract.
+
+Q6 calibration note: the corrected baseline uses a modestly market-heavier
+blend and a narrower axis deadband to make recovery windows more responsive.
+The calibrated layer weights are macro/market `0.35/0.65` for growth and
+`0.30/0.70` for inflation; axis thresholds are `+/-0.15` for growth and
+`+/-0.12` for inflation.
 
 Current first-pass calibration uses neutral/deadband normalization for macro
 inflation series so normal 2%-ish inflation is not automatically treated as

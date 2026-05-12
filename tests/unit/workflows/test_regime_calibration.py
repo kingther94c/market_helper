@@ -9,6 +9,7 @@ import yaml
 from market_helper.cli.main import main
 from market_helper.data_sources.fred.macro_panel import SeriesSpec
 from market_helper.regimes.engine_v2 import LayerConfig, RegimeEngineConfig, run_regime_engine_v2
+from market_helper.regimes.methods.macro_regime import MacroRegimeConfig
 from market_helper.regimes.methods.market_regime import MarketRegimeConfig, MarketSignalSpec
 from market_helper.workflows.regime_calibration import (
     AnchorPeriod,
@@ -157,6 +158,62 @@ def test_calibration_workflow_writes_html_summary_and_question_notebook(tmp_path
     assert notebook["cells"]
     assert all("Observation:" in "".join(cell["source"]) for cell in notebook["cells"])
     assert all("Question:" in "".join(cell["source"]) for cell in notebook["cells"])
+
+
+def test_calibration_workflow_loads_and_passes_macro_method_config(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    from market_helper.regimes.engine_v2 import run_regime_engine_v2 as real_run_regime_engine_v2
+
+    macro_panel = tmp_path / "macro_panel.feather"
+    fred_config = tmp_path / "fred_series.yml"
+    _macro_panel(n=80).to_feather(macro_panel)
+    fred_config.write_text(
+        yaml.safe_dump(
+            {
+                "engine": {
+                    "compression": "tanh",
+                    "compression_k": 0.5,
+                    "min_consecutive_days": 3,
+                },
+                "series": [
+                    {"series_id": "G", "axis": "growth", "transform": "level"},
+                    {"series_id": "I", "axis": "inflation", "transform": "level"},
+                ],
+                "growth_concepts": {"g": {"weight": 1.0, "series": {"G": 1.0}}},
+                "inflation_concepts": {"i": {"weight": 1.0, "series": {"I": 1.0}}},
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    captured: dict[str, object] = {}
+
+    def _capturing_run_regime_engine_v2(**kwargs):
+        captured["macro_method_config"] = kwargs.get("macro_method_config")
+        return real_run_regime_engine_v2(**kwargs)
+
+    monkeypatch.setattr(
+        "market_helper.workflows.regime_calibration.run_regime_engine_v2",
+        _capturing_run_regime_engine_v2,
+    )
+
+    run_regime_v2_calibration(
+        macro_panel_path=macro_panel,
+        fred_series_config=fred_config,
+        market_panel_path=tmp_path / "missing_market_panel.feather",
+        market_regime_config=tmp_path / "missing_market_regime.yml",
+        output_dir=tmp_path / "calibration",
+        html_output=tmp_path / "report.html",
+        notebook_output=tmp_path / "questions.ipynb",
+    )
+
+    macro_method_config = captured.get("macro_method_config")
+    assert isinstance(macro_method_config, MacroRegimeConfig)
+    assert macro_method_config.compression == "tanh"
+    assert macro_method_config.compression_k == 0.5
+    assert macro_method_config.min_consecutive_days == 3
 
 
 def test_summarize_anchor_periods_reports_missing_windows() -> None:

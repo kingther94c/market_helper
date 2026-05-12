@@ -22,6 +22,7 @@ from market_helper.data_sources.yahoo_finance.market_panel import (
     load_market_panel,
 )
 from market_helper.regimes.engine_v2 import FinalRegimeResult, load_regime_engine_config, run_regime_engine_v2
+from market_helper.regimes.methods.macro_regime import load_macro_regime_config
 from market_helper.regimes.methods.market_regime import MarketRegimeConfig, load_market_regime_config
 
 
@@ -168,12 +169,14 @@ def run_regime_v2_calibration(
     macro_specs = None
     macro_concepts = None
     macro_panel = None
+    macro_method_cfg = None
     specs_path = Path(fred_series_config) if fred_series_config else Path("configs/regime_detection/fred_series.yml")
     panel_path = Path(macro_panel_path) if macro_panel_path else Path(FRED_DEFAULT_CACHE_DIR) / FRED_DEFAULT_PANEL_FILENAME
     if specs_path.exists() and panel_path.exists():
         macro_specs = load_series_specs(specs_path)
         macro_concepts = load_concept_specs(specs_path)
         macro_panel = load_panel(panel_path, columns=_macro_panel_columns(macro_specs))
+        macro_method_cfg = load_macro_regime_config(specs_path)
 
     market_config = None
     market_panel = None
@@ -188,6 +191,7 @@ def run_regime_v2_calibration(
         macro_panel=macro_panel,
         macro_specs=macro_specs,
         macro_concepts=macro_concepts,
+        macro_method_config=macro_method_cfg,
         market_panel=market_panel,
         market_config=market_config,
     )
