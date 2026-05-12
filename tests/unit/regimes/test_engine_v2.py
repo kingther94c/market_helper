@@ -84,6 +84,22 @@ def _market_config() -> MarketRegimeConfig:
     )
 
 
+def _risk_only_market_config() -> MarketRegimeConfig:
+    return MarketRegimeConfig(
+        signals=[
+            MarketSignalSpec(
+                name="vix",
+                axis="risk",
+                symbol="VIX",
+                transform="level_zscore",
+                zscore_window_days=30,
+            ),
+        ],
+        risk_min_consecutive_days=1,
+        risk_enter_threshold=0.5,
+    )
+
+
 def test_risk_overlay_does_not_change_growth_or_inflation_scores() -> None:
     common = {
         "config": RegimeEngineConfig(
@@ -106,6 +122,28 @@ def test_risk_overlay_does_not_change_growth_or_inflation_scores() -> None:
     assert no_stress.final_inflation_score == stress.final_inflation_score
     assert stress.risk_overlay_on is True
     assert "Stress Overlay" in stress.final_regime
+
+
+def test_risk_overlay_remains_available_with_risk_only_market_inputs() -> None:
+    latest = run_regime_engine_v2(
+        config=RegimeEngineConfig(
+            layers={
+                "macro_nowcast": LayerConfig(enabled=True, weight_growth=1.0, weight_inflation=1.0),
+                "market_implied": LayerConfig(enabled=False),
+                "macro_truth_ml": LayerConfig(enabled=False, model_type="svm"),
+                "return_truth_ml": LayerConfig(enabled=False, model_type="svm"),
+            }
+        ),
+        macro_panel=_macro_panel((1.0, 1.0), n=90),
+        macro_specs=_macro_specs(),
+        macro_concepts=_macro_concepts(),
+        market_panel=_market_panel(risk_high=True),
+        market_config=_risk_only_market_config(),
+    )[-1]
+
+    assert latest.risk_overlay_on is True
+    assert latest.risk_output.risk_state == "Stress"
+    assert "Stress Overlay" in latest.final_regime
 
 
 def test_disabled_ml_layers_and_missing_contributors_do_not_break_output() -> None:

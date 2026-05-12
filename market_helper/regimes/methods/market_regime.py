@@ -366,6 +366,20 @@ def compute_market_axis_scores(
     return out.reset_index().rename(columns={"index": "date"})
 
 
+def compute_market_risk_overlay_states(
+    panel: pd.DataFrame,
+    config: MarketRegimeConfig,
+) -> pd.DataFrame:
+    """Compute the independent market risk overlay without requiring axis data.
+
+    The v2 engine treats risk/stress as a standalone overlay. That means risk
+    rows must remain available even when growth/inflation signals are disabled
+    or missing on a given date.
+    """
+    scores = compute_market_axis_scores(panel, config)
+    return _risk_overlay_rows(scores, config)
+
+
 class MarketRegimeMethod:
     name = "market_regime"
 
@@ -376,6 +390,15 @@ class MarketRegimeMethod:
         scores = compute_market_axis_scores(panel, self.config)
         if scores.empty:
             return []
+        risk_rows = _risk_overlay_rows(scores, self.config)
+        risk_by_date = {
+            pd.Timestamp(row["date"]).strftime("%Y-%m-%d"): {
+                "risk_overlay_on": bool(row["risk_overlay_on"]),
+                "risk_intensity": float(row["risk_intensity"]),
+                "risk_regime": str(row["risk_regime"]),
+            }
+            for row in risk_rows.to_dict(orient="records")
+        }
         usable = scores.sort_values("date").dropna(
             subset=["growth", "inflation"], how="all"
         ).reset_index(drop=True)
@@ -391,13 +414,6 @@ class MarketRegimeMethod:
             quadrant_from_signs(g, i) for g, i in zip(growth_sides, inflation_sides)
         ]
         durations = compute_duration_days(quadrants)
-        crisis_flags, crisis_intensities, risk_regimes = _risk_overlay(
-            usable["risk_score"].fillna(0.0).tolist(),
-            enter_threshold=self.config.risk_enter_threshold,
-            exit_threshold=self.config.risk_exit_threshold,
-            min_consecutive_days=self.config.risk_min_consecutive_days,
-            zscore_clip=self.config.zscore_clip,
-        )
         records = usable.to_dict(orient="records")
         growth_signal_names = [s.name for s in self.config.signals if s.axis == "growth"]
         inflation_signal_names = [s.name for s in self.config.signals if s.axis == "inflation"]
@@ -427,17 +443,22 @@ class MarketRegimeMethod:
             return _driver_map(row_dict, risk_signal_names)
 
         results: List[MethodResult] = []
-        for row, qlabel, duration, g_pos, i_pos, crisis, intensity, risk_regime in zip(
+        for row, qlabel, duration, g_pos, i_pos in zip(
             records,
             quadrants,
             durations,
             growth_sides,
             inflation_sides,
-            crisis_flags,
-            crisis_intensities,
-            risk_regimes,
         ):
             as_of = pd.Timestamp(row["date"]).strftime("%Y-%m-%d")
+            risk_meta = risk_by_date.get(
+                as_of,
+                {
+                    "risk_overlay_on": False,
+                    "risk_intensity": 0.0,
+                    "risk_regime": "neutral",
+                },
+            )
             axes = GrowthInflationAxes(
                 as_of=as_of,
                 growth_score=_safe_float(row.get("growth")),
@@ -449,7 +470,7 @@ class MarketRegimeMethod:
                 ),
             )
             diag: dict[str, Any] = {
-                "risk_regime": risk_regime,
+                "risk_regime": risk_meta["risk_regime"],
                 "risk_score": _safe_float(row.get("risk_score")),
                 "risk_drivers": _risk_drivers(row),
                 "hysteresis_growth_positive": bool(g_pos),
@@ -482,8 +503,8 @@ class MarketRegimeMethod:
                 as_of=as_of,
                 quadrant=qlabel,
                 axes=axes,
-                crisis_flag=bool(crisis),
-                crisis_intensity=float(intensity),
+                crisis_flag=bool(risk_meta["risk_overlay_on"]),
+                crisis_intensity=float(risk_meta["risk_intensity"]),
                 duration_days=int(duration),
                 diagnostics=diag,
             )
@@ -492,10 +513,10 @@ class MarketRegimeMethod:
                     as_of=as_of,
                     method_name=self.name,
                     quadrant=quadrant,
-                    native_label=f"{qlabel} / {risk_regime}",
+                    native_label=f"{qlabel} / {risk_meta['risk_regime']}",
                     native_detail={
                         "risk_score": _safe_float(row.get("risk_score")),
-                        "risk_regime": risk_regime,
+                        "risk_regime": risk_meta["risk_regime"],
                     },
                 )
             )
@@ -740,6 +761,29 @@ def _risk_overlay(
     return flags, intensities, regimes
 
 
+def _risk_overlay_rows(
+    scores: pd.DataFrame,
+    config: MarketRegimeConfig,
+) -> pd.DataFrame:
+    if scores.empty or "risk_score" not in scores.columns:
+        return pd.DataFrame()
+    usable = scores.sort_values("date").dropna(subset=["risk_score"]).reset_index(drop=True)
+    if usable.empty:
+        return usable
+    flags, intensities, regimes = _risk_overlay(
+        usable["risk_score"].tolist(),
+        enter_threshold=config.risk_enter_threshold,
+        exit_threshold=config.risk_exit_threshold,
+        min_consecutive_days=config.risk_min_consecutive_days,
+        zscore_clip=config.zscore_clip,
+    )
+    out = usable.copy()
+    out["risk_overlay_on"] = flags
+    out["risk_intensity"] = intensities
+    out["risk_regime"] = regimes
+    return out
+
+
 def _clip(series: pd.Series, limit: float) -> pd.Series:
     if limit <= 0 or not math.isfinite(limit):
         return series
@@ -794,6 +838,7 @@ __all__ = [
     "MarketRegimeMethod",
     "MarketSignalSpec",
     "compute_market_axis_scores",
+    "compute_market_risk_overlay_states",
     "load_market_regime_config",
     "market_symbol_specs_from_config",
 ]

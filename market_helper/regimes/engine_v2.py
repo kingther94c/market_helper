@@ -21,7 +21,7 @@ from market_helper.regimes.methods.macro_regime import MacroRegimeConfig, MacroR
 from market_helper.regimes.methods.market_regime import (
     MarketRegimeConfig,
     MarketRegimeMethod,
-    compute_market_axis_scores,
+    compute_market_risk_overlay_states,
 )
 from market_helper.regimes.ml import (
     ConfiguredRegimeModelSelector,
@@ -524,18 +524,37 @@ def _risk_outputs_by_date(
 ) -> dict[str, RiskOverlayResult]:
     if not config.risk_overlay.enabled or market_panel is None or market_config is None:
         return {}
-    scores = compute_market_axis_scores(market_panel, market_config)
-    if scores.empty or "risk_score" not in scores.columns:
+    risks = compute_market_risk_overlay_states(market_panel, market_config)
+    if risks.empty:
         return {}
-    risks = MarketRegimeMethod(market_config).classify(market_panel)
+    risk_signal_names = [signal.name for signal in market_config.signals if signal.axis == "risk"]
+    risk_concept_names = [concept.name for concept in market_config.concepts if concept.axis == "risk"]
+    use_concepts = bool(market_config.concepts)
     by_date: dict[str, RiskOverlayResult] = {}
-    for result in risks:
-        detail = result.quadrant.diagnostics
-        risk_score = _safe_float(detail.get("risk_score"))
-        drivers = dict(detail.get("risk_drivers", {}))
+    for row in risks.to_dict(orient="records"):
+        drivers = (
+            {
+                name: _safe_float(row.get(f"concept:risk:{name}"))
+                for name in risk_concept_names
+                if row.get(f"concept:risk:{name}") is not None
+            }
+            if use_concepts
+            else {
+                name: _safe_float(row.get(f"contrib:{name}"))
+                for name in risk_signal_names
+                if row.get(f"contrib:{name}") is not None
+            }
+        )
+        drivers = {
+            name: value
+            for name, value in drivers.items()
+            if not math.isnan(value)
+        }
         positives, negatives = _split_contributors(drivers)
-        on = bool(result.quadrant.crisis_flag)
-        by_date[result.as_of] = RiskOverlayResult(
+        risk_score = _safe_float(row.get("risk_score"))
+        on = bool(row.get("risk_overlay_on"))
+        as_of = pd.Timestamp(row["date"]).strftime("%Y-%m-%d")
+        by_date[as_of] = RiskOverlayResult(
             risk_score=risk_score,
             risk_overlay_on=on,
             risk_state="Stress" if on else ("Risk On" if risk_score < 0 else "Neutral"),
@@ -543,7 +562,7 @@ def _risk_outputs_by_date(
             top_positive_contributors=positives,
             top_negative_contributors=negatives,
             diagnostics={
-                "risk_regime": detail.get("risk_regime"),
+                "risk_regime": row.get("risk_regime"),
                 "independent": bool(config.risk_overlay.independent),
             },
         )

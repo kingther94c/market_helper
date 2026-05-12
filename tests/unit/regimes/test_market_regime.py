@@ -10,6 +10,7 @@ from market_helper.regimes.methods.market_regime import (
     MarketRegimeMethod,
     MarketSignalSpec,
     compute_market_axis_scores,
+    compute_market_risk_overlay_states,
 )
 
 
@@ -85,6 +86,26 @@ def test_market_risk_overlay_triggers_on_high_vix() -> None:
     results = MarketRegimeMethod(cfg).classify(_panel())
     assert results[-1].quadrant.crisis_flag is True
     assert results[-1].quadrant.diagnostics["risk_regime"] == "risk_off"
+
+
+def test_market_risk_overlay_is_available_without_growth_or_inflation_signals() -> None:
+    cfg = MarketRegimeConfig(
+        signals=[
+            MarketSignalSpec(
+                name="vix",
+                axis="risk",
+                symbol="VIX",
+                transform="level_zscore",
+                zscore_window_days=30,
+            ),
+        ],
+        risk_min_consecutive_days=1,
+        risk_enter_threshold=0.5,
+    )
+    scores = compute_market_risk_overlay_states(_panel(), cfg)
+    latest = scores.dropna(subset=["risk_score"]).iloc[-1]
+    assert bool(latest["risk_overlay_on"]) is True
+    assert latest["risk_regime"] == "risk_off"
 
 
 def test_market_axis_scores_include_driver_contributions() -> None:
