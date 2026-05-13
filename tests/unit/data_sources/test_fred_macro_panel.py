@@ -9,6 +9,7 @@ import yaml
 
 from market_helper.data_sources.fred import macro_panel as mp
 from market_helper.data_sources.fred.macro_panel import (
+    FRESHNESS_AGE_COLUMN_PREFIX,
     SeriesSpec,
     apply_transform,
     build_panel,
@@ -271,10 +272,13 @@ def test_build_panel_forward_fills_with_publication_lag(tmp_path: Path) -> None:
     # Jan observation: period end = 2020-01-31; released on 2020-02-10.
     assert pd.isna(panel.loc[pd.Timestamp("2020-02-07"), "TEST"])
     assert panel.loc[pd.Timestamp("2020-02-10"), "TEST"] == 1.0
+    assert panel.loc[pd.Timestamp("2020-02-10"), f"{FRESHNESS_AGE_COLUMN_PREFIX}TEST"] == 0.0
     # ffill into a mid-month bday
     assert panel.loc[pd.Timestamp("2020-02-20"), "TEST"] == 1.0
+    assert panel.loc[pd.Timestamp("2020-02-20"), f"{FRESHNESS_AGE_COLUMN_PREFIX}TEST"] == 8.0
     # Feb observation: period end = 2020-02-29; released on 2020-03-10.
     assert panel.loc[pd.Timestamp("2020-03-10"), "TEST"] == 2.0
+    assert panel.loc[pd.Timestamp("2020-03-10"), f"{FRESHNESS_AGE_COLUMN_PREFIX}TEST"] == 0.0
 
 
 def test_build_panel_multi_series_joins_independently(tmp_path: Path) -> None:
@@ -306,7 +310,13 @@ def test_build_panel_multi_series_joins_independently(tmp_path: Path) -> None:
         start_date="2020-01-31",
         end_date="2020-04-10",
     )
-    assert set(panel.columns) == {"date", "FAST", "SLOW"}
+    assert set(panel.columns) == {
+        "date",
+        "FAST",
+        "SLOW",
+        f"{FRESHNESS_AGE_COLUMN_PREFIX}FAST",
+        f"{FRESHNESS_AGE_COLUMN_PREFIX}SLOW",
+    }
     indexed = panel.set_index("date")
     # Before SLOW releases, FAST is populated but SLOW is NaN.
     snapshot = indexed.loc[pd.Timestamp("2020-02-28")]

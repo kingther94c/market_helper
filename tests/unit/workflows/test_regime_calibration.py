@@ -13,6 +13,7 @@ from market_helper.regimes.methods.macro_regime import MacroRegimeConfig
 from market_helper.regimes.methods.market_regime import MarketRegimeConfig, MarketSignalSpec
 from market_helper.workflows.regime_calibration import (
     AnchorPeriod,
+    build_calibration_audit,
     run_regime_v2_calibration,
     summarize_anchor_period_rows,
     summarize_anchor_periods,
@@ -145,13 +146,19 @@ def test_calibration_workflow_writes_html_summary_and_question_notebook(tmp_path
     assert artifacts.notebook_path == notebook_path
     assert html_path.exists()
     assert artifacts.daily_json_path.exists()
+    assert artifacts.audit_json_path.exists()
+    assert artifacts.q7_notebook_path.name == "regime_v2_calibration_q7.ipynb"
     daily = json.loads(artifacts.daily_json_path.read_text(encoding="utf-8"))
     assert daily
+    assert "data_mode" in daily[0]
     assert "layer_outputs" not in daily[0]
     assert "top_contributors" not in daily[0]
     assert "risk_state" not in daily[0]
+    audit_payload = json.loads(artifacts.audit_json_path.read_text(encoding="utf-8"))
+    assert {item["round"] for item in audit_payload["decisions"]} >= {"Q1", "Q2", "Q3", "Q4"}
     html = html_path.read_text(encoding="utf-8")
     assert "Regime Engine v2 Calibration Report" in html
+    assert "Q1-Q6 Decision Audit" in html
     assert "2025 April Liberation Day Tariff Shock" in html
     assert "Market Cover" in html
     notebook = json.loads(notebook_path.read_text(encoding="utf-8"))
@@ -297,6 +304,93 @@ def test_anchor_summary_can_reuse_prepared_rows_without_full_result_dicts() -> N
     assert summaries[0]["macro_coverage_share"] == 1.0
     assert summaries[0]["market_coverage_share"] == 0.0
     assert summaries[0]["top_contributors"] == [("macro_nowcast:G", 1.0)]
+
+
+def test_anchor_summary_exposes_phase_and_response_metrics() -> None:
+    rows = []
+    labels = [
+        "Neutral/Mixed Growth / Neutral/Mixed Inflation",
+        "Reflation",
+        "Reflation",
+        "Neutral/Mixed Growth / Neutral/Mixed Inflation",
+        "Goldilocks / Expansion",
+        "Neutral/Mixed Growth / Neutral/Mixed Inflation",
+    ]
+    for idx, date in enumerate(pd.bdate_range("2020-07-01", periods=len(labels))):
+        rows.append(
+            {
+                "date": date.strftime("%Y-%m-%d"),
+                "data_mode": "full_ensemble" if idx < 4 else "market_only",
+                "final_regime": labels[idx],
+                "base_regime": labels[idx],
+                "confidence": "Medium",
+                "disagreement_flag": False,
+                "final_growth_score": 0.2,
+                "final_inflation_score": 0.2,
+                "risk_score": 0.0,
+                "risk_overlay_on": False,
+                "macro_growth_score": 0.2,
+                "macro_inflation_score": 0.2,
+                "market_growth_score": 0.2,
+                "market_inflation_score": 0.2,
+                "top_contributors": [],
+                "risk_state": "Neutral",
+            }
+        )
+
+    summaries = summarize_anchor_period_rows(
+        rows,
+        anchors=[
+            AnchorPeriod(
+                "2020 H2-2021 Reopening",
+                "2020-07-01",
+                "2020-07-08",
+                "Reflation.",
+                "Question?",
+            )
+        ],
+    )
+    summary = summaries[0]
+
+    assert summary["first_target_match_date"] == "2020-07-02"
+    assert summary["target_response_lag_bdays"] == 1
+    assert summary["target_match_share"] == 0.5
+    assert dict(summary["data_mode_counts"]) == {"full_ensemble": 4, "market_only": 2}
+    assert dict(summary["phase_counts"]["early"]) == {
+        "Neutral/Mixed Growth / Neutral/Mixed Inflation": 1,
+        "Reflation": 1,
+    }
+    assert dict(summary["phase_counts"]["late"]) == {
+        "Goldilocks / Expansion": 1,
+        "Neutral/Mixed Growth / Neutral/Mixed Inflation": 1,
+    }
+
+
+def test_q7_audit_marks_q1_to_q4_decision_statuses() -> None:
+    audit = build_calibration_audit(
+        [
+            {"name": "2008-09 GFC", "stress_share": 0.29, "final_regime_majority": "Slowdown"},
+            {"name": "2018 Q4 Selloff", "stress_share": 0.09, "final_regime_majority": "Slowdown"},
+            {
+                "name": "2025 April Liberation Day Tariff Shock",
+                "stress_share": 0.11,
+                "final_regime_majority": "Down Growth / Neutral/Mixed Inflation",
+            },
+        ],
+        {
+            "macro_panel": {"end": "2026-04-29"},
+            "market_panel": {"end": "2026-05-08"},
+        },
+    )
+
+    statuses = {row["round"]: row["status"] for row in audit}
+    assert statuses["Q1"] == "still_valid"
+    assert statuses["Q2"] == "still_valid"
+    assert statuses["Q3"] == "superseded"
+    assert statuses["Q4"] == "needs_retest"
+    assert set(statuses.values()) <= {"still_valid", "superseded", "needs_retest"}
+    q4 = next(row for row in audit if row["round"] == "Q4")
+    assert "GFC 29%" in q4["current_evidence"]
 
 
 def test_cli_regime_calibrate_v2_dispatches(tmp_path: Path) -> None:

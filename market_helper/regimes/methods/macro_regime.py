@@ -26,6 +26,7 @@ import pandas as pd
 
 from market_helper.data_sources.fred.macro_panel import (
     ConceptSpec,
+    FRESHNESS_AGE_COLUMN_PREFIX,
     SeriesSpec,
     load_concept_specs,
     load_engine_block,
@@ -59,6 +60,9 @@ class MacroRegimeConfig:
     compression_k: float = 2.0
     # Concept-aggregation tuning.
     min_concept_coverage: float = 0.0  # min fraction of within-weight available
+    recency_weighting_enabled: bool = False
+    recency_half_life_bdays: float = 21.0
+    recency_min_weight: float = 0.25
     min_consecutive_days: int = 10
     warmup_bdays: int = 0
 
@@ -72,6 +76,8 @@ def load_macro_regime_config(
         return MacroRegimeConfig()
     block = load_engine_block(config_path)
     defaults = MacroRegimeConfig()
+    recency = block.get("recency_weighting", {})
+    recency = recency if isinstance(recency, Mapping) else {}
     return MacroRegimeConfig(
         default_normalization=str(
             block.get("default_normalization", defaults.default_normalization)
@@ -102,6 +108,27 @@ def load_macro_regime_config(
         compression_k=float(block.get("compression_k", defaults.compression_k)),
         min_concept_coverage=float(
             block.get("min_concept_coverage", defaults.min_concept_coverage)
+        ),
+        recency_weighting_enabled=bool(
+            recency.get(
+                "enabled",
+                block.get(
+                    "recency_weighting_enabled",
+                    defaults.recency_weighting_enabled,
+                ),
+            )
+        ),
+        recency_half_life_bdays=float(
+            recency.get(
+                "half_life_bdays",
+                block.get("recency_half_life_bdays", defaults.recency_half_life_bdays),
+            )
+        ),
+        recency_min_weight=float(
+            recency.get(
+                "min_weight",
+                block.get("recency_min_weight", defaults.recency_min_weight),
+            )
         ),
         min_consecutive_days=int(
             block.get("min_consecutive_days", defaults.min_consecutive_days)
@@ -241,6 +268,34 @@ def _compress(series: pd.Series, config: MacroRegimeConfig) -> pd.Series:
     return series
 
 
+def _recency_weight_for_series(
+    frame: pd.DataFrame,
+    series_id: str,
+    *,
+    config: MacroRegimeConfig,
+) -> pd.Series:
+    if not config.recency_weighting_enabled:
+        return pd.Series(1.0, index=frame.index)
+    half_life = max(float(config.recency_half_life_bdays), 1e-9)
+    floor = min(max(float(config.recency_min_weight), 0.0), 1.0)
+    age = _series_age_bdays(frame, series_id)
+    with np.errstate(invalid="ignore"):
+        weight = np.power(0.5, age.astype(float) / half_life)
+    return weight.clip(lower=floor, upper=1.0).where(age.notna())
+
+
+def _series_age_bdays(frame: pd.DataFrame, series_id: str) -> pd.Series:
+    age_col = f"{FRESHNESS_AGE_COLUMN_PREFIX}{series_id}"
+    if age_col in frame.columns:
+        return pd.to_numeric(frame[age_col], errors="coerce")
+    series = frame[series_id]
+    valid = series.notna()
+    changed_or_started = valid & (series.ne(series.shift()) | series.shift().isna())
+    positions = pd.Series(np.arange(len(series), dtype=float), index=series.index)
+    release_positions = positions.where(changed_or_started).ffill()
+    return positions - release_positions
+
+
 def compute_macro_axis_scores(
     panel: pd.DataFrame,
     specs: Sequence[SeriesSpec],
@@ -276,12 +331,18 @@ def compute_macro_axis_scores(
 
     spec_by_id = {s.series_id: s for s in specs}
     contribs: dict[str, pd.Series] = {}
+    recency_weights: dict[str, pd.Series] = {}
     for sid, spec in spec_by_id.items():
         if sid not in frame.columns:
             continue
         signal = _signed_signal(frame[sid], spec)
         normalized = _normalize_signal(signal, spec, config=config)
         contribs[sid] = _compress(normalized, config)
+        recency_weights[sid] = _recency_weight_for_series(
+            frame,
+            sid,
+            config=config,
+        )
 
     concepts_by_axis: dict[str, list[ConceptSpec]] = {"growth": [], "inflation": []}
     for c in concepts:
@@ -301,9 +362,16 @@ def compute_macro_axis_scores(
                 continue
             cols = pd.DataFrame({sid: contribs[sid] for sid, _ in available_members})
             weights = pd.Series({sid: float(w) for sid, w in available_members}).reindex(cols.columns)
+            freshness = pd.DataFrame(
+                {sid: recency_weights[sid] for sid, _ in available_members}
+            ).reindex(columns=cols.columns)
             mask = cols.notna().astype(float)
-            effective = mask.mul(weights, axis=1).sum(axis=1)
-            score = cols.fillna(0.0).mul(weights, axis=1).sum(axis=1) / effective.replace(0.0, np.nan)
+            effective_weights = mask.mul(weights, axis=1).mul(
+                freshness.fillna(0.0),
+                axis=1,
+            )
+            effective = effective_weights.sum(axis=1)
+            score = cols.fillna(0.0).mul(effective_weights, axis=1).sum(axis=1) / effective.replace(0.0, np.nan)
             total_weight = float(sum(concept.members.values())) or 1.0
             availability = (effective / total_weight).clip(lower=0.0, upper=1.0)
             score = score.where(availability >= float(config.min_concept_coverage))
@@ -322,9 +390,9 @@ def compute_macro_axis_scores(
             score = concept_scores[(axis, concept.name)]
             availability = concept_avail[(axis, concept.name)]
             usable = (availability > 0) & score.notna()
-            w = float(concept.weight)
-            weighted_sum = weighted_sum + score.where(usable, 0.0) * w
-            weight_sum = weight_sum + usable.astype(float) * w
+            effective_concept_weight = availability.where(usable, 0.0) * float(concept.weight)
+            weighted_sum = weighted_sum + score.where(usable, 0.0) * effective_concept_weight
+            weight_sum = weight_sum + effective_concept_weight
         score = weighted_sum / weight_sum.replace(0.0, np.nan)
         confidence = (weight_sum / total_weight).clip(lower=0.0, upper=1.0)
         return score, confidence
@@ -342,8 +410,12 @@ def compute_macro_axis_scores(
     )
     for (axis, name), score in concept_scores.items():
         out[f"concept:{axis}:{name}"] = score
+    for (axis, name), availability in concept_avail.items():
+        out[f"concept_availability:{axis}:{name}"] = availability
     for sid, series in contribs.items():
         out[f"contrib:{sid}"] = series
+    for sid, series in recency_weights.items():
+        out[f"recency_weight:{sid}"] = series
     return out.reset_index().rename(columns={"index": "date"})
 
 
@@ -423,6 +495,13 @@ class MacroRegimeMethod:
                         }
                         for axis in ("growth", "inflation")
                     },
+                    "concept_availability": {
+                        axis: {
+                            name: _safe_float(row_dict.get(f"concept_availability:{axis}:{name}"))
+                            for name in (concept_growth if axis == "growth" else concept_inflation)
+                        }
+                        for axis in ("growth", "inflation")
+                    },
                     "concept_weights": {
                         axis: {
                             c.name: float(c.weight)
@@ -430,6 +509,15 @@ class MacroRegimeMethod:
                             if c.axis == axis
                         }
                         for axis in ("growth", "inflation")
+                    },
+                    "recency_weighting": {
+                        "enabled": bool(self.config.recency_weighting_enabled),
+                        "half_life_bdays": float(self.config.recency_half_life_bdays),
+                        "min_weight": float(self.config.recency_min_weight),
+                    },
+                    "recency_weights": {
+                        sid: _safe_float(row_dict.get(f"recency_weight:{sid}"))
+                        for sid in _active_concept_members(self.concepts)
                     },
                 },
             )
@@ -468,6 +556,17 @@ def _concept_driver_map(
         if f"concept:{axis}:{name}" in row_dict
         and not _is_nan(row_dict.get(f"concept:{axis}:{name}"))
     }
+
+
+def _active_concept_members(concepts: Sequence[ConceptSpec]) -> list[str]:
+    seen: set[str] = set()
+    out: list[str] = []
+    for concept in concepts:
+        for sid in concept.members:
+            if sid not in seen:
+                seen.add(sid)
+                out.append(sid)
+    return out
 
 
 def _safe_float(value: object) -> float:

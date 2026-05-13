@@ -137,6 +137,9 @@ class RegimeHtmlViewModel:
     confidence_strength: float | None = None
     confidence_threshold_medium: float | None = None
     confidence_threshold_high: float | None = None
+    data_mode: str | None = None
+    available_primary_layers: list[str] = field(default_factory=list)
+    missing_primary_layers: list[str] = field(default_factory=list)
 
 
 def build_regime_html_view_model(
@@ -203,13 +206,22 @@ def _render_v2_regime_section_body(
             f"<span>Base Regime</span><strong>{html.escape(view_model.base_regime)}</strong>"
             "</p>"
         )
+    mode_note = ""
+    if view_model.data_mode:
+        mode_label = view_model.data_mode.replace("_", " ")
+        missing = (
+            f"; missing {', '.join(view_model.missing_primary_layers)}"
+            if view_model.missing_primary_layers
+            else ""
+        )
+        mode_note = f" · data mode: {html.escape(mode_label + missing)}"
     return (
         "<header class='regime-v2-hero'>"
         "<div class='regime-v2-hero__main'>"
         "<p class='regime-eyebrow'>Regime Engine v2</p>"
         f"<h2 class='regime-headline'>{html.escape(view_model.regime)}{stale_tag}</h2>"
         f"{base_line}"
-        f"<p class='regime-meta'>As of {html.escape(format_local_datetime(view_model.as_of))} · two macro axes with independent risk overlay</p>"
+        f"<p class='regime-meta'>As of {html.escape(format_local_datetime(view_model.as_of))} · two macro axes with independent risk overlay{mode_note}</p>"
         "</div>"
         f"{_render_status_cards(view_model)}"
         "</header>"
@@ -423,6 +435,13 @@ def _build_v2_view_model(payload: list[Any]) -> RegimeHtmlViewModel:
         confidence_strength=confidence_strength,
         confidence_threshold_medium=threshold_medium,
         confidence_threshold_high=threshold_high,
+        data_mode=str(latest.get("data_mode") or ""),
+        available_primary_layers=[
+            str(item) for item in latest.get("available_primary_layers", []) if item
+        ],
+        missing_primary_layers=[
+            str(item) for item in latest.get("missing_primary_layers", []) if item
+        ],
     )
 
 

@@ -38,6 +38,12 @@ CONFIDENCE_HIGH = "High"
 CONFIDENCE_MEDIUM = "Medium"
 CONFIDENCE_LOW = "Low"
 
+PRIMARY_ENSEMBLE_LAYERS = ("macro_nowcast", "market_implied")
+DATA_MODE_FULL_ENSEMBLE = "full_ensemble"
+DATA_MODE_MARKET_ONLY = "market_only"
+DATA_MODE_MACRO_ONLY = "macro_only"
+DATA_MODE_NO_PRIMARY_LAYER = "no_primary_layer"
+
 
 @dataclass(frozen=True)
 class LayerConfig:
@@ -170,6 +176,9 @@ class FinalRegimeResult:
     ml_return_inflation_score: float | None
     layer_outputs: list[RegimeLayerResult]
     risk_output: RiskOverlayResult
+    data_mode: str = DATA_MODE_NO_PRIMARY_LAYER
+    available_primary_layers: list[str] = field(default_factory=list)
+    missing_primary_layers: list[str] = field(default_factory=list)
     top_contributors: list[tuple[str, float]] = field(default_factory=list)
     # min(|final_growth_score|, |final_inflation_score|) — same expression
     # the confidence rule uses; surfaced so the dashboard can show *why*
@@ -391,6 +400,9 @@ def run_regime_engine_v2(
         disagreement_flag, disagreement_summary = _disagreement(layer_outputs, cfg)
         confidence = _confidence(final_growth, final_inflation, disagreement_flag, cfg)
         confidence_strength = min(abs(final_growth), abs(final_inflation))
+        data_mode, available_primary_layers, missing_primary_layers = _data_mode_from_layers(
+            layer_outputs
+        )
         confidence_thresholds = {
             "medium": float(cfg.confidence.medium),
             "high": float(cfg.confidence.high),
@@ -420,6 +432,9 @@ def run_regime_engine_v2(
                 ml_return_inflation_score=_score_for(layer_outputs, "return_truth_ml", "inflation"),
                 layer_outputs=layer_outputs,
                 risk_output=risk_output,
+                data_mode=data_mode,
+                available_primary_layers=available_primary_layers,
+                missing_primary_layers=missing_primary_layers,
                 confidence_strength=float(confidence_strength),
                 confidence_thresholds=confidence_thresholds,
                 disagreement_penalty_active=disagreement_penalty_active,
@@ -623,6 +638,29 @@ def _disagreement(
     return True, f"Layer disagreement: {labels}"
 
 
+def _data_mode_from_layers(layers: Sequence[RegimeLayerResult]) -> tuple[str, list[str], list[str]]:
+    by_name = {layer.layer_name: layer for layer in layers}
+    available: list[str] = []
+    missing: list[str] = []
+    for layer_name in PRIMARY_ENSEMBLE_LAYERS:
+        layer = by_name.get(layer_name)
+        if layer is None or not layer.enabled:
+            continue
+        if layer.available:
+            available.append(layer_name)
+        else:
+            missing.append(layer_name)
+    if available == list(PRIMARY_ENSEMBLE_LAYERS):
+        mode = DATA_MODE_FULL_ENSEMBLE
+    elif available == ["market_implied"]:
+        mode = DATA_MODE_MARKET_ONLY
+    elif available == ["macro_nowcast"]:
+        mode = DATA_MODE_MACRO_ONLY
+    else:
+        mode = DATA_MODE_NO_PRIMARY_LAYER
+    return mode, available, missing
+
+
 def _axis_has_opposing_layers(
     layers: Sequence[RegimeLayerResult],
     axis: str,
@@ -742,6 +780,10 @@ __all__ = [
     "CONFIDENCE_LOW",
     "CONFIDENCE_MEDIUM",
     "ConfidenceConfig",
+    "DATA_MODE_FULL_ENSEMBLE",
+    "DATA_MODE_MACRO_ONLY",
+    "DATA_MODE_MARKET_ONLY",
+    "DATA_MODE_NO_PRIMARY_LAYER",
     "DisagreementConfig",
     "FinalRegimeResult",
     "LayerConfig",

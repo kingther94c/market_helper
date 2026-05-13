@@ -172,6 +172,67 @@ def test_macro_tanh_compression_bounds_contributions() -> None:
     assert ((contrib > -1.0) & (contrib < 1.0)).all()
 
 
+def test_recency_weighting_decays_within_concept_member_weights() -> None:
+    panel = pd.DataFrame(
+        {
+            "date": pd.bdate_range("2024-01-01", periods=1),
+            "STALE": [1.0],
+            "_age_bdays:STALE": [10.0],
+            "FRESH": [-1.0],
+            "_age_bdays:FRESH": [0.0],
+        }
+    )
+    specs = [
+        SeriesSpec(series_id="STALE", axis="growth", transform="level"),
+        SeriesSpec(series_id="FRESH", axis="growth", transform="level"),
+    ]
+    concepts = [_concept("g", "growth", {"STALE": 1.0, "FRESH": 1.0}, weight=1.0)]
+    cfg = MacroRegimeConfig(
+        recency_weighting_enabled=True,
+        recency_half_life_bdays=10.0,
+        recency_min_weight=0.0,
+    )
+
+    scores = compute_macro_axis_scores(panel, specs, concepts, config=cfg).iloc[-1]
+
+    assert scores["recency_weight:STALE"] == pytest.approx(0.5)
+    assert scores["recency_weight:FRESH"] == pytest.approx(1.0)
+    assert scores["growth"] == pytest.approx(-1 / 3)
+    assert scores["growth_confidence"] == pytest.approx(0.75)
+
+
+def test_recency_weighting_scales_concept_weight_without_overwriting_basket_weight() -> None:
+    panel = pd.DataFrame(
+        {
+            "date": pd.bdate_range("2024-01-01", periods=1),
+            "A": [1.0],
+            "_age_bdays:A": [10.0],
+            "B": [-1.0],
+            "_age_bdays:B": [0.0],
+        }
+    )
+    specs = [
+        SeriesSpec(series_id="A", axis="growth", transform="level"),
+        SeriesSpec(series_id="B", axis="growth", transform="level"),
+    ]
+    concepts = [
+        _concept("stale_concept", "growth", {"A": 1.0}, weight=2.0),
+        _concept("fresh_concept", "growth", {"B": 1.0}, weight=1.0),
+    ]
+    cfg = MacroRegimeConfig(
+        recency_weighting_enabled=True,
+        recency_half_life_bdays=10.0,
+        recency_min_weight=0.0,
+    )
+
+    scores = compute_macro_axis_scores(panel, specs, concepts, config=cfg).iloc[-1]
+
+    # Semantic concept weights remain 2:1, but stale_concept uses only 50% of
+    # its max weight, so effective concept weights are tied at 1:1.
+    assert scores["growth"] == pytest.approx(0.0)
+    assert scores["growth_confidence"] == pytest.approx(2 / 3)
+
+
 def test_macro_engine_block_round_trip_through_yaml(tmp_path) -> None:
     from market_helper.regimes.methods.macro_regime import load_macro_regime_config
 
@@ -182,6 +243,10 @@ def test_macro_engine_block_round_trip_through_yaml(tmp_path) -> None:
         "  zscore_clip: 2.5\n"
         "  compression: tanh\n"
         "  compression_k: 1.5\n"
+        "  recency_weighting:\n"
+        "    enabled: true\n"
+        "    half_life_bdays: 13\n"
+        "    min_weight: 0.2\n"
         "  min_consecutive_days: 7\n"
         "series: []\n"
     )
@@ -190,6 +255,9 @@ def test_macro_engine_block_round_trip_through_yaml(tmp_path) -> None:
     assert cfg.zscore_clip == 2.5
     assert cfg.compression == "tanh"
     assert cfg.compression_k == 1.5
+    assert cfg.recency_weighting_enabled is True
+    assert cfg.recency_half_life_bdays == 13
+    assert cfg.recency_min_weight == 0.2
     assert cfg.min_consecutive_days == 7
 
 

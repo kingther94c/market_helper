@@ -21,6 +21,9 @@ def test_build_regime_html_view_model_accepts_v2_payload(tmp_path: Path) -> None
                 {
                     "date": "2026-01-03",
                     "version": "regime-engine-v2",
+                    "data_mode": "market_only",
+                    "available_primary_layers": ["market_implied"],
+                    "missing_primary_layers": ["macro_nowcast"],
                     "final_regime": "Reflation + Stress Overlay",
                     "base_regime": "Reflation",
                     "confidence": "Medium",
@@ -99,6 +102,8 @@ def test_build_regime_html_view_model_accepts_v2_payload(tmp_path: Path) -> None
     assert view_model.layers[2].status == "Disabled"
     assert view_model.risk_overlay is not None
     assert view_model.risk_overlay.risk_overlay_on is True
+    assert view_model.data_mode == "market_only"
+    assert view_model.missing_primary_layers == ["macro_nowcast"]
 
     fragment = render_regime_section_body(view_model)
     assert "Regime Engine v2" in fragment
@@ -108,6 +113,7 @@ def test_build_regime_html_view_model_accepts_v2_payload(tmp_path: Path) -> None
     assert "Risk Overlay Score" in fragment
     assert "Layer-State Heat Strip" in fragment
     assert "Disagreement: Yes" in fragment
+    assert "data mode: market only; missing macro_nowcast" in fragment
     assert "credit spreads: +0.42" in fragment
     assert "Crisis Intensity" not in fragment
 

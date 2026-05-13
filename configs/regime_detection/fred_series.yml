@@ -6,6 +6,7 @@
 #     -> direction sign         (positive | negative)
 #     -> normalization          (none / centered / threshold / zscore / minmax / percentile)
 #     -> compression (optional) (engine.compression: tanh)
+#     -> recency weight         (engine.recency_weighting, multiplicative)
 #     -> within-concept weighted mean
 #     -> across-concept weighted mean (axis score)
 #
@@ -14,6 +15,8 @@
 #   * Series within_weight = vote share inside the concept (compensates for
 #     redundancy among supporting series; e.g. UNRATE / PAYEMS are 0.93
 #     correlated and split a single labor-market concept 50/50).
+#   * Recency weighting is a multiplicative freshness adjustment on top of
+#     semantic concept/series weights; it does not replace the concept basket.
 #   * Series's own ``weight`` field is no longer used for aggregation. Series
 #     listed in a concept block are active; series omitted from every concept
 #     block are dormant (preview-only) regardless of their ``weight``.
@@ -37,6 +40,15 @@ engine:
   compression: tanh
   compression_k: 2.0
   min_concept_coverage: 0.0
+  # Macro releases are not daily. Downweight stale forward-filled observations
+  # between release dates, while leaving concept weights as the semantic max
+  # weight. The deliberately mild 42-bday half-life plus 65% floor makes
+  # weekly/daily macro releases matter more without erasing monthly concepts
+  # between releases.
+  recency_weighting:
+    enabled: true
+    half_life_bdays: 42
+    min_weight: 0.65
   min_consecutive_days: 10
   warmup_bdays: 0
 
@@ -267,8 +279,9 @@ growth_concepts:
   labor:
     weight: 1.0
     series:
-      UNRATE: 0.5
-      PAYEMS: 0.5
+      UNRATE: 0.35
+      PAYEMS: 0.35
+      ICSA: 0.30
 
   consumption:
     weight: 1.0

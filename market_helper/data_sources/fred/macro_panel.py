@@ -20,6 +20,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Dict, Iterable, List, Mapping, Optional, Sequence
 
+import numpy as np
 import pandas as pd
 import yaml
 
@@ -33,6 +34,7 @@ from market_helper.models import EconomicSeries
 DEFAULT_CACHE_DIR = Path("data/interim/fred")
 DEFAULT_PANEL_FILENAME = "macro_panel.feather"
 DEFAULT_META_FILENAME = "macro_panel_meta.yml"
+FRESHNESS_AGE_COLUMN_PREFIX = "_age_bdays:"
 
 _ALLOWED_TRANSFORMS = {
     "level",
@@ -503,14 +505,17 @@ def build_panel(
     panel = pd.DataFrame(index=index)
 
     for series_id, frame in raw_frames.items():
-        aligned = (
+        release_events = (
             frame.assign(release_bday=_next_bday(frame["release_date"]))
             .drop_duplicates("release_bday", keep="last")
-            .set_index("release_bday")["value"]
-            .reindex(index)
-            .ffill()
+            .set_index("release_bday")
         )
+        aligned = release_events["value"].reindex(index).ffill()
         panel[series_id] = aligned
+        panel[f"{FRESHNESS_AGE_COLUMN_PREFIX}{series_id}"] = _age_bdays_since_release(
+            index,
+            release_events.index,
+        )
 
     panel.index.name = "date"
     return panel.reset_index()
@@ -521,6 +526,18 @@ def _next_bday(dates: pd.Series) -> pd.Series:
     return pd.to_datetime(dates).apply(
         lambda d: d if d.weekday() < 5 else d + pd.offsets.BDay(1)
     )
+
+
+def _age_bdays_since_release(
+    index: pd.DatetimeIndex,
+    release_dates: pd.DatetimeIndex,
+) -> pd.Series:
+    positions = pd.Series(np.arange(len(index), dtype=float), index=index)
+    release_positions = pd.Series(np.nan, index=index)
+    in_range = release_dates.intersection(index)
+    if len(in_range):
+        release_positions.loc[in_range] = positions.loc[in_range]
+    return positions - release_positions.ffill()
 
 
 def write_panel(panel: pd.DataFrame, cache_dir: Path = DEFAULT_CACHE_DIR) -> Path:
@@ -646,6 +663,7 @@ __all__ = [
     "DEFAULT_CACHE_DIR",
     "DEFAULT_PANEL_FILENAME",
     "DEFAULT_META_FILENAME",
+    "FRESHNESS_AGE_COLUMN_PREFIX",
     "load_series_specs",
     "load_concept_specs",
     "load_engine_block",

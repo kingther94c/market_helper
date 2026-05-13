@@ -325,6 +325,11 @@ def build_parser() -> argparse.ArgumentParser:
         default=None,
         help="Optional explicit notebook path. Defaults to notebooks/regime_detection/regime_v2_calibration_questions.ipynb.",
     )
+    regime_calibrate_v2.add_argument(
+        "--q7-notebook-output",
+        default=None,
+        help="Optional explicit Q7 audit notebook path. Defaults to notebooks/regime_detection/regime_v2_calibration_q7.ipynb.",
+    )
 
     regime_run_report = subparsers.add_parser(
         "regime-run-report",
@@ -653,6 +658,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                 output_dir=args.output_dir,
                 html_output=args.html_output,
                 notebook_output=args.notebook_output,
+                q7_notebook_output=args.q7_notebook_output,
             )
         except ValueError as exc:
             print(f"regime-calibrate: {exc}", file=sys.stderr)
@@ -661,6 +667,8 @@ def main(argv: Sequence[str] | None = None) -> int:
         print(f"notebook={artifacts.notebook_path}")
         print(f"daily_json={artifacts.daily_json_path}")
         print(f"summary_json={artifacts.summary_json_path}")
+        print(f"audit_json={artifacts.audit_json_path}")
+        print(f"q7_notebook={artifacts.q7_notebook_path}")
         return 0
     if args.command == "regime-run-report":
         method_list = [m.strip() for m in str(args.methods).split(",") if m.strip()]

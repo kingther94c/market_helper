@@ -12,6 +12,7 @@ import pandas as pd
 from market_helper.data_sources.fred.macro_panel import (
     DEFAULT_CACHE_DIR as FRED_DEFAULT_CACHE_DIR,
     DEFAULT_PANEL_FILENAME as FRED_DEFAULT_PANEL_FILENAME,
+    FRESHNESS_AGE_COLUMN_PREFIX,
     load_concept_specs,
     load_panel,
     load_series_specs,
@@ -28,9 +29,13 @@ from market_helper.regimes.methods.market_regime import MarketRegimeConfig, load
 
 DEFAULT_CALIBRATION_DIR = Path("data/artifacts/regime_detection/calibration")
 DEFAULT_NOTEBOOK_PATH = Path("notebooks/regime_detection/regime_v2_calibration_questions.ipynb")
+DEFAULT_Q7_NOTEBOOK_PATH = Path("notebooks/regime_detection/regime_v2_calibration_q7.ipynb")
 DEFAULT_REGIME_ENGINE_CONFIG = Path("configs/regime_detection/regime_engine.yml")
 DAILY_ROW_KEYS = (
     "date",
+    "data_mode",
+    "available_primary_layers",
+    "missing_primary_layers",
     "final_regime",
     "base_regime",
     "confidence",
@@ -61,8 +66,15 @@ class CalibrationArtifacts:
     notebook_path: Path
     daily_json_path: Path
     summary_json_path: Path
+    audit_json_path: Path
+    q7_notebook_path: Path
     result_count: int
     market_panel_available: bool
+
+
+DECISION_STATUS_STILL_VALID = "still_valid"
+DECISION_STATUS_SUPERSEDED = "superseded"
+DECISION_STATUS_NEEDS_RETEST = "needs_retest"
 
 
 ANCHOR_PERIODS: tuple[AnchorPeriod, ...] = (
@@ -145,6 +157,51 @@ ANCHOR_PERIODS: tuple[AnchorPeriod, ...] = (
     ),
 )
 
+CALIBRATION_DECISION_AUDIT: tuple[dict[str, str], ...] = (
+    {
+        "round": "Q1",
+        "decision": "Fix macro/market scale mismatch by normalizing macro inputs.",
+        "status": DECISION_STATUS_STILL_VALID,
+        "current_read": "Still valid. Q1 identified a real layer-scale mismatch that later Q2/Q3 changes preserved rather than reversed.",
+        "evidence_scope": "Historical notebook evidence; rerun current anchor metrics before reusing exact Q1 numbers.",
+    },
+    {
+        "round": "Q2",
+        "decision": "Aggregate macro series into economic concepts before final axis scoring.",
+        "status": DECISION_STATUS_STILL_VALID,
+        "current_read": "Still valid. Concept aggregation remains the macro-layer structure after the Q5 workflow fix.",
+        "evidence_scope": "Historical notebook evidence plus current workflow evidence after Q5.",
+    },
+    {
+        "round": "Q3",
+        "decision": "Add market tanh compression, lower axis thresholds, and label hysteresis.",
+        "status": DECISION_STATUS_SUPERSEDED,
+        "current_read": "Partly retained, but Q4 rewrote market readout structure and Q6 changed the active threshold baseline.",
+        "evidence_scope": "Treat Q3 stress/readout numbers as superseded by Q4/Q6.",
+    },
+    {
+        "round": "Q4",
+        "decision": "Move market layer to concept aggregation, beta-adjusted relatives, and S&P GSCI commodity input.",
+        "status": DECISION_STATUS_NEEDS_RETEST,
+        "current_read": "Structure remains plausible, but Q4 made the risk overlay more conservative and Q6 did not recalibrate risk.",
+        "evidence_scope": "Needs a dedicated risk-overlay retest on GFC, 2018 Q4, and April 2025.",
+    },
+    {
+        "round": "Q5",
+        "decision": "Fix calibration workflow so macro config is passed into the engine.",
+        "status": DECISION_STATUS_STILL_VALID,
+        "current_read": "Still valid. Pre-Q5 workflow-generated summaries are not final evidence because they used default macro config.",
+        "evidence_scope": "Use current workflow output only for calibration summaries.",
+    },
+    {
+        "round": "Q6",
+        "decision": "Tune recovery responsiveness with a moderate market-heavier blend and narrower deadband.",
+        "status": DECISION_STATUS_STILL_VALID,
+        "current_read": "Current baseline. It improves 2017 and 2020H2-2021 but leaves 2009 mixed and risk overlay untouched.",
+        "evidence_scope": "Use as the baseline for Q7 audit; do not retune in Q7.",
+    },
+)
+
 
 def run_regime_v2_calibration(
     *,
@@ -156,6 +213,7 @@ def run_regime_v2_calibration(
     output_dir: str | Path = DEFAULT_CALIBRATION_DIR,
     html_output: str | Path | None = None,
     notebook_output: str | Path | None = None,
+    q7_notebook_output: str | Path | None = None,
 ) -> CalibrationArtifacts:
     """Run v2 over local data and write research calibration artifacts.
 
@@ -204,6 +262,13 @@ def run_regime_v2_calibration(
     notebook_path = Path(notebook_output) if notebook_output else DEFAULT_NOTEBOOK_PATH
     daily_json_path = output_root / "regime_v2_calibration_daily.json"
     summary_json_path = output_root / "regime_v2_calibration_summary.json"
+    audit_json_path = output_root / "regime_v2_calibration_audit.json"
+    if q7_notebook_output:
+        q7_notebook_path = Path(q7_notebook_output)
+    elif notebook_output:
+        q7_notebook_path = Path(notebook_output).with_name("regime_v2_calibration_q7.ipynb")
+    else:
+        q7_notebook_path = DEFAULT_Q7_NOTEBOOK_PATH
 
     summary_rows = [_summary_row(result) for result in results]
     daily_rows = [_daily_row_from_summary_row(row) for row in summary_rows]
@@ -215,6 +280,8 @@ def run_regime_v2_calibration(
         market_panel_path=market_panel_input,
     )
     recommendations = _recommendations(summaries, diagnostics)
+    audit_decisions = build_calibration_audit(summaries, diagnostics)
+    audit_anchor_comparison = _compact_anchor_comparison(summaries)
 
     daily_json_path.write_text(json.dumps(daily_rows, separators=(",", ":")), encoding="utf-8")
     summary_json_path.write_text(
@@ -223,6 +290,19 @@ def run_regime_v2_calibration(
                 "anchors": summaries,
                 "diagnostics": diagnostics,
                 "recommendations": recommendations,
+                "audit": audit_decisions,
+                "anchor_comparison": audit_anchor_comparison,
+            },
+            indent=2,
+        ),
+        encoding="utf-8",
+    )
+    audit_json_path.write_text(
+        json.dumps(
+            {
+                "decisions": audit_decisions,
+                "anchor_comparison": audit_anchor_comparison,
+                "diagnostics": diagnostics,
             },
             indent=2,
         ),
@@ -233,6 +313,7 @@ def run_regime_v2_calibration(
         summaries=summaries,
         diagnostics=diagnostics,
         recommendations=recommendations,
+        audit=audit_decisions,
         latest=summary_rows[-1],
     )
     _write_review_notebook(
@@ -243,12 +324,21 @@ def run_regime_v2_calibration(
         html_path=html_path,
         daily_json_path=daily_json_path,
     )
+    _write_q7_notebook(
+        q7_notebook_path,
+        summaries=summaries,
+        diagnostics=diagnostics,
+        audit=audit_decisions,
+        audit_json_path=audit_json_path,
+    )
 
     return CalibrationArtifacts(
         html_path=html_path,
         notebook_path=notebook_path,
         daily_json_path=daily_json_path,
         summary_json_path=summary_json_path,
+        audit_json_path=audit_json_path,
+        q7_notebook_path=q7_notebook_path,
         result_count=len(results),
         market_panel_available=market_panel is not None,
     )
@@ -267,6 +357,8 @@ def summarize_anchor_period_rows(
 ) -> list[dict[str, Any]]:
     frame = pd.DataFrame(rows)
     frame["date"] = pd.to_datetime(frame["date"])
+    if "data_mode" not in frame.columns:
+        frame["data_mode"] = "unknown"
     summaries: list[dict[str, Any]] = []
     for anchor in anchors:
         start = pd.Timestamp(anchor.start)
@@ -297,6 +389,9 @@ def summarize_anchor_period_rows(
         market_coverage = _score_coverage(window, "market_growth_score", "market_inflation_score")
         risk_coverage = float((window["risk_state"] != "Not available").mean())
         top_contributors = _aggregate_top_contributors(window["top_contributors"])
+        phase_counts = _phase_counts(window)
+        target_metrics = _target_metrics(window, anchor)
+        data_mode_counts = _value_counts(window["data_mode"])
         observation = _anchor_observation(
             anchor,
             final_counts=final_counts,
@@ -328,6 +423,12 @@ def summarize_anchor_period_rows(
                 "macro_coverage_share": macro_coverage,
                 "market_coverage_share": market_coverage,
                 "risk_coverage_share": risk_coverage,
+                "data_mode_counts": data_mode_counts,
+                "phase_counts": phase_counts,
+                "target_behavior": target_metrics["target_behavior"],
+                "first_target_match_date": target_metrics["first_target_match_date"],
+                "target_match_share": target_metrics["target_match_share"],
+                "target_response_lag_bdays": target_metrics["target_response_lag_bdays"],
                 "macro_growth_mean": macro_growth,
                 "macro_inflation_mean": macro_inflation,
                 "market_growth_mean": market_growth,
@@ -336,6 +437,214 @@ def summarize_anchor_period_rows(
             }
         )
     return summaries
+
+
+def build_calibration_audit(
+    summaries: Sequence[Mapping[str, Any]],
+    diagnostics: Mapping[str, Any],
+) -> list[dict[str, Any]]:
+    """Summarize whether prior calibration decisions still apply to the Q6 baseline."""
+    by_anchor = {str(item.get("name")): item for item in summaries}
+    out: list[dict[str, Any]] = []
+    for decision in CALIBRATION_DECISION_AUDIT:
+        row = dict(decision)
+        row["current_evidence"] = _decision_current_evidence(
+            str(decision["round"]),
+            by_anchor,
+            diagnostics,
+        )
+        out.append(row)
+    return out
+
+
+def _compact_anchor_comparison(summaries: Sequence[Mapping[str, Any]]) -> list[dict[str, Any]]:
+    rows: list[dict[str, Any]] = []
+    for item in summaries:
+        if not item.get("available"):
+            rows.append(
+                {
+                    "name": item.get("name"),
+                    "available": False,
+                    "observation": item.get("observation"),
+                }
+            )
+            continue
+        rows.append(
+            {
+                "name": item.get("name"),
+                "available": True,
+                "majority": item.get("final_regime_majority"),
+                "stress_share": item.get("stress_share"),
+                "disagreement_share": item.get("disagreement_share"),
+                "target_behavior": item.get("target_behavior"),
+                "target_match_share": item.get("target_match_share"),
+                "first_target_match_date": item.get("first_target_match_date"),
+                "target_response_lag_bdays": item.get("target_response_lag_bdays"),
+                "data_mode_counts": item.get("data_mode_counts"),
+            }
+        )
+    return rows
+
+
+def _decision_current_evidence(
+    round_name: str,
+    by_anchor: Mapping[str, Mapping[str, Any]],
+    diagnostics: Mapping[str, Any],
+) -> str:
+    if round_name == "Q1":
+        return (
+            "Current workflow now reports macro/market means and coverage per anchor; reuse those, "
+            "not the original Q1 scale table, for any numeric claim."
+        )
+    if round_name == "Q2":
+        macro_end = diagnostics.get("macro_panel", {}).get("end")
+        market_end = diagnostics.get("market_panel", {}).get("end")
+        return f"Macro concept layer is active in the current workflow; macro panel ends {macro_end}, market panel ends {market_end}."
+    if round_name == "Q3":
+        return (
+            "Whipsaw control remains part of the engine contract, but Q3 readouts are no longer the active evidence "
+            "because Q4 changed market aggregation and Q6 changed thresholds."
+        )
+    if round_name == "Q4":
+        return (
+            "Stress shares under the current baseline: "
+            f"GFC {_anchor_pct(by_anchor, '2008-09 GFC', 'stress_share')}, "
+            f"2018 Q4 {_anchor_pct(by_anchor, '2018 Q4 Selloff', 'stress_share')}, "
+            f"April 2025 {_anchor_pct(by_anchor, '2025 April Liberation Day Tariff Shock', 'stress_share')}."
+        )
+    if round_name == "Q5":
+        return "Current calibration run explicitly loads `fred_series.yml` macro-method config before generating summaries."
+    if round_name == "Q6":
+        return (
+            "Recovery targets under current baseline: "
+            f"2017 majority {_anchor_value(by_anchor, '2017 Soft Landing', 'final_regime_majority')}; "
+            f"2020H2-2021 majority {_anchor_value(by_anchor, '2020 H2-2021 Reopening', 'final_regime_majority')}; "
+            f"2009-10 majority {_anchor_value(by_anchor, '2009-10 Recovery', 'final_regime_majority')}."
+        )
+    return ""
+
+
+def _phase_counts(window: pd.DataFrame) -> dict[str, list[tuple[str, int]]]:
+    ordered = window.sort_values("date")
+    phases = {"early": [], "mid": [], "late": []}
+    if ordered.empty:
+        return {name: [] for name in phases}
+    labels = list(phases.keys())
+    n = len(ordered)
+    working = ordered.copy()
+    working["_phase"] = [labels[min(2, idx * 3 // n)] for idx in range(n)]
+    return {
+        phase: _value_counts(working.loc[working["_phase"] == phase, "final_regime"])
+        for phase in labels
+    }
+
+
+def _target_metrics(window: pd.DataFrame, anchor: AnchorPeriod) -> dict[str, Any]:
+    ordered = window.sort_values("date")
+    matches: list[bool] = []
+    first_date = None
+    for _, row in ordered.iterrows():
+        matched = _matches_anchor_target(row, anchor.name)
+        matches.append(matched)
+        if matched and first_date is None:
+            first_date = pd.Timestamp(row["date"]).strftime("%Y-%m-%d")
+    return {
+        "target_behavior": _anchor_target_behavior(anchor.name),
+        "first_target_match_date": first_date,
+        "target_match_share": float(sum(matches) / len(matches)) if matches else 0.0,
+        "target_response_lag_bdays": _business_day_lag(anchor.start, first_date) if first_date else None,
+    }
+
+
+def _matches_anchor_target(row: pd.Series, anchor_name: str) -> bool:
+    final = str(row.get("final_regime") or "")
+    base = str(row.get("base_regime") or "")
+    label = f"{final} {base}"
+    risk_on = _bool_value(row.get("risk_overlay_on"))
+    disagreement = _bool_value(row.get("disagreement_flag"))
+    if anchor_name == "2008-09 GFC":
+        return risk_on or "Slowdown" in label or "Down Growth" in label
+    if anchor_name == "2009-10 Recovery":
+        return "Goldilocks" in label or "Reflation" in label
+    if anchor_name == "2011 Euro Debt / US Downgrade":
+        return risk_on or disagreement or "Slowdown" in label or "Down Growth" in label
+    if anchor_name == "2014-16 Oil Collapse":
+        return "Down Inflation" in label or "Slowdown" in label
+    if anchor_name == "2017 Soft Landing":
+        return "Goldilocks" in label or "Reflation" in label
+    if anchor_name == "2018 Q4 Selloff":
+        return risk_on or disagreement or "Slowdown" in label or "Down Growth" in label
+    if anchor_name == "2020 COVID Shock":
+        return risk_on or "Slowdown" in label or "Down Growth" in label
+    if anchor_name == "2020 H2-2021 Reopening":
+        return "Reflation" in label or "Goldilocks" in label
+    if anchor_name == "2022 Inflation Shock / Tightening":
+        return "Up Inflation" in label or "Stagflation" in label or "Reflation" in label
+    if anchor_name == "2023-24 Disinflation / Soft Landing":
+        return "Goldilocks" in label or "Neutral/Mixed Growth / Neutral/Mixed Inflation" in label
+    if anchor_name == "2025 April Liberation Day Tariff Shock":
+        return risk_on or "Down Growth" in label or "Stagflation" in label
+    return False
+
+
+def _anchor_target_behavior(anchor_name: str) -> str:
+    targets = {
+        "2008-09 GFC": "slowdown or stress",
+        "2009-10 Recovery": "recovery or reflation",
+        "2011 Euro Debt / US Downgrade": "stress, slowdown, or disagreement",
+        "2014-16 Oil Collapse": "down inflation or slowdown",
+        "2017 Soft Landing": "goldilocks or benign reflation",
+        "2018 Q4 Selloff": "stress, slowdown, or disagreement",
+        "2020 COVID Shock": "stress or slowdown",
+        "2020 H2-2021 Reopening": "reflation or goldilocks",
+        "2022 Inflation Shock / Tightening": "up inflation or stagflation",
+        "2023-24 Disinflation / Soft Landing": "neutral soft landing or goldilocks",
+        "2025 April Liberation Day Tariff Shock": "stress, down growth, or stagflation",
+    }
+    return targets.get(anchor_name, "not configured")
+
+
+def _business_day_lag(start: str, first_date: str | None) -> int | None:
+    if not first_date:
+        return None
+    start_ts = pd.Timestamp(start).normalize()
+    first_ts = pd.Timestamp(first_date).normalize()
+    if first_ts <= start_ts:
+        return 0
+    return max(0, len(pd.bdate_range(start_ts, first_ts)) - 1)
+
+
+def _bool_value(value: object) -> bool:
+    if value is True:
+        return True
+    if value is False or value is None:
+        return False
+    try:
+        if pd.isna(value):
+            return False
+    except (TypeError, ValueError):
+        pass
+    return bool(value)
+
+
+def _anchor_pct(
+    by_anchor: Mapping[str, Mapping[str, Any]],
+    anchor_name: str,
+    key: str,
+) -> str:
+    value = by_anchor.get(anchor_name, {}).get(key)
+    if value is None:
+        return "n/a"
+    return f"{float(value):.0%}"
+
+
+def _anchor_value(
+    by_anchor: Mapping[str, Mapping[str, Any]],
+    anchor_name: str,
+    key: str,
+) -> str:
+    value = by_anchor.get(anchor_name, {}).get(key)
+    return str(value) if value else "n/a"
 
 
 def _input_diagnostics(
@@ -352,7 +661,12 @@ def _input_diagnostics(
 
 
 def _macro_panel_columns(specs: Sequence[Any]) -> list[str]:
-    return ["date", *(str(spec.series_id) for spec in specs)]
+    columns = ["date"]
+    for spec in specs:
+        sid = str(spec.series_id)
+        columns.append(sid)
+        columns.append(f"{FRESHNESS_AGE_COLUMN_PREFIX}{sid}")
+    return columns
 
 
 def _market_panel_columns(config: MarketRegimeConfig) -> list[str]:
@@ -381,6 +695,9 @@ def _panel_diagnostic(panel: pd.DataFrame | None, path: Path) -> dict[str, Any]:
 def _summary_row(result: FinalRegimeResult) -> dict[str, Any]:
     return {
         "date": result.date,
+        "data_mode": result.data_mode,
+        "available_primary_layers": list(result.available_primary_layers),
+        "missing_primary_layers": list(result.missing_primary_layers),
         "final_regime": result.final_regime,
         "base_regime": result.base_regime,
         "confidence": result.confidence,
@@ -442,6 +759,7 @@ def _write_html_report(
     summaries: Sequence[Mapping[str, Any]],
     diagnostics: Mapping[str, Any],
     recommendations: Sequence[str],
+    audit: Sequence[Mapping[str, Any]],
     latest: Mapping[str, Any],
 ) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -463,6 +781,7 @@ def _write_html_report(
                 '<p class="lede">Research-only sanity check for macro_nowcast and market_implied across historical anchor periods. This report does not produce trading signals or allocation changes.</p>',
                 _render_latest(latest),
                 _render_diagnostics(diagnostics),
+                _render_audit_table(audit),
                 _render_anchor_table(summaries),
                 _render_recommendations(recommendations),
                 _render_period_cards(summaries),
@@ -524,12 +843,115 @@ def _write_review_notebook(
     path.write_text(json.dumps(notebook, indent=2), encoding="utf-8")
 
 
+def _write_q7_notebook(
+    path: Path,
+    *,
+    summaries: Sequence[Mapping[str, Any]],
+    diagnostics: Mapping[str, Any],
+    audit: Sequence[Mapping[str, Any]],
+    audit_json_path: Path,
+) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    cells = [
+        _markdown_cell(
+            "# Regime Engine v2 - Calibration Q7 Audit\n\n"
+            "**Round 7 is an audit and measurement pass, not a tuning pass.** It reruns the Q1-Q6 anchor readout under the corrected Q5 workflow and the Q6 baseline, then separates still-valid decisions from superseded or retest-needed evidence.\n\n"
+            f"Audit artifact: `{audit_json_path}`.\n\n"
+            f"Data coverage: macro panel is {_availability_text(diagnostics.get('macro_panel', {}))}; market panel is {_availability_text(diagnostics.get('market_panel', {}))}."
+        ),
+        _markdown_cell(
+            "## Q1-Q6 Decision Status\n\n"
+            + _q7_decision_table(audit)
+            + "\n\n"
+            "Q1-Q4 are historical decision records. Their directions can remain valid while their exact numeric readouts need current workflow evidence."
+        ),
+        _markdown_cell(
+            "## Current Anchor Measurement\n\n"
+            + _q7_anchor_table(summaries)
+            + "\n\n"
+            "This table intentionally adds target-match share and first-match lag because majority labels hide phase timing inside long anchors."
+        ),
+        _markdown_cell(
+            "## Q7 Findings\n\n"
+            "* Evidence consistency: pre-Q5 workflow summaries should not be treated as final evidence because macro config was not passed through.\n"
+            "* Latest-row semantics: `data_mode` now distinguishes `full_ensemble`, `market_only`, `macro_only`, and `no_primary_layer`; market-only latest rows are visible instead of implicit.\n"
+            "* 2009-10 recovery: still treat as mixed unless faster macro growth inputs are added. Do not force it by shrinking global thresholds further.\n"
+            "* Risk overlay: Q4/Q6 leave risk conservative. Calibrate GFC, 2018 Q4, and April 2025 as a separate risk pass.\n"
+            "* Majority-label weakness: phase counts and response lag are now first-class anchor metrics."
+        ),
+        _markdown_cell(
+            "## Recommended Next Step\n\n"
+            "Do not tune recovery again from Q7. Next useful pass is either a risk-overlay calibration on GFC / 2018 Q4 / April 2025, or a data-input pass that adds faster macro growth signals before revisiting 2009-10."
+        ),
+    ]
+    notebook = {
+        "cells": cells,
+        "metadata": {
+            "kernelspec": {"display_name": "Python 3", "language": "python", "name": "python3"},
+            "language_info": {"name": "python", "pygments_lexer": "ipython3"},
+        },
+        "nbformat": 4,
+        "nbformat_minor": 5,
+    }
+    path.write_text(json.dumps(notebook, indent=2), encoding="utf-8")
+
+
+def _q7_decision_table(audit: Sequence[Mapping[str, Any]]) -> str:
+    lines = [
+        "| round | status | decision | current evidence |",
+        "|---|---|---|---|",
+    ]
+    for item in audit:
+        lines.append(
+            "| "
+            + " | ".join(
+                [
+                    str(item.get("round") or ""),
+                    f"`{item.get('status') or ''}`",
+                    _markdown_table_text(item.get("decision")),
+                    _markdown_table_text(item.get("current_evidence") or item.get("current_read")),
+                ]
+            )
+            + " |"
+        )
+    return "\n".join(lines)
+
+
+def _q7_anchor_table(summaries: Sequence[Mapping[str, Any]]) -> str:
+    lines = [
+        "| anchor | majority | stress | disagreement | target match | first match | lag bdays | data mode counts |",
+        "|---|---|---:|---:|---:|---|---:|---|",
+    ]
+    for item in summaries:
+        if not item.get("available"):
+            lines.append(f"| {_markdown_table_text(item.get('name'))} | unavailable |  |  |  |  |  |  |")
+            continue
+        lines.append(
+            "| "
+            + " | ".join(
+                [
+                    _markdown_table_text(item.get("name")),
+                    _markdown_table_text(item.get("final_regime_majority")),
+                    _fmt_pct(item.get("stress_share")),
+                    _fmt_pct(item.get("disagreement_share")),
+                    _fmt_pct(item.get("target_match_share")),
+                    str(item.get("first_target_match_date") or ""),
+                    _blank_if_none(item.get("target_response_lag_bdays")),
+                    _counts_inline(item.get("data_mode_counts")),
+                ]
+            )
+            + " |"
+        )
+    return "\n".join(lines)
+
+
 def _render_latest(latest: Mapping[str, Any]) -> str:
     return (
         '<section class="panel">'
         "<h2>Latest Engine Row</h2>"
         '<div class="kpis">'
         f"<div><span>Date</span><strong>{escape(str(latest.get('date', '')))}</strong></div>"
+        f"<div><span>Data Mode</span><strong>{escape(str(latest.get('data_mode', '')))}</strong></div>"
         f"<div><span>Final Regime</span><strong>{escape(str(latest.get('final_regime', '')))}</strong></div>"
         f"<div><span>Confidence</span><strong>{escape(str(latest.get('confidence', '')))}</strong></div>"
         f"<div><span>Disagreement</span><strong>{'Yes' if latest.get('disagreement_flag') else 'No'}</strong></div>"
@@ -571,6 +993,9 @@ def _render_anchor_table(summaries: Sequence[Mapping[str, Any]]) -> str:
             f"<td>{escape(str(item.get('final_regime_majority') or 'Unavailable'))}</td>"
             f"<td>{_fmt_pct(item.get('stress_share'))}</td>"
             f"<td>{_fmt_pct(item.get('disagreement_share'))}</td>"
+            f"<td>{_fmt_pct(item.get('target_match_share'))}</td>"
+            f"<td>{escape(str(item.get('first_target_match_date') or ''))}</td>"
+            f"<td>{escape(_blank_if_none(item.get('target_response_lag_bdays')))}</td>"
             f"<td>{_fmt_pct(item.get('macro_coverage_share'))}</td>"
             f"<td>{_fmt_pct(item.get('market_coverage_share'))}</td>"
             f"<td>{_fmt_pct(item.get('risk_coverage_share'))}</td>"
@@ -581,7 +1006,27 @@ def _render_anchor_table(summaries: Sequence[Mapping[str, Any]]) -> str:
     return (
         '<section class="panel">'
         "<h2>Anchor Period Summary</h2>"
-        "<table><thead><tr><th>Period</th><th>Window</th><th>Majority Regime</th><th>Stress</th><th>Disagreement</th><th>Macro Cover</th><th>Market Cover</th><th>Risk Cover</th><th>Macro G/I</th><th>Market G/I</th></tr></thead>"
+        "<table><thead><tr><th>Period</th><th>Window</th><th>Majority Regime</th><th>Stress</th><th>Disagreement</th><th>Target Match</th><th>First Match</th><th>Lag BDays</th><th>Macro Cover</th><th>Market Cover</th><th>Risk Cover</th><th>Macro G/I</th><th>Market G/I</th></tr></thead>"
+        f"<tbody>{''.join(rows)}</tbody></table>"
+        "</section>"
+    )
+
+
+def _render_audit_table(audit: Sequence[Mapping[str, Any]]) -> str:
+    rows = []
+    for item in audit:
+        rows.append(
+            "<tr>"
+            f"<td>{escape(str(item.get('round') or ''))}</td>"
+            f"<td><code>{escape(str(item.get('status') or ''))}</code></td>"
+            f"<td>{escape(str(item.get('decision') or ''))}</td>"
+            f"<td>{escape(str(item.get('current_evidence') or item.get('current_read') or ''))}</td>"
+            "</tr>"
+        )
+    return (
+        '<section class="panel">'
+        "<h2>Q1-Q6 Decision Audit</h2>"
+        "<table><thead><tr><th>Round</th><th>Status</th><th>Decision</th><th>Current Evidence</th></tr></thead>"
         f"<tbody>{''.join(rows)}</tbody></table>"
         "</section>"
     )
@@ -619,7 +1064,7 @@ h2 { margin: 0 0 16px; font-size: 20px; }
 h3 { margin: 0 0 10px; font-size: 17px; }
 .lede { max-width: 860px; color: #526070; margin: 0 0 24px; }
 .panel, .period-card { background: #fff; border: 1px solid #d9dee7; border-radius: 8px; padding: 18px; margin: 18px 0; }
-.kpis { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; }
+.kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 12px; }
 .kpis div { border: 1px solid #e1e6ee; border-radius: 6px; padding: 12px; background: #fbfcfe; }
 .kpis span { display: block; color: #667085; font-size: 12px; margin-bottom: 6px; }
 .kpis strong { font-size: 15px; }
@@ -696,6 +1141,24 @@ def _aggregate_top_contributors(series: pd.Series) -> list[tuple[str, float]]:
     return sorted(totals.items(), key=lambda item: item[1], reverse=True)[:8]
 
 
+def _counts_inline(value: object) -> str:
+    if not isinstance(value, list):
+        return ""
+    parts = []
+    for item in value:
+        if isinstance(item, (list, tuple)) and len(item) == 2:
+            parts.append(f"{item[0]}: {item[1]}")
+    return ", ".join(parts)
+
+
+def _markdown_table_text(value: object) -> str:
+    return str(value or "").replace("|", "\\|").replace("\n", " ")
+
+
+def _blank_if_none(value: object) -> str:
+    return "" if value is None else str(value)
+
+
 def _fmt_pct(value: object) -> str:
     if value is None:
         return ""
@@ -717,6 +1180,7 @@ def _fmt_num(value: object) -> str:
 __all__ = [
     "ANCHOR_PERIODS",
     "AnchorPeriod",
+    "build_calibration_audit",
     "CalibrationArtifacts",
     "run_regime_v2_calibration",
     "summarize_anchor_periods",

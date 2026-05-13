@@ -8,6 +8,8 @@ import yaml
 
 from market_helper.data_sources.fred.macro_panel import ConceptSpec, SeriesSpec
 from market_helper.regimes.engine_v2 import (
+    DATA_MODE_FULL_ENSEMBLE,
+    DATA_MODE_MARKET_ONLY,
     LayerConfig,
     RegimeEngineConfig,
     load_regime_engine_config,
@@ -161,6 +163,28 @@ def test_disabled_ml_layers_and_missing_contributors_do_not_break_output() -> No
     assert layer_status["macro_truth_ml"]["growth_state"] == "Disabled"
     assert layer_status["return_truth_ml"]["inflation_state"] == "Disabled"
     assert latest["ml_macro_growth_score"] is None
+
+
+def test_data_mode_marks_market_only_when_macro_ends_before_market_data() -> None:
+    results = run_regime_engine_v2(
+        config=RegimeEngineConfig(),
+        macro_panel=_macro_panel(n=5),
+        macro_specs=_macro_specs(),
+        macro_concepts=_macro_concepts(),
+        market_panel=_market_panel(n=10),
+        market_config=_market_config(),
+    )
+
+    latest = results[-1]
+    assert latest.data_mode == DATA_MODE_MARKET_ONLY
+    assert latest.available_primary_layers == ["market_implied"]
+    assert latest.missing_primary_layers == ["macro_nowcast"]
+    payload = latest.to_dict()
+    assert payload["data_mode"] == DATA_MODE_MARKET_ONLY
+    assert payload["missing_primary_layers"] == ["macro_nowcast"]
+
+    first_full = next(row for row in results if row.macro_growth_score is not None and row.market_growth_score is not None)
+    assert first_full.data_mode == DATA_MODE_FULL_ENSEMBLE
 
 
 def test_enabled_ml_without_model_artifact_is_not_available() -> None:
