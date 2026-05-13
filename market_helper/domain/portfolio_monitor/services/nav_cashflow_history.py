@@ -43,6 +43,8 @@ NAV_CASHFLOW_HISTORY_COLUMNS = [
     "source_as_of",
     "bench_spy_return_usd",
     "bench_spy_return_sgd",
+    "bench_bil_return_usd",
+    "bench_bil_return_sgd",
 ]
 _SUPPORTED_CURRENCIES = {"USD", "SGD"}
 _CURRENT_HORIZONS = ("MTD", "YTD", "1M")
@@ -720,6 +722,8 @@ def _normalize_history_frame(frame: pd.DataFrame) -> pd.DataFrame:
         "pnl_sgd",
         "bench_spy_return_usd",
         "bench_spy_return_sgd",
+        "bench_bil_return_usd",
+        "bench_bil_return_sgd",
     ):
         normalized[column] = pd.to_numeric(normalized[column], errors="coerce")
     normalized["is_final"] = normalized["is_final"].astype("boolean")

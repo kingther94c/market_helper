@@ -175,6 +175,8 @@ def test_refresh_benchmark_returns_in_history_feather_round_trips(tmp_path: Path
     reloaded = load_nav_cashflow_history(history_path)
     assert "bench_spy_return_usd" in reloaded.columns
     assert "bench_spy_return_sgd" in reloaded.columns
+    assert "bench_bil_return_usd" in reloaded.columns
+    assert "bench_bil_return_sgd" in reloaded.columns
     assert reloaded.iloc[1]["bench_spy_return_usd"] == pytest.approx(0.01, abs=1e-9)
 
 
@@ -232,6 +234,8 @@ def _build_minimal_history(*, rows: list[tuple[str, float, float]]) -> pd.DataFr
             "source_as_of": pd.to_datetime([row[0] for row in rows]),
             "bench_spy_return_usd": [None] * len(rows),
             "bench_spy_return_sgd": [None] * len(rows),
+            "bench_bil_return_usd": [None] * len(rows),
+            "bench_bil_return_sgd": [None] * len(rows),
         }
     )
 

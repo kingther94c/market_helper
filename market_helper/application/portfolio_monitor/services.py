@@ -30,6 +30,8 @@ from market_helper.application.portfolio_monitor.progress import UiProgressRepor
 from market_helper.common.models.security_reference import DEFAULT_SECURITY_REFERENCE_PATH
 from market_helper.data_sources.yahoo_finance import YahooFinanceClient
 from market_helper.domain.portfolio_monitor.services.benchmark_history import (
+    BENCHMARK_RETURN_SOURCES,
+    BENCHMARK_SGD_COLUMNS,
     attach_cached_benchmark_returns,
     refresh_benchmark_returns_in_history_feather,
 )
@@ -119,7 +121,7 @@ def _resolve_regime_input_path(source: PortfolioReportInputs) -> Path | None:
 def _benchmark_returns_need_fill(history: pd.DataFrame) -> bool:
     if history.empty:
         return False
-    for column in ("bench_spy_return_usd", "bench_spy_return_sgd"):
+    for column in (*BENCHMARK_RETURN_SOURCES.values(), *BENCHMARK_SGD_COLUMNS.values()):
         if column not in history.columns:
             return True
         if not pd.to_numeric(history[column], errors="coerce").notna().any():
@@ -375,7 +377,7 @@ class PortfolioMonitorQueryService:
             if not _benchmark_returns_need_fill(enriched):
                 return enriched
             warnings.append(
-                "SPY benchmark return cache is missing or empty; performance benchmark trace will be omitted."
+                "SPY/BIL benchmark return cache is missing or empty; performance benchmark trace and cash-based Sharpe may be omitted."
             )
         return loaded
 
@@ -424,7 +426,7 @@ class PortfolioMonitorActionService:
         history_path = output_path.parent / "nav_cashflow_history.feather"
         if history_path.exists():
             try:
-                _record_manual_event(sink, kind="spinner", label="Benchmark history", detail="refreshing SPY")
+                _record_manual_event(sink, kind="spinner", label="Benchmark history", detail="refreshing SPY/BIL")
                 refresh_benchmark_returns_in_history_feather(
                     history_path,
                     yahoo_client=YahooFinanceClient(),
@@ -432,7 +434,7 @@ class PortfolioMonitorActionService:
                 _record_manual_event(sink, kind="done", label="Benchmark history", detail=f"wrote {history_path}")
             except Exception as exc:  # noqa: BLE001 — performance report remains usable without benchmark.
                 logger.warning("Failed to refresh benchmark returns in %s: %s", history_path, exc)
-                _record_manual_event(sink, kind="done", label="Benchmark history", detail=f"skipped SPY ({exc})")
+                _record_manual_event(sink, kind="done", label="Benchmark history", detail=f"skipped SPY/BIL ({exc})")
         return output_path
 
     def run_regime_report(

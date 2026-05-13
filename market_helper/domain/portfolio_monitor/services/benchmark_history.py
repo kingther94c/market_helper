@@ -20,14 +20,13 @@ from .yahoo_returns import (
 )
 
 
-# The benchmark layer keeps a single SPY column today; structured as a dict so
-# adding (e.g.) AGG or 60/40 later only touches `BENCHMARK_RETURN_SOURCES` and
-# the schema additions in `nav_cashflow_history.py`.
 BENCHMARK_RETURN_SOURCES: dict[str, str] = {
     "SPY": "bench_spy_return_usd",
+    "BIL": "bench_bil_return_usd",
 }
 BENCHMARK_SGD_COLUMNS: dict[str, str] = {
     "SPY": "bench_spy_return_sgd",
+    "BIL": "bench_bil_return_sgd",
 }
 DEFAULT_BENCHMARK_PERIOD = "max"
 
@@ -37,7 +36,7 @@ def attach_benchmark_returns(
     *,
     yahoo_client: YahooFinanceClient,
     cache_dir: str | Path = DEFAULT_YAHOO_RETURNS_CACHE_DIR,
-    symbols: Iterable[str] = ("SPY",),
+    symbols: Iterable[str] = ("SPY", "BIL"),
     force_refresh: bool = False,
 ) -> pd.DataFrame:
     """Fill the `bench_*_return_{usd,sgd}` columns on a NAV/cashflow history frame.
@@ -85,7 +84,7 @@ def attach_cached_benchmark_returns(
     history: pd.DataFrame,
     *,
     cache_dir: str | Path = DEFAULT_YAHOO_RETURNS_CACHE_DIR,
-    symbols: Iterable[str] = ("SPY",),
+    symbols: Iterable[str] = ("SPY", "BIL"),
 ) -> pd.DataFrame:
     """Fill benchmark columns from local Yahoo return caches without network I/O."""
     if history.empty:
@@ -120,7 +119,7 @@ def refresh_benchmark_returns_in_history_feather(
     *,
     yahoo_client: YahooFinanceClient,
     cache_dir: str | Path = DEFAULT_YAHOO_RETURNS_CACHE_DIR,
-    symbols: Iterable[str] = ("SPY",),
+    symbols: Iterable[str] = ("SPY", "BIL"),
     force_refresh: bool = False,
 ) -> Path:
     """Load `nav_cashflow_history.feather`, fill benchmark columns, write back.

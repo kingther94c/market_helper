@@ -434,9 +434,13 @@ def _calculate_metrics_from_frame(
     nav_col = _nav_column(currency)
     flow_col = _flow_column(currency)
     return_col = _return_column(currency)
+    cash_col = _cash_return_column_if_present(history, currency)
+    select_cols = ["date", nav_col, flow_col, return_col]
+    if cash_col is not None:
+        select_cols.append(cash_col)
     available = history.loc[
         history[nav_col].notna(),
-        ["date", nav_col, flow_col, return_col],
+        select_cols,
     ].copy()
     if len(available) < 2:
         return _empty_metrics()
@@ -464,11 +468,29 @@ def _calculate_metrics_from_frame(
 
     ann_return = _annualized_return_from_returns(daily_returns) if has_daily_coverage else None
     ann_vol = _annualized_vol_from_returns(daily_returns) if has_daily_coverage else None
+    excess_daily_returns = _excess_return_series_from_history(
+        history=available,
+        currency=currency,
+        portfolio_daily_returns=daily_returns,
+    )
+    excess_has_daily_coverage = _has_trustworthy_daily_coverage(excess_daily_returns)
+    ann_excess_return = (
+        _annualized_return_from_returns(excess_daily_returns)
+        if excess_has_daily_coverage
+        else None
+    )
+    ann_excess_vol = (
+        _annualized_vol_from_returns(excess_daily_returns)
+        if excess_has_daily_coverage
+        else None
+    )
     sharpe = (
         None
-        if ann_return is None or ann_vol is None or ann_vol <= 1e-12
-        else float((ann_return - risk_free_rate_annual) / ann_vol)
+        if ann_excess_return is None or ann_excess_vol is None or ann_excess_vol <= 1e-12
+        else float(ann_excess_return / ann_excess_vol)
     )
+    if sharpe is None and ann_return is not None and ann_vol is not None and ann_vol > 1e-12:
+        sharpe = float((ann_return - risk_free_rate_annual) / ann_vol)
     drawdown = _max_drawdown_from_returns(daily_returns) if has_daily_coverage else None
 
     return {
@@ -548,6 +570,47 @@ def _benchmark_return_column_if_present(history: pd.DataFrame, currency: str) ->
     else:
         return None
     return candidate if candidate in history.columns else None
+
+
+def _cash_return_column_if_present(history: pd.DataFrame, currency: str) -> str | None:
+    normalized = currency.strip().upper()
+    if normalized == "USD":
+        candidate = "bench_bil_return_usd"
+    elif normalized == "SGD":
+        candidate = "bench_bil_return_sgd"
+    else:
+        return None
+    return candidate if candidate in history.columns else None
+
+
+def _excess_return_series_from_history(
+    *,
+    history: pd.DataFrame,
+    currency: str,
+    portfolio_daily_returns: pd.Series,
+) -> pd.Series:
+    cash_col = _cash_return_column_if_present(history, currency)
+    if cash_col is None:
+        return pd.Series(dtype=float)
+    dated_history = history.loc[:, ["date", cash_col]].copy()
+    dated_history["date"] = pd.to_datetime(dated_history["date"], errors="coerce")
+    dated_history = dated_history.dropna(subset=["date"]).drop_duplicates(subset=["date"], keep="last")
+    dated_history = dated_history.set_index("date")
+    cash_returns = pd.to_numeric(dated_history.reindex(portfolio_daily_returns.index)[cash_col], errors="coerce").dropna()
+    if cash_returns.empty:
+        return pd.Series(dtype=float)
+    portfolio_aligned = portfolio_daily_returns.reindex(cash_returns.index).dropna()
+    if portfolio_aligned.empty:
+        return pd.Series(dtype=float)
+    cash_aligned = cash_returns.reindex(portfolio_aligned.index).dropna()
+    portfolio_aligned = portfolio_aligned.reindex(cash_aligned.index).dropna()
+    if portfolio_aligned.empty or cash_aligned.empty:
+        return pd.Series(dtype=float)
+    return pd.Series(
+        portfolio_aligned.to_numpy(dtype=float) - cash_aligned.to_numpy(dtype=float),
+        index=portfolio_aligned.index,
+        dtype=float,
+    )
 
 
 def _dollar_frame_from_history(history: pd.DataFrame, currency: str) -> pd.DataFrame:

@@ -99,7 +99,7 @@ def build_performance_report_view_model(
             value_kind="percent",
         ),
         PerformanceSummaryCard(
-            label="Since inception Sharpe",
+            label="Since inception Sharpe (excess over BIL cash)",
             primary_value=sharpe_ratio(frame, primary_currency, include_provisional=True),
             secondary_value=(
                 _safe_metric(frame, secondary_currency, sharpe_ratio, include_provisional=True)

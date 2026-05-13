@@ -492,6 +492,48 @@ def test_sharpe_matches_annualized_return_divided_by_vol_for_daily_history() -> 
     assert sharpe == pytest.approx(ann_return / ann_vol)
 
 
+def test_sharpe_uses_bil_excess_daily_returns_when_available() -> None:
+    portfolio_returns = [0.01, -0.005] * 20
+    cash_returns = [0.001] * len(portfolio_returns)
+    excess_returns = [portfolio - cash for portfolio, cash in zip(portfolio_returns, cash_returns, strict=True)]
+    nav = [100.0]
+    pnl = [pd.NA]
+    for daily_return in portfolio_returns:
+        pnl.append(nav[-1] * daily_return)
+        nav.append(nav[-1] * (1.0 + daily_return))
+    history = pd.DataFrame(
+        {
+            "date": pd.bdate_range("2026-01-01", periods=len(nav)),
+            "nav_eod_usd": nav,
+            "nav_eod_sgd": [value * 1.3 for value in nav],
+            "cashflow_usd": [0.0] * len(nav),
+            "cashflow_sgd": [0.0] * len(nav),
+            "fx_usdsgd_eod": [1.30] * len(nav),
+            "pnl_amt_usd": pnl,
+            "pnl_amt_sgd": [pd.NA if value is pd.NA else float(value) * 1.3 for value in pnl],
+            "pnl_usd": [pd.NA, *portfolio_returns],
+            "pnl_sgd": [pd.NA, *portfolio_returns],
+            "bench_bil_return_usd": [pd.NA, *cash_returns],
+            "bench_bil_return_sgd": [pd.NA, *cash_returns],
+            "is_final": [True] * len(nav),
+            "source_kind": ["full"] * len(nav),
+            "source_file": ["demo.xml"] * len(nav),
+            "source_as_of": pd.to_datetime(["2026-02-27"] * len(nav)),
+        }
+    )
+
+    sharpe = sharpe_ratio(history, "USD")
+
+    excess_series = pd.Series(excess_returns, dtype=float)
+    expected = float(
+        ((1.0 + excess_series).prod() ** (252 / len(excess_series)) - 1.0)
+        / (excess_series.std(ddof=1) * (252 ** 0.5))
+    )
+
+    assert sharpe is not None
+    assert sharpe == pytest.approx(expected)
+
+
 def _write_nav_cashflow_xml(
     path: Path,
     *,

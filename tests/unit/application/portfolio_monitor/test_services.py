@@ -186,12 +186,16 @@ def test_query_service_fills_missing_spy_benchmark_from_cached_returns(
     history = _demo_history_frame()
     history["bench_spy_return_usd"] = [pd.NA] * len(history)
     history["bench_spy_return_sgd"] = [pd.NA] * len(history)
+    history["bench_bil_return_usd"] = [pd.NA] * len(history)
+    history["bench_bil_return_sgd"] = [pd.NA] * len(history)
     history.to_feather(performance_output_dir / "nav_cashflow_history.feather")
 
     def fake_attach_cached_benchmark_returns(loaded):
         enriched = loaded.copy()
         enriched["bench_spy_return_usd"] = [pd.NA, 0.01, 0.01, 0.01, 0.01]
         enriched["bench_spy_return_sgd"] = [pd.NA, 0.01, 0.01, 0.01, 0.01]
+        enriched["bench_bil_return_usd"] = [pd.NA, 0.0001, 0.0001, 0.0001, 0.0001]
+        enriched["bench_bil_return_sgd"] = [pd.NA, 0.0001, 0.0001, 0.0001, 0.0001]
         return enriched
 
     monkeypatch.setattr(app_services, "attach_cached_benchmark_returns", fake_attach_cached_benchmark_returns)
@@ -497,6 +501,10 @@ def _demo_history_frame() -> pd.DataFrame:
             "pnl_amt_sgd": [pd.NA, 13.0, 26.0, 7.8, 8.19],
             "pnl_usd": [pd.NA, 0.1111111111, 0.20, 0.05, 0.05],
             "pnl_sgd": [pd.NA, 0.1111111111, 0.20, 0.05, 0.05],
+            "bench_spy_return_usd": [pd.NA, 0.08, 0.10, 0.02, 0.02],
+            "bench_spy_return_sgd": [pd.NA, 0.08, 0.10, 0.02, 0.02],
+            "bench_bil_return_usd": [pd.NA, 0.002, 0.002, 0.001, 0.001],
+            "bench_bil_return_sgd": [pd.NA, 0.002, 0.002, 0.001, 0.001],
             "is_final": [True, True, True, True, False],
             "source_kind": ["full", "full", "full", "latest", "latest"],
             "source_file": ["demo.xml"] * 5,

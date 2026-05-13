@@ -59,7 +59,7 @@ def build_parser() -> argparse.ArgumentParser:
 
     benchmark_refresh = subparsers.add_parser(
         "benchmark-history-refresh",
-        help="Fill SPY benchmark return columns on nav_cashflow_history.feather (uses Yahoo cache; SGD derived from feather FX).",
+        help="Fill SPY/BIL benchmark return columns on nav_cashflow_history.feather (uses Yahoo cache; SGD derived from feather FX).",
     )
     benchmark_refresh.add_argument("--history-path", required=True, help="Path to nav_cashflow_history.feather.")
     benchmark_refresh.add_argument("--force", action="store_true", help="Bypass Yahoo cache freshness check.")
