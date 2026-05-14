@@ -58,6 +58,53 @@ class FakeLiveClient:
         return []
 
 
+class FakeOptionContract:
+    def __init__(self, *, con_id: int, local_symbol: str) -> None:
+        self.conId = con_id
+        self.secType = "OPT"
+        self.symbol = "SPY"
+        self.currency = "USD"
+        self.exchange = "AMEX"
+        self.primaryExchange = "AMEX"
+        self.localSymbol = local_symbol
+        self.multiplier = "100"
+
+
+class FakeOptionPortfolioItem:
+    def __init__(self, *, con_id: int, local_symbol: str, position: float, market_value: float) -> None:
+        self.account = "U12345"
+        self.contract = FakeOptionContract(con_id=con_id, local_symbol=local_symbol)
+        self.position = position
+        self.averageCost = 11.0
+        self.marketPrice = abs(market_value / position) if position else 0.0
+        self.marketValue = market_value
+
+
+class FakeLiveClientWithOptionGreeks(FakeLiveClient):
+    def list_portfolio(self, account_id: str) -> list[object]:
+        assert account_id == "U12345"
+        return [
+            FakeOptionPortfolioItem(
+                con_id=999001,
+                local_symbol="SPY   260618C00600000",
+                position=2.0,
+                market_value=2500.0,
+            )
+        ]
+
+    def fetch_option_model_greeks(self, portfolio_items: list[object]) -> dict[str, dict[str, object]]:
+        assert len(portfolio_items) == 1
+        return {
+            "999001": {
+                "source": "modelGreeks",
+                "status": "available",
+                "delta": 0.5,
+                "underlying_price": 600.0,
+                "implied_vol": 0.2,
+            }
+        }
+
+
 def test_generate_live_ibkr_position_report_writes_csv_from_gateway_client(tmp_path) -> None:
     output_path = tmp_path / "outputs" / "live_position_report.csv"
     client = FakeLiveClient()
@@ -83,6 +130,31 @@ def test_generate_live_ibkr_position_report_writes_csv_from_gateway_client(tmp_p
     assert rows[0]["currency"] == "USD"
     assert rows[0]["latest_price"] == "214.8"
     assert rows[0]["unrealized_pnl"] == "90.0"
+
+
+def test_generate_live_ibkr_position_report_writes_option_delta_fields(tmp_path) -> None:
+    output_path = tmp_path / "outputs" / "live_position_report.csv"
+    client = FakeLiveClientWithOptionGreeks()
+
+    generate_live_ibkr_position_report(
+        output_path=output_path,
+        account_id="U12345",
+        as_of="2026-03-26T00:00:00+00:00",
+        client=client,
+    )
+
+    with output_path.open("r", encoding="utf-8", newline="") as handle:
+        rows = list(csv.DictReader(handle))
+
+    assert rows[0]["internal_id"] == "OUTSIDE_SCOPE:OPT:SPY_260618C00600000:AMEX"
+    assert rows[0]["option_delta"] == "0.5"
+    assert rows[0]["option_underlying_price"] == "600.0"
+    assert rows[0]["option_delta_exposure_usd"] == "60000.0"
+    assert rows[0]["option_implied_vol"] == "0.2"
+    assert rows[0]["option_greeks_source"] == "modelGreeks"
+    assert rows[0]["option_greeks_status"] == "available"
+    assert rows[0]["option_underlying_symbol"] == "SPY"
+    assert rows[0]["option_underlying_internal_id"] == "STK:SPY:SMART"
 
 
 def test_generate_live_ibkr_position_report_mirrors_csv_to_google_drive(tmp_path, monkeypatch) -> None:

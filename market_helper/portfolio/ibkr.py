@@ -49,6 +49,8 @@ def contract_to_security_reference(
     if _prefer_contract_specific_future_identity(contract):
         internal_id = _contract_specific_internal_id(contract)
     if status == "outside_scope":
+        if contract.sec_type.upper() == "OPT" and str(contract.local_symbol).strip():
+            internal_id = _contract_specific_option_internal_id(contract)
         internal_id = f"OUTSIDE_SCOPE:{internal_id}"
     return SecurityReference(
         internal_id=internal_id,
@@ -176,6 +178,9 @@ def resolve_ibkr_contract(
         if existing is not None:
             return existing
 
+    if contract.sec_type.upper() == "OPT":
+        return contract_to_security_reference(contract, status="outside_scope")
+
     alias_match = reference_table.resolve_by_ibkr_alias(
         symbol=contract.symbol,
         sec_type=contract.sec_type,
@@ -205,7 +210,7 @@ def resolve_ibkr_contract(
         if cash_match is not None:
             return cash_match
 
-    if contract.sec_type.upper() in {"OPT", "FOP"}:
+    if contract.sec_type.upper() in {"FOP"}:
         return contract_to_security_reference(contract, status="outside_scope")
 
     return contract_to_security_reference(contract, status="unmapped")
@@ -220,6 +225,14 @@ def _prefer_contract_specific_future_identity(contract: IbkrContract) -> bool:
 
 
 def _contract_specific_internal_id(contract: IbkrContract) -> str:
+    return build_internal_security_id(
+        ibkr_sec_type=contract.sec_type,
+        canonical_symbol=contract.local_symbol or contract.symbol,
+        primary_exchange=contract.exchange,
+    )
+
+
+def _contract_specific_option_internal_id(contract: IbkrContract) -> str:
     return build_internal_security_id(
         ibkr_sec_type=contract.sec_type,
         canonical_symbol=contract.local_symbol or contract.symbol,
@@ -301,6 +314,32 @@ def normalize_ibkr_positions(
         else:
             internal_id = register_ibkr_contract(reference_table, contract)
 
+        option_delta = _optional_float(_first_non_null(row, "option_delta", default=None))
+        option_underlying_price = _optional_float(
+            _first_non_null(row, "option_underlying_price", default=None)
+        )
+        option_underlying_symbol = str(
+            _first_non_null(row, "option_underlying_symbol", default=contract.symbol if sec_type == "OPT" else "")
+        ).upper()
+        option_underlying_internal_id = str(
+            _first_non_null(row, "option_underlying_internal_id", default="")
+        )
+        if sec_type == "OPT" and not option_underlying_internal_id:
+            option_underlying_internal_id = _resolve_option_underlying_internal_id(
+                reference_table,
+                option_underlying_symbol,
+            )
+        option_delta_exposure_usd = _optional_float(
+            _first_non_null(row, "option_delta_exposure_usd", default=None)
+        )
+        if option_delta_exposure_usd is None and option_delta is not None and option_underlying_price is not None:
+            option_delta_exposure_usd = (
+                float(_first_non_null(row, "position", default=0.0))
+                * _contract_multiplier_float(contract.multiplier)
+                * option_delta
+                * option_underlying_price
+            )
+
         normalized.append(
             PositionSnapshot(
                 as_of=timestamp,
@@ -314,6 +353,14 @@ def normalize_ibkr_positions(
                 market_value=_optional_float(
                     _first_non_null(row, "market_value", "marketValue", default=None)
                 ),
+                option_delta=option_delta,
+                option_underlying_price=option_underlying_price,
+                option_delta_exposure_usd=option_delta_exposure_usd,
+                option_implied_vol=_optional_float(_first_non_null(row, "option_implied_vol", default=None)),
+                option_greeks_source=str(_first_non_null(row, "option_greeks_source", default="")),
+                option_greeks_status=str(_first_non_null(row, "option_greeks_status", default="")),
+                option_underlying_symbol=option_underlying_symbol,
+                option_underlying_internal_id=option_underlying_internal_id,
             )
         )
 
@@ -365,6 +412,37 @@ def _optional_float(value: object) -> Optional[float]:
     if value in (None, ""):
         return None
     return float(value)
+
+
+def _contract_multiplier_float(value: object) -> float:
+    try:
+        multiplier = float(value)
+    except (TypeError, ValueError):
+        return 1.0
+    return multiplier if multiplier != 0 else 1.0
+
+
+def _resolve_option_underlying_internal_id(
+    reference_table: SecurityReferenceTable,
+    symbol: str,
+) -> str:
+    normalized_symbol = str(symbol).strip().upper()
+    if not normalized_symbol:
+        return ""
+    matches = reference_table.search_by_ibkr_symbol_sec_type(
+        symbol=normalized_symbol,
+        sec_type="STK",
+    )
+    if len(matches) == 1:
+        return matches[0].internal_id
+    smart_matches = [
+        item
+        for item in matches
+        if item.ibkr_exchange.upper() == "SMART" or item.primary_exchange.upper() == "SMART"
+    ]
+    if len(smart_matches) == 1:
+        return smart_matches[0].internal_id
+    return ""
 
 
 def _infer_asset_class(contract: IbkrContract) -> str:

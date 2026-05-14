@@ -24,6 +24,14 @@ class PositionReportRow:
     cost_basis: Optional[float]
     unrealized_pnl: Optional[float]
     weight: Optional[float]
+    option_delta: Optional[float] = None
+    option_underlying_price: Optional[float] = None
+    option_delta_exposure_usd: Optional[float] = None
+    option_implied_vol: Optional[float] = None
+    option_greeks_source: str = ""
+    option_greeks_status: str = ""
+    option_underlying_symbol: str = ""
+    option_underlying_internal_id: str = ""
 
 
 def build_position_report_rows(
@@ -72,6 +80,14 @@ def build_position_report_rows(
                 cost_basis=cost_basis,
                 unrealized_pnl=unrealized_pnl,
                 weight=weight,
+                option_delta=position.option_delta,
+                option_underlying_price=position.option_underlying_price,
+                option_delta_exposure_usd=_option_delta_exposure_usd(position, security),
+                option_implied_vol=position.option_implied_vol,
+                option_greeks_source=position.option_greeks_source,
+                option_greeks_status=position.option_greeks_status,
+                option_underlying_symbol=position.option_underlying_symbol,
+                option_underlying_internal_id=position.option_underlying_internal_id,
             )
         )
 
@@ -100,3 +116,15 @@ def _cost_basis(position: PositionSnapshot) -> Optional[float]:
     if position.avg_cost is None:
         return None
     return position.quantity * position.avg_cost
+
+
+def _option_delta_exposure_usd(
+    position: PositionSnapshot,
+    security: Optional[SecurityReference],
+) -> Optional[float]:
+    if position.option_delta_exposure_usd is not None:
+        return position.option_delta_exposure_usd
+    if position.option_delta is None or position.option_underlying_price is None:
+        return None
+    multiplier = security.multiplier if security is not None and security.multiplier else 1.0
+    return position.quantity * float(multiplier) * position.option_delta * position.option_underlying_price

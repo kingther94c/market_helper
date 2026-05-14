@@ -79,6 +79,12 @@ def test_portfolio_item_mappers_emit_ibkr_compatible_rows() -> None:
             "position": 20,
             "avgCost": 210.5,
             "marketValue": 4300,
+            "option_delta": "",
+            "option_underlying_price": "",
+            "option_implied_vol": "",
+            "option_greeks_source": "",
+            "option_greeks_status": "",
+            "option_underlying_symbol": "",
         }
     ]
     assert portfolio_items_to_ibkr_price_rows([item]) == [
@@ -105,3 +111,42 @@ def test_portfolio_item_price_mapper_falls_back_to_market_value_divided_by_quant
     assert portfolio_items_to_ibkr_price_rows([item]) == [
         {"conId": 756733, "marketPrice": 215.0}
     ]
+
+
+def test_portfolio_item_mapper_attaches_option_model_greeks() -> None:
+    item = FakePortfolioItem(
+        account="U12345",
+        contract=FakeContract(
+            conId=999001,
+            secType="OPT",
+            symbol="SPY",
+            currency="USD",
+            exchange="SMART",
+            localSymbol="SPY   260618C00600000",
+            multiplier="100",
+        ),
+        position=2,
+        marketPrice=12.5,
+        marketValue=2500,
+        averageCost=11.0,
+    )
+
+    rows = portfolio_items_to_ibkr_position_rows(
+        [item],
+        option_model_greeks={
+            999001: {
+                "source": "modelGreeks",
+                "status": "available",
+                "delta": 0.5,
+                "underlying_price": 600.0,
+                "implied_vol": 0.2,
+            }
+        },
+    )
+
+    assert rows[0]["option_delta"] == 0.5
+    assert rows[0]["option_underlying_price"] == 600.0
+    assert rows[0]["option_implied_vol"] == 0.2
+    assert rows[0]["option_greeks_source"] == "modelGreeks"
+    assert rows[0]["option_greeks_status"] == "available"
+    assert rows[0]["option_underlying_symbol"] == "SPY"

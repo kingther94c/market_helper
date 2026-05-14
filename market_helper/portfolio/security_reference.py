@@ -501,6 +501,14 @@ class PositionSnapshot:
     quantity: float
     avg_cost: Optional[float]
     market_value: Optional[float]
+    option_delta: float | None = None
+    option_underlying_price: float | None = None
+    option_delta_exposure_usd: float | None = None
+    option_implied_vol: float | None = None
+    option_greeks_source: str = ""
+    option_greeks_status: str = ""
+    option_underlying_symbol: str = ""
+    option_underlying_internal_id: str = ""
 
 
 @dataclass(frozen=True)

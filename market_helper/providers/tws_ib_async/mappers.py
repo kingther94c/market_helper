@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from collections import defaultdict
-from typing import Iterable
+from typing import Iterable, Mapping
 
 _CASH_BALANCE_TAG_PRIORITY = {
     "TOTALCASHBALANCE": 0,
@@ -10,18 +10,27 @@ _CASH_BALANCE_TAG_PRIORITY = {
 _CASH_TARGET_CURRENCY = "SGD"
 
 
-def portfolio_items_to_ibkr_position_rows(items: Iterable[object]) -> list[dict[str, object]]:
+def portfolio_items_to_ibkr_position_rows(
+    items: Iterable[object],
+    *,
+    option_model_greeks: Mapping[object, Mapping[str, object]] | None = None,
+) -> list[dict[str, object]]:
     rows: list[dict[str, object]] = []
+    greeks_by_con_id = option_model_greeks or {}
 
     for item in items:
         contract = _require_attr(item, "contract")
         exchange = _first_non_empty_attr(contract, "primaryExchange", "exchange")
+        con_id = _require_attr(contract, "conId")
+        con_id_key = str(con_id)
+        sec_type = _string_attr(contract, "secType")
+        greeks = greeks_by_con_id.get(con_id_key) or greeks_by_con_id.get(con_id) or {}
 
         rows.append(
             {
                 "account": _string_attr(item, "account"),
-                "conId": _require_attr(contract, "conId"),
-                "secType": _string_attr(contract, "secType"),
+                "conId": con_id,
+                "secType": sec_type,
                 "symbol": _string_attr(contract, "symbol"),
                 "currency": _string_attr(contract, "currency"),
                 "exchange": exchange,
@@ -30,6 +39,12 @@ def portfolio_items_to_ibkr_position_rows(items: Iterable[object]) -> list[dict[
                 "position": getattr(item, "position", 0.0),
                 "avgCost": getattr(item, "averageCost", None),
                 "marketValue": getattr(item, "marketValue", None),
+                "option_delta": greeks.get("delta", ""),
+                "option_underlying_price": greeks.get("underlying_price", ""),
+                "option_implied_vol": greeks.get("implied_vol", ""),
+                "option_greeks_source": greeks.get("source", "") if sec_type.upper() == "OPT" else "",
+                "option_greeks_status": greeks.get("status", "") if sec_type.upper() == "OPT" else "",
+                "option_underlying_symbol": _string_attr(contract, "symbol") if sec_type.upper() == "OPT" else "",
             }
         )
 

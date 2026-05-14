@@ -229,6 +229,104 @@ class FakeContract:
         self.localSymbol = local_symbol
 
 
+class FakePortfolioItem:
+    def __init__(self, contract: object) -> None:
+        self.contract = contract
+
+
+class FakeModelGreeks:
+    def __init__(
+        self,
+        *,
+        delta: float | None = 0.42,
+        und_price: float | None = 600.0,
+        implied_vol: float | None = 0.2,
+    ) -> None:
+        self.delta = delta
+        self.undPrice = und_price
+        self.impliedVol = implied_vol
+
+
+class FakeTicker:
+    def __init__(self, model_greeks: object | None) -> None:
+        self.modelGreeks = model_greeks
+
+
+class FakeIbGreeks(FakeIb):
+    def __init__(self, *, ticker: FakeTicker) -> None:
+        super().__init__()
+        self.ticker = ticker
+        self.requested_contracts: list[object] = []
+        self.cancelled_contracts: list[object] = []
+
+    def reqMktData(self, contract, genericTickList, snapshot, regulatorySnapshot, mktDataOptions):
+        self.requested_contracts.append(contract)
+        return self.ticker
+
+    def cancelMktData(self, contract) -> bool:
+        self.cancelled_contracts.append(contract)
+        return True
+
+    def sleep(self, secs: float = 0.02) -> bool:
+        return True
+
+
+def test_fetch_option_model_greeks_reads_model_delta_and_cancels_market_data() -> None:
+    contract = FakeContract(
+        con_id=999001,
+        symbol="SPY",
+        sec_type="OPT",
+        local_symbol="SPY   260618C00600000",
+    )
+    fake_ib = FakeIbGreeks(ticker=FakeTicker(FakeModelGreeks(delta=0.42, und_price=600.0, implied_vol=0.2)))
+    client = TwsIbAsyncClient(ib_factory=lambda: fake_ib)
+    client.connect()
+
+    snapshots = client.fetch_option_model_greeks(
+        [FakePortfolioItem(contract)],
+        timeout_seconds=0.0,
+    )
+
+    assert snapshots == {
+        "999001": {
+            "source": "modelGreeks",
+            "status": "available",
+            "delta": 0.42,
+            "underlying_price": 600.0,
+            "implied_vol": 0.2,
+        }
+    }
+    assert fake_ib.requested_contracts == [contract]
+    assert fake_ib.cancelled_contracts == [contract]
+
+
+def test_fetch_option_model_greeks_marks_missing_model_fields_and_skips_fop() -> None:
+    option_contract = FakeContract(
+        con_id=999001,
+        symbol="SPY",
+        sec_type="OPT",
+        local_symbol="SPY   260618C00600000",
+    )
+    fop_contract = FakeContract(
+        con_id=999002,
+        symbol="MCL",
+        sec_type="FOP",
+        local_symbol="MCON6 C8525",
+    )
+    fake_ib = FakeIbGreeks(ticker=FakeTicker(FakeModelGreeks(delta=None, und_price=600.0)))
+    client = TwsIbAsyncClient(ib_factory=lambda: fake_ib)
+    client.connect()
+
+    snapshots = client.fetch_option_model_greeks(
+        [FakePortfolioItem(option_contract), FakePortfolioItem(fop_contract)],
+        timeout_seconds=0.0,
+    )
+
+    assert snapshots["999001"]["status"] == "missing_delta"
+    assert "999002" not in snapshots
+    assert fake_ib.requested_contracts == [option_contract]
+
+
 class FakeContractDetails:
     def __init__(self, contract: object | None = None) -> None:
         self.contract = contract or FakeContract()

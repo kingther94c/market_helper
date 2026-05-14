@@ -1147,12 +1147,15 @@ def generate_live_ibkr_position_report(
         portfolio_items = _load_live_portfolio_items(live_client, selected_account_id)
         current_step += 1
         reporter.stage("IBKR live report: positions fetched", current=current_step, total=total_steps)
+        reporter.spinner("IBKR live report", detail="fetching option greeks")
+        option_model_greeks = _fetch_live_option_model_greeks(live_client, portfolio_items)
         cash_values = _load_live_account_values(live_client, selected_account_id)
         current_step += 1
         reporter.stage("IBKR live report: cash fetched", current=current_step, total=total_steps)
         sources, rows, reference_table = _build_live_ibkr_report_rows(
             portfolio_items,
             cash_values,
+            option_model_greeks=option_model_greeks,
             as_of=as_of,
         )
         current_step += 1
@@ -1203,10 +1206,12 @@ def build_live_ibkr_position_security_table(
     try:
         selected_account_id = _load_live_account_id(live_client, account_id)
         portfolio_items = _load_live_portfolio_items(live_client, selected_account_id)
+        option_model_greeks = _fetch_live_option_model_greeks(live_client, portfolio_items)
         cash_values = _load_live_account_values(live_client, selected_account_id)
         sources, report_rows, reference_table = _build_live_ibkr_report_rows(
             portfolio_items,
             cash_values,
+            option_model_greeks=option_model_greeks,
             as_of=as_of,
         )
         rows: list[dict[str, object]] = []
@@ -1453,10 +1458,24 @@ def _load_live_account_values(
     return list(list_account_values(account_id))
 
 
+def _fetch_live_option_model_greeks(
+    live_client: object,
+    portfolio_items: list[object],
+) -> dict[str, dict[str, object]]:
+    fetch = getattr(live_client, "fetch_option_model_greeks", None)
+    if not callable(fetch):
+        return {}
+    try:
+        return dict(fetch(portfolio_items))
+    except Exception:
+        return {}
+
+
 def _build_live_ibkr_report_rows(
     portfolio_items: list[object],
     cash_values: list[object],
     *,
+    option_model_greeks: dict[str, dict[str, object]] | None = None,
     as_of: str | None,
 ) -> tuple[list[LiveIbkrRowSource], list[PositionReportRow], SecurityReferenceTable]:
     # Keep live normalization identical to the CSV/report pipeline so notebook
@@ -1466,7 +1485,10 @@ def _build_live_ibkr_report_rows(
         LiveIbkrRowSource(raw_position=row, portfolio_item=item)
         for item, row in zip(
             portfolio_items,
-            portfolio_items_to_ibkr_position_rows(portfolio_items),
+            portfolio_items_to_ibkr_position_rows(
+                portfolio_items,
+                option_model_greeks=option_model_greeks or {},
+            ),
         )
     ]
     sources.extend(

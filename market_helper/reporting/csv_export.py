@@ -25,6 +25,14 @@ POSITION_REPORT_HEADERS = [
     "cost_basis",
     "unrealized_pnl",
     "weight",
+    "option_delta",
+    "option_underlying_price",
+    "option_delta_exposure_usd",
+    "option_implied_vol",
+    "option_greeks_source",
+    "option_greeks_status",
+    "option_underlying_symbol",
+    "option_underlying_internal_id",
 ]
 
 

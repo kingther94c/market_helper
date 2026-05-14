@@ -51,5 +51,13 @@ def test_export_position_report_csv_writes_expected_headers_and_rows(tmp_path) -
             "cost_basis": "50000.0",
             "unrealized_pnl": "1000.0",
             "weight": "0.25",
+            "option_delta": "",
+            "option_underlying_price": "",
+            "option_delta_exposure_usd": "",
+            "option_implied_vol": "",
+            "option_greeks_source": "",
+            "option_greeks_status": "",
+            "option_underlying_symbol": "",
+            "option_underlying_internal_id": "",
         }
     ]

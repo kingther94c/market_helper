@@ -1341,6 +1341,185 @@ def test_build_risk_report_view_model_excludes_eq_options_outside_decomposition(
     assert any(row.display_ticker == "SPY 260417C00510000" for row in view_model.risk_rows)
     option_row = next(row for row in view_model.risk_rows if row.internal_id.startswith("OPT:"))
     assert option_row.report_scope == "excluded"
+    assert option_row.risk_note == "Option delta unavailable: missing_delta_exposure"
+
+
+def test_build_risk_report_view_model_includes_delta_backed_equity_option(
+    tmp_path: Path,
+) -> None:
+    option_id = "OUTSIDE_SCOPE:OPT:SPY_260618C00600000:AMEX"
+    positions_csv = tmp_path / "positions.csv"
+    positions_csv.write_text(
+        "\n".join(
+            [
+                "as_of,account,internal_id,con_id,symbol,local_symbol,exchange,currency,source,quantity,avg_cost,latest_price,market_value,cost_basis,unrealized_pnl,weight,option_delta,option_underlying_price,option_delta_exposure_usd,option_implied_vol,option_greeks_source,option_greeks_status,option_underlying_symbol,option_underlying_internal_id",
+                "2026-03-26T00:00:00+00:00,U1,STK:SPY:SMART,756733,SPY,SPY,ARCA,USD,ibkr,10,500,510,5100,5000,100,0.6,,,,,,,,",
+                f"2026-03-26T00:00:00+00:00,U1,{option_id},999001,SPY,SPY   260618C00600000,AMEX,USD,ibkr,2,11,12.5,2500,2200,300,0.4,0.5,600,60000,0.2,modelGreeks,available,SPY,STK:SPY:SMART",
+            ]
+        ),
+        encoding="utf-8",
+    )
+    returns_json = tmp_path / "returns.json"
+    returns_json.write_text(
+        json.dumps(
+            {
+                "STK:SPY:SMART": [0.001 * ((idx % 7) - 3) for idx in range(90)],
+                option_id: [0.001 * ((idx % 7) - 3) for idx in range(90)],
+            }
+        ),
+        encoding="utf-8",
+    )
+    security_reference_path = tmp_path / "security_reference.csv"
+    export_security_reference_csv(
+        [
+            SecurityReference(
+                internal_id="STK:SPY:SMART",
+                asset_class="EQ",
+                canonical_symbol="SPY",
+                display_ticker="SPY",
+                display_name="US",
+                currency="USD",
+                primary_exchange="ARCA",
+                multiplier=1.0,
+                ibkr_sec_type="STK",
+                ibkr_symbol="SPY",
+                ibkr_exchange="SMART",
+                yahoo_symbol="SPY",
+                eq_country="US",
+                dir_exposure="L",
+                lookup_status="verified",
+            ),
+        ],
+        security_reference_path,
+    )
+
+    view_model = build_risk_report_view_model(
+        positions_csv_path=positions_csv,
+        returns_path=returns_json,
+        security_reference_path=security_reference_path,
+    )
+
+    option_row = next(row for row in view_model.risk_rows if row.internal_id == option_id)
+    assert option_row.report_scope == "included"
+    assert option_row.asset_class == "EQ"
+    assert option_row.eq_country == "US"
+    assert option_row.exposure_usd == pytest.approx(60_000.0)
+    assert option_row.gross_exposure_usd == pytest.approx(60_000.0)
+    assert option_row.risk_note == "Delta exposure via IBKR modelGreeks"
+    assert view_model.summary.gross_exposure == pytest.approx(65_100.0)
+
+
+def test_build_risk_report_view_model_inherits_fi_etf_option_classification(
+    tmp_path: Path,
+) -> None:
+    option_id = "OUTSIDE_SCOPE:OPT:TLT_260618P00090000:AMEX"
+    positions_csv = tmp_path / "positions.csv"
+    positions_csv.write_text(
+        "\n".join(
+            [
+                "as_of,account,internal_id,con_id,symbol,local_symbol,exchange,currency,source,quantity,avg_cost,latest_price,market_value,cost_basis,unrealized_pnl,weight,option_delta,option_underlying_price,option_delta_exposure_usd,option_implied_vol,option_greeks_source,option_greeks_status,option_underlying_symbol,option_underlying_internal_id",
+                f"2026-03-26T00:00:00+00:00,U1,{option_id},999002,TLT,TLT   260618P00090000,AMEX,USD,ibkr,2,3,3,600,600,0,1.0,-0.5,100,-10000,0.2,modelGreeks,available,TLT,STK:TLT:SMART",
+            ]
+        ),
+        encoding="utf-8",
+    )
+    returns_json = tmp_path / "returns.json"
+    returns_json.write_text(
+        json.dumps({option_id: [0.001 * ((idx % 7) - 3) for idx in range(90)]}),
+        encoding="utf-8",
+    )
+    security_reference_path = tmp_path / "security_reference.csv"
+    export_security_reference_csv(
+        [
+            SecurityReference(
+                internal_id="STK:TLT:SMART",
+                asset_class="FI",
+                canonical_symbol="TLT",
+                display_ticker="TLT",
+                display_name="20Y+ US",
+                currency="USD",
+                primary_exchange="ARCA",
+                multiplier=1.0,
+                ibkr_sec_type="STK",
+                ibkr_symbol="TLT",
+                ibkr_exchange="SMART",
+                yahoo_symbol="TLT",
+                dir_exposure="L",
+                mod_duration=16.5,
+                fi_tenor="20Y+",
+                lookup_status="verified",
+            ),
+        ],
+        security_reference_path,
+    )
+
+    view_model = build_risk_report_view_model(
+        positions_csv_path=positions_csv,
+        returns_path=returns_json,
+        security_reference_path=security_reference_path,
+    )
+
+    option_row = next(row for row in view_model.risk_rows if row.internal_id == option_id)
+    assert option_row.report_scope == "included"
+    assert option_row.asset_class == "FI"
+    assert option_row.fi_tenor == "20Y+"
+    assert option_row.exposure_usd == pytest.approx(-20_625.0)
+    assert option_row.gross_exposure_usd == pytest.approx(20_625.0)
+
+
+def test_build_risk_report_view_model_keeps_fop_delta_fields_audit_only(
+    tmp_path: Path,
+) -> None:
+    option_id = "OUTSIDE_SCOPE:FOP:SPY_260618C00600000:GLOBEX"
+    positions_csv = tmp_path / "positions.csv"
+    positions_csv.write_text(
+        "\n".join(
+            [
+                "as_of,account,internal_id,con_id,symbol,local_symbol,exchange,currency,source,quantity,avg_cost,latest_price,market_value,cost_basis,unrealized_pnl,weight,option_delta,option_underlying_price,option_delta_exposure_usd,option_implied_vol,option_greeks_source,option_greeks_status,option_underlying_symbol,option_underlying_internal_id",
+                f"2026-03-26T00:00:00+00:00,U1,{option_id},999003,SPY,SPY   260618C00600000,GLOBEX,USD,ibkr,2,11,12.5,2500,2200,300,0.4,0.5,600,60000,0.2,modelGreeks,available,SPY,STK:SPY:SMART",
+            ]
+        ),
+        encoding="utf-8",
+    )
+    returns_json = tmp_path / "returns.json"
+    returns_json.write_text(
+        json.dumps({option_id: [0.001 * ((idx % 7) - 3) for idx in range(90)]}),
+        encoding="utf-8",
+    )
+    security_reference_path = tmp_path / "security_reference.csv"
+    export_security_reference_csv(
+        [
+            SecurityReference(
+                internal_id="STK:SPY:SMART",
+                asset_class="EQ",
+                canonical_symbol="SPY",
+                display_ticker="SPY",
+                display_name="US",
+                currency="USD",
+                primary_exchange="ARCA",
+                multiplier=1.0,
+                ibkr_sec_type="STK",
+                ibkr_symbol="SPY",
+                ibkr_exchange="SMART",
+                yahoo_symbol="SPY",
+                eq_country="US",
+                dir_exposure="L",
+                lookup_status="verified",
+            ),
+        ],
+        security_reference_path,
+    )
+
+    view_model = build_risk_report_view_model(
+        positions_csv_path=positions_csv,
+        returns_path=returns_json,
+        security_reference_path=security_reference_path,
+    )
+
+    option_row = next(row for row in view_model.risk_rows if row.internal_id == option_id)
+    assert option_row.report_scope == "excluded"
+    assert option_row.gross_exposure_usd == pytest.approx(2_500.0)
+    assert option_row.risk_note == "Option delta unavailable: unsupported_option_type"
 
 
 def test_unmapped_rows_do_not_count_toward_vol_contribution(tmp_path: Path) -> None:

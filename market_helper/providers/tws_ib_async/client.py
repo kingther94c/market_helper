@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import asyncio
 from dataclasses import dataclass, field
+import math
+import time
 from typing import Callable
 
 
@@ -74,6 +76,62 @@ def _unique_non_empty_strings(values: object) -> list[str]:
         unique.append(item)
 
     return unique
+
+
+def _contract_sec_type(contract: object | None) -> str:
+    if contract is None:
+        return ""
+    return str(getattr(contract, "secType", "") or "").strip().upper()
+
+
+def _contract_con_id(contract: object | None) -> str:
+    if contract is None:
+        return ""
+    raw = getattr(contract, "conId", "") or getattr(contract, "conid", "")
+    return str(raw).strip()
+
+
+def _option_float(value: object) -> float | None:
+    if value in (None, ""):
+        return None
+    try:
+        resolved = float(value)
+    except (TypeError, ValueError):
+        return None
+    if not math.isfinite(resolved):
+        return None
+    return resolved
+
+
+def _model_greeks_snapshot(ticker: object | None) -> dict[str, object]:
+    model_greeks = getattr(ticker, "modelGreeks", None)
+    delta = _option_float(getattr(model_greeks, "delta", None))
+    underlying_price = _option_float(getattr(model_greeks, "undPrice", None))
+    implied_vol = _option_float(getattr(model_greeks, "impliedVol", None))
+    if model_greeks is None:
+        status = "missing_model_greeks"
+    elif delta is None:
+        status = "missing_delta"
+    elif underlying_price is None:
+        status = "missing_underlying_price"
+    else:
+        status = "available"
+    return {
+        "source": "modelGreeks",
+        "status": status,
+        "delta": delta,
+        "underlying_price": underlying_price,
+        "implied_vol": implied_vol,
+    }
+
+
+def _sleep_ib(ib: object, seconds: float) -> None:
+    delay = max(float(seconds), 0.0)
+    sleep = getattr(ib, "sleep", None)
+    if callable(sleep):
+        sleep(delay)
+        return
+    time.sleep(delay)
 
 
 def _patch_nested_asyncio() -> None:
@@ -300,6 +358,76 @@ class TwsIbAsyncClient:
                 ) from error
 
         return list(rows)
+
+    def fetch_option_model_greeks(
+        self,
+        portfolio_items: list[object],
+        *,
+        timeout_seconds: float = 8.0,
+        poll_interval_seconds: float = 0.1,
+    ) -> dict[str, dict[str, object]]:
+        """Fetch IBKR model greeks for live stock/ETF options in a portfolio."""
+        ib = self._require_connected()
+        req_mkt_data = getattr(ib, "reqMktData", None)
+        if not callable(req_mkt_data):
+            raise TwsIbAsyncError("Connected ib_async client does not expose reqMktData().")
+
+        option_items = [
+            item
+            for item in portfolio_items
+            if _contract_sec_type(getattr(item, "contract", None)) == "OPT"
+            and _contract_con_id(getattr(item, "contract", None))
+        ]
+        snapshots: dict[str, dict[str, object]] = {}
+        for item in option_items:
+            contract = getattr(item, "contract", None)
+            con_id = _contract_con_id(contract)
+            if not con_id:
+                continue
+            snapshots[con_id] = self._fetch_single_option_model_greeks(
+                ib=ib,
+                contract=contract,
+                req_mkt_data=req_mkt_data,
+                timeout_seconds=timeout_seconds,
+                poll_interval_seconds=poll_interval_seconds,
+            )
+        return snapshots
+
+    @staticmethod
+    def _fetch_single_option_model_greeks(
+        *,
+        ib: object,
+        contract: object,
+        req_mkt_data: Callable[..., object],
+        timeout_seconds: float,
+        poll_interval_seconds: float,
+    ) -> dict[str, object]:
+        cancel_mkt_data = getattr(ib, "cancelMktData", None)
+        ticker: object | None = None
+        try:
+            ticker = req_mkt_data(contract, "", False, False, [])
+            if hasattr(ticker, "__await__"):
+                ticker = asyncio.get_event_loop().run_until_complete(ticker)
+            deadline = time.monotonic() + max(float(timeout_seconds), 0.0)
+            snapshot = _model_greeks_snapshot(ticker)
+            while snapshot["status"] != "available" and time.monotonic() < deadline:
+                _sleep_ib(ib, poll_interval_seconds)
+                snapshot = _model_greeks_snapshot(ticker)
+            return snapshot
+        except Exception as error:  # noqa: BLE001 - option greeks should not break the position report.
+            return {
+                "source": "modelGreeks",
+                "status": f"error:{error}",
+                "delta": None,
+                "underlying_price": None,
+                "implied_vol": None,
+            }
+        finally:
+            if callable(cancel_mkt_data):
+                try:
+                    cancel_mkt_data(contract)
+                except Exception:
+                    pass
 
     @staticmethod
     def _force_refresh_account_portfolio(ib: object, account: str) -> None:

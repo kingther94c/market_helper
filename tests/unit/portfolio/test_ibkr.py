@@ -222,8 +222,103 @@ def test_normalize_ibkr_positions_marks_options_outside_scope() -> None:
         as_of="2026-03-26T00:00:00+00:00",
     )
 
-    assert positions[0].internal_id == "OUTSIDE_SCOPE:OPT:SPY:AMEX"
-    assert table.get_security("OUTSIDE_SCOPE:OPT:SPY:AMEX").mapping_status == "outside_scope"
+    assert positions[0].internal_id == "OUTSIDE_SCOPE:OPT:SPY_260618P00620000:AMEX"
+    assert table.get_security("OUTSIDE_SCOPE:OPT:SPY_260618P00620000:AMEX").mapping_status == "outside_scope"
+
+
+def test_normalize_ibkr_positions_attaches_option_delta_exposure() -> None:
+    table = SecurityReferenceTable.from_default_csv()
+    positions = normalize_ibkr_positions(
+        [
+            {
+                "account": "U12345",
+                "con_id": "999001",
+                "sec_type": "OPT",
+                "symbol": "SPY",
+                "currency": "USD",
+                "exchange": "AMEX",
+                "local_symbol": "SPY   260618C00600000",
+                "multiplier": "100",
+                "position": "2",
+                "market_value": "2500",
+                "option_delta": "0.5",
+                "option_underlying_price": "600",
+                "option_implied_vol": "0.2",
+                "option_greeks_source": "modelGreeks",
+                "option_greeks_status": "available",
+            }
+        ],
+        table,
+        as_of="2026-03-26T00:00:00+00:00",
+    )
+
+    assert positions[0].option_delta == pytest.approx(0.5)
+    assert positions[0].option_underlying_price == pytest.approx(600.0)
+    assert positions[0].option_delta_exposure_usd == pytest.approx(60_000.0)
+    assert positions[0].option_underlying_internal_id == "STK:SPY:SMART"
+
+
+def test_normalize_ibkr_positions_keeps_option_contract_ids_distinct() -> None:
+    table = SecurityReferenceTable.from_default_csv()
+    positions = normalize_ibkr_positions(
+        [
+            {
+                "account": "U12345",
+                "con_id": "999001",
+                "sec_type": "OPT",
+                "symbol": "SPY",
+                "currency": "USD",
+                "exchange": "AMEX",
+                "local_symbol": "SPY   260618C00600000",
+                "position": "1",
+                "market_value": "100",
+            },
+            {
+                "account": "U12345",
+                "con_id": "999002",
+                "sec_type": "OPT",
+                "symbol": "SPY",
+                "currency": "USD",
+                "exchange": "AMEX",
+                "local_symbol": "SPY   260618P00500000",
+                "position": "1",
+                "market_value": "100",
+            },
+        ],
+        table,
+        as_of="2026-03-26T00:00:00+00:00",
+    )
+
+    assert [position.internal_id for position in positions] == [
+        "OUTSIDE_SCOPE:OPT:SPY_260618C00600000:AMEX",
+        "OUTSIDE_SCOPE:OPT:SPY_260618P00500000:AMEX",
+    ]
+
+
+def test_normalize_ibkr_positions_flips_option_delta_exposure_for_short_quantity() -> None:
+    table = SecurityReferenceTable.from_default_csv()
+    positions = normalize_ibkr_positions(
+        [
+            {
+                "account": "U12345",
+                "con_id": "999003",
+                "sec_type": "OPT",
+                "symbol": "SPY",
+                "currency": "USD",
+                "exchange": "AMEX",
+                "local_symbol": "SPY   260618C00600000",
+                "multiplier": "100",
+                "position": "-1",
+                "market_value": "-1200",
+                "option_delta": "0.5",
+                "option_underlying_price": "600",
+            }
+        ],
+        table,
+        as_of="2026-03-26T00:00:00+00:00",
+    )
+
+    assert positions[0].option_delta_exposure_usd == pytest.approx(-30_000.0)
 
 
 def test_normalize_ibkr_positions_marks_futures_options_outside_scope() -> None:

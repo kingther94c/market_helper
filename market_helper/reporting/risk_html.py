@@ -842,6 +842,25 @@ def load_position_rows(
         raw_weight = row.get("weight")
         mapping_status = _mapping_status(security)
         instrument_type = _instrument_type(security=security, local_symbol=local_symbol, exchange=exchange)
+        option_delta_exposure_usd = _optional_float(row.get("option_delta_exposure_usd"))
+        option_greeks_status = str(row.get("option_greeks_status") or "").strip()
+        option_underlying_internal_id = str(row.get("option_underlying_internal_id") or "").strip()
+        option_underlying_security = (
+            security_reference_table.get_security(option_underlying_internal_id)
+            if security_reference_table is not None and option_underlying_internal_id
+            else None
+        )
+        option_delta_supported = _is_delta_supported_option(
+            internal_id=internal_id,
+            security=security,
+        )
+        delta_backed_option = (
+            instrument_type == "Option"
+            and option_delta_supported
+            and option_delta_exposure_usd is not None
+            and option_underlying_security is not None
+            and option_underlying_security.mapping_status == "mapped"
+        )
         multiplier = _multiplier(
             security=security,
             quantity=quantity,
@@ -851,7 +870,25 @@ def load_position_rows(
             mapping_status=mapping_status,
         )
 
-        if security is not None and security.mapping_status == "mapped":
+        risk_note = ""
+        if delta_backed_option:
+            assert option_underlying_security is not None
+            asset_class = option_underlying_security.asset_class or infer_asset_class(symbol, exchange)
+            display_ticker = local_symbol or (
+                security.display_ticker if security is not None else infer_display_ticker(symbol, exchange, local_symbol)
+            )
+            display_name = local_symbol or infer_display_name(symbol, local_symbol, instrument_type)
+            duration = option_underlying_security.mod_duration
+            eq_country = option_underlying_security.eq_country
+            eq_sector_proxy = option_underlying_security.eq_sector_proxy
+            dir_exposure = option_underlying_security.dir_exposure or "L"
+            fi_tenor = option_underlying_security.fi_tenor
+            cm_sector = option_underlying_security.cm_sector
+            yahoo_symbol = option_underlying_security.yahoo_symbol
+            canonical_symbol = option_underlying_security.canonical_symbol or symbol
+            mapping_status = "mapped"
+            risk_note = "Delta exposure via IBKR modelGreeks"
+        elif security is not None and security.mapping_status == "mapped":
             asset_class = security.asset_class or infer_asset_class(symbol, exchange)
             display_ticker = security.display_ticker or infer_display_ticker(symbol, exchange, local_symbol)
             display_name = security.display_name or infer_display_name(symbol, local_symbol, instrument_type)
@@ -878,6 +915,14 @@ def load_position_rows(
             cm_sector = ""
             yahoo_symbol = ""
             canonical_symbol = security.canonical_symbol or symbol
+            if instrument_type == "Option":
+                risk_note = _option_delta_unavailable_note(
+                    status=option_greeks_status,
+                    underlying_internal_id=option_underlying_internal_id,
+                    underlying_security=option_underlying_security,
+                    delta_exposure_usd=option_delta_exposure_usd,
+                    delta_supported=option_delta_supported,
+                )
         else:
             asset_class = infer_asset_class(symbol, exchange)
             display_ticker = infer_display_ticker(symbol, exchange, local_symbol)
@@ -890,13 +935,25 @@ def load_position_rows(
             cm_sector = ""
             yahoo_symbol = ""
             canonical_symbol = symbol
+            if instrument_type == "Option":
+                risk_note = _option_delta_unavailable_note(
+                    status=option_greeks_status,
+                    underlying_internal_id=option_underlying_internal_id,
+                    underlying_security=option_underlying_security,
+                    delta_exposure_usd=option_delta_exposure_usd,
+                    delta_supported=option_delta_supported,
+                )
 
-        gross_exposure_usd = abs(market_value) if market_value != 0.0 else abs(quantity * multiplier * latest_price)
-        signed_exposure_usd = _signed_exposure_usd(
-            quantity=quantity,
-            gross_exposure_usd=gross_exposure_usd,
-            dir_exposure=dir_exposure,
-        )
+        if delta_backed_option and option_delta_exposure_usd is not None:
+            gross_exposure_usd = abs(option_delta_exposure_usd)
+            signed_exposure_usd = float(option_delta_exposure_usd)
+        else:
+            gross_exposure_usd = abs(market_value) if market_value != 0.0 else abs(quantity * multiplier * latest_price)
+            signed_exposure_usd = _signed_exposure_usd(
+                quantity=quantity,
+                gross_exposure_usd=gross_exposure_usd,
+                dir_exposure=dir_exposure,
+            )
         weight = (
             float(raw_weight)
             if raw_weight not in (None, "")
@@ -931,6 +988,7 @@ def load_position_rows(
                 "cm_sector": cm_sector,
                 "yahoo_symbol": yahoo_symbol,
                 "currency": str(row.get("currency") or ""),
+                "risk_note": risk_note,
             }
         )
 
@@ -984,6 +1042,7 @@ def load_position_rows(
                 cm_sector=str(row.get("cm_sector") or ""),
                 yahoo_symbol=str(row["yahoo_symbol"]),
                 currency=str(row.get("currency") or "USD"),
+                risk_note=str(row.get("risk_note") or ""),
             )
         )
     return materialized_rows
@@ -2014,6 +2073,12 @@ def _breakdown_selected_vol(row: BreakdownRow, vol_method: str) -> float:
 
 
 def _is_report_included(row: RiskInputRow | RiskMetricsRow) -> bool:
+    if row.instrument_type == "Option":
+        return (
+            row.mapping_status == "mapped"
+            and row.asset_class.upper() != "OUTSIDE_SCOPE"
+            and row.gross_exposure_usd > 0
+        )
     if row.mapping_status == "outside_scope":
         return False
     if row.asset_class.upper() == "OUTSIDE_SCOPE":
@@ -3785,6 +3850,41 @@ def _signed_exposure_usd(
         quantity_sign = -1.0
     dir_sign = -1.0 if dir_exposure.upper() == "S" else 1.0
     return gross_exposure_usd * quantity_sign * dir_sign
+
+
+def _option_delta_unavailable_note(
+    *,
+    status: str,
+    underlying_internal_id: str,
+    underlying_security: SecurityReference | None,
+    delta_exposure_usd: float | None,
+    delta_supported: bool,
+) -> str:
+    if not delta_supported:
+        reason = "unsupported_option_type"
+    elif delta_exposure_usd is None:
+        reason = status or "missing_delta_exposure"
+    elif not underlying_internal_id:
+        reason = "missing_underlying_mapping"
+    elif underlying_security is None:
+        reason = f"unknown_underlying:{underlying_internal_id}"
+    elif underlying_security.mapping_status != "mapped":
+        reason = f"unmapped_underlying:{underlying_internal_id}"
+    else:
+        reason = status or "unavailable"
+    return f"Option delta unavailable: {reason}"
+
+
+def _is_delta_supported_option(
+    *,
+    internal_id: str,
+    security: SecurityReference | None,
+) -> bool:
+    sec_type = str(security.ibkr_sec_type if security is not None else "").strip().upper()
+    if sec_type:
+        return sec_type == "OPT"
+    normalized_id = str(internal_id).strip().upper()
+    return normalized_id.startswith("OPT:") or normalized_id.startswith("OUTSIDE_SCOPE:OPT:")
 
 
 def _mapping_status(security: SecurityReference | None) -> str:
