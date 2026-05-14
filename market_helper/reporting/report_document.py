@@ -130,12 +130,23 @@ def render_report_document(document: ReportDocument) -> str:
       border: 1px solid var(--panel-border); border-radius: var(--r-3); overflow: hidden;
       box-shadow: var(--shadow-1);
     }}
-    .kpi {{ background: var(--surface); padding: 12px 16px; display: flex; flex-direction: column; gap: 2px; }}
+    .kpi {{
+      background: var(--surface); padding: 14px 18px;
+      display: flex; flex-direction: column; gap: 4px;
+      transition: background 0.15s ease;
+    }}
+    .kpi:hover {{ background: var(--surface-2); }}
     .kpi__label {{ font-size: 11px; letter-spacing: 0.04em; text-transform: uppercase; color: var(--muted-ink); font-weight: 600; }}
-    .kpi__value {{ font-size: 20px; font-weight: 600; line-height: 1.1; font-variant-numeric: tabular-nums; }}
-    .kpi__sub {{ font-size: 11px; color: var(--muted-ink); font-variant-numeric: tabular-nums; }}
-    .kpi__value.tone-positive, .kpi__value.tone-negative {{ font-weight: 600; }}
+    .kpi__value {{ font-size: 21px; font-weight: 700; line-height: 1.15; font-variant-numeric: tabular-nums; }}
+    .kpi__sub {{ font-size: 11px; color: var(--muted-ink); font-variant-numeric: tabular-nums; min-height: 14px; }}
+    .kpi__value.tone-positive, .kpi__value.tone-negative {{ font-weight: 700; }}
     .kpi__value.is-warn {{ color: var(--warn); }}
+    .kpi__regime {{ display: inline-flex; align-items: center; gap: 8px; font-size: 17px; }}
+    .kpi__regime-dot {{
+      width: 8px; height: 8px; border-radius: 999px; background: var(--accent);
+      box-shadow: 0 0 0 3px var(--accent-soft); flex: none;
+    }}
+    .kpi__value.is-warn .kpi__regime-dot {{ background: var(--warn); box-shadow: 0 0 0 3px var(--warn-soft); }}
 
     .report-shell {{ max-width: 1540px; margin: 0 auto; padding: 16px 24px 40px; }}
     .report-alert {{

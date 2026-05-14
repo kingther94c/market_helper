@@ -30,6 +30,10 @@ class PerformanceMetricRow:
     max_drawdown: float | None
     secondary_twr_return: float | None = None
     secondary_mwr_return: float | None = None
+    # Excess-over-cash (BIL) annualized stats — `annualized_excess_vol` and
+    # `sharpe_ratio` are both derived from the same daily excess-return series.
+    annualized_excess_return: float | None = None
+    annualized_excess_vol: float | None = None
 
 
 def finalized_history(history: pd.DataFrame) -> pd.DataFrame:
@@ -281,6 +285,8 @@ def calculate_window_metrics(
         annualized_vol=metrics["annualized_vol"],
         sharpe_ratio=metrics["sharpe_ratio"],
         max_drawdown=metrics["max_drawdown"],
+        annualized_excess_return=metrics["annualized_excess_return"],
+        annualized_excess_vol=metrics["annualized_excess_vol"],
     )
 
 
@@ -332,6 +338,8 @@ def build_window_metric_row(
         max_drawdown=primary_metrics["max_drawdown"],
         secondary_twr_return=secondary_twr,
         secondary_mwr_return=secondary_mwr,
+        annualized_excess_return=primary_metrics["annualized_excess_return"],
+        annualized_excess_vol=primary_metrics["annualized_excess_vol"],
     )
 
 
@@ -383,6 +391,8 @@ def build_yearly_metric_rows(
                 max_drawdown=primary_metrics["max_drawdown"],
                 secondary_twr_return=secondary_twr,
                 secondary_mwr_return=secondary_mwr,
+                annualized_excess_return=primary_metrics["annualized_excess_return"],
+                annualized_excess_vol=primary_metrics["annualized_excess_vol"],
             )
         )
     return rows
@@ -464,6 +474,8 @@ def _calculate_metrics_from_frame(
             "annualized_vol": None,
             "sharpe_ratio": None,
             "max_drawdown": None,
+            "annualized_excess_return": None,
+            "annualized_excess_vol": None,
         }
 
     ann_return = _annualized_return_from_returns(daily_returns) if has_daily_coverage else None
@@ -500,6 +512,8 @@ def _calculate_metrics_from_frame(
         "annualized_vol": ann_vol,
         "sharpe_ratio": sharpe,
         "max_drawdown": drawdown,
+        "annualized_excess_return": ann_excess_return,
+        "annualized_excess_vol": ann_excess_vol,
     }
 
 
@@ -589,6 +603,8 @@ def _excess_return_series_from_history(
     currency: str,
     portfolio_daily_returns: pd.Series,
 ) -> pd.Series:
+    if portfolio_daily_returns.empty:
+        return pd.Series(dtype=float)
     cash_col = _cash_return_column_if_present(history, currency)
     if cash_col is None:
         return pd.Series(dtype=float)
@@ -596,19 +612,16 @@ def _excess_return_series_from_history(
     dated_history["date"] = pd.to_datetime(dated_history["date"], errors="coerce")
     dated_history = dated_history.dropna(subset=["date"]).drop_duplicates(subset=["date"], keep="last")
     dated_history = dated_history.set_index("date")
-    cash_returns = pd.to_numeric(dated_history.reindex(portfolio_daily_returns.index)[cash_col], errors="coerce").dropna()
-    if cash_returns.empty:
-        return pd.Series(dtype=float)
-    portfolio_aligned = portfolio_daily_returns.reindex(cash_returns.index).dropna()
-    if portfolio_aligned.empty:
-        return pd.Series(dtype=float)
-    cash_aligned = cash_returns.reindex(portfolio_aligned.index).dropna()
-    portfolio_aligned = portfolio_aligned.reindex(cash_aligned.index).dropna()
-    if portfolio_aligned.empty or cash_aligned.empty:
-        return pd.Series(dtype=float)
+    # Missing BIL observations within the window are treated as a 0% daily cash
+    # return rather than dropped, so the excess series keeps the same coverage as
+    # the portfolio return series (excess vol / Sharpe stay computable when BIL
+    # data is sparse).
+    cash_returns = pd.to_numeric(
+        dated_history.reindex(portfolio_daily_returns.index)[cash_col], errors="coerce"
+    ).fillna(0.0)
     return pd.Series(
-        portfolio_aligned.to_numpy(dtype=float) - cash_aligned.to_numpy(dtype=float),
-        index=portfolio_aligned.index,
+        portfolio_daily_returns.to_numpy(dtype=float) - cash_returns.to_numpy(dtype=float),
+        index=portfolio_daily_returns.index,
         dtype=float,
     )
 
@@ -705,6 +718,8 @@ def _empty_metrics() -> dict[str, float | None]:
         "annualized_vol": None,
         "sharpe_ratio": None,
         "max_drawdown": None,
+        "annualized_excess_return": None,
+        "annualized_excess_vol": None,
     }
 
 

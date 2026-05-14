@@ -48,12 +48,6 @@ def _format_money_usd(value: float | None) -> str:
     return f"${value:,.0f}"
 
 
-def _format_ratio(value: float | None, *, places: int = 2) -> str:
-    if value is None:
-        return "—"
-    return f"{float(value):.{places}f}"
-
-
 def _horizon_row(view_model: PerformanceReportViewModel | None, label: str) -> PerformanceMetricRow | None:
     if view_model is None:
         return None
@@ -61,29 +55,6 @@ def _horizon_row(view_model: PerformanceReportViewModel | None, label: str) -> P
         if row.label == label:
             return row
     return None
-
-
-_DRIFT_WARN_THRESHOLD = 0.02  # 2pp absolute drift triggers the warn-tone Policy-drift KPI
-
-
-def _largest_drift_summary(rows) -> tuple[str, float, int] | None:
-    """Return (bucket, drift_weight, n_over_threshold) for the row with the largest
-    absolute active weight, plus the count of all rows whose absolute drift exceeds
-    `_DRIFT_WARN_THRESHOLD` (P2 enriches the KPI sub-label with this count)."""
-    best: tuple[str, float] | None = None
-    n_over = 0
-    for row in rows:
-        active = getattr(row, "active_weight", None)
-        if active is None:
-            continue
-        active_f = float(active)
-        if abs(active_f) >= _DRIFT_WARN_THRESHOLD:
-            n_over += 1
-        if best is None or abs(active_f) > abs(best[1]):
-            best = (str(getattr(row, "bucket", "")), active_f)
-    if best is None:
-        return None
-    return (best[0], best[1], n_over)
 
 
 def _delta_class(value: float | None) -> str:
@@ -106,84 +77,76 @@ def _kpi_cell(label: str, value_html: str, sub_html: str = "", *, value_class: s
     )
 
 
-def build_topline_html(report_data: "PortfolioReportData") -> str:
-    """Build the 8-cell KPI strip rendered above the section content (P4).
+def _regime_kpi_cell(view_model: RegimeHtmlViewModel | None) -> str:
+    """Regime summary cell: regime label with an agreement + risk-overlay sub-line."""
+    if view_model is None:
+        return _kpi_cell("Regime", "—", "no regime artifact")
+    sub_parts: list[str] = []
+    if view_model.method_agreement is not None:
+        sub_parts.append(f"Agreement {view_model.method_agreement:.0%}")
+    if view_model.crisis_flag is not None:
+        if view_model.schema == "regime-engine-v2":
+            sub_parts.append("Risk overlay on" if view_model.crisis_flag else "Risk overlay off")
+        else:
+            sub_parts.append("Crisis on" if view_model.crisis_flag else "Crisis off")
+    value_class = " is-warn" if view_model.crisis_flag else ""
+    value_html = (
+        "<span class='kpi__regime'>"
+        "<span class='kpi__regime-dot' aria-hidden='true'></span>"
+        f"{html.escape(view_model.regime)}"
+        "</span>"
+    )
+    return _kpi_cell("Regime", value_html, html.escape(" · ".join(sub_parts)), value_class=value_class)
 
-    Pulls from the existing performance + risk view-models — no new computation.
-    Cells that can't be sourced from current view-models render as `—`.
+
+def build_topline_html(report_data: "PortfolioReportData") -> str:
+    """Build the KPI summary strip rendered above the section content.
+
+    Pulls from the existing performance + risk + regime view-models — no new
+    computation. Cells that can't be sourced render as `—`.
     """
-    perf = report_data.performance_usd_view_model
     risk = report_data.risk_view_model
     summary = risk.summary if risk is not None else None
+    perf_sgd = report_data.performance_sgd_view_model
 
-    mtd = _horizon_row(perf, "MTD")
-    ytd = _horizon_row(perf, "YTD")
-    one_year = _horizon_row(perf, "1Y")
+    mtd_sgd = _horizon_row(perf_sgd, "MTD")
+    ytd_sgd = _horizon_row(perf_sgd, "YTD")
 
-    nav = summary.funded_aum_usd if summary is not None else None
-    nav_sub = ""
-    if summary is not None and summary.funded_aum_sgd is not None:
-        nav_sub = f"SGD {summary.funded_aum_sgd:,.0f}"
+    nav_usd = summary.funded_aum_usd if summary is not None else None
+    nav_sgd = summary.funded_aum_sgd if summary is not None else None
 
-    drift_summary = _largest_drift_summary(risk.policy_drift_asset_class) if risk is not None else None
-    if drift_summary is not None:
-        bucket, drift_weight, n_over = drift_summary
-        drift_pct = drift_weight * 100.0
-        drift_sign = "+" if drift_pct > 0 else ("−" if drift_pct < 0 else "")
-        drift_value = f"{drift_sign}{abs(drift_pct):.1f}pp {html.escape(bucket)}"
-        drift_class = " is-warn" if abs(drift_pct) >= _DRIFT_WARN_THRESHOLD * 100.0 else ""
-        if n_over >= 2:
-            drift_sub = f"{n_over} sleeves > {int(_DRIFT_WARN_THRESHOLD * 100)}pp"
-        elif n_over == 1:
-            drift_sub = f"1 sleeve > {int(_DRIFT_WARN_THRESHOLD * 100)}pp"
-        else:
-            drift_sub = "vs target asset-class"
-    else:
-        drift_value = "—"
-        drift_class = ""
-        drift_sub = "vs target asset-class"
+    # Target Vol (Fast): the portfolio's realised vol under the Fast method
+    # (geomean 1m/3m) at the report's historical-correlation snapshot — i.e. the
+    # Historical row / Fast column of the Portfolio Vol Matrix.
+    target_vol_fast = None
+    if risk is not None:
+        target_vol_fast = risk.portfolio_vol_matrix.get("historical", {}).get("geomean_1m_3m")
 
     cells = [
         _kpi_cell(
             "NAV (USD)",
-            html.escape(_format_money_usd(nav)),
-            html.escape(nav_sub),
+            html.escape(_format_money_usd(nav_usd)),
         ),
         _kpi_cell(
-            "MTD",
-            html.escape(_format_pct(mtd.twr_return if mtd else None, signed=True)),
-            value_class=_delta_class(mtd.twr_return if mtd else None),
+            "NAV (SGD)",
+            html.escape(_format_money_usd(nav_sgd)),
         ),
         _kpi_cell(
-            "YTD",
-            html.escape(_format_pct(ytd.twr_return if ytd else None, signed=True)),
-            value_class=_delta_class(ytd.twr_return if ytd else None),
+            "Return MTD (SGD)",
+            html.escape(_format_pct(mtd_sgd.twr_return if mtd_sgd else None, signed=True)),
+            value_class=_delta_class(mtd_sgd.twr_return if mtd_sgd else None),
         ),
         _kpi_cell(
-            "1Y",
-            html.escape(_format_pct(one_year.twr_return if one_year else None, signed=True)),
-            value_class=_delta_class(one_year.twr_return if one_year else None),
+            "Return YTD (SGD)",
+            html.escape(_format_pct(ytd_sgd.twr_return if ytd_sgd else None, signed=True)),
+            value_class=_delta_class(ytd_sgd.twr_return if ytd_sgd else None),
         ),
         _kpi_cell(
-            "Ann. Vol (1Y)",
-            html.escape(_format_pct(one_year.annualized_vol if one_year else None)),
-            "EWMA + 1m/3m blend",
+            "Target Vol (Fast)",
+            html.escape(_format_pct(target_vol_fast)),
+            "geomean 1m/3m · historical corr",
         ),
-        _kpi_cell(
-            "Sharpe (1Y)",
-            html.escape(_format_ratio(one_year.sharpe_ratio if one_year else None)),
-        ),
-        _kpi_cell(
-            "Max DD (1Y)",
-            html.escape(_format_pct(one_year.max_drawdown if one_year else None)),
-            value_class=_delta_class(one_year.max_drawdown if one_year else None),
-        ),
-        _kpi_cell(
-            "Policy drift",
-            html.escape(drift_value),
-            html.escape(drift_sub),
-            value_class=drift_class,
-        ),
+        _regime_kpi_cell(report_data.regime_view_model),
     ]
     cell_count = len(cells)
     grid_style = f"grid-template-columns: repeat({cell_count}, minmax(0, 1fr));"

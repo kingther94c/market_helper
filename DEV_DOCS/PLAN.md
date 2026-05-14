@@ -49,6 +49,16 @@ Important seams:
 
 Goal: keep the GUI/report workflow reliable while shrinking old rendering paths.
 
+Landed:
+- Combined report restructured: KPI strip slimmed to NAV USD/SGD, MTD/YTD
+  return (SGD), Target Vol (Fast), and a regime summary cell; Regime Snapshot
+  removed from the Risk tab (the dedicated Regime section is canonical); Risk
+  Assumptions merged into the Portfolio Vol Matrix card.
+- Performance Overview (USD + SGD) now shows Total Return MTD/YTD/1Y plus 1Y
+  Excess Return, Vol, and Sharpe — all excess-over-BIL-cash, with Vol and Sharpe
+  sharing the same daily excess-return series. Missing BIL observations inside a
+  window are treated as a 0% daily cash return rather than dropped.
+
 Near-term work:
 1. Finish dashboard Performance USD/SGD parity for the snapshot path.
 2. Rewire `combined-html-report` to the NiceGUI/Playwright snapshot pipeline.

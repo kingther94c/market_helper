@@ -755,13 +755,12 @@ def test_load_regime_summary_accepts_v2_payload(tmp_path: Path) -> None:
     assert summary.per_method is not None
     assert summary.per_method[0]["method"] == "macro_nowcast"
 
+    # The regime snapshot is rendered in the dedicated Regime section, not the
+    # Risk tab — render_risk_tab no longer emits the regime block.
     html = risk_html_module.render_risk_tab(
         _minimal_risk_view_model(regime_summary=summary)
     )
-    assert "Reflation + Stress Overlay" in html
-    assert "Confidence" in html
-    assert "Disagreement" in html
-    assert "macro_nowcast" in html
+    assert "Regime Snapshot" not in html
 
 
 def test_build_risk_report_view_model_accepts_configurable_allocation_policy(tmp_path: Path) -> None:

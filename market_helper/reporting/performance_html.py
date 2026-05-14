@@ -9,11 +9,8 @@ import os
 
 import pandas as pd
 
-from market_helper.common.datetime_display import format_local_datetime
 from market_helper.domain.portfolio_monitor.services.performance_analytics import (
     PerformanceMetricRow,
-    annualized_return,
-    annualized_vol,
     build_window_metric_row,
     build_yearly_metric_rows,
     dollar_cumulative_plot_frame,
@@ -21,7 +18,6 @@ from market_helper.domain.portfolio_monitor.services.performance_analytics impor
     load_nav_cashflow_history_frame,
     percent_cumulative_plot_frame,
     percent_drawdown_plot_frame,
-    sharpe_ratio,
     slice_history_for_window,
 )
 from market_helper.reporting.html_tables import HtmlTableColumn, HtmlTableRow, render_html_table
@@ -74,42 +70,6 @@ def build_performance_report_view_model(
     as_of = "n/a" if frame.empty else pd.Timestamp(frame["date"].max()).date().isoformat()
 
     _ = _load_report_rows(report_csv_path)
-    summary_cards = [
-        PerformanceSummaryCard(label="As of", primary_value=format_local_datetime(as_of)),
-        PerformanceSummaryCard(
-            label="Since inception annualized return",
-            primary_value=annualized_return(frame, primary_currency, include_provisional=True),
-            secondary_value=(
-                _safe_metric(frame, secondary_currency, annualized_return, include_provisional=True)
-                if secondary_currency is not None
-                else None
-            ),
-            secondary_label=secondary_currency,
-            value_kind="percent",
-        ),
-        PerformanceSummaryCard(
-            label="Since inception annualized vol",
-            primary_value=annualized_vol(frame, primary_currency, include_provisional=True),
-            secondary_value=(
-                _safe_metric(frame, secondary_currency, annualized_vol, include_provisional=True)
-                if secondary_currency is not None
-                else None
-            ),
-            secondary_label=secondary_currency,
-            value_kind="percent",
-        ),
-        PerformanceSummaryCard(
-            label="Since inception Sharpe (excess over BIL cash)",
-            primary_value=sharpe_ratio(frame, primary_currency, include_provisional=True),
-            secondary_value=(
-                _safe_metric(frame, secondary_currency, sharpe_ratio, include_provisional=True)
-                if secondary_currency is not None
-                else None
-            ),
-            secondary_label=secondary_currency,
-            value_kind="ratio",
-        ),
-    ]
     horizon_rows = [
         build_window_metric_row(
             frame,
@@ -120,6 +80,7 @@ def build_performance_report_view_model(
         )
         for window in ("MTD", "YTD", "1Y", "FULL")
     ]
+    summary_cards = _build_overview_summary_cards(horizon_rows, primary_currency=primary_currency)
     yearly_rows = build_yearly_metric_rows(
         frame,
         primary_currency=primary_currency,
@@ -135,6 +96,52 @@ def build_performance_report_view_model(
         horizon_rows=horizon_rows,
         yearly_rows=yearly_rows,
     )
+
+
+def _build_overview_summary_cards(
+    horizon_rows: list[PerformanceMetricRow],
+    *,
+    primary_currency: str,
+) -> list[PerformanceSummaryCard]:
+    """Performance Overview KPI cards, all in `primary_currency`.
+
+    Excess Return / Vol / Sharpe are the 1Y excess-over-BIL-cash stats; vol and
+    Sharpe share the same daily excess-return series.
+    """
+    by_label = {row.label: row for row in horizon_rows}
+    one_year = by_label.get("1Y")
+    return [
+        PerformanceSummaryCard(
+            label="Total Return MTD",
+            primary_value=by_label["MTD"].twr_return if "MTD" in by_label else None,
+            value_kind="percent",
+        ),
+        PerformanceSummaryCard(
+            label="Total Return YTD",
+            primary_value=by_label["YTD"].twr_return if "YTD" in by_label else None,
+            value_kind="percent",
+        ),
+        PerformanceSummaryCard(
+            label="Total Return 1Y",
+            primary_value=one_year.twr_return if one_year else None,
+            value_kind="percent",
+        ),
+        PerformanceSummaryCard(
+            label="Excess Return 1Y (over BIL cash)",
+            primary_value=one_year.annualized_excess_return if one_year else None,
+            value_kind="percent",
+        ),
+        PerformanceSummaryCard(
+            label="Vol 1Y (excess return)",
+            primary_value=one_year.annualized_excess_vol if one_year else None,
+            value_kind="percent",
+        ),
+        PerformanceSummaryCard(
+            label="Sharpe 1Y (excess return)",
+            primary_value=one_year.sharpe_ratio if one_year else None,
+            value_kind="ratio",
+        ),
+    ]
 
 
 _PLOTLY_CDN_TAG = "<script src='https://cdn.plot.ly/plotly-2.35.2.min.js'></script>"
@@ -165,10 +172,13 @@ def render_performance_assets() -> str:
     plotly_loader = _resolve_plotly_loader()
     return (
         "<style>"
-        ".perf-summary-grid { display:grid; gap:12px; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); }"
-        ".perf-summary-card { padding:14px 16px; border-radius:var(--r-2); border:1px solid var(--border-soft); background:var(--surface); box-shadow:var(--shadow-1); }"
-        ".perf-summary-label { display:block; margin-bottom:6px; font-size:11px; font-weight:600; letter-spacing:0.04em; text-transform:uppercase; color:var(--muted-ink); }"
-        ".perf-summary-value { display:block; font-family:var(--font-sans); font-size:22px; font-weight:600; line-height:1.1; color:var(--ink); font-variant-numeric:tabular-nums; }"
+        ".perf-summary-grid { display:grid; gap:12px; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); }"
+        ".perf-summary-card { padding:16px 18px; border-radius:var(--r-2); border:1px solid var(--border-soft); background:linear-gradient(180deg, var(--surface), var(--surface-2)); box-shadow:var(--shadow-1); transition:box-shadow 0.15s ease, transform 0.15s ease; }"
+        ".perf-summary-card:hover { box-shadow:var(--shadow-2); transform:translateY(-1px); }"
+        ".perf-summary-label { display:block; margin-bottom:8px; font-size:11px; font-weight:600; letter-spacing:0.04em; text-transform:uppercase; color:var(--muted-ink); }"
+        ".perf-summary-value { display:block; font-family:var(--font-sans); font-size:24px; font-weight:700; line-height:1.1; color:var(--ink); font-variant-numeric:tabular-nums; }"
+        ".perf-summary-value.tone-positive { color:var(--pos); }"
+        ".perf-summary-value.tone-negative { color:var(--neg); }"
         ".perf-summary-secondary { display:block; margin-top:8px; padding-top:8px; border-top:1px solid var(--border-soft); color:var(--muted-ink); font-size:12px; font-weight:600; font-variant-numeric:tabular-nums; }"
         ".perf-chart-shell { display:grid; gap:18px; }"
         ".perf-chart-toolbar { display:grid; grid-template-columns: minmax(0, 1.2fr) minmax(320px, 0.9fr); gap:18px; align-items:start; }"
@@ -267,12 +277,10 @@ def render_performance_tab(view_model: PerformanceReportViewModel) -> str:
     )
     instance_id = f"perf-plot-{view_model.primary_currency.lower()}"
     overview_text = (
-        f"Primary view uses <strong>{html.escape(view_model.primary_basis)}</strong> in {html.escape(view_model.primary_currency)}."
-        if view_model.secondary_currency is None
-        else (
-            f"Primary view uses <strong>{html.escape(view_model.primary_basis)}</strong> in {html.escape(view_model.primary_currency)}. "
-            f"Auxiliary returns show {html.escape(view_model.secondary_currency)}."
-        )
+        f"All figures in <strong>{html.escape(view_model.primary_currency)}</strong>, "
+        f"{html.escape(view_model.primary_basis)} basis. "
+        "Excess Return, Vol, and Sharpe are 1Y excess-over-BIL-cash; "
+        "Vol and Sharpe share the same daily excess-return series."
     )
     chart_specs = json.dumps(view_model.chart_specs, separators=(",", ":"))
     return (
@@ -308,16 +316,6 @@ def render_performance_tab(view_model: PerformanceReportViewModel) -> str:
         "</div>"
         "</section>"
     )
-
-
-def _safe_metric(history: pd.DataFrame, currency: str, func, **kwargs) -> float | None:
-    try:
-        value = func(history, currency, **kwargs)
-    except Exception:
-        return None
-    if value is None:
-        return None
-    return float(value)
 
 
 def _load_report_rows(report_csv_path: str | Path | None) -> list[dict[str, str]]:
@@ -571,10 +569,16 @@ def _render_summary_card(card: PerformanceSummaryCard) -> str:
         secondary = (
             f"<small class='perf-summary-secondary'>{html.escape(card.secondary_label)}: {_format_metric_value(card.secondary_value, card.value_kind)}</small>"
         )
+    tone_class = ""
+    if card.value_kind in {"percent", "ratio"} and isinstance(card.primary_value, (int, float)):
+        if card.primary_value > 0:
+            tone_class = " tone-positive"
+        elif card.primary_value < 0:
+            tone_class = " tone-negative"
     return (
         "<div class='perf-summary-card'>"
         f"<span class='perf-summary-label'>{html.escape(card.label)}</span>"
-        f"<strong class='perf-summary-value'>{_format_metric_value(card.primary_value, card.value_kind)}</strong>"
+        f"<strong class='perf-summary-value{tone_class}'>{_format_metric_value(card.primary_value, card.value_kind)}</strong>"
         f"{secondary}"
         "</div>"
     )

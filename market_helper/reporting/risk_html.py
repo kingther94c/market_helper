@@ -17,7 +17,6 @@ import yaml
 
 logger = logging.getLogger(__name__)
 
-from market_helper.common.datetime_display import format_local_datetime
 from market_helper.common.progress import ProgressReporter, resolve_progress_reporter
 from market_helper.data_sources.yahoo_finance import YahooFinanceClient
 from market_helper.domain.portfolio_monitor.services.etf_sector_lookthrough import (
@@ -63,18 +62,6 @@ from market_helper.portfolio.security_reference import (
     SecurityReferenceTable,
     build_security_reference_table,
 )
-# One-line summaries keyed by regime engine output. Covers the four quadrant
-# labels emitted by ``_base_regime`` in ``regimes/engine_v2.py`` plus generic
-# axis-state combinations as fallback. Risk-overlay annotations append
-# " + Stress Overlay" to the base regime; we drop that suffix when looking up.
-REGIME_INTERPRETATIONS = {
-    "Goldilocks / Expansion": "Growth resilient with cooling or contained inflation.",
-    "Reflation": "Growth and inflation pushing up together.",
-    "Stagflation-like": "Weak growth coinciding with sticky or rising inflation.",
-    "Slowdown / Deflationary Slowdown": "Growth fading with no inflation impulse.",
-}
-
-
 TRADING_DAYS = 252
 HIST_1M_DAYS = 21
 HIST_3M_DAYS = 63
@@ -1680,7 +1667,6 @@ def render_risk_tab(view_model: RiskReportViewModel) -> str:
     policy_drift_asset_class = view_model.policy_drift_asset_class
     policy_drift_country = view_model.policy_drift_country
     policy_drift_sector = view_model.policy_drift_sector
-    regime_summary = view_model.regime_summary
     vol_method = view_model.vol_method
     inter_asset_corr = view_model.inter_asset_corr
     overview_allocation_table = render_html_table(
@@ -1773,71 +1759,6 @@ def render_risk_tab(view_model: RiskReportViewModel) -> str:
     policy_country_chart = _render_policy_drift_chart(policy_drift_country)
     policy_sector_chart = _render_policy_drift_chart(policy_drift_sector)
 
-    regime_block = ""
-    if regime_summary is not None:
-        regime_label = (regime_summary.regime or "").replace(" + Stress Overlay", "")
-        banner = REGIME_INTERPRETATIONS.get(regime_label, "Regime-aware view active.")
-        regime_badges = []
-        if regime_summary.method_agreement is not None:
-            regime_badges.append(
-                f"<span><strong>Agreement</strong>: {regime_summary.method_agreement:.0%}</span>"
-            )
-        if regime_summary.confidence:
-            regime_badges.append(
-                f"<span><strong>Confidence</strong>: {html.escape(regime_summary.confidence)}</span>"
-            )
-        if regime_summary.disagreement_flag is not None:
-            regime_badges.append(
-                f"<span><strong>Disagreement</strong>: {'yes' if regime_summary.disagreement_flag else 'no'}</span>"
-            )
-        if regime_summary.risk_state:
-            regime_badges.append(
-                f"<span><strong>Risk</strong>: {html.escape(regime_summary.risk_state)}</span>"
-            )
-        if regime_summary.crisis_flag is not None:
-            crisis_label = "on" if regime_summary.crisis_flag else "off"
-            regime_badges.append(
-                f"<span><strong>Crisis</strong>: {html.escape(crisis_label)}</span>"
-            )
-        if regime_summary.crisis_intensity is not None:
-            regime_badges.append(
-                f"<span><strong>Intensity</strong>: {regime_summary.crisis_intensity:.2f}</span>"
-            )
-        score_list = " ".join(
-            f"<span><strong>{html.escape(name)}</strong>: {value:.2f}</span>"
-            for name, value in sorted(regime_summary.scores.items())
-            if name in {"VOL", "CREDIT", "RATES", "GROWTH", "TREND", "STRESS", "INFLATION", "RISK"}
-        )
-        badge_list = " ".join(regime_badges)
-        method_rows = ""
-        if regime_summary.per_method:
-            method_items = []
-            for method in regime_summary.per_method:
-                native_label = method.get("native_label") or "n/a"
-                method_items.append(
-                    "<tr>"
-                    f"<td>{html.escape(method.get('method', 'unknown'))}</td>"
-                    f"<td>{html.escape(method.get('quadrant', 'Unknown'))}</td>"
-                    f"<td>{html.escape(native_label)}</td>"
-                    "</tr>"
-                )
-            method_rows = (
-                "<table class='report-table'>"
-                "<thead><tr><th>Layer</th><th>State</th><th>Status</th></tr></thead>"
-                f"<tbody>{''.join(method_items)}</tbody>"
-                "</table>"
-            )
-        regime_block = (
-            "<div class='card'>"
-            "<h2>Regime Snapshot</h2>"
-            f"<p><strong>{html.escape(regime_summary.regime)}</strong> as of {html.escape(format_local_datetime(regime_summary.as_of))}</p>"
-            f"<p>{html.escape(banner)}</p>"
-            f"<div class='scores'>{badge_list}</div>"
-            f"<div class='scores'>{score_list}</div>"
-            f"{method_rows}"
-            "</div>"
-        )
-
     overview_panel = f"""
   <section class='tab-panel' data-report-tab-panel='risk' data-report-tab-key='overview'>
     <div class='card'>
@@ -1853,8 +1774,10 @@ def render_risk_tab(view_model: RiskReportViewModel) -> str:
     </div>
 
     <div class='card'>
-    <h2>Portfolio Vol Matrix</h2>
-    <p>Rows are correlation assumptions. Columns are volatility methods.</p>
+    <h2>Portfolio Vol Matrix &amp; Risk Assumptions</h2>
+    <p>Rows are correlation assumptions. Columns are volatility methods. The vol-method
+    toggle below drives the highlighted column here and the vol/contribution columns in every table.</p>
+    {_render_vol_method_control_html(vol_method)}
     {_build_portfolio_vol_matrix_html(view_model)}
     </div>
 
@@ -1961,10 +1884,6 @@ def render_risk_tab(view_model: RiskReportViewModel) -> str:
 """
 
     return f"""
-  {regime_block}
-
-  {_render_risk_assumption_bar_html(vol_method)}
-
   <div class='control-toolbar'>
     <div class='control-row'>
       <div class='control-label'>Section</div>
@@ -2350,7 +2269,8 @@ def _commodity_summary_rows(rows: Iterable[RiskMetricsRow]) -> list[HtmlTableRow
     ]
 
 
-def _render_risk_assumption_bar_html(vol_method: str) -> str:
+def _render_vol_method_control_html(vol_method: str) -> str:
+    """Vol-method segmented control — rendered inside the Portfolio Vol Matrix card."""
     buttons = []
     for label, key in DEFAULT_VOL_METHOD_LABELS.items():
         active = " is-active" if key == vol_method else ""
@@ -2358,8 +2278,6 @@ def _render_risk_assumption_bar_html(vol_method: str) -> str:
             f"<button type='button' class='segmented-control__button{active}' data-risk-vol-target='{html.escape(key)}'>{html.escape(label)}</button>"
         )
     return (
-        "<div class='card'>"
-        "<h2>Risk Assumptions</h2>"
         "<div class='control-row'>"
         "<div class='control-label'>Vol Method</div>"
         "<div class='segmented-control segmented-control--warm' data-risk-vol-buttons='1'>"
@@ -2367,7 +2285,6 @@ def _render_risk_assumption_bar_html(vol_method: str) -> str:
         + "</div>"
         "</div>"
         "<p class='risk-assumption-copy'>This toggle controls which precomputed vol and contribution columns are shown. Correlation stays fixed to the report snapshot.</p>"
-        "</div>"
     )
 
 
