@@ -10,7 +10,9 @@ import os
 import pandas as pd
 
 from market_helper.domain.portfolio_monitor.services.performance_analytics import (
+    BenchmarkComparisonRow,
     PerformanceMetricRow,
+    build_window_benchmark_row,
     build_window_metric_row,
     build_yearly_metric_rows,
     dollar_cumulative_plot_frame,
@@ -56,6 +58,7 @@ class PerformanceReportViewModel:
     chart_specs: dict[str, dict[str, dict[str, object]]]
     horizon_rows: list[PerformanceMetricRow]
     yearly_rows: list[PerformanceMetricRow]
+    benchmark_rows: list[BenchmarkComparisonRow]
 
 
 def build_performance_report_view_model(
@@ -86,6 +89,10 @@ def build_performance_report_view_model(
         primary_currency=primary_currency,
         secondary_currency=secondary_currency,
     )
+    benchmark_rows = [
+        build_window_benchmark_row(frame, window=window, currency=primary_currency, include_provisional=True)
+        for window in ("MTD", "YTD", "1Y")
+    ]
     return PerformanceReportViewModel(
         as_of=as_of,
         primary_currency=primary_currency,
@@ -95,6 +102,7 @@ def build_performance_report_view_model(
         chart_specs=build_performance_chart_specs(frame, primary_currency),
         horizon_rows=horizon_rows,
         yearly_rows=yearly_rows,
+        benchmark_rows=benchmark_rows,
     )
 
 
@@ -275,6 +283,11 @@ def render_performance_tab(view_model: PerformanceReportViewModel) -> str:
         rows=_metric_table_rows(view_model.yearly_rows, include_annualized_return=False),
         empty_message="No yearly data",
     )
+    benchmark_table = render_html_table(
+        columns=_benchmark_table_columns(view_model.primary_currency),
+        rows=_benchmark_table_rows(view_model.benchmark_rows),
+        empty_message="No benchmark comparison data",
+    )
     instance_id = f"perf-plot-{view_model.primary_currency.lower()}"
     overview_text = (
         f"All figures in <strong>{html.escape(view_model.primary_currency)}</strong>, "
@@ -309,6 +322,13 @@ def render_performance_tab(view_model: PerformanceReportViewModel) -> str:
         "<div class='card'>"
         "<h2>Horizon Metrics</h2>"
         f"{horizon_table}"
+        "</div>"
+        "<div class='card'>"
+        "<h2>Benchmark Comparison</h2>"
+        f"<p>Portfolio TWR / MWR against Cash (BIL) and SPY per window, in returns and "
+        f"{html.escape(view_model.primary_currency)} PnL. Benchmark PnL is hypothetical: "
+        "the window's opening NAV compounded at the benchmark return.</p>"
+        f"{benchmark_table}"
         "</div>"
         "<div class='card'>"
         "<h2>Historical Years</h2>"
@@ -623,6 +643,42 @@ def _metric_table_rows(
     return output
 
 
+def _benchmark_table_columns(currency: str) -> list[HtmlTableColumn]:
+    money = f"$ ({html.escape(currency)})"
+    return [
+        HtmlTableColumn("label", "Window"),
+        HtmlTableColumn("twr_return", "TWR Return", align="num"),
+        HtmlTableColumn("twr_pnl", f"TWR {money}", align="num"),
+        HtmlTableColumn("mwr_return", "MWR Return", align="num"),
+        HtmlTableColumn("mwr_pnl", f"MWR {money}", align="num"),
+        HtmlTableColumn("cash_return", "Cash Return", align="num"),
+        HtmlTableColumn("cash_pnl", f"Cash {money}", align="num"),
+        HtmlTableColumn("spy_return", "SPY Return", align="num"),
+        HtmlTableColumn("spy_pnl", f"SPY {money}", align="num"),
+    ]
+
+
+def _benchmark_table_rows(rows: list[BenchmarkComparisonRow]) -> list[HtmlTableRow]:
+    output: list[HtmlTableRow] = []
+    for row in rows:
+        output.append(
+            HtmlTableRow(
+                cells={
+                    "label": _DISPLAY_WINDOW_LABELS.get(row.label, row.label),
+                    "twr_return": _format_metric_value(row.twr_return, "percent"),
+                    "twr_pnl": _format_metric_value(row.twr_pnl, "money"),
+                    "mwr_return": _format_metric_value(row.mwr_return, "percent"),
+                    "mwr_pnl": _format_metric_value(row.mwr_pnl, "money"),
+                    "cash_return": _format_metric_value(row.cash_return, "percent"),
+                    "cash_pnl": _format_metric_value(row.cash_pnl, "money"),
+                    "spy_return": _format_metric_value(row.spy_return, "percent"),
+                    "spy_pnl": _format_metric_value(row.spy_pnl, "money"),
+                }
+            )
+        )
+    return output
+
+
 def _format_metric_value(value: float | str | None, kind: str) -> str:
     if value is None:
         return "n/a"
@@ -632,6 +688,8 @@ def _format_metric_value(value: float | str | None, kind: str) -> str:
         return f"{float(value):.2%}"
     if kind == "ratio":
         return f"{float(value):.2f}"
+    if kind == "money":
+        return f"{float(value):,.0f}"
     return f"{float(value):,.2f}"
 
 

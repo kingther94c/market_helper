@@ -383,6 +383,37 @@ def test_parse_flex_performance_xml_aggregates_multicurrency_cash_report_summary
     assert mtd_twr_usd.return_pct == pytest.approx(-0.22146)
 
 
+def test_load_usdsgd_history_requests_full_period() -> None:
+    """The FX history must span the whole NAV history.
+
+    `_lookup_fx_rate` silently falls back to the earliest available rate for
+    dates before the FX series starts, so a short period freezes the rate
+    constant for old NAV dates and collapses SGD returns onto USD returns.
+    """
+    from market_helper.data_sources.ibkr.flex import performance as flex_perf
+
+    flex_perf._YAHOO_FX_HISTORY_CACHE.clear()
+    captured: dict[str, str] = {}
+
+    class _RecordingYahooClient:
+        def fetch_price_history(self, symbol, *, period="5y", interval="1d"):
+            captured["period"] = period
+            return {
+                "prices": [
+                    {"timestamp": int(datetime(2010, 1, 4, tzinfo=timezone.utc).timestamp()), "close": 1.40},
+                    {"timestamp": int(datetime(2026, 5, 14, tzinfo=timezone.utc).timestamp()), "close": 1.29},
+                ]
+            }
+
+    try:
+        levels = flex_perf._load_usdsgd_history(yahoo_client=_RecordingYahooClient())
+    finally:
+        flex_perf._YAHOO_FX_HISTORY_CACHE.clear()
+
+    assert captured["period"] == "max"
+    assert levels is not None and len(levels) == 2
+
+
 def test_export_flex_performance_csv_writes_legacy_detail_files(tmp_path) -> None:
     xml_path = tmp_path / "flex.xml"
     xml_path.write_text(

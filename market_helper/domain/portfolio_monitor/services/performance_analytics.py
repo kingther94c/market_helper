@@ -36,6 +36,25 @@ class PerformanceMetricRow:
     annualized_excess_vol: float | None = None
 
 
+@dataclass(frozen=True)
+class BenchmarkComparisonRow:
+    """Per-window portfolio vs benchmark comparison, in returns and $ PnL.
+
+    Cash = BIL; SPY = the equity benchmark. Benchmark $ PnL is the hypothetical
+    PnL from investing the window's opening NAV at the benchmark's compounded
+    window return.
+    """
+    label: str
+    twr_return: float | None
+    twr_pnl: float | None
+    mwr_return: float | None
+    mwr_pnl: float | None
+    cash_return: float | None
+    cash_pnl: float | None
+    spy_return: float | None
+    spy_pnl: float | None
+
+
 def finalized_history(history: pd.DataFrame) -> pd.DataFrame:
     return history.loc[history["is_final"].fillna(False)].copy().reset_index(drop=True)
 
@@ -341,6 +360,78 @@ def build_window_metric_row(
         annualized_excess_return=primary_metrics["annualized_excess_return"],
         annualized_excess_vol=primary_metrics["annualized_excess_vol"],
     )
+
+
+def build_window_benchmark_row(
+    history: pd.DataFrame,
+    *,
+    window: str,
+    currency: str,
+    include_provisional: bool = True,
+) -> BenchmarkComparisonRow:
+    """Portfolio (TWR/MWR) vs Cash/SPY benchmarks for a window, returns + $ PnL."""
+    normalized_window = window.upper()
+    frame = slice_history_for_window(
+        history,
+        window=normalized_window,
+        include_provisional=include_provisional,
+    )
+    nav_col = _nav_column(currency)
+    return_col = _return_column(currency)
+    pnl_amt_col = f"pnl_amt_{currency.strip().lower()}"
+    select_cols = ["date", nav_col, _flow_column(currency), return_col]
+    for extra in (pnl_amt_col, _cash_return_column_if_present(frame, currency), _benchmark_return_column_if_present(frame, currency)):
+        if extra is not None and extra in frame.columns and extra not in select_cols:
+            select_cols.append(extra)
+    available = frame.loc[frame[nav_col].notna(), select_cols].copy()
+    if len(available) < 2:
+        return BenchmarkComparisonRow(normalized_window, None, None, None, None, None, None, None, None)
+
+    start_nav = float(available.iloc[0][nav_col])
+
+    returns = pd.to_numeric(available.iloc[1:][return_col], errors="coerce")
+    twr_return = None if returns.empty or returns.isna().all() else float((1.0 + returns.fillna(0.0)).prod() - 1.0)
+
+    twr_pnl = None
+    if pnl_amt_col in available.columns:
+        pnl_amounts = pd.to_numeric(available.iloc[1:][pnl_amt_col], errors="coerce")
+        if not pnl_amounts.empty and not pnl_amounts.isna().all():
+            twr_pnl = float(pnl_amounts.fillna(0.0).sum())
+
+    mwr_return = _mwr_return_from_window(available, currency)
+    mwr_pnl = None if mwr_return is None else float(start_nav * mwr_return)
+
+    cash_return = _compound_window_benchmark(available, _cash_return_column_if_present(available, currency))
+    cash_pnl = None if cash_return is None else float(start_nav * cash_return)
+
+    spy_return = _compound_window_benchmark(available, _benchmark_return_column_if_present(available, currency))
+    spy_pnl = None if spy_return is None else float(start_nav * spy_return)
+
+    return BenchmarkComparisonRow(
+        label=normalized_window,
+        twr_return=twr_return,
+        twr_pnl=twr_pnl,
+        mwr_return=mwr_return,
+        mwr_pnl=mwr_pnl,
+        cash_return=cash_return,
+        cash_pnl=cash_pnl,
+        spy_return=spy_return,
+        spy_pnl=spy_pnl,
+    )
+
+
+def _compound_window_benchmark(window_frame: pd.DataFrame, column: str | None) -> float | None:
+    """Compound a benchmark's in-window daily returns (skip the opening row).
+
+    Missing daily observations are treated as 0% (holiday/calendar misalignment),
+    matching the chart-side benchmark handling.
+    """
+    if column is None or column not in window_frame.columns or len(window_frame) < 2:
+        return None
+    series = pd.to_numeric(window_frame.iloc[1:][column], errors="coerce")
+    if series.empty or series.isna().all():
+        return None
+    return float((1.0 + series.fillna(0.0)).prod() - 1.0)
 
 
 def build_yearly_metric_rows(

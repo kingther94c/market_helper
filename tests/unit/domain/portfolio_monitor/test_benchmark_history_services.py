@@ -19,6 +19,7 @@ from market_helper.domain.portfolio_monitor.services.nav_cashflow_history import
     load_nav_cashflow_history,
 )
 from market_helper.domain.portfolio_monitor.services.performance_analytics import (
+    build_window_benchmark_row,
     percent_cumulative_plot_frame,
 )
 from market_helper.domain.portfolio_monitor.services.yahoo_returns import (
@@ -209,6 +210,53 @@ def test_percent_cumulative_plot_frame_omits_benchmark_when_column_absent() -> N
     )
     frame = percent_cumulative_plot_frame(history, "USD", include_provisional=True)
     assert "bench_cumulative_return" not in frame.columns
+
+
+def test_build_window_benchmark_row_returns_portfolio_and_benchmark_metrics() -> None:
+    # 4 finalized days, no cashflows. Portfolio +1%/day, BIL +0.1%/day,
+    # SPY +0.5%/day. The opening row is the day before the window start.
+    history = pd.DataFrame(
+        {
+            "date": pd.to_datetime(["2026-01-02", "2026-01-05", "2026-01-06", "2026-01-07"]),
+            "nav_eod_usd": [100.0, 101.0, 102.01, 103.0301],
+            "cashflow_usd": [0.0, 0.0, 0.0, 0.0],
+            "pnl_amt_usd": [None, 1.0, 1.01, 1.0201],
+            "pnl_usd": [None, 0.01, 0.01, 0.01],
+            "bench_bil_return_usd": [None, 0.001, 0.001, 0.001],
+            "bench_spy_return_usd": [None, 0.005, 0.005, 0.005],
+            "is_final": [True, True, True, True],
+        }
+    )
+    row = build_window_benchmark_row(history, window="FULL", currency="USD", include_provisional=True)
+
+    assert row.twr_return == pytest.approx(1.01**3 - 1.0, abs=1e-9)
+    assert row.mwr_return == pytest.approx(1.01**3 - 1.0, abs=1e-6)  # no flows → MWR == TWR
+    assert row.twr_pnl == pytest.approx(1.0 + 1.01 + 1.0201, abs=1e-9)
+    assert row.cash_return == pytest.approx(1.001**3 - 1.0, abs=1e-9)
+    assert row.spy_return == pytest.approx(1.005**3 - 1.0, abs=1e-9)
+    # Benchmark $ PnL = opening NAV compounded at the benchmark window return.
+    assert row.spy_pnl == pytest.approx(100.0 * (1.005**3 - 1.0), abs=1e-6)
+    assert row.cash_pnl == pytest.approx(100.0 * (1.001**3 - 1.0), abs=1e-6)
+
+
+def test_build_window_benchmark_row_leaves_benchmarks_none_when_columns_absent() -> None:
+    history = pd.DataFrame(
+        {
+            "date": pd.to_datetime(["2026-01-02", "2026-01-05", "2026-01-06"]),
+            "nav_eod_usd": [100.0, 101.0, 102.01],
+            "cashflow_usd": [0.0, 0.0, 0.0],
+            "pnl_amt_usd": [None, 1.0, 1.01],
+            "pnl_usd": [None, 0.01, 0.01],
+            "is_final": [True, True, True],
+        }
+    )
+    row = build_window_benchmark_row(history, window="FULL", currency="USD", include_provisional=True)
+
+    assert row.twr_return == pytest.approx(1.01**2 - 1.0, abs=1e-9)
+    assert row.cash_return is None
+    assert row.cash_pnl is None
+    assert row.spy_return is None
+    assert row.spy_pnl is None
 
 
 def _build_minimal_history(*, rows: list[tuple[str, float, float]]) -> pd.DataFrame:

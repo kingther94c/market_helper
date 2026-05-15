@@ -46,7 +46,11 @@ _PNL_ALIASES = ("pnl", "profit", "gain", "loss")
 _RETURN_ALIASES = ("return", "performance", "pct", "percentage")
 DEFAULT_USDSGD_YAHOO_SYMBOL = "USDSGD=X"
 DEFAULT_SGDUSD_YAHOO_SYMBOL = "SGDUSD=X"
-DEFAULT_YAHOO_FX_PERIOD = "2y"
+# Must span the full NAV history: `_lookup_fx_rate` silently falls back to the
+# earliest available rate for dates before the FX series starts, so a short
+# period freezes the FX rate constant for old NAV dates and collapses the SGD
+# return onto the USD return. `max` covers the entire USDSGD=X history.
+DEFAULT_YAHOO_FX_PERIOD = "max"
 DEFAULT_YAHOO_FX_INTERVAL = "1d"
 _YAHOO_FX_HISTORY_CACHE: dict[str, list[tuple[date, float]]] = {}
 

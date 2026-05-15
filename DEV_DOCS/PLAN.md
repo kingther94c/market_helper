@@ -58,6 +58,12 @@ Landed:
   Excess Return, Vol, and Sharpe — all excess-over-BIL-cash, with Vol and Sharpe
   sharing the same daily excess-return series. Missing BIL observations inside a
   window are treated as a 0% daily cash return rather than dropped.
+- Performance section adds a Benchmark Comparison table (MTD/YTD/1Y) — portfolio
+  TWR/MWR vs Cash (BIL) and SPY, in returns and $ PnL.
+- **FX history coverage fix**: `DEFAULT_YAHOO_FX_PERIOD` was `2y`, so
+  `_lookup_fx_rate` froze USD/SGD constant for all NAV dates older than ~2 years
+  and collapsed SGD returns onto USD returns for the bulk of history. Now `max`.
+  Requires a `nav_cashflow_history.feather` rebuild to take effect.
 
 Near-term work:
 1. Finish dashboard Performance USD/SGD parity for the snapshot path.

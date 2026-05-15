@@ -97,6 +97,7 @@ def _fake_report_data() -> PortfolioReportData:
         },
         horizon_rows=[],
         yearly_rows=[],
+        benchmark_rows=[],
     )
     risk = RiskReportViewModel(
         as_of="2026-04-08",
