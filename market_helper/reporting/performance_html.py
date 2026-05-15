@@ -611,7 +611,7 @@ def _metric_table_columns(*, include_annualized_return: bool) -> list[HtmlTableC
         HtmlTableColumn("mwr_return", "MWR Return", align="num"),
     ]
     if include_annualized_return:
-        columns.append(HtmlTableColumn("annualized_return", "Ann Return", align="num"))
+        columns.append(HtmlTableColumn("annualized_excess_return", "Ann ER", align="num"))
     columns.extend(
         [
             HtmlTableColumn("annualized_vol", "Ann Vol", align="num"),
@@ -638,7 +638,7 @@ def _metric_table_rows(
             "max_drawdown": _format_metric_value(row.max_drawdown, "percent"),
         }
         if include_annualized_return:
-            cells["annualized_return"] = _format_metric_value(row.annualized_return, "percent")
+            cells["annualized_excess_return"] = _format_metric_value(row.annualized_excess_return, "percent")
         output.append(HtmlTableRow(cells=cells))
     return output
 
