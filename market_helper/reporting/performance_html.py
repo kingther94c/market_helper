@@ -9,6 +9,7 @@ import os
 
 import pandas as pd
 
+from market_helper.common.datetime_display import format_local_datetime
 from market_helper.domain.portfolio_monitor.services.performance_analytics import (
     BenchmarkComparisonRow,
     PerformanceMetricRow,
@@ -296,9 +297,14 @@ def render_performance_tab(view_model: PerformanceReportViewModel) -> str:
         "Vol and Sharpe share the same daily excess-return series."
     )
     chart_specs = json.dumps(view_model.chart_specs, separators=(",", ":"))
+    as_of_label = format_local_datetime(view_model.as_of) if view_model.as_of and view_model.as_of != "n/a" else None
+    as_of_kicker = (
+        f"<p class='perf-card-kicker'>As of {html.escape(as_of_label)}</p>" if as_of_label else ""
+    )
     return (
         "<section class='perf-tab'>"
         "<div class='card'>"
+        f"{as_of_kicker}"
         "<h2>Performance Overview</h2>"
         f"<p>{overview_text}</p>"
         f"<div class='perf-summary-grid'>{summary_cards}</div>"
