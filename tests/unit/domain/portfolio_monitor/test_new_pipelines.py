@@ -150,7 +150,6 @@ def test_build_live_ibkr_position_security_table_merges_position_reference_and_c
     assert row["security_asset_class"] == "EQ"
     assert row["security_display_ticker"] == "SPY"
     assert row["security_display_name"] == "US"
-    assert row["security_eq_country"] == "US"
     assert row["security_lookup_status"] == "verified"
     assert row["security_runtime_local_symbol"] == "SPY"
 

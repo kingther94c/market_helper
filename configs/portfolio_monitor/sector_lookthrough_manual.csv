@@ -1,0 +1,5 @@
+symbol,sector,weight,source,confidence,as_of,notes
+GRID,Industrials,0.6146,justetf,high,2026-03-31,
+GRID,Utilities,0.1896,justetf,high,2026-03-31,
+GRID,Technology,0.1263,justetf,high,2026-03-31,
+GRID,Consumer Discretionary,0.0279,justetf,high,2026-03-31,

@@ -100,8 +100,14 @@ _YAHOO_FX_RATE_CACHE: dict[str, float] = {}
 DEFAULT_EQ_COUNTRY_LOOKTHROUGH_PATH = (
     Path(__file__).resolve().parents[2] / "configs" / "portfolio_monitor" / "eq_country_lookthrough.csv"
 )
+DEFAULT_EQ_COUNTRY_MANUAL_LOOKTHROUGH_PATH = (
+    Path(__file__).resolve().parents[2] / "configs" / "portfolio_monitor" / "country_lookthrough_manual.csv"
+)
 DEFAULT_US_SECTOR_LOOKTHROUGH_PATH = (
     Path(__file__).resolve().parents[2] / "configs" / "portfolio_monitor" / "us_sector_lookthrough.json"
+)
+DEFAULT_US_SECTOR_MANUAL_LOOKTHROUGH_PATH = (
+    Path(__file__).resolve().parents[2] / "configs" / "portfolio_monitor" / "sector_lookthrough_manual.csv"
 )
 DEFAULT_RISK_REPORT_CONFIG_PATH = (
     Path(__file__).resolve().parents[2] / "configs" / "portfolio_monitor" / "report_config.yaml"
@@ -190,7 +196,6 @@ class RiskInputRow:
     exchange: str
     mapping_status: str
     dir_exposure: str
-    eq_country: str
     eq_sector_proxy: str
     fi_tenor: str
     yahoo_symbol: str
@@ -233,7 +238,6 @@ class RiskMetricsRow:
     mapping_status: str
     report_scope: str
     dir_exposure: str
-    eq_country: str
     eq_sector_proxy: str
     fi_tenor: str
     cm_sector: str = ""
@@ -374,7 +378,9 @@ DEFAULT_FX_EXCLUDED_ASSET_CLASSES: tuple[str, ...] = ("FX", "CASH")
 @dataclass(frozen=True)
 class RiskReportConfig:
     eq_country_lookthrough_path: Path
+    eq_country_manual_lookthrough_path: Path
     us_sector_lookthrough_path: Path
+    us_sector_manual_lookthrough_path: Path
     policy: AllocationPolicyConfig
     proxy: dict[str, Any]
     proxy_defaults: dict[str, float]
@@ -705,7 +711,6 @@ def build_risk_report_view_model(
             mapping_status=row.mapping_status,
             report_scope=_report_scope_label(row),
             dir_exposure=row.dir_exposure,
-            eq_country=row.eq_country,
             eq_sector_proxy=row.eq_sector_proxy,
             fi_tenor=row.fi_tenor,
             cm_sector=row.cm_sector,
@@ -722,6 +727,7 @@ def build_risk_report_view_model(
         security_realized_loadings,
         security_forward_looking_loadings,
         lookthrough_path=risk_report_config.eq_country_lookthrough_path,
+        manual_lookthrough_path=risk_report_config.eq_country_manual_lookthrough_path,
     )
     sector_breakdown = _build_us_sector_breakdown(
         included_rows,
@@ -730,6 +736,7 @@ def build_risk_report_view_model(
         security_realized_loadings,
         security_forward_looking_loadings,
         lookthrough_path=risk_report_config.us_sector_lookthrough_path,
+        manual_lookthrough_path=risk_report_config.us_sector_manual_lookthrough_path,
     )
     fi_tenor_breakdown = _build_fi_tenor_breakdown(
         included_rows,
@@ -866,7 +873,6 @@ def load_position_rows(
             )
             display_name = local_symbol or infer_display_name(symbol, local_symbol, instrument_type)
             duration = option_underlying_security.mod_duration
-            eq_country = option_underlying_security.eq_country
             eq_sector_proxy = option_underlying_security.eq_sector_proxy
             dir_exposure = option_underlying_security.dir_exposure or "L"
             fi_tenor = option_underlying_security.fi_tenor
@@ -883,7 +889,6 @@ def load_position_rows(
                 display_ticker = infer_display_ticker(symbol, exchange, local_symbol)
                 display_name = infer_display_name(symbol, local_symbol, instrument_type)
             duration = security.mod_duration
-            eq_country = security.eq_country
             eq_sector_proxy = security.eq_sector_proxy
             dir_exposure = security.dir_exposure or "L"
             fi_tenor = security.fi_tenor
@@ -895,7 +900,6 @@ def load_position_rows(
             display_ticker = security.display_ticker or infer_display_ticker(symbol, exchange, local_symbol)
             display_name = security.display_name or infer_display_name(symbol, local_symbol, instrument_type)
             duration = None
-            eq_country = ""
             eq_sector_proxy = ""
             dir_exposure = "L"
             fi_tenor = ""
@@ -915,7 +919,6 @@ def load_position_rows(
             display_ticker = infer_display_ticker(symbol, exchange, local_symbol)
             display_name = infer_display_name(symbol, local_symbol, instrument_type)
             duration = None
-            eq_country = ""
             eq_sector_proxy = ""
             dir_exposure = "L"
             fi_tenor = ""
@@ -969,7 +972,6 @@ def load_position_rows(
                 "exchange": exchange,
                 "mapping_status": mapping_status,
                 "dir_exposure": dir_exposure,
-                "eq_country": eq_country,
                 "eq_sector_proxy": eq_sector_proxy,
                 "fi_tenor": fi_tenor,
                 "cm_sector": cm_sector,
@@ -1023,7 +1025,6 @@ def load_position_rows(
                 exchange=str(row["exchange"]),
                 mapping_status=str(row["mapping_status"]),
                 dir_exposure=str(row["dir_exposure"]),
-                eq_country=str(row["eq_country"]),
                 eq_sector_proxy=str(row["eq_sector_proxy"]),
                 fi_tenor=str(row["fi_tenor"]),
                 cm_sector=str(row.get("cm_sector") or ""),
@@ -1195,7 +1196,6 @@ def _synthetic_spread_row(
         exchange=result.exchange,
         mapping_status="mapped",
         dir_exposure="L",
-        eq_country="",
         eq_sector_proxy="",
         fi_tenor="",
         cm_sector=next((row.cm_sector for row in source_rows if row.cm_sector), ""),
@@ -2941,10 +2941,22 @@ def _load_risk_report_config(
 
     lookthrough_payload = dict(payload.get("lookthrough", {}))
     eq_file = str(lookthrough_payload.get("eq_country", DEFAULT_EQ_COUNTRY_LOOKTHROUGH_PATH.name))
+    eq_manual_file = str(
+        lookthrough_payload.get("eq_country_manual", DEFAULT_EQ_COUNTRY_MANUAL_LOOKTHROUGH_PATH.name)
+    )
     us_file = str(lookthrough_payload.get("us_sector", DEFAULT_US_SECTOR_LOOKTHROUGH_PATH.name))
+    us_manual_file = str(
+        lookthrough_payload.get("us_sector_manual", DEFAULT_US_SECTOR_MANUAL_LOOKTHROUGH_PATH.name)
+    )
     base_dir = config_path.parent if config_path.exists() else DEFAULT_RISK_REPORT_CONFIG_PATH.parent
     eq_path = Path(eq_file) if Path(eq_file).is_absolute() else (base_dir / eq_file)
+    eq_manual_path = (
+        Path(eq_manual_file) if Path(eq_manual_file).is_absolute() else (base_dir / eq_manual_file)
+    )
     us_path = Path(us_file) if Path(us_file).is_absolute() else (base_dir / us_file)
+    us_manual_path = (
+        Path(us_manual_file) if Path(us_manual_file).is_absolute() else (base_dir / us_manual_file)
+    )
 
     policy = _parse_allocation_policy(dict(payload.get("policy", {})))
     if allocation_policy_path is not None:
@@ -3003,7 +3015,9 @@ def _load_risk_report_config(
 
     return RiskReportConfig(
         eq_country_lookthrough_path=eq_path,
+        eq_country_manual_lookthrough_path=eq_manual_path,
         us_sector_lookthrough_path=us_path,
+        us_sector_manual_lookthrough_path=us_manual_path,
         policy=policy,
         proxy=explicit_proxy_payload,
         proxy_defaults=_parse_proxy_default_levels(proxy_payload.get("defaults", {})),
@@ -3377,15 +3391,17 @@ def _build_eq_country_breakdown(
     forward_looking_loadings: Mapping[str, float],
     *,
     lookthrough_path: Path = DEFAULT_EQ_COUNTRY_LOOKTHROUGH_PATH,
+    manual_lookthrough_path: Path = DEFAULT_EQ_COUNTRY_MANUAL_LOOKTHROUGH_PATH,
 ) -> list[BreakdownRow]:
-    lookthrough = _load_weight_table(lookthrough_path, "eq_country", "country_bucket")
+    taxonomy = _load_weight_table(lookthrough_path, "eq_country", "country_bucket")
+    manual = _load_weight_table(manual_lookthrough_path, "symbol", "country_bucket")
     breakdown = _build_breakdown(
         rows=rows,
         estimated_loadings=estimated_loadings,
         geomean_loadings=geomean_loadings,
         realized_5y_loadings=realized_5y_loadings,
         forward_looking_loadings=forward_looking_loadings,
-        expander=lambda row: _expand_country_allocations(row, lookthrough),
+        expander=lambda row: _expand_country_allocations(row, manual=manual, taxonomy=taxonomy),
         parent="EQ",
     )
     return sorted(breakdown, key=_eq_country_breakdown_sort_key)
@@ -3399,15 +3415,17 @@ def _build_us_sector_breakdown(
     forward_looking_loadings: Mapping[str, float],
     *,
     lookthrough_path: Path = DEFAULT_US_SECTOR_LOOKTHROUGH_PATH,
+    manual_lookthrough_path: Path = DEFAULT_US_SECTOR_MANUAL_LOOKTHROUGH_PATH,
 ) -> list[BreakdownRow]:
-    lookthrough = _load_weight_table(lookthrough_path, "canonical_symbol", "sector")
+    api_cache = _load_weight_table(lookthrough_path, "canonical_symbol", "sector")
+    manual = _load_weight_table(manual_lookthrough_path, "symbol", "sector")
     return _build_breakdown(
         rows=rows,
         estimated_loadings=estimated_loadings,
         geomean_loadings=geomean_loadings,
         realized_5y_loadings=realized_5y_loadings,
         forward_looking_loadings=forward_looking_loadings,
-        expander=lambda row: _expand_us_sector_allocations(row, lookthrough),
+        expander=lambda row: _expand_us_sector_allocations(row, api_cache=api_cache, manual=manual),
         parent="US_EQ",
     )
 
@@ -3596,19 +3614,38 @@ def _eq_country_policy_bucket_sort_key(
 
 def _expand_country_allocations(
     row: RiskInputRow,
-    lookthrough: Mapping[str, list[tuple[str, float]]],
+    *,
+    manual: Mapping[str, list[tuple[str, float]]],
+    taxonomy: Mapping[str, list[tuple[str, float]]],
 ) -> list[tuple[str, float]]:
+    """Resolve a position's per-leaf country weights.
+
+    Each EQ symbol gets its breakdown from ``country_lookthrough_manual.csv``
+    (keyed by symbol). Manual rows may point at leaf buckets (DM-US, EM-CN, …)
+    or aggregate buckets (DM, EM, ACWI); aggregates are re-expanded through the
+    bucket taxonomy. Missing entries fall through to OTHER.
+    """
     if row.asset_class != "EQ":
         return []
-    if row.eq_country in lookthrough:
-        return list(_expand_eq_country_bucket_weights(bucket=row.eq_country, weight=1.0, lookthrough=lookthrough).items())
-    leaf_aliases = _build_eq_country_leaf_aliases(lookthrough)
-    normalized_country = str(row.eq_country).upper()
-    if normalized_country in leaf_aliases:
-        return [(leaf_aliases[normalized_country], 1.0)]
-    if row.eq_country:
-        return [(row.eq_country, 1.0)]
-    return [("OTHER", 1.0)]
+    normalized_symbol = str(row.canonical_symbol or row.symbol).upper()
+    rows = manual.get(normalized_symbol) or []
+    if not rows:
+        return [("OTHER", 1.0)]
+    expanded: dict[str, float] = {}
+    for bucket, weight in rows:
+        normalized_bucket = str(bucket).upper()
+        if normalized_bucket in taxonomy:
+            _merge_weight_maps(
+                expanded,
+                _expand_eq_country_bucket_weights(
+                    bucket=normalized_bucket,
+                    weight=float(weight),
+                    lookthrough=taxonomy,
+                ),
+            )
+        else:
+            expanded[normalized_bucket] = expanded.get(normalized_bucket, 0.0) + float(weight)
+    return list(expanded.items())
 
 
 def _expand_eq_country_bucket_weights(
@@ -3661,8 +3698,16 @@ def _build_eq_country_leaf_aliases(
 
 def _expand_us_sector_allocations(
     row: RiskInputRow,
-    lookthrough: Mapping[str, list[tuple[str, float]]],
+    *,
+    api_cache: Mapping[str, list[tuple[str, float]]],
+    manual: Mapping[str, list[tuple[str, float]]],
 ) -> list[tuple[str, float]]:
+    """Resolve a position's per-sector weights.
+
+    Lookup order: (1) API cache by own symbol, (2) API cache by eq_sector_proxy,
+    (3) manual override by own symbol, (4) manual override by eq_sector_proxy.
+    Falls through to UNCLASSIFIED.
+    """
     if row.asset_class != "EQ":
         return []
 
@@ -3673,19 +3718,17 @@ def _expand_us_sector_allocations(
             return list(sectors) + [("UNCLASSIFIED", remainder)]
         return list(sectors)
 
-    # Direct lookthrough by own symbol — works for known ETFs even when eq_country is unknown.
     normalized_symbol = str(row.canonical_symbol or row.symbol).upper()
-    if normalized_symbol in lookthrough:
-        return _with_unclassified(lookthrough[normalized_symbol])
-
-    # Proxy / UNCLASSIFIED logic only applies to US EQ.
-    if row.eq_country != "US":
-        return []
     proxy = str(row.eq_sector_proxy or "").strip().upper()
-    if proxy == "NONE":
-        return [("UNCLASSIFIED", 1.0)]
-    if proxy and proxy in lookthrough:
-        return _with_unclassified(lookthrough[proxy])
+
+    if normalized_symbol in api_cache:
+        return _with_unclassified(api_cache[normalized_symbol])
+    if proxy and proxy != "NONE" and proxy in api_cache:
+        return _with_unclassified(api_cache[proxy])
+    if normalized_symbol in manual:
+        return _with_unclassified(manual[normalized_symbol])
+    if proxy and proxy != "NONE" and proxy in manual:
+        return _with_unclassified(manual[proxy])
     return [("UNCLASSIFIED", 1.0)]
 
 
@@ -3739,15 +3782,15 @@ def _report_us_etf_lookthrough_symbols(
 ) -> list[str]:
     to_sync: set[str] = set()
     for row in rows:
-        if row.mapping_status != "mapped" or row.asset_class != "EQ" or row.eq_country != "US":
+        if row.mapping_status != "mapped" or row.asset_class != "EQ":
             continue
         proxy = str(row.eq_sector_proxy or "").strip().upper()
         if proxy and proxy != "NONE":
             to_sync.add(proxy)
-        else:
-            own_symbol = str(row.canonical_symbol or row.symbol).strip().upper()
-            if own_symbol and own_symbol in existing_symbols:
-                to_sync.add(own_symbol)
+            continue
+        own_symbol = str(row.canonical_symbol or row.symbol).strip().upper()
+        if own_symbol and own_symbol in existing_symbols:
+            to_sync.add(own_symbol)
     return sorted(to_sync)
 
 

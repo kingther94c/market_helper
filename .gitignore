@@ -1,7 +1,8 @@
 __pycache__/
 .pytest_cache/
 .cache/
-.claude/
+.claude/*
+!.claude/skills/
 # macOS Finder metadata
 .DS_Store
 **/.DS_Store

@@ -29,7 +29,6 @@ SECURITY_UNIVERSE_HEADERS = [
     "display_name",
     "ibkr_exchange",
     "yahoo_symbol",
-    "eq_country",
     "eq_sector_proxy",
     "dir_exposure",
     "fi_mod_duration",
@@ -63,7 +62,6 @@ SECURITY_REFERENCE_HEADERS = [
     "ibkr_exchange",
     "ibkr_conid",
     "yahoo_symbol",
-    "eq_country",
     "eq_sector_proxy",
     "dir_exposure",
     "fi_mod_duration",
@@ -121,7 +119,6 @@ class SecurityUniverseRow:
     display_name: str
     ibkr_exchange: str
     yahoo_symbol: str = ""
-    eq_country: str = ""
     eq_sector_proxy: str = ""
     dir_exposure: str = "L"
     fi_mod_duration: float | None = None
@@ -150,7 +147,6 @@ class SecurityUniverseRow:
         object.__setattr__(self, "display_name", _clean_optional_str(self.display_name))
         object.__setattr__(self, "ibkr_exchange", _clean_optional_str(self.ibkr_exchange).upper())
         object.__setattr__(self, "yahoo_symbol", _clean_optional_str(self.yahoo_symbol))
-        object.__setattr__(self, "eq_country", _clean_optional_str(self.eq_country).upper())
         object.__setattr__(self, "eq_sector_proxy", _clean_optional_str(self.eq_sector_proxy))
         object.__setattr__(self, "dir_exposure", dir_exposure)
         object.__setattr__(self, "fi_tenor", fi_tenor)
@@ -182,7 +178,6 @@ class SecurityUniverseRow:
             "display_name": self.display_name,
             "ibkr_exchange": self.ibkr_exchange,
             "yahoo_symbol": self.yahoo_symbol,
-            "eq_country": self.eq_country,
             "eq_sector_proxy": self.eq_sector_proxy,
             "dir_exposure": self.dir_exposure,
             "fi_mod_duration": _stringify_optional_float(self.fi_mod_duration),
@@ -219,7 +214,6 @@ class SecurityUniverseRow:
             ibkr_exchange=self.ibkr_exchange,
             ibkr_conid=prior.ibkr_conid if prior is not None else "",
             yahoo_symbol=self.yahoo_symbol,
-            eq_country=self.eq_country,
             eq_sector_proxy=self.eq_sector_proxy,
             dir_exposure=self.dir_exposure,
             mod_duration=self.fi_mod_duration,
@@ -255,7 +249,6 @@ class SecurityReference:
     ibkr_exchange: str = ""
     ibkr_conid: str = ""
     yahoo_symbol: str = ""
-    eq_country: str = ""
     eq_sector_proxy: str = ""
     dir_exposure: str = "L"
     mod_duration: float | None = None
@@ -297,7 +290,6 @@ class SecurityReference:
         object.__setattr__(self, "ibkr_exchange", ibkr_exchange)
         object.__setattr__(self, "ibkr_conid", _clean_optional_str(self.ibkr_conid))
         object.__setattr__(self, "yahoo_symbol", _clean_optional_str(self.yahoo_symbol))
-        object.__setattr__(self, "eq_country", _clean_optional_str(self.eq_country).upper())
         object.__setattr__(self, "eq_sector_proxy", _clean_optional_str(self.eq_sector_proxy))
         object.__setattr__(self, "dir_exposure", dir_exposure)
         object.__setattr__(self, "fi_tenor", fi_tenor)
@@ -386,7 +378,6 @@ class SecurityReference:
             "ibkr_exchange": self.ibkr_exchange,
             "ibkr_conid": self.ibkr_conid,
             "yahoo_symbol": self.yahoo_symbol,
-            "eq_country": self.eq_country,
             "eq_sector_proxy": self.eq_sector_proxy,
             "dir_exposure": self.dir_exposure,
             "fi_mod_duration": _stringify_optional_float(self.mod_duration),
@@ -407,7 +398,6 @@ class SecurityReference:
             "display_name": self.display_name or self.description or self.canonical_symbol,
             "ibkr_exchange": self.exchange or self.primary_exchange or self.ibkr_exchange,
             "yahoo_symbol": self.yahoo_symbol,
-            "eq_country": self.eq_country,
             "eq_sector_proxy": self.eq_sector_proxy,
             "dir_exposure": self.dir_exposure or "L",
             "fi_mod_duration": _stringify_optional_float(self.mod_duration),
@@ -438,7 +428,6 @@ class SecurityReference:
             ibkr_exchange=str(row.get("ibkr_exchange") or ""),
             ibkr_conid=str(row.get("ibkr_conid") or ""),
             yahoo_symbol=str(row.get("yahoo_symbol") or ""),
-            eq_country=str(row.get("eq_country") or ""),
             eq_sector_proxy=str(row.get("eq_sector_proxy") or ""),
             dir_exposure=str(row.get("dir_exposure") or "L"),
             mod_duration=_parse_optional_float(row.get("fi_mod_duration")),
@@ -548,7 +537,6 @@ class SecurityUniverseTable:
                     display_name=str(row.get("display_name") or ""),
                     ibkr_exchange=str(row.get("ibkr_exchange") or ""),
                     yahoo_symbol=str(row.get("yahoo_symbol") or ""),
-                    eq_country=str(row.get("eq_country") or ""),
                     eq_sector_proxy=str(row.get("eq_sector_proxy") or ""),
                     dir_exposure=str(row.get("dir_exposure") or "L"),
                     fi_mod_duration=_parse_optional_float(row.get("fi_mod_duration")),

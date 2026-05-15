@@ -508,8 +508,8 @@ def test_default_eq_country_lookthrough_uses_hierarchical_dm_em_buckets() -> Non
         by_key.setdefault(str(row["eq_country"]).upper(), set()).add(str(row["country_bucket"]).upper())
 
     assert by_key["ACWI"] == {"DM", "EM"}
-    assert {"DM-US", "DM-JP", "DM-EU", "DM-OTHER DM"} <= by_key["DM"]
-    assert {"EM-CN", "EM-TW", "EM-KR", "EM-IN", "EM-BR", "EM-OTHER EM"} <= by_key["EM"]
+    assert {"DM-US", "DM-EUME", "DM-JP", "DM-CA", "DM-AUNZ", "DM-OTHER DM"} <= by_key["DM"]
+    assert {"EM-CN", "EM-TW", "EM-KR", "EM-IN", "EM-ASEAN", "EM-LATAM", "EM-EMEA EM"} <= by_key["EM"]
 
 
 def test_default_us_sector_lookthrough_covers_all_us_equity_universe_symbols() -> None:
@@ -566,7 +566,6 @@ def test_expand_us_sector_allocations_prefers_lookthrough_over_security_sector()
         exchange="SMART",
         mapping_status="mapped",
         dir_exposure="L",
-        eq_country="US",
         eq_sector_proxy="",
         fi_tenor="",
         yahoo_symbol="SOXX",
@@ -574,7 +573,8 @@ def test_expand_us_sector_allocations_prefers_lookthrough_over_security_sector()
 
     allocations = risk_html_module._expand_us_sector_allocations(
         row,
-        {"SOXX": [("Technology", 1.0)]},
+        api_cache={"SOXX": [("Technology", 1.0)]},
+        manual={},
     )
 
     assert allocations == [("Technology", 1.0)]
@@ -610,7 +610,6 @@ def test_report_us_etf_lookthrough_symbols_uses_proxy_and_existing() -> None:
             exchange="SMART",
             mapping_status="mapped",
             dir_exposure="L",
-            eq_country="US",
             eq_sector_proxy=proxy,
             fi_tenor="",
             yahoo_symbol=symbol,
@@ -860,7 +859,6 @@ def test_build_risk_report_view_model_prefixes_policy_drift_equity_country_dm_em
                 ibkr_symbol="ACWI",
                 ibkr_exchange="SMART",
                 yahoo_symbol="ACWI",
-                eq_country="ACWI",
                 dir_exposure="L",
                 lookup_status="verified",
             ),
@@ -877,8 +875,8 @@ def test_build_risk_report_view_model_prefixes_policy_drift_equity_country_dm_em
     assert "DM-US" in buckets
     assert "DM-OTHER DM" in buckets
     assert "EM-CN" in buckets
-    assert "EM-OTHER EM" in buckets
-    assert buckets.index("DM-US") < buckets.index("DM-OTHER DM") < buckets.index("EM-CN") < buckets.index("EM-OTHER EM")
+    assert "EM-EMEA EM" in buckets
+    assert buckets.index("DM-US") < buckets.index("DM-OTHER DM") < buckets.index("EM-CN") < buckets.index("EM-EMEA EM")
 
 
 def test_build_risk_report_view_model_uses_security_reference_for_enrichment(tmp_path: Path) -> None:
@@ -921,7 +919,6 @@ def test_build_risk_report_view_model_uses_security_reference_for_enrichment(tmp
                 ibkr_symbol="SPYL",
                 ibkr_exchange="LSEETF",
                 yahoo_symbol="SPYL.L",
-                eq_country="US",
                 dir_exposure="L",
                 mod_duration=1.0,
                 lookup_status="verified",
@@ -1173,7 +1170,6 @@ def test_build_risk_report_view_model_uses_yahoo_cache_when_no_returns_override(
                 ibkr_symbol="SPY",
                 ibkr_exchange="SMART",
                 yahoo_symbol="SPY",
-                eq_country="US",
                 dir_exposure="L",
                 lookup_status="verified",
             ),
@@ -1321,7 +1317,6 @@ def test_build_risk_report_view_model_excludes_eq_options_outside_decomposition(
                 ibkr_symbol="SPY",
                 ibkr_exchange="SMART",
                 yahoo_symbol="SPY",
-                eq_country="US",
                 dir_exposure="L",
                 lookup_status="verified",
             ),
@@ -1384,7 +1379,6 @@ def test_build_risk_report_view_model_includes_delta_backed_equity_option(
                 ibkr_symbol="SPY",
                 ibkr_exchange="SMART",
                 yahoo_symbol="SPY",
-                eq_country="US",
                 dir_exposure="L",
                 lookup_status="verified",
             ),
@@ -1401,7 +1395,6 @@ def test_build_risk_report_view_model_includes_delta_backed_equity_option(
     option_row = next(row for row in view_model.risk_rows if row.internal_id == option_id)
     assert option_row.report_scope == "included"
     assert option_row.asset_class == "EQ"
-    assert option_row.eq_country == "US"
     assert option_row.exposure_usd == pytest.approx(60_000.0)
     assert option_row.gross_exposure_usd == pytest.approx(60_000.0)
     assert option_row.risk_note == "Delta exposure via IBKR modelGreeks"
@@ -1501,7 +1494,6 @@ def test_build_risk_report_view_model_keeps_fop_delta_fields_audit_only(
                 ibkr_symbol="SPY",
                 ibkr_exchange="SMART",
                 yahoo_symbol="SPY",
-                eq_country="US",
                 dir_exposure="L",
                 lookup_status="verified",
             ),
@@ -1559,7 +1551,6 @@ def test_unmapped_rows_do_not_count_toward_vol_contribution(tmp_path: Path) -> N
                 ibkr_symbol="SPY",
                 ibkr_exchange="SMART",
                 yahoo_symbol="SPY",
-                eq_country="US",
                 dir_exposure="L",
                 lookup_status="verified",
             ),
@@ -1625,7 +1616,6 @@ def test_fx_and_cash_do_not_count_toward_portfolio_vol_contribution(tmp_path: Pa
                 ibkr_symbol="SPY",
                 ibkr_exchange="SMART",
                 yahoo_symbol="SPY",
-                eq_country="US",
                 dir_exposure="L",
                 lookup_status="verified",
             ),
@@ -1739,7 +1729,6 @@ def test_build_risk_report_view_model_displays_fi_10y_equivalent_exposures_only(
                 ibkr_symbol="SPY",
                 ibkr_exchange="SMART",
                 yahoo_symbol="SPY",
-                eq_country="US",
                 dir_exposure="L",
                 lookup_status="verified",
             ),
@@ -1890,7 +1879,6 @@ def test_build_risk_report_view_model_respects_fi_10y_eq_mod_duration_override(
                 ibkr_symbol="SPY",
                 ibkr_exchange="SMART",
                 yahoo_symbol="SPY",
-                eq_country="US",
                 dir_exposure="L",
                 lookup_status="verified",
             ),
@@ -1968,7 +1956,6 @@ def test_build_risk_report_view_model_fi_display_exposure_falls_back_to_raw_with
                 ibkr_symbol="SPY",
                 ibkr_exchange="SMART",
                 yahoo_symbol="SPY",
-                eq_country="US",
                 dir_exposure="L",
                 lookup_status="verified",
             ),

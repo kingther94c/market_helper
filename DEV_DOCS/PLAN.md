@@ -64,6 +64,16 @@ Landed:
   `_lookup_fx_rate` froze USD/SGD constant for all NAV dates older than ~2 years
   and collapsed SGD returns onto USD returns for the bulk of history. Now `max`.
   Requires a `nav_cashflow_history.feather` rebuild to take effect.
+- **EQ lookthrough redesigned**: dropped the single `eq_country` field on
+  `security_universe.csv` / `SecurityReference`. Country exposure now resolves
+  per-symbol through `configs/portfolio_monitor/country_lookthrough_manual.csv`
+  (rows may name leaf buckets or aggregate `DM`/`EM`/`ACWI`, which re-expand
+  through the taxonomy CSV). Sector exposure still prefers the Alpha Vantage
+  cache and falls back to `sector_lookthrough_manual.csv` with the existing
+  `eq_sector_proxy` chain. New DM/EM bucket structure: DM = US/EUME/JP/CA/AUNZ/
+  Other DM; EM = CN/TW/KR/IN/ASEAN/LATAM/EMEA EM. Project-local
+  `lookthrough-researcher` skill (`.claude/skills/`) handles best-effort
+  population from issuer fact sheets.
 
 Near-term work:
 1. Finish dashboard Performance USD/SGD parity for the snapshot path.

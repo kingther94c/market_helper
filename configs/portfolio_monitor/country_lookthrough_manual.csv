@@ -1,0 +1,41 @@
+symbol,country_bucket,weight,source,confidence,as_of,notes
+SPY,DM-US,1.0,manual,high,2026-05-15,US 500
+VOO,DM-US,1.0,manual,high,2026-05-15,US 500
+SPYL,DM-US,1.0,manual,high,2026-05-15,UCITS S&P500
+SOXX,DM-US,1.0,manual,high,2026-05-15,US semis
+QQQ,DM-US,1.0,manual,high,2026-05-15,NASDAQ 100
+SOXL,DM-US,1.0,manual,high,2026-05-15,3x US semis
+TQQQ,DM-US,1.0,manual,high,2026-05-15,3x NDX
+SQQQ,DM-US,1.0,manual,high,2026-05-15,-3x NDX
+XLK,DM-US,1.0,manual,high,2026-05-15,US tech sector
+XLF,DM-US,1.0,manual,high,2026-05-15,US financials
+XLV,DM-US,1.0,manual,high,2026-05-15,US health care
+XLY,DM-US,1.0,manual,high,2026-05-15,US consumer disc.
+XLP,DM-US,1.0,manual,high,2026-05-15,US staples
+XLE,DM-US,1.0,manual,high,2026-05-15,US energy
+XLI,DM-US,1.0,manual,high,2026-05-15,US industrials
+XLB,DM-US,1.0,manual,high,2026-05-15,US materials
+XLU,DM-US,1.0,manual,high,2026-05-15,US utilities
+XLRE,DM-US,1.0,manual,high,2026-05-15,US REITs
+XLC,DM-US,1.0,manual,high,2026-05-15,US comm services
+TSLA,DM-US,1.0,manual,high,2026-05-15,single-name US
+IEUR,DM-EUME,1.0,manual,medium,2026-05-15,MSCI Europe (incl UK/Switzerland)
+VEA,DM-EUME,0.55,manual,low,2026-05-15,FTSE Dev ex-US (placeholder; refine via skill)
+VEA,DM-JP,0.20,manual,low,2026-05-15,FTSE Dev ex-US (placeholder; refine via skill)
+VEA,DM-CA,0.10,manual,low,2026-05-15,FTSE Dev ex-US (placeholder; refine via skill)
+VEA,DM-AUNZ,0.07,manual,low,2026-05-15,FTSE Dev ex-US (placeholder; refine via skill)
+VEA,DM-Other DM,0.08,manual,low,2026-05-15,FTSE Dev ex-US (placeholder; refine via skill)
+XMME,EM,1.0,manual,medium,2026-05-15,MSCI EM broad - expands via taxonomy
+IEMG,EM,1.0,manual,medium,2026-05-15,MSCI EM IMI - expands via taxonomy
+ACWD,ACWI,1.0,manual,medium,2026-05-15,MSCI ACWI - expands via taxonomy
+ACWI,ACWI,1.0,manual,medium,2026-05-15,iShares MSCI ACWI - expands via taxonomy
+FLKR,EM-KR,1.0,manual,high,2026-05-15,Korea
+KWEB,EM-CN,1.0,manual,high,2026-05-15,China internet
+ASHR,EM-CN,1.0,manual,high,2026-05-15,CSI 300 China A
+XMBD,EM-LATAM,1.0,manual,high,2026-05-15,MSCI Brazil
+GRID,DM-US,0.2147,justetf,medium,2026-03-31,US-domiciled holdings (Eaton/Quanta/etc.)
+GRID,DM-EUME,0.5233,justetf+inferred,medium,2026-03-31,IE 16.41 + UK 10.55 + FR 9.37 confirmed; IT/CH/DE/ES ~16% inferred from 2022 First Trust mix
+GRID,DM-JP,0.06,inferred,low,2026-03-31,Hitachi-class holdings; estimate from industry composition
+GRID,DM-Other DM,0.025,inferred,low,2026-03-31,HK/SG/IL estimate
+GRID,EM-KR,0.045,inferred,low,2026-03-31,LS Electric and peers; ~4.5% in 2022 fact sheet
+GRID,EM-CN,0.03,inferred,low,2026-03-31,Nari Technology and peers

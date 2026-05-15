@@ -134,7 +134,6 @@ def _fake_report_data() -> PortfolioReportData:
                 mapping_status="mapped",
                 report_scope="included",
                 dir_exposure="L",
-                eq_country="US",
                 eq_sector_proxy="",
                 fi_tenor="",
             )

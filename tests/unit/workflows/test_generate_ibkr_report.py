@@ -159,7 +159,6 @@ def test_generate_ibkr_position_report_writes_proposed_security_reference_for_un
             "display_name": "AAPL",
             "ibkr_exchange": "SMART",
             "yahoo_symbol": "",
-            "eq_country": "",
             "eq_sector_proxy": "",
             "dir_exposure": "L",
             "fi_mod_duration": "",

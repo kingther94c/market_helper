@@ -4,7 +4,9 @@ artifact_mirror:
 risk_report:
   lookthrough:
     eq_country: eq_country_lookthrough.csv
+    eq_country_manual: country_lookthrough_manual.csv
     us_sector: us_sector_lookthrough.json
+    us_sector_manual: sector_lookthrough_manual.csv
   proxy:
     DEFAULT: VIX
     defaults:

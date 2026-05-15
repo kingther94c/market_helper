@@ -28,7 +28,6 @@ def test_reference_table_loads_curated_csv_and_resolves_indexes(tmp_path) -> Non
                 ibkr_exchange="SMART",
                 ibkr_conid="756733",
                 yahoo_symbol="SPY",
-                eq_country="US",
                 dir_exposure="L",
                 mod_duration=1.0,
                 lookup_status="verified",
@@ -195,8 +194,8 @@ def test_build_security_reference_table_does_not_fall_back_to_legacy_cache_when_
     universe_path.write_text(
         "\n".join(
             [
-                "asset_class,sec_type,ibkr_symbol,display_name,ibkr_exchange,yahoo_symbol,eq_country,eq_sector_proxy,dir_exposure,fi_mod_duration,fi_tenor",
-                "EQ,STK,SPY,US,SMART,SPY,US,,L,,",
+                "asset_class,sec_type,ibkr_symbol,display_name,ibkr_exchange,yahoo_symbol,eq_sector_proxy,dir_exposure,fi_mod_duration,fi_tenor",
+                "EQ,STK,SPY,US,SMART,SPY,,L,,",
             ]
         ),
         encoding="utf-8",
@@ -218,7 +217,6 @@ def test_build_security_reference_table_does_not_fall_back_to_legacy_cache_when_
                 ibkr_exchange="SMART",
                 ibkr_conid="756733",
                 yahoo_symbol="SPY",
-                eq_country="US",
                 dir_exposure="L",
                 lookup_status="verified",
             ),
