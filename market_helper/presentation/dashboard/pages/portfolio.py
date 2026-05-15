@@ -1122,7 +1122,15 @@ def _register_generated_html_route() -> None:
             ".json": "application/json; charset=utf-8",
             ".feather": "application/octet-stream",
         }.get(suffix, "application/octet-stream")
-        return FileResponse(target, media_type=media_type)
+        # `no-cache` lets the browser keep the body but forces it to revalidate
+        # with the server on every request (304 when the file is unchanged, 200
+        # with the new body when the dashboard regenerates the artifact). Without
+        # this, browsers keep serving the stale copy after a regenerate.
+        return FileResponse(
+            target,
+            media_type=media_type,
+            headers={"Cache-Control": "no-cache"},
+        )
 
     _GENERATED_HTML_ROUTE_REGISTERED = True
 
