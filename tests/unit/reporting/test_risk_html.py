@@ -757,6 +757,26 @@ def test_render_country_sector_heatmap_emits_marginals_and_color() -> None:
     assert "100.0%" in html_out  # grand total
 
 
+def test_render_risk_tab_includes_heatmap_approximation_disclaimer() -> None:
+    """The heatmap card must carry an explicit approximation disclaimer
+    and point readers to the 1D breakdowns + policy drift as authoritative.
+    """
+    html_out = risk_html_module.render_risk_tab(_minimal_risk_view_model())
+    section = _html_between(
+        html_out,
+        "<h2>Country &times; Sector Heatmap",
+        "<h2>Policy Drift - Sector",
+    )
+    assert "heatmap-disclaimer" in section
+    assert "Approximation" in section
+    assert "per-position independence" in section
+    # Steer readers back to the 1D views as the authoritative source.
+    assert "Country Breakdown" in section
+    assert "Sector Breakdown" in section
+    assert "Policy Drift" in section
+    assert "authoritative" in section
+
+
 def test_render_country_sector_heatmap_empty() -> None:
     breakdown = risk_html_module.CountrySectorBreakdown(
         countries=(), sectors=(), cells={}, country_totals={}, sector_totals={},

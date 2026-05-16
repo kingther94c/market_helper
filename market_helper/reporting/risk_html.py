@@ -1643,6 +1643,19 @@ def render_risk_report_styles() -> str:
     .risk-assumption-copy { margin: 0; color:#475569; }
     .heatmap-note { margin: 0 0 8px; color:#475569; font-size:0.85rem; }
     .heatmap-empty { padding:12px; color:#475569; font-style:italic; }
+    .heatmap-h2-tag {
+      display:inline-block; margin-left:8px; padding:2px 8px; border-radius:10px;
+      background:#fef3c7; color:#92400e; font-size:0.65rem; font-weight:600;
+      vertical-align:middle; text-transform:uppercase; letter-spacing:0.04em;
+    }
+    .heatmap-disclaimer {
+      background:#fffbeb; border-left:4px solid #f59e0b; padding:10px 14px;
+      margin:0 0 12px; border-radius:4px; color:#78350f; font-size:0.82rem;
+    }
+    .heatmap-disclaimer p { margin:0 0 6px; line-height:1.45; }
+    .heatmap-disclaimer p:last-child { margin-bottom:0; }
+    .heatmap-disclaimer strong { color:#78350f; }
+    .heatmap-disclaimer em { color:#92400e; font-style:italic; }
     .report-table--country-sector-heatmap { border-collapse:collapse; table-layout:auto; }
     .report-table--country-sector-heatmap th, .report-table--country-sector-heatmap td {
       padding:6px 8px; border:1px solid #e2e8f0; font-size:0.78rem; text-align:right; min-width:62px;
@@ -1895,8 +1908,11 @@ def render_risk_tab(view_model: RiskReportViewModel) -> str:
     </div>
 
     <div class='card'>
-    <h2>Country &times; Sector Heatmap</h2>
-    <p class='heatmap-note'>Cells are <strong>% of funded AUM</strong>, computed by outer-product of each EQ position's country and sector lookthrough. Exact for single-country / single-sector ETFs; per-position independence approximation otherwise. Marginals match the 1D breakdowns above.</p>
+    <h2>Country &times; Sector Heatmap <span class='heatmap-h2-tag'>approximate &mdash; see note</span></h2>
+    <div class='heatmap-disclaimer'>
+      <p><strong>Approximation.</strong> Each cell = % of funded AUM, computed as the outer-product of every EQ position's country and sector lookthrough. This assumes <em>per-position independence</em>: within a single fund, sector composition is treated as uniform across that fund's countries (and vice-versa). The approximation is <strong>exact</strong> for single-country or single-sector vehicles (SPY, XLK, XL*, FLKR, KWEB, single-name stocks), and a useful but inexact summary for multi-axis funds (VEA, IEMG, ACWI, ACWD, XMME) where issuers do not publish a joint country &times; sector breakdown.</p>
+      <p><strong>Use the heatmap to spot concentration patterns</strong> (e.g. is my Tech exposure all in DM-US, or distributed?); do not treat individual cells as exact position-level attributions. The 1D <em>Country Breakdown</em> and <em>Sector Breakdown</em> above &mdash; together with their <em>Policy Drift</em> tables &mdash; are exact aggregates over all positions and remain the authoritative basis for sleeve-level allocation decisions.</p>
+    </div>
     {country_sector_heatmap}
     </div>
 
