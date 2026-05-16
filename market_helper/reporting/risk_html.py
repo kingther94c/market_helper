@@ -1908,18 +1908,18 @@ def render_risk_tab(view_model: RiskReportViewModel) -> str:
     </div>
 
     <div class='card'>
-    <h2>Country &times; Sector Heatmap <span class='heatmap-h2-tag'>approximate &mdash; see note</span></h2>
-    <div class='heatmap-disclaimer'>
-      <p><strong>Approximation.</strong> Each cell = % of funded AUM, computed as the outer-product of every EQ position's country and sector lookthrough. This assumes <em>per-position independence</em>: within a single fund, sector composition is treated as uniform across that fund's countries (and vice-versa). The approximation is <strong>exact</strong> for single-country or single-sector vehicles (SPY, XLK, XL*, FLKR, KWEB, single-name stocks), and a useful but inexact summary for multi-axis funds (VEA, IEMG, ACWI, ACWD, XMME) where issuers do not publish a joint country &times; sector breakdown.</p>
-      <p><strong>Use the heatmap to spot concentration patterns</strong> (e.g. is my Tech exposure all in DM-US, or distributed?); do not treat individual cells as exact position-level attributions. The 1D <em>Country Breakdown</em> and <em>Sector Breakdown</em> above &mdash; together with their <em>Policy Drift</em> tables &mdash; are exact aggregates over all positions and remain the authoritative basis for sleeve-level allocation decisions.</p>
-    </div>
-    {country_sector_heatmap}
-    </div>
-
-    <div class='card'>
     <h2>Policy Drift - Sector (within EQ scope)</h2>
     <div class='chart'>{policy_sector_chart}</div>
     {policy_sector_table}
+    </div>
+
+    <div class='card'>
+    <h2>Country &times; Sector Heatmap <span class='heatmap-h2-tag'>approximate &mdash; see note</span></h2>
+    <div class='heatmap-disclaimer'>
+      <p><strong>Approximation.</strong> Each cell = % of funded AUM, computed as the outer-product of every EQ position's country and sector lookthrough. This assumes <em>per-position independence</em>: within a single fund, sector composition is treated as uniform across that fund's countries (and vice-versa). The approximation is <strong>exact</strong> for single-country or single-sector vehicles (SPY, XLK, XL*, FLKR, KWEB, single-name stocks), and a useful but inexact summary for multi-axis funds (VEA, IEMG, ACWI, ACWD, XMME) where issuers do not publish a joint country &times; sector breakdown.</p>
+      <p><strong>Use the heatmap to spot concentration patterns</strong> (e.g. is my Tech exposure all in DM-US, or distributed?); do not treat individual cells as exact position-level attributions. The 1D <em>Country Breakdown</em>, <em>Sector Breakdown</em>, and their <em>Policy Drift</em> tables shown above are exact aggregates over all positions and remain the authoritative basis for sleeve-level allocation decisions.</p>
+    </div>
+    {country_sector_heatmap}
     </div>
 
     <div class='card'>

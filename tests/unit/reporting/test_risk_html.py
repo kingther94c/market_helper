@@ -765,7 +765,7 @@ def test_render_risk_tab_includes_heatmap_approximation_disclaimer() -> None:
     section = _html_between(
         html_out,
         "<h2>Country &times; Sector Heatmap",
-        "<h2>Policy Drift - Sector",
+        "<h2>Equity Positions</h2>",
     )
     assert "heatmap-disclaimer" in section
     assert "Approximation" in section
@@ -775,6 +775,14 @@ def test_render_risk_tab_includes_heatmap_approximation_disclaimer() -> None:
     assert "Sector Breakdown" in section
     assert "Policy Drift" in section
     assert "authoritative" in section
+    # The heatmap must come AFTER all the 1D country/sector cards and their
+    # policy-drift tables — those are the authoritative views and should be
+    # read first.
+    heatmap_pos = html_out.index("<h2>Country &times; Sector Heatmap")
+    assert html_out.index("<h2>EQ Country Breakdown</h2>") < heatmap_pos
+    assert html_out.index("<h2>Policy Drift - Equity Country") < heatmap_pos
+    assert html_out.index("<h2>Sector Breakdown</h2>") < heatmap_pos
+    assert html_out.index("<h2>Policy Drift - Sector") < heatmap_pos
 
 
 def test_render_country_sector_heatmap_empty() -> None:
