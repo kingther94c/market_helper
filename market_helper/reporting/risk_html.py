@@ -324,7 +324,7 @@ class RegimeReportSummary:
 class AllocationPolicyConfig:
     portfolio_asset_class_targets: dict[str, float]
     equity_country_policy_mix: dict[str, float]
-    us_equity_sector_policy_mix: dict[str, float]
+    equity_sector_policy_mix: dict[str, float]
 
 
 @dataclass(frozen=True)
@@ -759,12 +759,18 @@ def build_risk_report_view_model(
         policy_mix=allocation_policy.equity_country_policy_mix,
         lookthrough=eq_country_lookthrough,
     )
+    sector_lookthrough_combined = dict(
+        _load_weight_table(risk_report_config.us_sector_manual_lookthrough_path, "symbol", "sector")
+    )
+    sector_lookthrough_combined.update(
+        _load_weight_table(risk_report_config.us_sector_lookthrough_path, "canonical_symbol", "sector")
+    )
     policy_drift_sector = _build_breakdown_policy_drift(
         breakdown=sector_breakdown,
-        scope="US_EQ",
+        scope="EQ",
         policy_weights=_expand_policy_mix(
-            mix=allocation_policy.us_equity_sector_policy_mix,
-            lookthrough=_load_weight_table(risk_report_config.us_sector_lookthrough_path, "canonical_symbol", "sector"),
+            mix=allocation_policy.equity_sector_policy_mix,
+            lookthrough=sector_lookthrough_combined,
         ),
     )
     summary = PortfolioRiskSummary(
@@ -1809,12 +1815,12 @@ def render_risk_tab(view_model: RiskReportViewModel) -> str:
     </div>
 
     <div class='card'>
-    <h2>US Sector Breakdown</h2>
+    <h2>Sector Breakdown</h2>
     {sector_table}
     </div>
 
     <div class='card'>
-    <h2>Policy Drift - US Sector (within US EQ scope)</h2>
+    <h2>Policy Drift - Sector (within EQ scope)</h2>
     <div class='chart'>{policy_sector_chart}</div>
     {policy_sector_table}
     </div>
@@ -3034,11 +3040,15 @@ def _load_risk_report_config(
 def _parse_allocation_policy(payload: Mapping[str, Any]) -> AllocationPolicyConfig:
     portfolio = dict(payload.get("portfolio_asset_class_targets", {}))
     equity = dict(payload.get("equity_country_policy_mix", {"ACWI": 1.0}))
-    us_equity = dict(payload.get("us_equity_sector_policy_mix", {"SPY": 1.0}))
+    sector_payload = payload.get("equity_sector_policy_mix")
+    if sector_payload is None:
+        # backwards compat: pre-2026-05 configs used us_equity_sector_policy_mix with SPY
+        sector_payload = payload.get("us_equity_sector_policy_mix", {"ACWI": 1.0})
+    sector = dict(sector_payload)
     return AllocationPolicyConfig(
         portfolio_asset_class_targets={str(k).upper(): float(v) for k, v in portfolio.items()},
         equity_country_policy_mix={str(k).upper(): float(v) for k, v in equity.items()},
-        us_equity_sector_policy_mix={str(k).upper(): float(v) for k, v in us_equity.items()},
+        equity_sector_policy_mix={str(k).upper(): float(v) for k, v in sector.items()},
     )
 
 
@@ -3426,7 +3436,7 @@ def _build_us_sector_breakdown(
         realized_5y_loadings=realized_5y_loadings,
         forward_looking_loadings=forward_looking_loadings,
         expander=lambda row: _expand_us_sector_allocations(row, api_cache=api_cache, manual=manual),
-        parent="US_EQ",
+        parent="EQ",
     )
 
 

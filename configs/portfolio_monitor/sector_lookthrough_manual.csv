@@ -1,4 +1,15 @@
 symbol,sector,weight,source,confidence,as_of,notes
+ACWI,Technology,0.270,ishares+justetf,medium,2026-03-31,MSCI ACWI benchmark mix
+ACWI,Financials,0.165,ishares+justetf,medium,2026-03-31,MSCI ACWI benchmark mix
+ACWI,Industrials,0.112,ishares+justetf,medium,2026-03-31,MSCI ACWI benchmark mix
+ACWI,Consumer Discretionary,0.094,ishares+justetf,medium,2026-03-31,MSCI ACWI benchmark mix
+ACWI,Health Care,0.089,ishares+justetf,medium,2026-03-31,MSCI ACWI benchmark mix
+ACWI,Communication Services,0.084,ishares+justetf,medium,2026-03-31,MSCI ACWI benchmark mix
+ACWI,Consumer Staples,0.055,inferred,low,2026-03-31,inferred remainder; refresh via etf-sector-sync
+ACWI,Energy,0.040,inferred,low,2026-03-31,inferred remainder; refresh via etf-sector-sync
+ACWI,Materials,0.035,inferred,low,2026-03-31,inferred remainder; refresh via etf-sector-sync
+ACWI,Utilities,0.027,inferred,low,2026-03-31,inferred remainder; refresh via etf-sector-sync
+ACWI,Real Estate,0.022,inferred,low,2026-03-31,inferred remainder; refresh via etf-sector-sync
 GRID,Industrials,0.6146,justetf,high,2026-03-31,
 GRID,Utilities,0.1896,justetf,high,2026-03-31,
 GRID,Technology,0.1263,justetf,high,2026-03-31,

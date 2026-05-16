@@ -283,18 +283,18 @@ def test_render_risk_tab_country_breakdown_orders_dm_em_totals_and_selected_vol_
     assert positions == sorted(positions)
 
 
-def test_render_risk_tab_sorts_us_sector_policy_drift_by_active_weight_desc() -> None:
+def test_render_risk_tab_sorts_sector_policy_drift_by_active_weight_desc() -> None:
     html = risk_html_module.render_risk_tab(
         _minimal_risk_view_model(
             policy_drift_sector=[
-                PolicyDriftRow("Utilities", "US_EQ", 0.10, 0.25, -0.15, 0.01),
-                PolicyDriftRow("Technology", "US_EQ", 0.50, 0.30, 0.20, 0.04),
-                PolicyDriftRow("Health Care", "US_EQ", 0.20, 0.15, 0.05, 0.02),
+                PolicyDriftRow("Utilities", "EQ", 0.10, 0.25, -0.15, 0.01),
+                PolicyDriftRow("Technology", "EQ", 0.50, 0.30, 0.20, 0.04),
+                PolicyDriftRow("Health Care", "EQ", 0.20, 0.15, 0.05, 0.02),
             ],
         )
     )
 
-    policy_section = _html_between(html, "<h2>Policy Drift - US Sector", "<h2>Equity Positions</h2>")
+    policy_section = _html_between(html, "<h2>Policy Drift - Sector", "<h2>Equity Positions</h2>")
     table_body = policy_section.split("<tbody>", 1)[1]
     assert table_body.index("Technology") < table_body.index("Health Care") < table_body.index("Utilities")
 
@@ -787,7 +787,7 @@ def test_build_risk_report_view_model_accepts_configurable_allocation_policy(tmp
                 "    EQ: 1.0",
                 "  equity_country_policy_mix:",
                 "    DM: 1.0",
-                "  us_equity_sector_policy_mix:",
+                "  equity_sector_policy_mix:",
                 "    SOXX: 1.0",
             ]
         ),

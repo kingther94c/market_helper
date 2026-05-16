@@ -75,5 +75,5 @@ risk_report:
       MACRO: 0.075
     equity_country_policy_mix:
       ACWI: 1.0
-    us_equity_sector_policy_mix:
-      SPY: 1.0
+    equity_sector_policy_mix:
+      ACWI: 1.0
