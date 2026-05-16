@@ -75,7 +75,10 @@ from market_helper.presentation.tables.portfolio_report import (
 )
 from market_helper.portfolio.ibkr import enrich_security_from_contract_details
 from market_helper.reporting.portfolio_html import write_portfolio_report
-from market_helper.reporting.risk_html import render_html_from_view_model
+from market_helper.reporting.risk_html import (
+    build_risk_report_view_model,
+    render_html_from_view_model,
+)
 
 if TYPE_CHECKING:
     from market_helper.data_sources.yahoo_finance import YahooFinanceClient
