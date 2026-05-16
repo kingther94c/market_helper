@@ -14,3 +14,14 @@ GRID,Industrials,0.6146,justetf,high,2026-03-31,
 GRID,Utilities,0.1896,justetf,high,2026-03-31,
 GRID,Technology,0.1263,justetf,high,2026-03-31,
 GRID,Consumer Discretionary,0.0279,justetf,high,2026-03-31,
+XLK,Technology,1.0,issuer_definition,high,2026-05-15,SPDR Technology Select Sector
+XLF,Financials,1.0,issuer_definition,high,2026-05-15,SPDR Financials Select Sector
+XLV,Health Care,1.0,issuer_definition,high,2026-05-15,SPDR Health Care Select Sector
+XLY,Consumer Discretionary,1.0,issuer_definition,high,2026-05-15,SPDR Consumer Discretionary Select Sector
+XLP,Consumer Staples,1.0,issuer_definition,high,2026-05-15,SPDR Consumer Staples Select Sector
+XLE,Energy,1.0,issuer_definition,high,2026-05-15,SPDR Energy Select Sector
+XLI,Industrials,1.0,issuer_definition,high,2026-05-15,SPDR Industrials Select Sector
+XLB,Materials,1.0,issuer_definition,high,2026-05-15,SPDR Materials Select Sector
+XLU,Utilities,1.0,issuer_definition,high,2026-05-15,SPDR Utilities Select Sector
+XLRE,Real Estate,1.0,issuer_definition,high,2026-05-15,SPDR Real Estate Select Sector
+XLC,Communication Services,1.0,issuer_definition,high,2026-05-15,SPDR Communication Services Select Sector

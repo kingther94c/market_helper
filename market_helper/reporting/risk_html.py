@@ -3661,16 +3661,18 @@ def _build_country_sector_breakdown(
     if not visible_sectors:
         visible_sectors = list(sector_totals)
 
-    sorted_countries = tuple(
-        sorted(
-            visible_countries,
-            key=lambda c: (_eq_country_breakdown_sort_key(
-                BreakdownRow(bucket=c, bucket_label="", parent="EQ",
-                             exposure_usd=0.0, gross_exposure_usd=country_totals.get(c, 0.0),
-                             dollar_weight=country_totals.get(c, 0.0), risk_contribution_estimated=0.0))
-            ),
-        )
-    )
+    region_order = {name: idx for idx, name in enumerate(EQ_COUNTRY_POLICY_REGION_ORDER)}
+
+    def _country_sort_key(bucket: str) -> tuple[int, int, float, str]:
+        normalized = str(bucket).upper()
+        prefix, separator, _ = normalized.partition("-")
+        region = prefix if separator else normalized
+        region_rank = region_order.get(region, len(region_order))
+        other_rank = 1 if _is_eq_country_other_bucket(normalized) else 0
+        weight = country_totals.get(bucket, 0.0)
+        return (region_rank, other_rank, -weight, normalized)
+
+    sorted_countries = tuple(sorted(visible_countries, key=_country_sort_key))
     sorted_sectors = tuple(sorted(visible_sectors, key=lambda s: (-sector_totals.get(s, 0.0), s)))
 
     visible_set_c = set(sorted_countries)
