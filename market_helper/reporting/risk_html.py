@@ -8,7 +8,7 @@ import json
 import logging
 import math
 import re
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Iterable, Mapping, Sequence
 
@@ -272,6 +272,34 @@ class BreakdownRow:
 
 
 @dataclass(frozen=True)
+class CountrySectorCell:
+    country: str
+    sector: str
+    exposure_usd: float
+    gross_exposure_usd: float
+    dollar_weight: float
+
+
+@dataclass(frozen=True)
+class CountrySectorBreakdown:
+    """2D country x sector pivot for EQ holdings.
+
+    Cells are accumulated per-position via the outer product of each row's
+    country and sector lookthrough lists — a portfolio-level joint that is
+    exact for single-country / single-sector ETFs and approximate (per-position
+    independence) for multi-axis ETFs where issuers do not publish joint data.
+    """
+
+    countries: tuple[str, ...]
+    sectors: tuple[str, ...]
+    cells: dict[tuple[str, str], CountrySectorCell]
+    country_totals: dict[str, float]
+    sector_totals: dict[str, float]
+    grand_total_dollar_weight: float
+    grand_total_gross_exposure_usd: float
+
+
+@dataclass(frozen=True)
 class PortfolioRiskSummary:
     portfolio_vol_geomean_1m_3m: float
     portfolio_vol_5y_realized: float
@@ -302,6 +330,17 @@ class RiskReportViewModel:
     inter_asset_corr: str
     portfolio_vol_matrix: dict[str, dict[str, float]]
     commodity_sector_correlation: tuple[list[str], list[list[float]]] | None = None
+    country_sector_breakdown: CountrySectorBreakdown = field(
+        default_factory=lambda: CountrySectorBreakdown(
+            countries=(),
+            sectors=(),
+            cells={},
+            country_totals={},
+            sector_totals={},
+            grand_total_dollar_weight=0.0,
+            grand_total_gross_exposure_usd=0.0,
+        )
+    )
 
 
 @dataclass(frozen=True)
@@ -738,6 +777,13 @@ def build_risk_report_view_model(
         lookthrough_path=risk_report_config.us_sector_lookthrough_path,
         manual_lookthrough_path=risk_report_config.us_sector_manual_lookthrough_path,
     )
+    country_sector_breakdown = _build_country_sector_breakdown(
+        rows=included_rows,
+        country_taxonomy_path=risk_report_config.eq_country_lookthrough_path,
+        country_manual_path=risk_report_config.eq_country_manual_lookthrough_path,
+        sector_lookthrough_path=risk_report_config.us_sector_lookthrough_path,
+        sector_manual_path=risk_report_config.us_sector_manual_lookthrough_path,
+    )
     fi_tenor_breakdown = _build_fi_tenor_breakdown(
         included_rows,
         selected_security_loadings,
@@ -799,6 +845,7 @@ def build_risk_report_view_model(
         allocation_summary=allocation_summary,
         country_breakdown=country_breakdown,
         sector_breakdown=sector_breakdown,
+        country_sector_breakdown=country_sector_breakdown,
         fi_tenor_breakdown=fi_tenor_breakdown,
         policy_drift_asset_class=policy_drift_asset_class,
         policy_drift_country=policy_drift_country,
@@ -1594,6 +1641,32 @@ def render_risk_report_styles() -> str:
       background:#0f172a; border-color:#0f172a; color:#fff; font-weight:900;
     }
     .risk-assumption-copy { margin: 0; color:#475569; }
+    .heatmap-note { margin: 0 0 8px; color:#475569; font-size:0.85rem; }
+    .heatmap-empty { padding:12px; color:#475569; font-style:italic; }
+    .report-table--country-sector-heatmap { border-collapse:collapse; table-layout:auto; }
+    .report-table--country-sector-heatmap th, .report-table--country-sector-heatmap td {
+      padding:6px 8px; border:1px solid #e2e8f0; font-size:0.78rem; text-align:right; min-width:62px;
+    }
+    .report-table--country-sector-heatmap th.heatmap-corner { background:#0f172a; }
+    .report-table--country-sector-heatmap th.heatmap-col-head { background:#f1f5f9; font-weight:700; text-align:center; white-space:nowrap; }
+    .report-table--country-sector-heatmap th.heatmap-row-head { background:#f1f5f9; font-weight:700; text-align:left; white-space:nowrap; }
+    .report-table--country-sector-heatmap th.heatmap-col-total { background:#0f172a; color:#fff; font-weight:800; }
+    .report-table--country-sector-heatmap .heatmap-cell { text-align:right; line-height:1.1; }
+    .report-table--country-sector-heatmap .heatmap-cell--empty { background:#fafafa; }
+    .report-table--country-sector-heatmap .heatmap-row-total, .report-table--country-sector-heatmap .heatmap-col-total {
+      background:#0f172a; color:#fff; font-weight:700;
+    }
+    .report-table--country-sector-heatmap .heatmap-grand-total {
+      background:#0c1a2e; color:#fff; font-weight:900;
+    }
+    .report-table--country-sector-heatmap .heatmap-cell-pct { display:block; font-weight:700; }
+    .report-table--country-sector-heatmap .heatmap-cell-usd { display:block; font-size:0.68rem; color:#475569; }
+    .report-table--country-sector-heatmap .heatmap-row-total .heatmap-cell-pct,
+    .report-table--country-sector-heatmap .heatmap-col-total .heatmap-cell-pct,
+    .report-table--country-sector-heatmap .heatmap-grand-total .heatmap-cell-pct { color:#fff; }
+    .report-table--country-sector-heatmap .heatmap-footer th, .report-table--country-sector-heatmap .heatmap-footer td {
+      border-top:2px solid #0f172a;
+    }
     @media (max-width: 720px) {
       .control-row { align-items:flex-start; flex-direction:column; }
       .control-label { min-width:0; }
@@ -1669,6 +1742,7 @@ def render_risk_tab(view_model: RiskReportViewModel) -> str:
     allocation_summary = view_model.allocation_summary
     country_breakdown = _country_breakdown_with_totals(view_model.country_breakdown)
     sector_breakdown = view_model.sector_breakdown
+    country_sector_breakdown = view_model.country_sector_breakdown
     fi_tenor_breakdown = view_model.fi_tenor_breakdown
     policy_drift_asset_class = view_model.policy_drift_asset_class
     policy_drift_country = view_model.policy_drift_country
@@ -1698,6 +1772,7 @@ def render_risk_tab(view_model: RiskReportViewModel) -> str:
         rows=_breakdown_table_rows(sector_breakdown, include_bucket_label=False, vol_method=vol_method),
         empty_message="No sector breakdown data",
     )
+    country_sector_heatmap = _render_country_sector_heatmap(country_sector_breakdown)
     tenor_table = render_html_table(
         columns=_breakdown_columns(include_bucket_label=True, vol_method=vol_method),
         rows=_breakdown_table_rows(fi_tenor_breakdown, include_bucket_label=True, vol_method=vol_method),
@@ -1817,6 +1892,12 @@ def render_risk_tab(view_model: RiskReportViewModel) -> str:
     <div class='card'>
     <h2>Sector Breakdown</h2>
     {sector_table}
+    </div>
+
+    <div class='card'>
+    <h2>Country &times; Sector Heatmap</h2>
+    <p class='heatmap-note'>Cells are <strong>% of funded AUM</strong>, computed by outer-product of each EQ position's country and sector lookthrough. Exact for single-country / single-sector ETFs; per-position independence approximation otherwise. Marginals match the 1D breakdowns above.</p>
+    {country_sector_heatmap}
     </div>
 
     <div class='card'>
@@ -2376,6 +2457,87 @@ def _blend_heat_color(
     green = round(start[1] + (end[1] - start[1]) * ratio)
     blue = round(start[2] + (end[2] - start[2]) * ratio)
     return f"rgb({red}, {green}, {blue})"
+
+
+def _render_country_sector_heatmap(breakdown: CountrySectorBreakdown) -> str:
+    """Render a country x sector pivot as a colour-shaded HTML table.
+
+    Rows = country buckets in the canonical DM-then-EM order. Columns = sectors
+    sorted by total weight desc. Cell intensity scales linearly to the largest
+    visible cell (so a portfolio with concentrated tilts shows clear contrast
+    even when absolute weights are small). Marginal totals are rendered in the
+    right-most column and bottom row; the corner cell holds the grand total.
+    """
+    countries = breakdown.countries
+    sectors = breakdown.sectors
+    if not countries or not sectors:
+        return "<div class='heatmap-empty'>No equity positions to break down.</div>"
+
+    cell_values = [cell.dollar_weight for cell in breakdown.cells.values()]
+    max_cell = max(cell_values) if cell_values else 0.0
+    # Reserve the same shading curve as the policy charts: low → white, high → forest green.
+    start_rgb = (255, 255, 255)
+    end_rgb = (16, 122, 64)
+
+    def _cell_color(weight: float) -> str:
+        if max_cell <= 0:
+            return "rgb(255, 255, 255)"
+        ratio = max(0.0, min(1.0, weight / max_cell))
+        red = round(start_rgb[0] + (end_rgb[0] - start_rgb[0]) * ratio)
+        green = round(start_rgb[1] + (end_rgb[1] - start_rgb[1]) * ratio)
+        blue = round(start_rgb[2] + (end_rgb[2] - start_rgb[2]) * ratio)
+        return f"rgb({red}, {green}, {blue})"
+
+    def _cell_format(weight: float, gross_usd: float) -> str:
+        if weight <= 0:
+            return ""
+        pct = f"{weight * 100:.1f}%"
+        usd = f"${gross_usd:,.0f}"
+        return f"<span class='heatmap-cell-pct'>{pct}</span><span class='heatmap-cell-usd'>{usd}</span>"
+
+    header_cells = ["<th class='heatmap-corner'></th>"]
+    for sector in sectors:
+        header_cells.append(f"<th class='heatmap-col-head'>{html.escape(sector)}</th>")
+    header_cells.append("<th class='heatmap-col-total'>Total</th>")
+    header_row = "<tr>" + "".join(header_cells) + "</tr>"
+
+    body_rows: list[str] = []
+    for country in countries:
+        row_cells = [f"<th class='heatmap-row-head'>{html.escape(country)}</th>"]
+        for sector in sectors:
+            cell = breakdown.cells.get((country, sector))
+            if cell is None:
+                row_cells.append("<td class='heatmap-cell heatmap-cell--empty'></td>")
+                continue
+            color = _cell_color(cell.dollar_weight)
+            row_cells.append(
+                f"<td class='heatmap-cell' style='background:{color}'>"
+                f"{_cell_format(cell.dollar_weight, cell.gross_exposure_usd)}"
+                "</td>"
+            )
+        country_total = breakdown.country_totals.get(country, 0.0)
+        row_cells.append(
+            f"<td class='heatmap-row-total'><span class='heatmap-cell-pct'>{country_total * 100:.1f}%</span></td>"
+        )
+        body_rows.append("<tr>" + "".join(row_cells) + "</tr>")
+
+    footer_cells = ["<th class='heatmap-row-head'>Total</th>"]
+    for sector in sectors:
+        sector_total = breakdown.sector_totals.get(sector, 0.0)
+        footer_cells.append(
+            f"<td class='heatmap-col-total'><span class='heatmap-cell-pct'>{sector_total * 100:.1f}%</span></td>"
+        )
+    footer_cells.append(
+        f"<td class='heatmap-grand-total'><span class='heatmap-cell-pct'>{breakdown.grand_total_dollar_weight * 100:.1f}%</span></td>"
+    )
+    footer_row = "<tr class='heatmap-footer'>" + "".join(footer_cells) + "</tr>"
+
+    return (
+        "<table class='report-table report-table--country-sector-heatmap'>"
+        f"<thead>{header_row}</thead>"
+        f"<tbody>{''.join(body_rows)}{footer_row}</tbody>"
+        "</table>"
+    )
 
 
 def _render_policy_drift_chart(rows: Iterable[PolicyDriftRow]) -> str:
@@ -3437,6 +3599,98 @@ def _build_us_sector_breakdown(
         forward_looking_loadings=forward_looking_loadings,
         expander=lambda row: _expand_us_sector_allocations(row, api_cache=api_cache, manual=manual),
         parent="EQ",
+    )
+
+
+COUNTRY_SECTOR_MIN_WEIGHT = 0.001  # hide rows/cols below 0.1% to keep the matrix readable
+
+
+def _build_country_sector_breakdown(
+    *,
+    rows: list[RiskInputRow],
+    country_taxonomy_path: Path = DEFAULT_EQ_COUNTRY_LOOKTHROUGH_PATH,
+    country_manual_path: Path = DEFAULT_EQ_COUNTRY_MANUAL_LOOKTHROUGH_PATH,
+    sector_lookthrough_path: Path = DEFAULT_US_SECTOR_LOOKTHROUGH_PATH,
+    sector_manual_path: Path = DEFAULT_US_SECTOR_MANUAL_LOOKTHROUGH_PATH,
+    min_weight: float = COUNTRY_SECTOR_MIN_WEIGHT,
+) -> CountrySectorBreakdown:
+    taxonomy = _load_weight_table(country_taxonomy_path, "eq_country", "country_bucket")
+    country_manual = _load_weight_table(country_manual_path, "symbol", "country_bucket")
+    sector_api_cache = _load_weight_table(sector_lookthrough_path, "canonical_symbol", "sector")
+    sector_manual = _load_weight_table(sector_manual_path, "symbol", "sector")
+
+    funded_aum = _funded_aum(rows)
+    raw_cells: dict[tuple[str, str], list[float]] = {}  # (country, sector) -> [net, gross]
+    for row in rows:
+        if row.asset_class != "EQ":
+            continue
+        country_alloc = _expand_country_allocations(row, manual=country_manual, taxonomy=taxonomy)
+        sector_alloc = _expand_us_sector_allocations(row, api_cache=sector_api_cache, manual=sector_manual)
+        if not country_alloc or not sector_alloc:
+            continue
+        for country, c_w in country_alloc:
+            for sector, s_w in sector_alloc:
+                joint = float(c_w) * float(s_w)
+                if joint <= 0:
+                    continue
+                key = (str(country), str(sector))
+                bucket = raw_cells.setdefault(key, [0.0, 0.0])
+                bucket[0] += row.display_exposure_usd * joint
+                bucket[1] += row.display_gross_exposure_usd * joint
+
+    cells: dict[tuple[str, str], CountrySectorCell] = {}
+    country_totals: dict[str, float] = {}
+    sector_totals: dict[str, float] = {}
+    for (country, sector), (net_usd, gross_usd) in raw_cells.items():
+        dollar_weight = (gross_usd / funded_aum) if funded_aum > 0 else 0.0
+        cells[(country, sector)] = CountrySectorCell(
+            country=country,
+            sector=sector,
+            exposure_usd=net_usd,
+            gross_exposure_usd=gross_usd,
+            dollar_weight=dollar_weight,
+        )
+        country_totals[country] = country_totals.get(country, 0.0) + dollar_weight
+        sector_totals[sector] = sector_totals.get(sector, 0.0) + dollar_weight
+
+    visible_countries = [c for c, total in country_totals.items() if total >= min_weight]
+    visible_sectors = [s for s, total in sector_totals.items() if total >= min_weight]
+    # Always keep at least one row/column even if everything is tiny.
+    if not visible_countries:
+        visible_countries = list(country_totals)
+    if not visible_sectors:
+        visible_sectors = list(sector_totals)
+
+    sorted_countries = tuple(
+        sorted(
+            visible_countries,
+            key=lambda c: (_eq_country_breakdown_sort_key(
+                BreakdownRow(bucket=c, bucket_label="", parent="EQ",
+                             exposure_usd=0.0, gross_exposure_usd=country_totals.get(c, 0.0),
+                             dollar_weight=country_totals.get(c, 0.0), risk_contribution_estimated=0.0))
+            ),
+        )
+    )
+    sorted_sectors = tuple(sorted(visible_sectors, key=lambda s: (-sector_totals.get(s, 0.0), s)))
+
+    visible_set_c = set(sorted_countries)
+    visible_set_s = set(sorted_sectors)
+    filtered_cells = {
+        key: cell
+        for key, cell in cells.items()
+        if key[0] in visible_set_c and key[1] in visible_set_s
+    }
+
+    grand_gross = sum(cell.gross_exposure_usd for cell in cells.values())
+    grand_dollar_weight = (grand_gross / funded_aum) if funded_aum > 0 else sum(country_totals.values())
+    return CountrySectorBreakdown(
+        countries=sorted_countries,
+        sectors=sorted_sectors,
+        cells=filtered_cells,
+        country_totals={c: country_totals.get(c, 0.0) for c in sorted_countries},
+        sector_totals={s: sector_totals.get(s, 0.0) for s in sorted_sectors},
+        grand_total_dollar_weight=grand_dollar_weight,
+        grand_total_gross_exposure_usd=grand_gross,
     )
 
 

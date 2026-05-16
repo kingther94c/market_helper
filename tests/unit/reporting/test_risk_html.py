@@ -537,6 +537,235 @@ def test_default_us_sector_lookthrough_covers_all_us_equity_universe_symbols() -
     assert "TSLA" not in configured_symbols
 
 
+def _build_eq_row(
+    *,
+    symbol: str,
+    gross_exposure_usd: float,
+    eq_sector_proxy: str = "",
+) -> RiskInputRow:
+    return RiskInputRow(
+        internal_id=f"STK:{symbol}:SMART",
+        symbol=symbol,
+        canonical_symbol=symbol,
+        account="U1",
+        market_value=gross_exposure_usd,
+        weight=1.0,
+        asset_class="EQ",
+        category="EQ",
+        display_ticker=symbol,
+        display_name=symbol,
+        instrument_type="ETF",
+        quantity=1.0,
+        latest_price=gross_exposure_usd,
+        multiplier=1.0,
+        exposure_usd=gross_exposure_usd,
+        gross_exposure_usd=gross_exposure_usd,
+        signed_exposure_usd=gross_exposure_usd,
+        dollar_weight=1.0,
+        display_exposure_usd=gross_exposure_usd,
+        display_gross_exposure_usd=gross_exposure_usd,
+        display_dollar_weight=1.0,
+        duration=None,
+        expected_vol=None,
+        local_symbol=symbol,
+        exchange="SMART",
+        mapping_status="mapped",
+        dir_exposure="L",
+        eq_sector_proxy=eq_sector_proxy,
+        fi_tenor="",
+        yahoo_symbol=symbol,
+    )
+
+
+def test_build_country_sector_breakdown_outer_product_and_marginals(tmp_path: Path) -> None:
+    """Verify per-position outer product and marginal consistency with 1D views."""
+    country_taxonomy = tmp_path / "country_taxonomy.csv"
+    country_taxonomy.write_text(
+        "eq_country,country_bucket,weight\n"
+        "ACWI,DM,0.5\n"
+        "ACWI,EM,0.5\n",
+        encoding="utf-8",
+    )
+    country_manual = tmp_path / "country_manual.csv"
+    country_manual.write_text(
+        "symbol,country_bucket,weight\n"
+        "SPY,DM-US,1.0\n"
+        "KWEB,EM-CN,1.0\n",
+        encoding="utf-8",
+    )
+    sector_api = tmp_path / "us_sector.json"
+    sector_api.write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "provider": "alpha_vantage",
+                "daily_call_limit": 20,
+                "api_usage": {"count": 0, "date": "2026-05-15"},
+                "symbols": {
+                    "SPY": {
+                        "updated_at": "2026-05-01",
+                        "status": "ok",
+                        "error_message": "",
+                        "sectors": [
+                            {"sector": "Technology", "weight": 0.30},
+                            {"sector": "Financials", "weight": 0.70},
+                        ],
+                    },
+                    "KWEB": {
+                        "updated_at": "2026-05-01",
+                        "status": "ok",
+                        "error_message": "",
+                        "sectors": [
+                            {"sector": "Communication Services", "weight": 1.0},
+                        ],
+                    },
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+    sector_manual = tmp_path / "sector_manual.csv"
+    sector_manual.write_text("symbol,sector,weight\n", encoding="utf-8")
+
+    rows = [
+        _build_eq_row(symbol="SPY", gross_exposure_usd=70_000),
+        _build_eq_row(symbol="KWEB", gross_exposure_usd=30_000),
+    ]
+
+    breakdown = risk_html_module._build_country_sector_breakdown(
+        rows=rows,
+        country_taxonomy_path=country_taxonomy,
+        country_manual_path=country_manual,
+        sector_lookthrough_path=sector_api,
+        sector_manual_path=sector_manual,
+        min_weight=0.0,
+    )
+
+    # Outer product: SPY contributes to DM-US x (Technology, Financials); KWEB to EM-CN x Communication Services.
+    assert breakdown.cells[("DM-US", "Technology")].dollar_weight == pytest.approx(0.21)
+    assert breakdown.cells[("DM-US", "Financials")].dollar_weight == pytest.approx(0.49)
+    assert breakdown.cells[("EM-CN", "Communication Services")].dollar_weight == pytest.approx(0.30)
+    # Cells the outer product should never visit are absent.
+    assert ("EM-CN", "Technology") not in breakdown.cells
+    assert ("DM-US", "Communication Services") not in breakdown.cells
+
+    # Marginals match the 1D country / sector aggregates.
+    assert breakdown.country_totals["DM-US"] == pytest.approx(0.70)
+    assert breakdown.country_totals["EM-CN"] == pytest.approx(0.30)
+    assert breakdown.sector_totals["Technology"] == pytest.approx(0.21)
+    assert breakdown.sector_totals["Financials"] == pytest.approx(0.49)
+    assert breakdown.sector_totals["Communication Services"] == pytest.approx(0.30)
+
+    # DM rows should be ordered before EM rows.
+    assert breakdown.countries.index("DM-US") < breakdown.countries.index("EM-CN")
+    # Sectors are ordered by total weight desc.
+    assert breakdown.sectors[0] == "Financials"
+
+    assert breakdown.grand_total_dollar_weight == pytest.approx(1.0)
+
+
+def test_build_country_sector_breakdown_filters_below_threshold(tmp_path: Path) -> None:
+    country_taxonomy = tmp_path / "country_taxonomy.csv"
+    country_taxonomy.write_text("eq_country,country_bucket,weight\n", encoding="utf-8")
+    country_manual = tmp_path / "country_manual.csv"
+    country_manual.write_text(
+        "symbol,country_bucket,weight\n"
+        "SPY,DM-US,1.0\n"
+        "TINY,DM-CA,1.0\n",
+        encoding="utf-8",
+    )
+    sector_api = tmp_path / "us_sector.json"
+    sector_api.write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "provider": "alpha_vantage",
+                "daily_call_limit": 20,
+                "api_usage": {"count": 0, "date": "2026-05-15"},
+                "symbols": {
+                    "SPY": {
+                        "updated_at": "2026-05-01",
+                        "status": "ok",
+                        "error_message": "",
+                        "sectors": [{"sector": "Technology", "weight": 1.0}],
+                    },
+                    "TINY": {
+                        "updated_at": "2026-05-01",
+                        "status": "ok",
+                        "error_message": "",
+                        "sectors": [{"sector": "Materials", "weight": 1.0}],
+                    },
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+    sector_manual = tmp_path / "sector_manual.csv"
+    sector_manual.write_text("symbol,sector,weight\n", encoding="utf-8")
+
+    rows = [
+        _build_eq_row(symbol="SPY", gross_exposure_usd=99_900),
+        _build_eq_row(symbol="TINY", gross_exposure_usd=100),  # 0.1% — under default threshold
+    ]
+
+    breakdown = risk_html_module._build_country_sector_breakdown(
+        rows=rows,
+        country_taxonomy_path=country_taxonomy,
+        country_manual_path=country_manual,
+        sector_lookthrough_path=sector_api,
+        sector_manual_path=sector_manual,
+        min_weight=0.005,  # 0.5%
+    )
+
+    assert "DM-US" in breakdown.countries
+    assert "DM-CA" not in breakdown.countries
+    assert "Technology" in breakdown.sectors
+    assert "Materials" not in breakdown.sectors
+    # Filtered cells are dropped from the visible map but the grand total includes them.
+    assert ("DM-CA", "Materials") not in breakdown.cells
+    assert breakdown.grand_total_dollar_weight == pytest.approx(1.0)
+
+
+def test_render_country_sector_heatmap_emits_marginals_and_color() -> None:
+    cells = {
+        ("DM-US", "Technology"): risk_html_module.CountrySectorCell(
+            country="DM-US", sector="Technology", exposure_usd=70_000,
+            gross_exposure_usd=70_000, dollar_weight=0.7,
+        ),
+        ("EM-CN", "Financials"): risk_html_module.CountrySectorCell(
+            country="EM-CN", sector="Financials", exposure_usd=30_000,
+            gross_exposure_usd=30_000, dollar_weight=0.3,
+        ),
+    }
+    breakdown = risk_html_module.CountrySectorBreakdown(
+        countries=("DM-US", "EM-CN"),
+        sectors=("Technology", "Financials"),
+        cells=cells,
+        country_totals={"DM-US": 0.7, "EM-CN": 0.3},
+        sector_totals={"Technology": 0.7, "Financials": 0.3},
+        grand_total_dollar_weight=1.0,
+        grand_total_gross_exposure_usd=100_000.0,
+    )
+    html_out = risk_html_module._render_country_sector_heatmap(breakdown)
+    assert "DM-US" in html_out and "EM-CN" in html_out
+    assert "Technology" in html_out and "Financials" in html_out
+    # Cells with the largest weight should pick up a non-white shade.
+    assert "rgb(255, 255, 255)" not in html_out.split("heatmap-cell-pct'>70.0%")[0]
+    # Marginals are rendered as the right-most column / bottom row.
+    assert "70.0%" in html_out
+    assert "30.0%" in html_out
+    assert "100.0%" in html_out  # grand total
+
+
+def test_render_country_sector_heatmap_empty() -> None:
+    breakdown = risk_html_module.CountrySectorBreakdown(
+        countries=(), sectors=(), cells={}, country_totals={}, sector_totals={},
+        grand_total_dollar_weight=0.0, grand_total_gross_exposure_usd=0.0,
+    )
+    html_out = risk_html_module._render_country_sector_heatmap(breakdown)
+    assert "No equity positions" in html_out
+
+
 def test_expand_us_sector_allocations_prefers_lookthrough_over_security_sector() -> None:
     row = RiskInputRow(
         internal_id="STK:SOXX:SMART",

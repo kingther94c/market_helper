@@ -74,6 +74,17 @@ Landed:
   Other DM; EM = CN/TW/KR/IN/ASEAN/LATAM/EMEA EM. Project-local
   `lookthrough-researcher` skill (`.claude/skills/`) handles best-effort
   population from issuer fact sheets.
+- **Sector benchmark switched from SPY to ACWI**. Sector policy mix YAML key
+  renamed `us_equity_sector_policy_mix` → `equity_sector_policy_mix` (old key
+  still accepted). Sector report card retitled "Sector Breakdown" / "Policy
+  Drift - Sector". ACWI sector mix lives in `sector_lookthrough_manual.csv`
+  for now; `etf-sector-sync --symbols ACWI` will overwrite with Alpha Vantage
+  data when API budget allows.
+- **Country × Sector heatmap** added to the EQ panel — outer-product joint over
+  the country and sector lookthrough lists per position, colour-shaded HTML
+  pivot table with marginals matching the existing 1D breakdowns. Approximation
+  (independence per position) where issuers do not publish joint country×sector
+  data; exact for single-axis ETFs.
 
 Near-term work:
 1. Finish dashboard Performance USD/SGD parity for the snapshot path.
