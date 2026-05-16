@@ -76,6 +76,7 @@ from market_helper.presentation.tables.portfolio_report import (
 from market_helper.portfolio.ibkr import enrich_security_from_contract_details
 from market_helper.reporting.portfolio_html import write_portfolio_report
 from market_helper.reporting.risk_html import (
+    DEFAULT_RISK_REPORT_CONFIG_PATH,
     build_risk_report_view_model,
     render_html_from_view_model,
 )
