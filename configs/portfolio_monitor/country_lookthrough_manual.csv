@@ -20,11 +20,12 @@ XLRE,DM-US,1.0,manual,high,2026-05-15,US REITs
 XLC,DM-US,1.0,manual,high,2026-05-15,US comm services
 TSLA,DM-US,1.0,manual,high,2026-05-15,single-name US
 IEUR,DM-EUME,1.0,manual,medium,2026-05-15,MSCI Europe (incl UK/Switzerland)
-VEA,DM-EUME,0.55,manual,low,2026-05-15,FTSE Dev ex-US (placeholder; refine via skill)
-VEA,DM-JP,0.20,manual,low,2026-05-15,FTSE Dev ex-US (placeholder; refine via skill)
-VEA,DM-CA,0.10,manual,low,2026-05-15,FTSE Dev ex-US (placeholder; refine via skill)
-VEA,DM-AUNZ,0.07,manual,low,2026-05-15,FTSE Dev ex-US (placeholder; refine via skill)
-VEA,DM-Other DM,0.08,manual,low,2026-05-15,FTSE Dev ex-US (placeholder; refine via skill)
+VEA,DM-JP,0.22,vanguard+ftse,medium,2026-05-16,FTSE Dev All-Cap ex US: Japan
+VEA,DM-EUME,0.48,vanguard+ftse,medium,2026-05-16,UK+CH+FR+DE+NL+ES+IT+IL+others Europe
+VEA,DM-CA,0.09,vanguard+ftse,medium,2026-05-16,Canada
+VEA,DM-AUNZ,0.07,vanguard+ftse,medium,2026-05-16,Australia+NZ
+VEA,DM-Other DM,0.05,vanguard+ftse,medium,2026-05-16,HK+Singapore
+VEA,EM-KR,0.055,vanguard+ftse,medium,2026-05-16,FTSE classifies Korea as Developed; our taxonomy maps to EM-KR
 XMME,EM,1.0,manual,medium,2026-05-15,MSCI EM broad - expands via taxonomy
 IEMG,EM,1.0,manual,medium,2026-05-15,MSCI EM IMI - expands via taxonomy
 ACWD,ACWI,1.0,manual,medium,2026-05-15,MSCI ACWI - expands via taxonomy

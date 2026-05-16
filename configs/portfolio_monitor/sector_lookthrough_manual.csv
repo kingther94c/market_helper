@@ -25,3 +25,94 @@ XLB,Materials,1.0,issuer_definition,high,2026-05-15,SPDR Materials Select Sector
 XLU,Utilities,1.0,issuer_definition,high,2026-05-15,SPDR Utilities Select Sector
 XLRE,Real Estate,1.0,issuer_definition,high,2026-05-15,SPDR Real Estate Select Sector
 XLC,Communication Services,1.0,issuer_definition,high,2026-05-15,SPDR Communication Services Select Sector
+ACWD,Technology,0.270,inherits_acwi,medium,2026-03-31,iShares MSCI ACWI UCITS - same mix as ACWI
+ACWD,Financials,0.165,inherits_acwi,medium,2026-03-31,
+ACWD,Industrials,0.112,inherits_acwi,medium,2026-03-31,
+ACWD,Consumer Discretionary,0.094,inherits_acwi,medium,2026-03-31,
+ACWD,Health Care,0.089,inherits_acwi,medium,2026-03-31,
+ACWD,Communication Services,0.084,inherits_acwi,medium,2026-03-31,
+ACWD,Consumer Staples,0.055,inferred,low,2026-03-31,
+ACWD,Energy,0.040,inferred,low,2026-03-31,
+ACWD,Materials,0.035,inferred,low,2026-03-31,
+ACWD,Utilities,0.027,inferred,low,2026-03-31,
+ACWD,Real Estate,0.022,inferred,low,2026-03-31,
+VEA,Financials,0.20,ftse+msci_world_exus,low,2026-03-31,FTSE Developed ex-US — best-effort estimate from MSCI World ex-US sector mix
+VEA,Industrials,0.14,ftse+msci_world_exus,low,2026-03-31,
+VEA,Health Care,0.11,ftse+msci_world_exus,low,2026-03-31,
+VEA,Technology,0.10,ftse+msci_world_exus,low,2026-03-31,
+VEA,Consumer Discretionary,0.10,ftse+msci_world_exus,low,2026-03-31,
+VEA,Consumer Staples,0.08,ftse+msci_world_exus,low,2026-03-31,
+VEA,Materials,0.07,ftse+msci_world_exus,low,2026-03-31,
+VEA,Energy,0.06,ftse+msci_world_exus,low,2026-03-31,
+VEA,Communication Services,0.05,ftse+msci_world_exus,low,2026-03-31,
+VEA,Utilities,0.04,ftse+msci_world_exus,low,2026-03-31,
+VEA,Real Estate,0.03,ftse+msci_world_exus,low,2026-03-31,
+IEUR,Financials,0.22,justetf+inferred,medium,2026-03-31,iShares Core MSCI Europe — top-4 from justETF; rest estimated
+IEUR,Industrials,0.17,justetf+inferred,medium,2026-03-31,
+IEUR,Health Care,0.09,justetf+inferred,medium,2026-03-31,
+IEUR,Consumer Staples,0.08,justetf+inferred,medium,2026-03-31,
+IEUR,Consumer Discretionary,0.10,inferred,low,2026-03-31,
+IEUR,Technology,0.08,inferred,low,2026-03-31,
+IEUR,Materials,0.06,inferred,low,2026-03-31,
+IEUR,Communication Services,0.05,inferred,low,2026-03-31,
+IEUR,Energy,0.05,inferred,low,2026-03-31,
+IEUR,Utilities,0.04,inferred,low,2026-03-31,
+IEUR,Real Estate,0.015,inferred,low,2026-03-31,
+FLKR,Technology,0.45,msci_korea,low,2026-03-31,Franklin FTSE South Korea — Samsung/SK Hynix dominate
+FLKR,Industrials,0.15,msci_korea,low,2026-03-31,
+FLKR,Financials,0.11,msci_korea,low,2026-03-31,
+FLKR,Consumer Discretionary,0.10,msci_korea,low,2026-03-31,
+FLKR,Communication Services,0.06,msci_korea,low,2026-03-31,
+FLKR,Materials,0.05,msci_korea,low,2026-03-31,
+FLKR,Health Care,0.04,msci_korea,low,2026-03-31,
+FLKR,Energy,0.02,msci_korea,low,2026-03-31,
+FLKR,Consumer Staples,0.015,msci_korea,low,2026-03-31,
+FLKR,Utilities,0.005,msci_korea,low,2026-03-31,
+KWEB,Consumer Discretionary,0.55,kraneshares_holdings,medium,2026-05-15,Alibaba/JD/PDD/Meituan/Trip-class e-commerce
+KWEB,Communication Services,0.35,kraneshares_holdings,medium,2026-05-15,Tencent/NetEase/Baidu/Weibo
+KWEB,Technology,0.05,kraneshares_holdings,low,2026-05-15,
+KWEB,Health Care,0.03,kraneshares_holdings,low,2026-05-15,JD Health-class
+ASHR,Financials,0.22,csi300,low,2026-03-31,Xtrackers CSI 300 China A — broad China onshore
+ASHR,Industrials,0.15,csi300,low,2026-03-31,
+ASHR,Consumer Staples,0.12,csi300,low,2026-03-31,Kweichow Moutai etc.
+ASHR,Consumer Discretionary,0.10,csi300,low,2026-03-31,
+ASHR,Technology,0.09,csi300,low,2026-03-31,
+ASHR,Health Care,0.08,csi300,low,2026-03-31,
+ASHR,Materials,0.06,csi300,low,2026-03-31,
+ASHR,Energy,0.04,csi300,low,2026-03-31,
+ASHR,Utilities,0.04,csi300,low,2026-03-31,
+ASHR,Communication Services,0.03,csi300,low,2026-03-31,
+ASHR,Real Estate,0.02,csi300,low,2026-03-31,
+XMME,Technology,0.25,msci_em,medium,2026-03-31,MSCI EM broad — TSMC/Samsung/Tencent-heavy
+XMME,Financials,0.22,msci_em,medium,2026-03-31,
+XMME,Consumer Discretionary,0.13,msci_em,medium,2026-03-31,
+XMME,Communication Services,0.09,msci_em,medium,2026-03-31,
+XMME,Materials,0.07,msci_em,medium,2026-03-31,
+XMME,Industrials,0.07,msci_em,medium,2026-03-31,
+XMME,Consumer Staples,0.06,msci_em,medium,2026-03-31,
+XMME,Energy,0.05,msci_em,medium,2026-03-31,
+XMME,Health Care,0.04,msci_em,medium,2026-03-31,
+XMME,Utilities,0.03,msci_em,medium,2026-03-31,
+XMME,Real Estate,0.02,msci_em,medium,2026-03-31,
+IEMG,Technology,0.25,msci_em,medium,2026-03-31,iShares Core MSCI EM IMI — same broad mix as XMME
+IEMG,Financials,0.22,msci_em,medium,2026-03-31,
+IEMG,Consumer Discretionary,0.13,msci_em,medium,2026-03-31,
+IEMG,Communication Services,0.09,msci_em,medium,2026-03-31,
+IEMG,Materials,0.07,msci_em,medium,2026-03-31,
+IEMG,Industrials,0.07,msci_em,medium,2026-03-31,
+IEMG,Consumer Staples,0.06,msci_em,medium,2026-03-31,
+IEMG,Energy,0.05,msci_em,medium,2026-03-31,
+IEMG,Health Care,0.04,msci_em,medium,2026-03-31,
+IEMG,Utilities,0.03,msci_em,medium,2026-03-31,
+IEMG,Real Estate,0.02,msci_em,medium,2026-03-31,
+XMBD,Financials,0.28,msci_brazil,low,2026-03-31,Xtrackers MSCI Brazil — Itau/Bradesco/B3
+XMBD,Materials,0.16,msci_brazil,low,2026-03-31,Vale dominant
+XMBD,Energy,0.12,msci_brazil,low,2026-03-31,Petrobras
+XMBD,Consumer Staples,0.10,msci_brazil,low,2026-03-31,Ambev/JBS
+XMBD,Industrials,0.09,msci_brazil,low,2026-03-31,
+XMBD,Utilities,0.08,msci_brazil,low,2026-03-31,
+XMBD,Consumer Discretionary,0.06,msci_brazil,low,2026-03-31,
+XMBD,Technology,0.03,msci_brazil,low,2026-03-31,
+XMBD,Health Care,0.03,msci_brazil,low,2026-03-31,
+XMBD,Communication Services,0.03,msci_brazil,low,2026-03-31,
+XMBD,Real Estate,0.01,msci_brazil,low,2026-03-31,
