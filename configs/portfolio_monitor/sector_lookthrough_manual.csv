@@ -36,83 +36,85 @@ ACWD,Energy,0.040,inferred,low,2026-03-31,
 ACWD,Materials,0.035,inferred,low,2026-03-31,
 ACWD,Utilities,0.027,inferred,low,2026-03-31,
 ACWD,Real Estate,0.022,inferred,low,2026-03-31,
-VEA,Financials,0.20,ftse+msci_world_exus,low,2026-03-31,FTSE Developed ex-US — best-effort estimate from MSCI World ex-US sector mix
-VEA,Industrials,0.14,ftse+msci_world_exus,low,2026-03-31,
-VEA,Health Care,0.11,ftse+msci_world_exus,low,2026-03-31,
-VEA,Technology,0.10,ftse+msci_world_exus,low,2026-03-31,
-VEA,Consumer Discretionary,0.10,ftse+msci_world_exus,low,2026-03-31,
-VEA,Consumer Staples,0.08,ftse+msci_world_exus,low,2026-03-31,
-VEA,Materials,0.07,ftse+msci_world_exus,low,2026-03-31,
-VEA,Energy,0.06,ftse+msci_world_exus,low,2026-03-31,
-VEA,Communication Services,0.05,ftse+msci_world_exus,low,2026-03-31,
-VEA,Utilities,0.04,ftse+msci_world_exus,low,2026-03-31,
-VEA,Real Estate,0.03,ftse+msci_world_exus,low,2026-03-31,
-IEUR,Financials,0.22,justetf+inferred,medium,2026-03-31,iShares Core MSCI Europe — top-4 from justETF; rest estimated
-IEUR,Industrials,0.17,justetf+inferred,medium,2026-03-31,
-IEUR,Health Care,0.09,justetf+inferred,medium,2026-03-31,
-IEUR,Consumer Staples,0.08,justetf+inferred,medium,2026-03-31,
-IEUR,Consumer Discretionary,0.10,inferred,low,2026-03-31,
-IEUR,Technology,0.08,inferred,low,2026-03-31,
-IEUR,Materials,0.06,inferred,low,2026-03-31,
-IEUR,Communication Services,0.05,inferred,low,2026-03-31,
-IEUR,Energy,0.05,inferred,low,2026-03-31,
-IEUR,Utilities,0.04,inferred,low,2026-03-31,
-IEUR,Real Estate,0.015,inferred,low,2026-03-31,
-FLKR,Technology,0.45,msci_korea,low,2026-03-31,Franklin FTSE South Korea — Samsung/SK Hynix dominate
-FLKR,Industrials,0.15,msci_korea,low,2026-03-31,
-FLKR,Financials,0.11,msci_korea,low,2026-03-31,
-FLKR,Consumer Discretionary,0.10,msci_korea,low,2026-03-31,
-FLKR,Communication Services,0.06,msci_korea,low,2026-03-31,
-FLKR,Materials,0.05,msci_korea,low,2026-03-31,
-FLKR,Health Care,0.04,msci_korea,low,2026-03-31,
-FLKR,Energy,0.02,msci_korea,low,2026-03-31,
-FLKR,Consumer Staples,0.015,msci_korea,low,2026-03-31,
-FLKR,Utilities,0.005,msci_korea,low,2026-03-31,
-KWEB,Consumer Discretionary,0.55,kraneshares_holdings,medium,2026-05-15,Alibaba/JD/PDD/Meituan/Trip-class e-commerce
-KWEB,Communication Services,0.35,kraneshares_holdings,medium,2026-05-15,Tencent/NetEase/Baidu/Weibo
-KWEB,Technology,0.05,kraneshares_holdings,low,2026-05-15,
-KWEB,Health Care,0.03,kraneshares_holdings,low,2026-05-15,JD Health-class
-ASHR,Financials,0.22,csi300,low,2026-03-31,Xtrackers CSI 300 China A — broad China onshore
-ASHR,Industrials,0.15,csi300,low,2026-03-31,
-ASHR,Consumer Staples,0.12,csi300,low,2026-03-31,Kweichow Moutai etc.
-ASHR,Consumer Discretionary,0.10,csi300,low,2026-03-31,
-ASHR,Technology,0.09,csi300,low,2026-03-31,
-ASHR,Health Care,0.08,csi300,low,2026-03-31,
-ASHR,Materials,0.06,csi300,low,2026-03-31,
-ASHR,Energy,0.04,csi300,low,2026-03-31,
-ASHR,Utilities,0.04,csi300,low,2026-03-31,
-ASHR,Communication Services,0.03,csi300,low,2026-03-31,
-ASHR,Real Estate,0.02,csi300,low,2026-03-31,
-XMME,Technology,0.25,msci_em,medium,2026-03-31,MSCI EM broad — TSMC/Samsung/Tencent-heavy
-XMME,Financials,0.22,msci_em,medium,2026-03-31,
-XMME,Consumer Discretionary,0.13,msci_em,medium,2026-03-31,
-XMME,Communication Services,0.09,msci_em,medium,2026-03-31,
-XMME,Materials,0.07,msci_em,medium,2026-03-31,
-XMME,Industrials,0.07,msci_em,medium,2026-03-31,
-XMME,Consumer Staples,0.06,msci_em,medium,2026-03-31,
-XMME,Energy,0.05,msci_em,medium,2026-03-31,
-XMME,Health Care,0.04,msci_em,medium,2026-03-31,
-XMME,Utilities,0.03,msci_em,medium,2026-03-31,
-XMME,Real Estate,0.02,msci_em,medium,2026-03-31,
-IEMG,Technology,0.25,msci_em,medium,2026-03-31,iShares Core MSCI EM IMI — same broad mix as XMME
-IEMG,Financials,0.22,msci_em,medium,2026-03-31,
-IEMG,Consumer Discretionary,0.13,msci_em,medium,2026-03-31,
-IEMG,Communication Services,0.09,msci_em,medium,2026-03-31,
-IEMG,Materials,0.07,msci_em,medium,2026-03-31,
-IEMG,Industrials,0.07,msci_em,medium,2026-03-31,
-IEMG,Consumer Staples,0.06,msci_em,medium,2026-03-31,
-IEMG,Energy,0.05,msci_em,medium,2026-03-31,
-IEMG,Health Care,0.04,msci_em,medium,2026-03-31,
-IEMG,Utilities,0.03,msci_em,medium,2026-03-31,
-IEMG,Real Estate,0.02,msci_em,medium,2026-03-31,
-XMBD,Financials,0.28,msci_brazil,low,2026-03-31,Xtrackers MSCI Brazil — Itau/Bradesco/B3
-XMBD,Materials,0.16,msci_brazil,low,2026-03-31,Vale dominant
-XMBD,Energy,0.12,msci_brazil,low,2026-03-31,Petrobras
-XMBD,Consumer Staples,0.10,msci_brazil,low,2026-03-31,Ambev/JBS
-XMBD,Industrials,0.09,msci_brazil,low,2026-03-31,
-XMBD,Utilities,0.08,msci_brazil,low,2026-03-31,
-XMBD,Consumer Discretionary,0.06,msci_brazil,low,2026-03-31,
-XMBD,Technology,0.03,msci_brazil,low,2026-03-31,
-XMBD,Health Care,0.03,msci_brazil,low,2026-03-31,
-XMBD,Communication Services,0.03,msci_brazil,low,2026-03-31,
-XMBD,Real Estate,0.01,msci_brazil,low,2026-03-31,
+VEA,Financials,0.2321,morningstar,medium,2026-03-31,Morningstar VEA portfolio (Financial Services)
+VEA,Industrials,0.1887,morningstar,medium,2026-03-31,
+VEA,Technology,0.1204,morningstar,medium,2026-03-31,
+VEA,Health Care,0.0893,morningstar,medium,2026-03-31,
+VEA,Consumer Discretionary,0.0793,morningstar,medium,2026-03-31,Morningstar 'Consumer Cyclical'
+VEA,Materials,0.0773,morningstar,medium,2026-03-31,Morningstar 'Basic Materials'
+VEA,Consumer Staples,0.0587,morningstar,medium,2026-03-31,Morningstar 'Consumer Defensive'
+VEA,Energy,0.0567,morningstar,medium,2026-03-31,
+VEA,Communication Services,0.0357,morningstar,medium,2026-03-31,
+VEA,Utilities,0.0343,morningstar,medium,2026-03-31,
+VEA,Real Estate,0.0275,morningstar,medium,2026-03-31,
+IEUR,Financials,0.2251,morningstar,medium,2026-03-31,Morningstar IEUR portfolio (Financial Services)
+IEUR,Industrials,0.2038,morningstar,medium,2026-03-31,
+IEUR,Health Care,0.1249,morningstar,medium,2026-03-31,
+IEUR,Technology,0.0845,morningstar,medium,2026-03-31,
+IEUR,Consumer Staples,0.0795,morningstar,medium,2026-03-31,Morningstar 'Consumer Defensive'
+IEUR,Consumer Discretionary,0.0687,morningstar,medium,2026-03-31,Morningstar 'Consumer Cyclical'
+IEUR,Materials,0.0580,morningstar,medium,2026-03-31,Morningstar 'Basic Materials'
+IEUR,Energy,0.0534,morningstar,medium,2026-03-31,
+IEUR,Utilities,0.0481,morningstar,medium,2026-03-31,
+IEUR,Communication Services,0.0380,morningstar,medium,2026-03-31,
+IEUR,Real Estate,0.0158,morningstar,medium,2026-03-31,
+FLKR,Technology,0.4418,franklin_factsheet,high,2025-12-31,Franklin FTSE South Korea Dec25 fact sheet
+FLKR,Industrials,0.2005,franklin_factsheet,high,2025-12-31,
+FLKR,Financials,0.1183,franklin_factsheet,high,2025-12-31,
+FLKR,Consumer Discretionary,0.0745,franklin_factsheet,high,2025-12-31,
+FLKR,Health Care,0.0511,franklin_factsheet,high,2025-12-31,
+FLKR,Communication Services,0.0438,franklin_factsheet,high,2025-12-31,
+FLKR,Materials,0.0320,franklin_factsheet,high,2025-12-31,
+FLKR,Consumer Staples,0.0210,franklin_factsheet,high,2025-12-31,
+FLKR,Energy,0.0,franklin_factsheet,high,2025-12-31,1.76% in Other + -0.06% cash absorbed by UNCLASSIFIED
+FLKR,Utilities,0.0,franklin_factsheet,high,2025-12-31,
+KWEB,Consumer Discretionary,0.4343,justetf_ucits_kwbe,medium,2026-03-31,KraneShares CSI China Internet UCITS (same index as KWEB)
+KWEB,Communication Services,0.3545,justetf_ucits_kwbe,medium,2026-03-31,
+KWEB,Real Estate,0.0398,justetf_ucits_kwbe,medium,2026-03-31,
+KWEB,Financials,0.0111,justetf_ucits_kwbe,medium,2026-03-31,
+KWEB,Technology,0.05,inferred,low,2026-03-31,Cloud/AI subsidiaries; estimate from issuer holdings
+KWEB,Health Care,0.04,inferred,low,2026-03-31,JD Health/Ping An Healthcare-class; remainder ~7% UNCLASSIFIED
+ASHR,Financials,0.2130,justetf_ucits_csi300,medium,2026-02-27,Xtrackers Harvest CSI 300 UCITS (same index as ASHR)
+ASHR,Technology,0.2065,justetf_ucits_csi300,medium,2026-02-27,
+ASHR,Industrials,0.1757,justetf_ucits_csi300,medium,2026-02-27,
+ASHR,Materials,0.1068,justetf_ucits_csi300,medium,2026-02-27,
+ASHR,Consumer Staples,0.085,csi300_inferred,low,2026-02-27,Moutai/Wuliangye-class; remainder 29.8% split by typical CSI 300 mix
+ASHR,Consumer Discretionary,0.064,csi300_inferred,low,2026-02-27,
+ASHR,Health Care,0.057,csi300_inferred,low,2026-02-27,
+ASHR,Communication Services,0.030,csi300_inferred,low,2026-02-27,
+ASHR,Energy,0.028,csi300_inferred,low,2026-02-27,
+ASHR,Utilities,0.028,csi300_inferred,low,2026-02-27,
+ASHR,Real Estate,0.014,csi300_inferred,low,2026-02-27,
+XMME,Technology,0.3175,justetf,medium,2026-03-31,Xtrackers MSCI EM 1C — TSMC/Samsung/Tencent-heavy
+XMME,Financials,0.2004,justetf,medium,2026-03-31,
+XMME,Consumer Discretionary,0.0977,justetf,medium,2026-03-31,
+XMME,Communication Services,0.0757,justetf,medium,2026-03-31,
+XMME,Materials,0.0635,msci_em_scaled,low,2026-03-31,'Other 30.87%' scaled from prior MSCI EM mix
+XMME,Industrials,0.0635,msci_em_scaled,low,2026-03-31,
+XMME,Consumer Staples,0.0545,msci_em_scaled,low,2026-03-31,
+XMME,Energy,0.0454,msci_em_scaled,low,2026-03-31,
+XMME,Health Care,0.0363,msci_em_scaled,low,2026-03-31,
+XMME,Utilities,0.0272,msci_em_scaled,low,2026-03-31,
+XMME,Real Estate,0.0182,msci_em_scaled,low,2026-03-31,
+IEMG,Technology,0.2992,justetf_ucits,medium,2026-03-31,iShares MSCI EM IMI UCITS proxy (same index)
+IEMG,Financials,0.1870,justetf_ucits,medium,2026-03-31,
+IEMG,Consumer Discretionary,0.0944,justetf_ucits,medium,2026-03-31,
+IEMG,Communication Services,0.0871,msci_em_scaled,low,2026-03-31,'Other 34.82%' scaled from prior MSCI EM mix
+IEMG,Industrials,0.0712,justetf_ucits,medium,2026-03-31,
+IEMG,Materials,0.0676,msci_em_scaled,low,2026-03-31,
+IEMG,Consumer Staples,0.0580,msci_em_scaled,low,2026-03-31,
+IEMG,Energy,0.0483,msci_em_scaled,low,2026-03-31,
+IEMG,Health Care,0.0387,msci_em_scaled,low,2026-03-31,
+IEMG,Utilities,0.0290,msci_em_scaled,low,2026-03-31,
+IEMG,Real Estate,0.0193,msci_em_scaled,low,2026-03-31,
+XMBD,Financials,0.3524,justetf,medium,2026-03-31,Xtrackers MSCI Brazil 1C Mar26 — Itau/Bradesco/B3/Nu
+XMBD,Energy,0.1925,justetf,medium,2026-03-31,Petrobras-dominant
+XMBD,Materials,0.1360,justetf,medium,2026-03-31,Vale-dominant
+XMBD,Utilities,0.0871,justetf,medium,2026-03-31,
+XMBD,Industrials,0.115,morningstar_aggregate,low,2026-03-31,'Other 23.20%' on justETF — Industrials estimate from later aggregator pull
+XMBD,Consumer Staples,0.044,morningstar_aggregate,low,2026-03-31,Ambev/JBS-class
+XMBD,Health Care,0.026,morningstar_aggregate,low,2026-03-31,
+XMBD,Communication Services,0.021,morningstar_aggregate,low,2026-03-31,
+XMBD,Consumer Discretionary,0.011,morningstar_aggregate,low,2026-03-31,
+XMBD,Technology,0.011,morningstar_aggregate,low,2026-03-31,
+XMBD,Real Estate,0.0,morningstar_aggregate,low,2026-03-31,no RE constituents
