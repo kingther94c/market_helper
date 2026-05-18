@@ -6,7 +6,11 @@ ENV_NAME="${ENV_NAME:-py313}"
 CONDA_BIN="${CONDA_BIN:-$(command -v conda || true)}"
 ACCOUNT_ENV="${ACCOUNT_ENV:-prod}"
 CANONICAL_LOCAL_CONFIG="${ROOT_DIR}/configs/portfolio_monitor/local.env"
-LOCAL_CONFIG="${CANONICAL_LOCAL_CONFIG}"
+if [[ -n "${MARKET_HELPER_CONFIG_PATH:-}" && -f "${MARKET_HELPER_CONFIG_PATH}" ]]; then
+    LOCAL_CONFIG="${MARKET_HELPER_CONFIG_PATH}"
+else
+    LOCAL_CONFIG="${CANONICAL_LOCAL_CONFIG}"
+fi
 DEFAULT_PROD_ACCOUNT_ID="${DEFAULT_PROD_ACCOUNT_ID:-}"
 DEFAULT_DEV_ACCOUNT_ID="${DEFAULT_DEV_ACCOUNT_ID:-}"
 
@@ -44,9 +48,9 @@ Modes:
 Environment:
   ENV_NAME    Conda environment name to use. Defaults to: py313
   CONDA_BIN   Optional explicit path to the conda executable.
-  FMP_API_KEY Optional default API key for etf-sector-sync.
+  ALPHA_VANTAGE_API_KEY Optional default API key for etf-sector-sync.
   ACCOUNT_ENV Live-account profile. Use prod or dev. Defaults to: prod
-  LOCAL_CONFIG Optional local config file. Defaults to: configs/portfolio_monitor/local.env
+  MARKET_HELPER_CONFIG_PATH Optional local config file. Falls back to: configs/portfolio_monitor/local.env
 EOF
 }
 
@@ -101,7 +105,7 @@ resolve_live_account() {
             ;;
     esac
 
-    [[ -n "${ACCOUNT_ID}" ]] || fail "No default account configured for ACCOUNT_ENV=${ACCOUNT_ENV}. Set it in ${CANONICAL_LOCAL_CONFIG} or pass --account explicitly."
+    [[ -n "${ACCOUNT_ID}" ]] || fail "No default account configured for ACCOUNT_ENV=${ACCOUNT_ENV}. Set it in MARKET_HELPER_CONFIG_PATH or ${CANONICAL_LOCAL_CONFIG}, or pass --account explicitly."
     echo "Using default ${ACCOUNT_ENV} live account: ${ACCOUNT_ID}"
 }
 
@@ -195,7 +199,7 @@ SECURITY_REFERENCE_PATH=""
 RISK_CONFIG_PATH=""
 ALLOCATION_POLICY_PATH=""
 WORKBOOK_PATH=""
-FMP_API_KEY="${FMP_API_KEY:-}"
+ALPHA_VANTAGE_API_KEY="${ALPHA_VANTAGE_API_KEY:-${FMP_API_KEY:-}}"
 SYMBOLS=()
 
 while [[ $# -gt 0 ]]; do
@@ -312,7 +316,7 @@ while [[ $# -gt 0 ]]; do
             ;;
         --api-key)
             require_value "$1" "${2:-}"
-            FMP_API_KEY="$2"
+            ALPHA_VANTAGE_API_KEY="$2"
             shift 2
             ;;
         --symbol)
@@ -464,7 +468,7 @@ case "${MODE}" in
         for symbol in "${SYMBOLS[@]}"; do
             COMMAND+=(--symbol "${symbol}")
         done
-        [[ -n "${FMP_API_KEY}" ]] && COMMAND+=(--api-key "${FMP_API_KEY}")
+        [[ -n "${ALPHA_VANTAGE_API_KEY}" ]] && COMMAND+=(--api-key "${ALPHA_VANTAGE_API_KEY}")
         ;;
     mapping-table)
         [[ -n "${WORKBOOK_PATH}" ]] || fail "mapping-table mode requires --workbook"

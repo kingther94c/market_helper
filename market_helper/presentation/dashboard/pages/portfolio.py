@@ -31,6 +31,7 @@ from market_helper.application.portfolio_monitor import (
     RegimeReportRunInputs,
 )
 from market_helper.common.datetime_display import format_local_datetime
+from market_helper.config.local_env import read_local_config_value
 from market_helper.presentation.dashboard.components import render_action_card
 from market_helper.presentation.dashboard.components.common import add_dashboard_styles, render_status_card
 from market_helper.presentation.dashboard.formatters import format_local_text, format_path, format_text
@@ -261,34 +262,13 @@ def _resolve_local_env_value(key: str) -> str:
     from_process_env = str(os.environ.get(normalized_key, "")).strip()
     if from_process_env:
         return from_process_env
-    return _read_env_file_value(DEFAULT_CANONICAL_LOCAL_ENV_PATH, normalized_key)
+    return read_local_config_value(normalized_key, default_path=DEFAULT_CANONICAL_LOCAL_ENV_PATH)
 
 
 def _resolve_default_live_account_id() -> str:
     return _resolve_local_env_value(DEFAULT_PROD_ACCOUNT_ID_ENV_VAR) or _resolve_local_env_value(
         DEFAULT_DEV_ACCOUNT_ID_ENV_VAR
     )
-
-
-def _read_env_file_value(path: Path, key: str) -> str:
-    if not path.exists():
-        return ""
-    for raw_line in path.read_text(encoding="utf-8").splitlines():
-        line = raw_line.strip()
-        if not line or line.startswith("#"):
-            continue
-        if line.startswith("export "):
-            line = line[len("export ") :].strip()
-        if "=" not in line:
-            continue
-        raw_key, raw_value = line.split("=", 1)
-        if raw_key.strip() != key:
-            continue
-        value = raw_value.strip()
-        if len(value) >= 2 and value[0] == value[-1] and value[0] in {"\"", "'"}:
-            value = value[1:-1]
-        return value.strip()
-    return ""
 
 
 def register_portfolio_page(

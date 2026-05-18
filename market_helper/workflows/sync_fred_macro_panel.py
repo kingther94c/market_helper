@@ -1,6 +1,6 @@
 """Thin CLI-facing wrapper around the FRED macro panel sync.
 
-Handles API-key resolution (arg -> env -> configs/portfolio_monitor/local.env)
+Handles API-key resolution (arg -> env -> MARKET_HELPER_CONFIG_PATH -> local.env)
 and delegates to ``market_helper.data_sources.fred.macro_panel.sync_macro_panel``.
 """
 from __future__ import annotations
@@ -9,31 +9,11 @@ import os
 from pathlib import Path
 from typing import Optional
 
+from market_helper.config.local_env import read_local_config_value
 from market_helper.data_sources.fred.macro_panel import sync_macro_panel
 
 _FRED_API_KEY_ENV_VAR = "FRED_API_KEY"
 _DEFAULT_LOCAL_ENV_PATH = Path("configs/portfolio_monitor/local.env")
-
-
-def _read_env_file_value(path: Path, key: str) -> str:
-    if not path.exists():
-        return ""
-    for raw_line in path.read_text(encoding="utf-8").splitlines():
-        line = raw_line.strip()
-        if not line or line.startswith("#"):
-            continue
-        if line.startswith("export "):
-            line = line[len("export ") :].strip()
-        if "=" not in line:
-            continue
-        raw_key, raw_value = line.split("=", 1)
-        if raw_key.strip() != key:
-            continue
-        value = raw_value.strip()
-        if len(value) >= 2 and value[0] == value[-1] and value[0] in {'"', "'"}:
-            value = value[1:-1]
-        return value.strip()
-    return ""
 
 
 def _resolve_fred_api_key(api_key: Optional[str]) -> str:
@@ -43,7 +23,7 @@ def _resolve_fred_api_key(api_key: Optional[str]) -> str:
     from_env = os.environ.get(_FRED_API_KEY_ENV_VAR, "").strip()
     if from_env:
         return from_env
-    return _read_env_file_value(_DEFAULT_LOCAL_ENV_PATH, _FRED_API_KEY_ENV_VAR)
+    return read_local_config_value(_FRED_API_KEY_ENV_VAR, default_path=_DEFAULT_LOCAL_ENV_PATH)
 
 
 def run_fred_macro_sync(
@@ -60,7 +40,7 @@ def run_fred_macro_sync(
     if not resolved_key:
         raise RuntimeError(
             "FRED_API_KEY is not set. Pass --api-key, export FRED_API_KEY, "
-            "or add it to configs/portfolio_monitor/local.env."
+            "or add it to MARKET_HELPER_CONFIG_PATH / configs/portfolio_monitor/local.env."
         )
     return sync_macro_panel(
         config_path=config_path,

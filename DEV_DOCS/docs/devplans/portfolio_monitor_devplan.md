@@ -23,7 +23,8 @@ Canonical artifacts/config:
   NAV/cashflow store.
 - `configs/portfolio_monitor/report_config.yaml`: tracked risk/report runtime
   config.
-- `configs/portfolio_monitor/local.env`: gitignored account/provider secrets.
+- `configs/portfolio_monitor/local.env`: gitignored account/provider secrets;
+  `MARKET_HELPER_CONFIG_PATH` can point to a synced replacement file.
 - `configs/portfolio_monitor/us_sector_lookthrough.json`: tracked ETF sector
   look-through cache.
 

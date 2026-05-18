@@ -5,12 +5,19 @@
 # (override with FRED_SERIES_CONFIG). Writes per-series feather caches and
 # the joined daily panel to data/interim/fred/.
 #
-# Requires FRED_API_KEY in the environment (or set via local.env).
+# Requires FRED_API_KEY in the environment, MARKET_HELPER_CONFIG_PATH, or local.env.
 
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT_DIR"
+
+DEFAULT_LOCAL_CONFIG="configs/portfolio_monitor/local.env"
+if [ -n "${MARKET_HELPER_CONFIG_PATH:-}" ] && [ -f "${MARKET_HELPER_CONFIG_PATH}" ]; then
+    LOCAL_CONFIG="${MARKET_HELPER_CONFIG_PATH}"
+else
+    LOCAL_CONFIG="${DEFAULT_LOCAL_CONFIG}"
+fi
 
 CONFIG="${FRED_SERIES_CONFIG:-configs/regime_detection/fred_series.yml}"
 CACHE_DIR="${FRED_CACHE_DIR:-data/interim/fred}"
@@ -22,15 +29,15 @@ if [ ! -f "$CONFIG" ]; then
     exit 1
 fi
 
-if [ -z "${FRED_API_KEY:-}" ] && [ -f configs/portfolio_monitor/local.env ]; then
+if [ -z "${FRED_API_KEY:-}" ] && [ -f "${LOCAL_CONFIG}" ]; then
     set -a
-    # shellcheck disable=SC1091
-    source configs/portfolio_monitor/local.env
+    # shellcheck disable=SC1090
+    source "${LOCAL_CONFIG}"
     set +a
 fi
 
 if [ -z "${FRED_API_KEY:-}" ]; then
-    echo "FRED_API_KEY is not set. Add it to configs/portfolio_monitor/local.env or the environment." >&2
+    echo "FRED_API_KEY is not set. Add it to MARKET_HELPER_CONFIG_PATH, ${DEFAULT_LOCAL_CONFIG}, or the environment." >&2
     exit 1
 fi
 

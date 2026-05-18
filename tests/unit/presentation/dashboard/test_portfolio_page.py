@@ -179,6 +179,7 @@ def test_build_initial_state_prefills_flex_credentials_from_local_env(tmp_path, 
         ),
         encoding="utf-8",
     )
+    monkeypatch.delenv("MARKET_HELPER_CONFIG_PATH", raising=False)
     monkeypatch.setattr(
         "market_helper.presentation.dashboard.pages.portfolio.DEFAULT_CANONICAL_LOCAL_ENV_PATH",
         local_env,
@@ -203,6 +204,7 @@ def test_build_initial_state_prefills_live_account_id_from_local_env(tmp_path, m
         'DEFAULT_PROD_ACCOUNT_ID="U0000000"\n',
         encoding="utf-8",
     )
+    monkeypatch.delenv("MARKET_HELPER_CONFIG_PATH", raising=False)
     monkeypatch.setattr(
         "market_helper.presentation.dashboard.pages.portfolio.DEFAULT_CANONICAL_LOCAL_ENV_PATH",
         local_env,
@@ -218,6 +220,30 @@ def test_build_initial_state_prefills_live_account_id_from_local_env(tmp_path, m
     state = _build_initial_state(QueryService())
 
     assert state.live_form.account_id == "U0000000"
+
+
+def test_build_initial_state_prefers_market_helper_config_path_for_local_env(tmp_path, monkeypatch) -> None:
+    default_env = tmp_path / "local.env"
+    override_env = tmp_path / "Google Drive" / "market_helper.env"
+    override_env.parent.mkdir()
+    default_env.write_text('IBKR_FLEX_QUERY_ID="default-query"\n', encoding="utf-8")
+    override_env.write_text('IBKR_FLEX_QUERY_ID="synced-query"\n', encoding="utf-8")
+    monkeypatch.setenv("MARKET_HELPER_CONFIG_PATH", str(override_env))
+    monkeypatch.setattr(
+        "market_helper.presentation.dashboard.pages.portfolio.DEFAULT_CANONICAL_LOCAL_ENV_PATH",
+        default_env,
+    )
+
+    class QueryService:
+        def resolve_inputs(self, inputs: PortfolioReportInputs | None = None) -> PortfolioReportInputs:
+            return PortfolioReportInputs(
+                positions_csv_path="data/positions.csv",
+                performance_output_dir="data/flex",
+            )
+
+    state = _build_initial_state(QueryService())
+
+    assert state.flex_form.query_id == "synced-query"
 
 
 def test_action_progress_summary_uses_live_x_of_total_while_action_runs() -> None:

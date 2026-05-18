@@ -13,5 +13,5 @@
 - Check every commit for private-information leakage before pushing.
 - Reassess whether touched content under `DEV_DOCS/` is still relevant on every PR; delete stale material or update it instead of leaving it to drift.
 - Keep the project read-only for broker integrations in this phase. Do not add trading or order-entry behavior.
-- Treat `configs/portfolio_monitor/local.env` and other local-secret files as gitignored local config only.
+- Treat `configs/portfolio_monitor/local.env`, any file referenced by `MARKET_HELPER_CONFIG_PATH`, and other local-secret files as gitignored local config only.
 - Do not commit generated outputs under `data/artifacts/`; keep reusable fixtures under `tests/` instead.

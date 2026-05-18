@@ -1,12 +1,31 @@
 {
   "api_usage": {
-    "count": 0,
-    "date": "2026-05-14"
+    "count": 1,
+    "date": "2026-05-16"
   },
   "daily_call_limit": 20,
   "provider": "alpha_vantage",
   "schema_version": 1,
   "symbols": {
+    "GRID": {
+      "error_message": "",
+      "sectors": [
+        {
+          "sector": "Industrials",
+          "weight": 0.267
+        },
+        {
+          "sector": "Technology",
+          "weight": 0.09
+        },
+        {
+          "sector": "Consumer Discretionary",
+          "weight": 0.029
+        }
+      ],
+      "status": "ok",
+      "updated_at": "2026-05-16"
+    },
     "QQQ": {
       "error_message": "",
       "sectors": [

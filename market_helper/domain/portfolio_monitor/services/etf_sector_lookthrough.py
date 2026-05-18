@@ -7,6 +7,7 @@ from pathlib import Path
 from typing import Any, Iterable, Mapping, Sequence
 
 from market_helper.common.progress import ProgressReporter
+from market_helper.config.local_env import read_local_config_value
 from market_helper.data_sources.alpha_vantage import AlphaVantageClient, AlphaVantageEtfSectorWeight
 
 
@@ -433,26 +434,4 @@ def _read_local_env_value(key: str) -> str:
     normalized_key = str(key).strip()
     if not normalized_key:
         return ""
-    return _read_env_file_value(DEFAULT_CANONICAL_LOCAL_ENV_PATH, normalized_key)
-
-
-def _read_env_file_value(path: Path, key: str) -> str:
-    if not path.exists():
-        return ""
-
-    for raw_line in path.read_text(encoding="utf-8").splitlines():
-        line = raw_line.strip()
-        if not line or line.startswith("#"):
-            continue
-        if line.startswith("export "):
-            line = line[len("export ") :].strip()
-        if "=" not in line:
-            continue
-        raw_key, raw_value = line.split("=", 1)
-        if raw_key.strip() != key:
-            continue
-        value = raw_value.strip()
-        if len(value) >= 2 and value[0] == value[-1] and value[0] in {"\"", "'"}:
-            value = value[1:-1]
-        return value.strip()
-    return ""
+    return read_local_config_value(normalized_key, default_path=DEFAULT_CANONICAL_LOCAL_ENV_PATH)

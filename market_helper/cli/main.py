@@ -198,7 +198,7 @@ def build_parser() -> argparse.ArgumentParser:
     etf_sector_sync.add_argument(
         "--api-key",
         required=False,
-        help="Optional Alpha Vantage API key. Falls back to ALPHA_VANTAGE_API_KEY or configs/portfolio_monitor/local.env.",
+        help="Optional Alpha Vantage API key. Falls back to ALPHA_VANTAGE_API_KEY, MARKET_HELPER_CONFIG_PATH, or configs/portfolio_monitor/local.env.",
     )
 
     fred_macro_sync = subparsers.add_parser(
@@ -238,7 +238,7 @@ def build_parser() -> argparse.ArgumentParser:
     fred_macro_sync.add_argument(
         "--api-key",
         default=None,
-        help="Optional FRED API key. Falls back to FRED_API_KEY env var or configs/portfolio_monitor/local.env.",
+        help="Optional FRED API key. Falls back to FRED_API_KEY env var, MARKET_HELPER_CONFIG_PATH, or configs/portfolio_monitor/local.env.",
     )
 
     regime_detect_v2 = subparsers.add_parser(
@@ -387,7 +387,7 @@ def build_parser() -> argparse.ArgumentParser:
     regime_refresh_report.add_argument(
         "--fred-api-key",
         default=None,
-        help="Optional FRED API key. Falls back to FRED_API_KEY env var or configs/portfolio_monitor/local.env.",
+        help="Optional FRED API key. Falls back to FRED_API_KEY env var, MARKET_HELPER_CONFIG_PATH, or configs/portfolio_monitor/local.env.",
     )
     market_regime_sync = subparsers.add_parser(
         "market-regime-sync",
