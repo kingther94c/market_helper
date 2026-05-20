@@ -62,6 +62,14 @@ def test_generate_ibkr_position_report_normalizes_raw_payloads_and_writes_csv(tm
             "cost_basis": "4210.0",
             "unrealized_pnl": "90.0",
             "weight": "1.0",
+            "option_delta": "",
+            "option_underlying_price": "",
+            "option_delta_exposure_usd": "",
+            "option_implied_vol": "",
+            "option_greeks_source": "",
+            "option_greeks_status": "",
+            "option_underlying_symbol": "",
+            "option_underlying_internal_id": "",
         }
     ]
 

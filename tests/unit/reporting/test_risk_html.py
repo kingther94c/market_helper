@@ -169,6 +169,27 @@ def _write_ng_spread_risk_config(tmp_path: Path) -> Path:
     return path
 
 
+def _write_commodity_spread_disabled_risk_config(tmp_path: Path) -> Path:
+    path = tmp_path / "report_config.yaml"
+    path.write_text(
+        "\n".join(
+            [
+                "risk_report:",
+                "  proxy:",
+                "    VIX: 20.0",
+                "    MOVE: 110.0",
+                "    OVX: 25.0",
+                "    GVZ: 25.0",
+                "    MACRO: 13.0",
+                "  commodity_spreads:",
+                "    enabled: false",
+            ]
+        ),
+        encoding="utf-8",
+    )
+    return path
+
+
 def _write_ng_security_reference(tmp_path: Path) -> Path:
     security_reference_path = tmp_path / "security_reference.csv"
     export_security_reference_csv(
@@ -1284,6 +1305,7 @@ def test_build_risk_report_view_model_prefers_local_symbol_for_mapped_commodity_
         positions_csv_path=positions_csv,
         returns_path=returns_json,
         security_reference_path=security_reference_path,
+        risk_config_path=_write_commodity_spread_disabled_risk_config(tmp_path),
     )
 
     tickers = {row.display_ticker for row in view_model.risk_rows if row.symbol == "NG"}

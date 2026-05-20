@@ -192,7 +192,10 @@ def compute_or_load_commodity_spread_risk(
         computed = None
     if computed is None:
         return None
-    _write_cache_payload(cache_path, _result_to_cache_payload(computed, materialized_legs, config=config))
+    _write_cache_payload(
+        cache_path,
+        _result_to_cache_payload(computed, materialized_legs, config=config, generated_at=now),
+    )
     return computed
 
 
@@ -492,10 +495,14 @@ def _result_to_cache_payload(
     legs: tuple[CommoditySpreadLeg, ...],
     *,
     config: CommoditySpreadRootConfig,
+    generated_at: pd.Timestamp | None = None,
 ) -> dict[str, Any]:
+    materialized_generated_at = pd.Timestamp.now(tz="UTC") if generated_at is None else pd.Timestamp(generated_at)
+    if materialized_generated_at.tzinfo is not None:
+        materialized_generated_at = materialized_generated_at.tz_localize(None)
     return {
         "version": COMMODITY_SPREAD_CACHE_VERSION,
-        "generated_at": pd.Timestamp.utcnow().tz_localize(None).isoformat(),
+        "generated_at": materialized_generated_at.isoformat(),
         "cache_key": result.cache_key,
         "account": result.account,
         "root": result.root,

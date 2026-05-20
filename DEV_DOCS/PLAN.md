@@ -85,6 +85,11 @@ Landed:
   pivot table with marginals matching the existing 1D breakdowns. Approximation
   (independence per position) where issuers do not publish joint country×sector
   data; exact for single-axis ETFs.
+- **Pytest workspace temp stability**: pytest now uses project-local
+  `.pytest_tmp` via `pyproject.toml`, avoiding locked or unreadable OS temp
+  roots in sandboxed Windows runs. Commodity spread cache tests now write
+  deterministic `generated_at` timestamps from the caller-provided clock, and
+  unit tests isolate local-env lookup from machine-specific synced config paths.
 
 Near-term work:
 1. Finish dashboard Performance USD/SGD parity for the snapshot path.

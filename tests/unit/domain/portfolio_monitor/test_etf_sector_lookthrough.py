@@ -51,6 +51,7 @@ def test_refresh_us_sector_lookthrough_for_report_adds_pending_symbol_without_ap
 ) -> None:
     path = tmp_path / "us_sector_lookthrough.json"
     monkeypatch.delenv("ALPHA_VANTAGE_API_KEY", raising=False)
+    monkeypatch.delenv("MARKET_HELPER_CONFIG_PATH", raising=False)
     monkeypatch.setattr(etf_sector_lookthrough, "DEFAULT_CANONICAL_LOCAL_ENV_PATH", tmp_path / "missing-local.env")
 
     written_path = refresh_us_sector_lookthrough_for_report(
