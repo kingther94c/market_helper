@@ -132,6 +132,76 @@ def test_generate_combined_html_report_uses_configured_google_drive_mirror_dir(
     assert mirrored_path.read_text(encoding="utf-8") == "<html>report</html>"
 
 
+def test_load_artifact_mirror_dir_prefers_env_var_over_yaml(
+    monkeypatch, tmp_path: Path
+) -> None:
+    yaml_dir = tmp_path / "from-yaml"
+    env_dir = tmp_path / "from-env"
+    config_path = tmp_path / "report_config.yaml"
+    config_path.write_text(
+        "artifact_mirror:\n" f"  google_drive_dir: {str(yaml_dir)!r}\n",
+        encoding="utf-8",
+    )
+    monkeypatch.setenv(pipeline.MARKET_HELPER_GOOGLE_DRIVE_DIR_ENV_VAR, str(env_dir))
+
+    resolved = pipeline._load_artifact_mirror_dir(config_path)
+
+    assert resolved == env_dir
+
+
+def test_load_artifact_mirror_dir_falls_back_to_local_env_then_yaml(
+    monkeypatch, tmp_path: Path
+) -> None:
+    monkeypatch.delenv(pipeline.MARKET_HELPER_GOOGLE_DRIVE_DIR_ENV_VAR, raising=False)
+    local_env_dir = tmp_path / "from-local-env"
+    yaml_dir = tmp_path / "from-yaml"
+    config_path = tmp_path / "report_config.yaml"
+    config_path.write_text(
+        "artifact_mirror:\n" f"  google_drive_dir: {str(yaml_dir)!r}\n",
+        encoding="utf-8",
+    )
+
+    monkeypatch.setattr(
+        pipeline,
+        "read_local_config_value",
+        lambda key: str(local_env_dir) if key == pipeline.MARKET_HELPER_GOOGLE_DRIVE_DIR_ENV_VAR else "",
+    )
+    assert pipeline._load_artifact_mirror_dir(config_path) == local_env_dir
+
+    # With local.env empty, the YAML value wins.
+    monkeypatch.setattr(pipeline, "read_local_config_value", lambda key: "")
+    assert pipeline._load_artifact_mirror_dir(config_path) == yaml_dir
+
+
+def test_mirror_artifact_swallows_permission_error_when_path_unreachable(
+    monkeypatch, tmp_path: Path, caplog
+) -> None:
+    """Stale per-user GDrive path (e.g. macOS path resolved on Windows) must
+    not crash the report — the mirror step is best-effort."""
+    monkeypatch.delenv(pipeline.MARKET_HELPER_GOOGLE_DRIVE_DIR_ENV_VAR, raising=False)
+    monkeypatch.setattr(pipeline, "read_local_config_value", lambda key: "")
+    unreachable_dir = tmp_path / "no-such-root"
+    monkeypatch.setattr(
+        pipeline, "_load_artifact_mirror_dir", lambda config_path=None: unreachable_dir
+    )
+
+    def _raise(*_args, **_kwargs):
+        raise PermissionError(5, "Access is denied")
+
+    monkeypatch.setattr(pipeline.Path, "mkdir", _raise)
+
+    source = tmp_path / "report.html"
+    source.write_text("<html>x</html>", encoding="utf-8")
+
+    with caplog.at_level("WARNING"):
+        result = pipeline._mirror_artifact_if_configured(
+            source, target_name="portfolio_combined_report.html"
+        )
+
+    assert result is None
+    assert any("Skipping artifact mirror" in rec.message for rec in caplog.records)
+
+
 def test_build_performance_chart_specs_uses_single_continuous_main_line_with_signed_shading() -> None:
     history = pd.DataFrame(
         {

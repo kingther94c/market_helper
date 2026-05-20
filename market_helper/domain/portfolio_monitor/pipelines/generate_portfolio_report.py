@@ -6,6 +6,8 @@ from collections import deque
 from dataclasses import dataclass
 from datetime import date, datetime, timedelta
 import json
+import logging
+import os
 from pathlib import Path
 import shutil
 import tempfile
@@ -73,6 +75,7 @@ from market_helper.presentation.tables.portfolio_report import (
     PositionReportRow,
     build_position_report_rows,
 )
+from market_helper.config.local_env import read_local_config_value
 from market_helper.portfolio.ibkr import enrich_security_from_contract_details
 from market_helper.reporting.portfolio_html import write_portfolio_report
 from market_helper.reporting.risk_html import (
@@ -89,6 +92,9 @@ DEFAULT_IBKR_FLEX_BACKFILL_MAX_INFLIGHT_REQUESTS = 3
 DEFAULT_PREVIOUS_FULL_YEAR_MAX_ATTEMPTS_MULTIPLIER = 2
 DEFAULT_GOOGLE_DRIVE_POSITIONS_FILENAME = "live_ibkr_position_report.csv"
 DEFAULT_GOOGLE_DRIVE_COMBINED_REPORT_FILENAME = "portfolio_combined_report.html"
+MARKET_HELPER_GOOGLE_DRIVE_DIR_ENV_VAR = "MARKET_HELPER_GOOGLE_DRIVE_DIR"
+
+_logger = logging.getLogger(__name__)
 
 
 @dataclass(frozen=True)
@@ -1551,12 +1557,47 @@ def _mirror_artifact_if_configured(
         return None
     source = Path(source_path)
     target_path = mirror_dir / target_name
-    target_path.parent.mkdir(parents=True, exist_ok=True)
-    shutil.copy2(source, target_path)
+    try:
+        target_path.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(source, target_path)
+    except (OSError, PermissionError) as exc:
+        # Mirror is best-effort cross-machine sync. A stale config pointing at
+        # someone else's GDrive directory (e.g. macOS `/Users/<other>/...`
+        # interpreted on Windows as `\Users\<other>\...`) shouldn't crash the
+        # report. Log and continue without the mirror.
+        _logger.warning(
+            "Skipping artifact mirror to %s: %s. Set %s in local.env / env to "
+            "fix, or leave artifact_mirror.google_drive_dir blank in "
+            "report_config.yaml to silence.",
+            mirror_dir,
+            exc,
+            MARKET_HELPER_GOOGLE_DRIVE_DIR_ENV_VAR,
+        )
+        return None
     return target_path
 
 
 def _load_artifact_mirror_dir(config_path: str | Path | None = None) -> Path | None:
+    """Resolve the artifact-mirror directory.
+
+    Priority order (per-machine overrides come first because the mirror path
+    is inherently machine-specific):
+
+    1. Process env var ``MARKET_HELPER_GOOGLE_DRIVE_DIR``.
+    2. ``MARKET_HELPER_GOOGLE_DRIVE_DIR`` key in the local.env file resolved
+       through :func:`market_helper.config.local_env.read_local_config_value`.
+    3. ``artifact_mirror.google_drive_dir`` in ``report_config.yaml`` (kept
+       for back-compat; new installs should leave this blank and use the
+       env / local.env override instead).
+
+    Returns ``None`` when no source produces a non-empty value.
+    """
+    env_value = os.environ.get(MARKET_HELPER_GOOGLE_DRIVE_DIR_ENV_VAR, "").strip()
+    if not env_value:
+        env_value = read_local_config_value(MARKET_HELPER_GOOGLE_DRIVE_DIR_ENV_VAR).strip()
+    if env_value:
+        return Path(env_value).expanduser()
+
     resolved_config_path = Path(config_path) if config_path is not None else _default_report_config_path()
     if not resolved_config_path.exists():
         return None
