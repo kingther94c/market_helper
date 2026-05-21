@@ -1,7 +1,6 @@
 ---
 name: repo-onboarding-skill
 description: 新开线程时自动做：读 README / DEV_DOCS / AGENTS.md / pyproject.toml / 目录树，输出：项目目标 当前模块边界 常用命令 已知约束 下一步建议
-file: /Users/kelvin/git_projects/market_helper/skills/repo-onboarding-skill/SKILL.md
 ---
 
 # Repo Onboarding Skill

@@ -186,10 +186,10 @@ This plan replaces the current `macro_rules + legacy_rulebook` regime v2 path wi
 
 ## 8. Related Specifications / Further Reading
 
-[Regime Detection Devplan](/Users/kelvin/git_projects/market_helper/DEV_DOCS/docs/devplans/regime_detection_devplan.md)
+[Regime Detection Devplan](../DEV_DOCS/docs/devplans/regime_detection_devplan.md)
 
-[Project Plan](/Users/kelvin/git_projects/market_helper/DEV_DOCS/PLAN.md)
+[Project Plan](../DEV_DOCS/PLAN.md)
 
-[FRED Series Config](/Users/kelvin/git_projects/market_helper/configs/regime_detection/fred_series.yml)
+[FRED Series Config](../configs/regime_detection/fred_series.yml)
 
-[Regime Review Notebook](/Users/kelvin/git_projects/market_helper/notebooks/regime_detection/regime_v2_sanity_review.ipynb)
+[Regime Review Notebook](../notebooks/regime_detection/regime_v2_sanity_review.ipynb)

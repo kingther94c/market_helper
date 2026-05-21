@@ -2,7 +2,19 @@ from __future__ import annotations
 
 import os
 import subprocess
+import sys
 from pathlib import Path
+
+import pytest
+
+# The .sh under test is bash-only (`#!/usr/bin/env bash`, `set -euo pipefail`,
+# arrays, here-docs). The Windows side ships a thinner `run_report.bat`
+# wrapper instead, validated separately. Skip this bash-centric e2e on
+# Windows rather than trying to coerce cmd.exe / Git Bash into running it.
+pytestmark = pytest.mark.skipif(
+    sys.platform == "win32",
+    reason="run_report.sh is bash-only; Windows uses scripts/run_report.bat",
+)
 
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
