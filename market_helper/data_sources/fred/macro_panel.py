@@ -123,7 +123,7 @@ class SeriesSpec:
 
 
 def load_series_specs(config_path: str | Path) -> List[SeriesSpec]:
-    raw = yaml.safe_load(Path(config_path).read_text())
+    raw = yaml.safe_load(Path(config_path).read_text(encoding="utf-8"))
     if not isinstance(raw, dict) or "series" not in raw:
         raise ValueError(f"{config_path}: missing top-level 'series' key")
     specs: List[SeriesSpec] = []
@@ -170,7 +170,7 @@ def load_engine_block(config_path: str | Path) -> Mapping[str, object]:
     Returns an empty mapping when the file has no engine block, so callers can
     safely apply their own defaults.
     """
-    raw = yaml.safe_load(Path(config_path).read_text()) or {}
+    raw = yaml.safe_load(Path(config_path).read_text(encoding="utf-8")) or {}
     block = raw.get("engine") if isinstance(raw, dict) else None
     if block is None:
         return {}
@@ -212,7 +212,7 @@ def load_concept_specs(config_path: str | Path) -> List[ConceptSpec]:
     Returns an empty list when neither block is present; callers can fall back
     to flat per-series aggregation in that case.
     """
-    raw = yaml.safe_load(Path(config_path).read_text()) or {}
+    raw = yaml.safe_load(Path(config_path).read_text(encoding="utf-8")) or {}
     specs: List[ConceptSpec] = []
     for axis_key, axis in (("growth_concepts", "growth"), ("inflation_concepts", "inflation")):
         block = raw.get(axis_key)
