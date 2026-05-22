@@ -788,13 +788,48 @@ def _render_granular_buttons(state: PortfolioPageState) -> None:
             generate_button.props("disable")
 
 
+_REMEDIATION_HINTS: tuple[tuple[str, str, str], ...] = (
+    # (warning prefix, action_name, button label)
+    # All three are fixed by running the same Flex performance refresh that the
+    # "Flex" action button triggers — the feather + dated CSV are co-produced.
+    ("Performance history file not found", "flex", "Run Flex Refresh"),
+    ("Performance history file is empty", "flex", "Run Flex Refresh"),
+    ("Dated performance report CSV is missing", "flex", "Run Flex Refresh"),
+)
+
+
+def _classify_warning(warning: str) -> tuple[str, str] | None:
+    for prefix, action_name, button_label in _REMEDIATION_HINTS:
+        if warning.startswith(prefix):
+            return action_name, button_label
+    return None
+
+
 def _render_feedback(state: PortfolioPageState) -> None:
     if state.is_loading:
         ui.label("Loading report data...").classes("pm-loading w-full")
     if state.load_error:
         ui.label(state.load_error).classes("pm-error w-full")
+    run_action = getattr(state, "_run_action", None)
+    is_busy = state.is_loading or state.active_job is not None
     for warning in state.warnings:
-        ui.label(warning).classes("pm-warning w-full")
+        hint = _classify_warning(warning)
+        if hint is None:
+            ui.label(warning).classes("pm-warning w-full")
+            continue
+        action_name, button_label = hint
+        with ui.row().classes("pm-error w-full items-center justify-between gap-2"):
+            ui.label(warning).classes("flex-1")
+            button = ui.button(
+                button_label,
+                on_click=(
+                    (lambda _name=action_name: asyncio.create_task(run_action(_name)))
+                    if run_action is not None
+                    else None
+                ),
+            ).props("color=accent dense no-caps")
+            if is_busy or run_action is None:
+                button.props("disable")
 
 
 def _render_main_tabs(state: PortfolioPageState) -> None:

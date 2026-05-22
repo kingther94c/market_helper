@@ -20,6 +20,7 @@ from market_helper.presentation.dashboard.pages.portfolio import (
     _action_progress_summary,
     _build_initial_state,
     _cache_stale_page_state,
+    _classify_warning,
     _restore_stale_page_state,
     _artifact_inputs_from_form,
     _combined_inputs_from_form,
@@ -498,3 +499,20 @@ def test_report_data_matches_current_local_date_rejects_different_local_date() -
         as_of = f"{yesterday}T23:30:00+08:00"
 
     assert _report_data_matches_current_local_date(ReportData()) is False
+
+
+def test_classify_warning_maps_missing_history_to_flex_action() -> None:
+    assert _classify_warning(
+        "Performance history file not found: /tmp/nav_cashflow_history.feather"
+    ) == ("flex", "Run Flex Refresh")
+    assert _classify_warning(
+        "Performance history file is empty: /tmp/nav_cashflow_history.feather"
+    ) == ("flex", "Run Flex Refresh")
+    assert _classify_warning(
+        "Dated performance report CSV is missing; only history-derived metrics are available."
+    ) == ("flex", "Run Flex Refresh")
+
+
+def test_classify_warning_returns_none_for_unrelated_warning() -> None:
+    assert _classify_warning("SPY/BIL benchmark return cache is missing") is None
+    assert _classify_warning("") is None
