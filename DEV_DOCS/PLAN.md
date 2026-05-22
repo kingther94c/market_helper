@@ -196,13 +196,23 @@ Landed:
   syncs only fetch the last ~2 months of bars. FRED auto-sync follows the
   same pattern but requires `FRED_API_KEY`; missing key gracefully disables
   the macro layer with a warning rather than failing the whole run.
+- **Per-frequency macro decay (structural)**: `SeriesSpec` gains an optional
+  `decay_half_life_bdays:` field, and the macro engine resolves the
+  freshness half-life as: explicit override → derived from `frequency_hint`
+  (daily/weekly=5 bdays, monthly=22, quarterly=66, annual=252) → engine
+  default. So a weekly claims print decays much faster than a quarterly
+  GDP print, which previously shared the same 42-bday global half-life.
+  The structural change ships behind the existing `recency_weighting`
+  enable flag; calibration to actually engage it requires loosening the
+  `min_weight: 0.65` floor (would clip a weekly-cadence series before its
+  decay matters) and end-to-end verification against an FRED-hydrated
+  anchor — left as the next-step item.
 
 Near-term work:
-1. Add publish-frequency time-decay weighting for macro signals. Different
-   FRED series publish at very different cadences (claims weekly, PPI/CPI
-   monthly, GDP quarterly); their raw observations should down-weight by
-   age via an exponential decay parameterized per signal. Needs FRED panel
-   hydrated locally for end-to-end calibration.
+1. Calibrate per-frequency decay: lower the `recency_weighting.min_weight`
+   floor in `fred_series.yml` (probably to ~0.10), regenerate the macro
+   panel, and re-check anchor outputs. Today's 0.65 floor neutralizes the
+   new weekly-cadence decay even though the structural plumbing is in.
 2. Layer a macro-included anchor into the harness once FRED panel is
    hydrated locally — covers the 2022 inflation case the market-only path
    structurally cannot read.

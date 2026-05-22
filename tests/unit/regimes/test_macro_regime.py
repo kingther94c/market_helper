@@ -317,3 +317,113 @@ def test_concept_loader_round_trips_growth_and_inflation_blocks(tmp_path) -> Non
     expectations = by_name[("inflation", "expectations")]
     assert expectations.weight == 1.25
     assert expectations.members == {"T5YIFR": 1.0}
+
+
+def test_resolve_decay_half_life_prefers_explicit_then_hint_then_default() -> None:
+    from market_helper.data_sources.fred.macro_panel import resolve_decay_half_life_bdays
+
+    # Explicit override wins regardless of hint
+    explicit = SeriesSpec(
+        series_id="X", axis="growth", transform="level",
+        frequency_hint="monthly", decay_half_life_bdays=3.0,
+    )
+    assert resolve_decay_half_life_bdays(explicit, default=21.0) == 3.0
+
+    # No explicit → fall through to hint
+    weekly = SeriesSpec(series_id="W", axis="growth", transform="level", frequency_hint="weekly")
+    monthly = SeriesSpec(series_id="M", axis="growth", transform="level", frequency_hint="monthly")
+    quarterly = SeriesSpec(series_id="Q", axis="growth", transform="level", frequency_hint="quarterly")
+    assert resolve_decay_half_life_bdays(weekly, default=21.0) == 5.0
+    assert resolve_decay_half_life_bdays(monthly, default=21.0) == 22.0
+    assert resolve_decay_half_life_bdays(quarterly, default=21.0) == 66.0
+
+    # No explicit and no hint → config default
+    bare = SeriesSpec(series_id="B", axis="growth", transform="level")
+    assert resolve_decay_half_life_bdays(bare, default=21.0) == 21.0
+
+
+def test_per_series_decay_weekly_decays_faster_than_monthly_at_same_age() -> None:
+    # Two series, same age (22 bdays — one monthly cadence). The weekly
+    # series should already be well below 0.5 weight; the monthly series
+    # should be roughly at 0.5 weight (one half-life elapsed).
+    panel = pd.DataFrame(
+        {
+            "date": pd.bdate_range("2024-01-01", periods=1),
+            "WEEKLY": [1.0],
+            "_age_bdays:WEEKLY": [22.0],
+            "MONTHLY": [1.0],
+            "_age_bdays:MONTHLY": [22.0],
+        }
+    )
+    specs = [
+        SeriesSpec(series_id="WEEKLY", axis="growth", transform="level", frequency_hint="weekly"),
+        SeriesSpec(series_id="MONTHLY", axis="growth", transform="level", frequency_hint="monthly"),
+    ]
+    concepts = [_concept("g", "growth", {"WEEKLY": 1.0, "MONTHLY": 1.0}, weight=1.0)]
+    cfg = MacroRegimeConfig(
+        recency_weighting_enabled=True,
+        recency_half_life_bdays=21.0,  # global default — ignored when hint resolves
+        recency_min_weight=0.0,
+    )
+
+    scores = compute_macro_axis_scores(panel, specs, concepts, config=cfg).iloc[-1]
+    # Weekly: half_life=5, age=22 → 0.5^(22/5) ≈ 0.0476
+    assert scores["recency_weight:WEEKLY"] == pytest.approx(0.5 ** (22.0 / 5.0), rel=1e-6)
+    # Monthly: half_life=22, age=22 → 0.5
+    assert scores["recency_weight:MONTHLY"] == pytest.approx(0.5, rel=1e-6)
+    # Weekly should be MUCH more decayed than monthly
+    assert scores["recency_weight:WEEKLY"] < scores["recency_weight:MONTHLY"] / 5
+
+
+def test_explicit_decay_half_life_overrides_frequency_hint() -> None:
+    # Even with frequency_hint="weekly" (default 5 bday half-life), an
+    # explicit decay_half_life_bdays=22 on the spec should give the same
+    # weight as a monthly series at age 22.
+    panel = pd.DataFrame(
+        {
+            "date": pd.bdate_range("2024-01-01", periods=1),
+            "WEEKLY_OVERRIDE": [1.0],
+            "_age_bdays:WEEKLY_OVERRIDE": [22.0],
+        }
+    )
+    specs = [
+        SeriesSpec(
+            series_id="WEEKLY_OVERRIDE",
+            axis="growth",
+            transform="level",
+            frequency_hint="weekly",
+            decay_half_life_bdays=22.0,
+        ),
+    ]
+    concepts = [_concept("g", "growth", {"WEEKLY_OVERRIDE": 1.0}, weight=1.0)]
+    cfg = MacroRegimeConfig(
+        recency_weighting_enabled=True,
+        recency_half_life_bdays=999.0,
+        recency_min_weight=0.0,
+    )
+    scores = compute_macro_axis_scores(panel, specs, concepts, config=cfg).iloc[-1]
+    assert scores["recency_weight:WEEKLY_OVERRIDE"] == pytest.approx(0.5)
+
+
+def test_yaml_loader_picks_up_decay_half_life_per_series(tmp_path) -> None:
+    from market_helper.data_sources.fred.macro_panel import load_series_specs
+
+    p = tmp_path / "fred_series.yml"
+    p.write_text(
+        "series:\n"
+        "  - series_id: CLAIMS\n"
+        "    axis: growth\n"
+        "    transform: level\n"
+        "    frequency_hint: weekly\n"
+        "    decay_half_life_bdays: 8\n"
+        "  - series_id: GDP\n"
+        "    axis: growth\n"
+        "    transform: yoy_pct\n"
+        "    frequency_hint: quarterly\n"
+    )
+    specs = {s.series_id: s for s in load_series_specs(p)}
+    assert specs["CLAIMS"].decay_half_life_bdays == 8.0
+    assert specs["CLAIMS"].frequency_hint == "weekly"
+    # GDP has no explicit override → field stays None, hint drives at runtime
+    assert specs["GDP"].decay_half_life_bdays is None
+    assert specs["GDP"].frequency_hint == "quarterly"

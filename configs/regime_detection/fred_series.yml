@@ -42,9 +42,13 @@ engine:
   min_concept_coverage: 0.0
   # Macro releases are not daily. Downweight stale forward-filled observations
   # between release dates, while leaving concept weights as the semantic max
-  # weight. The deliberately mild 42-bday half-life plus 65% floor makes
-  # weekly/daily macro releases matter more without erasing monthly concepts
-  # between releases.
+  # weight. The half-life below is the GLOBAL default; per-series overrides
+  # win via either an explicit `decay_half_life_bdays:` field or, more
+  # commonly, the `frequency_hint:` mapping
+  # (daily/weekly=5, monthly=22, quarterly=66, annual=252). To engage
+  # per-frequency decay meaningfully, the 65% floor below needs to be
+  # loosened (e.g. 0.1) so a weekly series can actually decay below half
+  # weight within a month; today's 0.65 floor preserves legacy behavior.
   recency_weighting:
     enabled: true
     half_life_bdays: 42

@@ -30,6 +30,7 @@ from market_helper.data_sources.fred.macro_panel import (
     SeriesSpec,
     load_concept_specs,
     load_engine_block,
+    resolve_decay_half_life_bdays,
     specs_by_axis,
 )
 from market_helper.regimes.axes import (
@@ -273,10 +274,17 @@ def _recency_weight_for_series(
     series_id: str,
     *,
     config: MacroRegimeConfig,
+    spec: SeriesSpec | None = None,
 ) -> pd.Series:
     if not config.recency_weighting_enabled:
         return pd.Series(1.0, index=frame.index)
-    half_life = max(float(config.recency_half_life_bdays), 1e-9)
+    if spec is not None:
+        resolved_half_life = resolve_decay_half_life_bdays(
+            spec, default=config.recency_half_life_bdays
+        )
+    else:
+        resolved_half_life = config.recency_half_life_bdays
+    half_life = max(float(resolved_half_life), 1e-9)
     floor = min(max(float(config.recency_min_weight), 0.0), 1.0)
     age = _series_age_bdays(frame, series_id)
     with np.errstate(invalid="ignore"):
@@ -342,6 +350,7 @@ def compute_macro_axis_scores(
             frame,
             sid,
             config=config,
+            spec=spec,
         )
 
     concepts_by_axis: dict[str, list[ConceptSpec]] = {"growth": [], "inflation": []}

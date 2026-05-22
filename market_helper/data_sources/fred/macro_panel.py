@@ -56,6 +56,40 @@ _ALLOWED_NORMALIZATIONS = {
     "percentile",
 }
 
+# Default decay half-life per publish cadence, in business days.
+# Tuned so a print contributes ~50% by the time the next one is due.
+# Override on SeriesSpec.decay_half_life_bdays when a specific series should
+# decay faster or slower than its cadence suggests.
+FREQUENCY_HINT_TO_HALF_LIFE_BDAYS: Mapping[str, float] = {
+    "daily": 5.0,
+    "weekly": 5.0,
+    "biweekly": 10.0,
+    "monthly": 22.0,
+    "quarterly": 66.0,
+    "annual": 252.0,
+}
+
+
+def resolve_decay_half_life_bdays(
+    spec: "SeriesSpec",
+    *,
+    default: float,
+) -> float:
+    """Resolve a series' freshness half-life in business days.
+
+    Priority: explicit ``SeriesSpec.decay_half_life_bdays`` > derived from
+    ``frequency_hint`` > config-level default. The default is the engine's
+    global ``recency_half_life_bdays`` so existing behavior is preserved when
+    neither override is set.
+    """
+    if spec.decay_half_life_bdays is not None:
+        return float(spec.decay_half_life_bdays)
+    if spec.frequency_hint:
+        hint = str(spec.frequency_hint).strip().lower()
+        if hint in FREQUENCY_HINT_TO_HALF_LIFE_BDAYS:
+            return float(FREQUENCY_HINT_TO_HALF_LIFE_BDAYS[hint])
+    return float(default)
+
 
 @dataclass(frozen=True)
 class SeriesSpec:
@@ -80,6 +114,12 @@ class SeriesSpec:
     minmax_upper: Optional[float] = None
     minmax_window_bdays: Optional[int] = None
     percentile_window_bdays: Optional[int] = None
+    # Publish-frequency time-decay: a monthly print contributing 50% weight
+    # after 22 bdays makes sense, but applying the same half-life to weekly
+    # claims would over-weight stale releases. When None, derived from
+    # frequency_hint via FREQUENCY_HINT_TO_HALF_LIFE_BDAYS; when that is also
+    # unset, falls back to the engine-level recency_half_life_bdays default.
+    decay_half_life_bdays: Optional[float] = None
 
     def validate(self) -> None:
         if self.axis not in {"growth", "inflation"}:
@@ -158,6 +198,7 @@ def load_series_specs(config_path: str | Path) -> List[SeriesSpec]:
             minmax_upper=_opt_float(entry, "minmax_upper"),
             minmax_window_bdays=_opt_int(entry, "minmax_window_bdays"),
             percentile_window_bdays=_opt_int(entry, "percentile_window_bdays"),
+            decay_half_life_bdays=_opt_float(entry, "decay_half_life_bdays"),
         )
         spec.validate()
         specs.append(spec)
@@ -664,6 +705,8 @@ __all__ = [
     "DEFAULT_PANEL_FILENAME",
     "DEFAULT_META_FILENAME",
     "FRESHNESS_AGE_COLUMN_PREFIX",
+    "FREQUENCY_HINT_TO_HALF_LIFE_BDAYS",
+    "resolve_decay_half_life_bdays",
     "load_series_specs",
     "load_concept_specs",
     "load_engine_block",
