@@ -23,6 +23,17 @@ ANCHORS: tuple[tuple[str, str, str], ...] = (
     # (filename stem, start_date, end_date)
     # COVID 2020: ~1 year of warmup + crash + recovery
     ("market_panel_covid_2020", "2019-01-01", "2020-12-31"),
+    # GFC 2008-09: warmup from mid-2007 (~5 months of warmup eaten by
+    # normalization windows; first usable result lands ~Nov 2007), through
+    # the recovery year.
+    ("market_panel_gfc_2008", "2007-06-01", "2009-12-31"),
+    # 2022 inflation surge: warmup from mid-2021, through the post-peak
+    # disinflation period. Documents the market-only-layer LIMITATION
+    # case where commodity proxies decouple from headline CPI.
+    ("market_panel_inflation_2022", "2021-06-01", "2023-06-30"),
+    # 2025 tariff shock: warmup from start of 2024, through April-Sep 2025
+    # tariff regime. Recent + textbook stagflationary shock.
+    ("market_panel_tariff_2025", "2024-01-01", "2025-09-30"),
 )
 
 

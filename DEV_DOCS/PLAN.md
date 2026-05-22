@@ -170,16 +170,20 @@ Landed:
   `fred-macro-sync`, wire into a concept block, rebuild the panel, re-
   calibrate). The fetcher already pulls every declared series, so activation
   is a config flip + sync, not a code change.
-- **Anchor-period sanity harness (MVP)**:
-  `tests/unit/regimes/test_anchor_periods.py` pins regime engine output on a
-  checked-in COVID 2020 market-panel slice
-  (`tests/unit/regimes/fixtures/market_panel_covid_2020.feather`, 97 KB,
-  2019-01-01 to 2020-12-31). Three pinned assertions cover the pre-crisis
-  benign-growth baseline, the 2020-03-18 stress-overlay + deep-negative
-  scores trigger, and the 2020-06 reflation recovery. Macro layer is
-  disabled because the FRED panel is not checked in; broader anchor
-  coverage (GFC 2008, 2022 inflation, 2025 tariff) follows the same
-  fixture+config pattern via
+- **Anchor-period sanity harness**: `tests/unit/regimes/test_anchor_periods.py`
+  pins regime engine output across four episodes — COVID 2020, GFC 2008-09,
+  2022 inflation surge, 2025 tariff shock — via checked-in market-panel
+  slices under `tests/unit/regimes/fixtures/` (~400 KB total). 11 pinned
+  assertions cover crisis stress-overlay firing, deep-negative growth at
+  the bottoms, and reflation on the recoveries. Macro layer is disabled
+  (FRED panel not in repo); the test docstring documents the two known
+  market-only limitations surfaced during consensus verification: (a) risk
+  overlay lags 1-3 sessions on sudden shocks like Lehman day, (b) the
+  market-implied inflation axis cannot match headline-CPI consensus when
+  commodities decouple from CPI (2022 mid-year is the canonical case).
+  Both are structural properties, not regressions; raising sensitivity to
+  fix (a) creates false positives during normal vol spikes, and (b) needs
+  the macro layer (FRED) to read CPI directly. Fixture regeneration:
   `scripts/dev/regenerate_anchor_period_fixtures.py`.
 - **Auto-sync + historical baseline**: `regime-detect` now auto-syncs the
   Yahoo market panel if the live cache is missing (`--no-auto-sync` opt-out
@@ -194,11 +198,15 @@ Landed:
   the macro layer with a warning rather than failing the whole run.
 
 Near-term work:
-1. Extend the anchor-period harness to additional episodes (GFC 2008, 2022
-   inflation surge, 2025 tariff shock) — same fixture+pinning pattern, new
-   slices via `regenerate_anchor_period_fixtures.py`. Optional: layer in a
-   macro-included anchor after FRED panel is hydrated locally.
-2. Keep ML layers as unavailable/zero-weight until model artifacts and
+1. Add publish-frequency time-decay weighting for macro signals. Different
+   FRED series publish at very different cadences (claims weekly, PPI/CPI
+   monthly, GDP quarterly); their raw observations should down-weight by
+   age via an exponential decay parameterized per signal. Needs FRED panel
+   hydrated locally for end-to-end calibration.
+2. Layer a macro-included anchor into the harness once FRED panel is
+   hydrated locally — covers the 2022 inflation case the market-only path
+   structurally cannot read.
+3. Keep ML layers as unavailable/zero-weight until model artifacts and
    feature schemas are explicit. Standing guardrail — do not emit fake ML
    outputs.
 
