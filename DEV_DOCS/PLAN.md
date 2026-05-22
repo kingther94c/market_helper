@@ -124,6 +124,15 @@ Landed:
   shell-profile setup), and the checked-in `configs/portfolio_monitor/local.env`
   as final fallback. `local.example.env` now lists `FRED_API_KEY` with a
   header note that the process env always wins.
+- **Agent-shell ROOT inheritance gotcha documented**: CLAUDE.md and AGENTS.md
+  now carry a "Per-machine env vars (Windows gotcha)" section explaining that
+  agent shells may not inherit User-level env vars set after the parent
+  process started, and prescribing the registry-read recovery pattern
+  (`[Environment]::GetEnvironmentVariable("MARKET_HELPER_GDRIVE_ROOT", "User")`
+  → inject into `$env:` before any child command that needs `local.env`).
+  Same pattern applies to FRED_API_KEY etc. Confirmed empirically on the
+  user's machine — `$env:MARKET_HELPER_GDRIVE_ROOT` was empty in tool calls
+  even though the value was set in the User registry hive.
 
 Near-term work:
 - (none open) Portfolio-monitor stack is at a stable shape. Further work

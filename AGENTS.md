@@ -15,6 +15,36 @@ All work runs in the Conda env `py313` (Python 3.13). **Never use `conda base`.*
 conda activate py313
 ```
 
+### Per-machine env vars (Windows gotcha)
+
+`MARKET_HELPER_GDRIVE_ROOT` is the per-machine env var that drives both
+report mirroring and `local.env` discovery (FRED / Alpha Vantage / IBKR
+Flex secrets all live in `<ROOT>/local.env`). It is typically set as a
+**User-level** Windows env var via `setx` or the System Properties dialog.
+
+**Agent-shell gotcha**: a child process only inherits User env vars that
+existed when its **parent** process started. If the agent (Claude Code,
+Codex, ...) was launched before `setx` ran — or by a service that doesn't
+inherit User-level env at all — `$env:MARKET_HELPER_GDRIVE_ROOT` will be
+empty in tool calls even though the value is set in the registry.
+
+**Always recover by reading the registry first**, then inject into the
+process env before any child command that resolves `local.env`:
+
+```powershell
+if (-not $env:MARKET_HELPER_GDRIVE_ROOT) {
+    $env:MARKET_HELPER_GDRIVE_ROOT = [Environment]::GetEnvironmentVariable("MARKET_HELPER_GDRIVE_ROOT", "User")
+}
+```
+
+Apply this before `fred-macro-sync`, `etf-sector-sync`, `regime-detect`,
+`run_report.sh`, the dashboard launch, or any other path that needs
+`local.env`. Same pattern applies to other User-only env vars
+(`FRED_API_KEY`, `IBKR_FLEX_TOKEN`, etc.) if set after the agent started.
+A single PowerShell injection propagates to subsequent `python -m ...`
+calls because the Python config layer (`market_helper.config.local_env`)
+reads `os.environ`.
+
 ## Common commands
 
 - Tests: `conda run -n py313 python -m pytest -q tests/unit`
