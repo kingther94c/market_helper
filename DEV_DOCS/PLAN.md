@@ -90,6 +90,14 @@ Landed:
   roots in sandboxed Windows runs. Commodity spread cache tests now write
   deterministic `generated_at` timestamps from the caller-provided clock, and
   unit tests isolate local-env lookup from machine-specific synced config paths.
+- **Actionable missing-history surfacing**: dashboard `_render_feedback` now
+  classifies the three flex-related warnings ("Performance history file not
+  found / is empty", "Dated performance report CSV is missing") and promotes
+  them from muted `pm-warning` labels to `pm-error` banners with an inline
+  "Run Flex Refresh" button that triggers the same `_run_action("flex")` path
+  as the operate-drawer Flex button. First-run CLI setup is covered by
+  `scripts/dev/bootstrap_flex_history.py` (reads Flex creds from the resolved
+  local env and runs the same refresh).
 
 Near-term work:
 1. Finish dashboard Performance USD/SGD parity for the snapshot path.
@@ -97,7 +105,10 @@ Near-term work:
 3. Delete or shrink obsolete legacy HTML renderers after combined snapshot parity.
 4. Formalize an artifact/config contract shared by CLI, workflows, dashboard
    forms, and snapshot overrides.
-5. Add focused performance-data warnings for missing/unsafe metrics.
+5. Extend the actionable-warning pattern to remaining unsafe performance
+   metrics (per-currency metric failures, partial NAV/cashflow series). The
+   missing-history slice has landed; broader "unsafe metric" coverage is still
+   open.
 
 Keep for later, not active:
 - Covariance-consistent marginal/component risk attribution.

@@ -5,7 +5,7 @@
 - **Keep `DEV_DOCS/PLAN.md` brief.** Whenever it grows past **300 lines**, do a review-compact-archive-update pass before continuing other work: move stale completed items / retired plans into a file under `DEV_DOCS/archive/`, collapse landed-phase detail down to one-line summaries with a pointer to the archive, and refresh the active sections so they only describe in-progress work and near-term next steps.
 - All development, testing, scripts, notebooks, and local runs must use the conda `py313` environment (`Python 3.13`).
 - Do not run project code from `conda base` or any other Python environment unless the rule is explicitly updated.
-- Every PR must update `DEV_DOCS/PLAN.md` to reflect completed work, current status, and next steps.
+- **Every commit — not just every PR — must update `DEV_DOCS/PLAN.md`** to reflect completed work, current status, and next steps. A local commit that lands meaningful behavior without a PLAN update is treated as a serious mistake; the next commit must add the missing PLAN entry.
 - Update the relevant file under `DEV_DOCS/docs/devplans/` whenever scope, architecture, status, or follow-up work changed.
 - Any newly required package must be added to `env.yml` in the same change.
 - Use `Feather` as the canonical store for maintained internal intermediate tables that users are not expected to edit directly; only emit debug CSVs on demand.

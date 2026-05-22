@@ -59,7 +59,11 @@ Canonical artifacts/config:
 6. **Performance diagnostics**
    Add explicit warnings/logging for missing or unsafe performance metrics
    instead of silent `n/a`, especially per-currency metric failures and
-   incomplete NAV/cashflow histories.
+   incomplete NAV/cashflow histories. *Missing-history slice landed*: the
+   dashboard now promotes the "Performance history file not found / is empty"
+   and "Dated performance report CSV is missing" warnings to `pm-error`
+   banners with an inline "Run Flex Refresh" button (`_run_action("flex")`).
+   Remaining: per-currency metric failures and partial NAV/cashflow series.
 
 ## Deferred
 
