@@ -36,8 +36,9 @@ Important seams:
 - `market_helper/domain/portfolio_monitor/services/` owns reusable risk,
   performance, benchmark, volatility, fixed-income, and Yahoo-cache logic.
 - `market_helper/presentation/dashboard/` owns live NiceGUI interaction.
-- `market_helper/reporting/` owns static HTML fragments until the snapshot
-  pipeline fully replaces legacy renderers.
+- `market_helper/reporting/` owns the HTML report renderers (combined,
+  performance, risk, regime). HTML is the deliverable; the dashboard is the
+  interactive entry that embeds the rendered HTML in an iframe.
 - `configs/security_universe.csv` is the manually maintained instrument source
   of truth; `data/artifacts/portfolio_monitor/security_reference.csv` is a
   generated lookup cache.
@@ -103,20 +104,19 @@ Landed:
   is missing or empty" warning now promotes to a `pm-error` banner with a
   "Refresh Benchmark Cache" button wired to a new `yahoo` action
   (`PortfolioMonitorActionService.refresh_benchmark_cache` →
-  `refresh_benchmark_returns_in_history_feather`). Remaining warnings
-  (history-path-not-configured, regime-artifact-missing) stay informational
-  because no single button can remediate them.
+  `refresh_benchmark_returns_in_history_feather`). Closes the last actionable
+  warning surface — remaining warnings (history-path-not-configured, regime-
+  artifact-missing) are informational because no single button can remediate
+  them.
+- **Architectural route confirmed**: dashboard is the interactive entry, HTML
+  is the deliverable. CLI / workflows / dashboard already share one input-
+  contract layer (`application/portfolio_monitor/contracts.py` — 9 `*Inputs`
+  dataclasses including the new `BenchmarkRefreshInputs`); no separate
+  snapshot pipeline or ViewModel rewire is planned for combined-html-report.
 
 Near-term work:
-1. Finish dashboard Performance USD/SGD parity for the snapshot path.
-2. Rewire `combined-html-report` to the NiceGUI/Playwright snapshot pipeline.
-3. Delete or shrink obsolete legacy HTML renderers after combined snapshot parity.
-4. Formalize an artifact/config contract shared by CLI, workflows, dashboard
-   forms, and snapshot overrides.
-5. Extend the actionable-warning pattern to remaining unsafe performance
-   metrics (per-currency metric failures, partial NAV/cashflow series). The
-   missing-history slice has landed; broader "unsafe metric" coverage is still
-   open.
+- (none open) Portfolio-monitor stack is at a stable shape. Further work
+  moves through the Backlog as discrete asks land.
 
 Keep for later, not active:
 - Covariance-consistent marginal/component risk attribution.
@@ -159,6 +159,12 @@ Landed:
   concept block, or `weight: 0.0` for market signals): curve / breakeven /
   DXY / ISM proxy / housing / consumer sentiment / growth-vs-value / extra
   sector pairs. Flip a series into a concept (or set weight > 0) to activate.
+- **Concept panel propagation**: the per-concept contribution table, macro-
+  vs-market disagreement breakdown, and confidence-reasoning blurb (Q5) are
+  rendered in BOTH the standalone regime HTML report and the combined
+  portfolio report's regime section via the shared
+  `render_regime_section_body()` renderer. The combined report's top sticky
+  regime ribbon stays minimal by design.
 - **Dormant-signal activation runbook**: `regime_engine_devplan.md` now
   documents the four-step activation flow (hydrate FRED cache via
   `fred-macro-sync`, wire into a concept block, rebuild the panel, re-
@@ -177,23 +183,13 @@ Landed:
   `scripts/dev/regenerate_anchor_period_fixtures.py`.
 
 Near-term work:
-1. ~~Dashboard: surface per-concept contributions, internal disagreement,
-   and confidence degradation~~ — landed in Q5. The standalone regime HTML
-   report now shows the per-layer concept table, per-axis macro-vs-market
-   disagreement breakdown, and a confidence-reasoning blurb. Engine emits
-   `concept_weights` alongside `concept_scores` in `layer_outputs.diagnostics`
-   and `confidence_strength` / `confidence_thresholds` /
-   `disagreement_penalty_active` on `FinalRegimeResult`.
-2. Propagate the same concept panel into the combined portfolio report (the
-   regime ribbon there still shows only the summary card).
-3. ~~Sync the dormant FRED series so they can be activated via config flip~~
-   — replaced by the activation runbook above; no proactive bulk sync needed.
-4. Extend the anchor-period harness beyond the COVID 2020 MVP — add GFC
-   2008, 2022 inflation surge, 2025 tariff shock slices via
-   `regenerate_anchor_period_fixtures.py`. Optional: layer in a macro-
-   included anchor once the FRED panel is hydrated locally.
-5. Keep ML layers as unavailable/zero-weight until model artifacts and feature
-   schemas are explicit.
+1. Extend the anchor-period harness to additional episodes (GFC 2008, 2022
+   inflation surge, 2025 tariff shock) — same fixture+pinning pattern, new
+   slices via `regenerate_anchor_period_fixtures.py`. Optional: layer in a
+   macro-included anchor after FRED panel is hydrated locally.
+2. Keep ML layers as unavailable/zero-weight until model artifacts and
+   feature schemas are explicit. Standing guardrail — do not emit fake ML
+   outputs.
 
 Calibration session record:
 `notebooks/regime_detection/regime_v2_calibration_index.ipynb` (TOC) +
