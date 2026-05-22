@@ -72,8 +72,9 @@ Landed:
   cache and falls back to `sector_lookthrough_manual.csv` with the existing
   `eq_sector_proxy` chain. New DM/EM bucket structure: DM = US/EUME/JP/CA/AUNZ/
   Other DM; EM = CN/TW/KR/IN/ASEAN/LATAM/EMEA EM. Project-local
-  `lookthrough-researcher` skill (`.claude/skills/`) handles best-effort
-  population from issuer fact sheets.
+  `lookthrough-researcher` skill (mirrored at `.claude/skills/` and
+  `.agents/skills/` so both Claude and Codex agents pick it up) handles
+  best-effort population from issuer fact sheets.
 - **Sector benchmark switched from SPY to ACWI**. Sector policy mix YAML key
   renamed `us_equity_sector_policy_mix` → `equity_sector_policy_mix` (old key
   still accepted). Sector report card retitled "Sector Breakdown" / "Policy
