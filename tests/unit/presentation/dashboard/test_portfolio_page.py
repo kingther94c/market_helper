@@ -198,6 +198,62 @@ def test_build_initial_state_prefills_flex_credentials_from_local_env(tmp_path, 
     assert state.flex_form.token == "demo-token"
 
 
+def test_build_initial_state_prefills_ibkr_port_and_host_from_env(tmp_path, monkeypatch) -> None:
+    """IB Gateway users (port 4001/4002) shouldn't have to retype the port
+    every time they reload the dashboard."""
+    local_env = tmp_path / "local.env"
+    local_env.write_text(
+        "\n".join(
+            [
+                'IBKR_PORT="4001"',
+                'IBKR_HOST="192.168.1.10"',
+            ]
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.delenv("IBKR_PORT", raising=False)
+    monkeypatch.delenv("IBKR_HOST", raising=False)
+    monkeypatch.delenv("MARKET_HELPER_GDRIVE_ROOT", raising=False)
+    monkeypatch.setattr(
+        "market_helper.presentation.dashboard.pages.portfolio.DEFAULT_CANONICAL_LOCAL_ENV_PATH",
+        local_env,
+    )
+
+    class QueryService:
+        def resolve_inputs(self, inputs: PortfolioReportInputs | None = None) -> PortfolioReportInputs:
+            return PortfolioReportInputs(
+                positions_csv_path="data/positions.csv",
+                performance_output_dir="data/flex",
+            )
+
+    state = _build_initial_state(QueryService())
+
+    assert state.live_form.port == "4001"
+    assert state.live_form.host == "192.168.1.10"
+
+
+def test_build_initial_state_defaults_to_tws_paper_port_when_unset(tmp_path, monkeypatch) -> None:
+    monkeypatch.delenv("IBKR_PORT", raising=False)
+    monkeypatch.delenv("IBKR_HOST", raising=False)
+    monkeypatch.delenv("MARKET_HELPER_GDRIVE_ROOT", raising=False)
+    monkeypatch.setattr(
+        "market_helper.presentation.dashboard.pages.portfolio.DEFAULT_CANONICAL_LOCAL_ENV_PATH",
+        tmp_path / "no-such.env",
+    )
+
+    class QueryService:
+        def resolve_inputs(self, inputs: PortfolioReportInputs | None = None) -> PortfolioReportInputs:
+            return PortfolioReportInputs(
+                positions_csv_path="data/positions.csv",
+                performance_output_dir="data/flex",
+            )
+
+    state = _build_initial_state(QueryService())
+
+    assert state.live_form.port == "7497"
+    assert state.live_form.host == "127.0.0.1"
+
+
 def test_build_initial_state_prefills_live_account_id_from_local_env(tmp_path, monkeypatch) -> None:
     local_env = tmp_path / "local.env"
     local_env.write_text(

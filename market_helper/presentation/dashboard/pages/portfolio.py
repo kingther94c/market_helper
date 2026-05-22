@@ -49,6 +49,10 @@ DEFAULT_IBKR_FLEX_QUERY_ID_ENV_VAR = "IBKR_FLEX_QUERY_ID"
 DEFAULT_IBKR_FLEX_TOKEN_ENV_VAR = "IBKR_FLEX_TOKEN"
 DEFAULT_PROD_ACCOUNT_ID_ENV_VAR = "DEFAULT_PROD_ACCOUNT_ID"
 DEFAULT_DEV_ACCOUNT_ID_ENV_VAR = "DEFAULT_DEV_ACCOUNT_ID"
+IBKR_PORT_ENV_VAR = "IBKR_PORT"
+IBKR_HOST_ENV_VAR = "IBKR_HOST"
+DEFAULT_IBKR_PORT = "7497"  # TWS paper. IB Gateway uses 4001 (live) / 4002 (paper); set IBKR_PORT to override per machine.
+DEFAULT_IBKR_HOST = "127.0.0.1"
 
 
 @dataclass
@@ -70,8 +74,8 @@ class PortfolioArtifactFormState:
 @dataclass
 class LiveActionFormState:
     output_path: str = ""
-    host: str = "127.0.0.1"
-    port: str = "7497"
+    host: str = DEFAULT_IBKR_HOST
+    port: str = DEFAULT_IBKR_PORT
     client_id: str = "1"
     account_id: str = ""
     timeout: str = "4.0"
@@ -269,6 +273,20 @@ def _resolve_default_live_account_id() -> str:
     return _resolve_local_env_value(DEFAULT_PROD_ACCOUNT_ID_ENV_VAR) or _resolve_local_env_value(
         DEFAULT_DEV_ACCOUNT_ID_ENV_VAR
     )
+
+
+def _resolve_default_ibkr_port() -> str:
+    """Pick the dashboard's default IBKR port.
+
+    Process env wins, then local.env. Falls back to 7497 (TWS paper). On
+    machines where IB Gateway is the workstation, set IBKR_PORT=4001 (live)
+    or 4002 (paper) in your shell profile to override.
+    """
+    return _resolve_local_env_value(IBKR_PORT_ENV_VAR) or DEFAULT_IBKR_PORT
+
+
+def _resolve_default_ibkr_host() -> str:
+    return _resolve_local_env_value(IBKR_HOST_ENV_VAR) or DEFAULT_IBKR_HOST
 
 
 def register_portfolio_page(
@@ -547,6 +565,8 @@ def _build_initial_state(query_service: PortfolioMonitorQueryService) -> Portfol
         ),
         live_form=LiveActionFormState(
             output_path=positions_path,
+            host=_resolve_default_ibkr_host(),
+            port=_resolve_default_ibkr_port(),
             account_id=_resolve_default_live_account_id(),
         ),
         flex_form=FlexActionFormState(
