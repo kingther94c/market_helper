@@ -207,6 +207,8 @@ Landed:
   syncs only fetch the last ~2 months of bars. FRED auto-sync follows the
   same pattern but requires `FRED_API_KEY`; missing key gracefully disables
   the macro layer with a warning rather than failing the whole run.
+  Cold-sync runtime measured at ~10s for the full 23-series set (runbook
+  previously claimed ~1.5h — corrected).
 - **Per-frequency macro decay (structural)**: `SeriesSpec` gains an optional
   `decay_half_life_bdays:` field, and the macro engine resolves the
   freshness half-life as: explicit override → derived from `frequency_hint`

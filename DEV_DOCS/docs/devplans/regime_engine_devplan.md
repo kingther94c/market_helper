@@ -57,14 +57,16 @@ The fetcher (`sync_fred_macro_panel`) already pulls every series declared in
 `fred_series.yml`, but `data/interim/fred/` is created on first sync, so a
 dormant series has no cached observations until you run it. To activate:
 
-1. **Hydrate the FRED cache** (one-shot; ~1.5h cold for all 23 series):
+1. **Hydrate the FRED cache** (one-shot; ~10s cold for the full 23-series
+   set — FRED's API serves these low-cadence monthly/quarterly series fast):
    ```bash
    export FRED_API_KEY=...        # or put it in local.env (see below)
    python -m market_helper.cli.main fred-macro-sync
    ```
-   Requires `FRED_API_KEY` from the process env (preferred) or
-   `configs/portfolio_monitor/local.env` /
-   `<MARKET_HELPER_GDRIVE_ROOT>/local.env`. Subsequent runs are incremental
+   Requires `FRED_API_KEY` from the process env (preferred), or from
+   `<MARKET_HELPER_GDRIVE_ROOT>/local.env` (canonical multi-machine setup
+   — set ROOT once in your shell profile), or from
+   `configs/portfolio_monitor/local.env`. Subsequent runs are incremental
    from the last cached date. Market signals (Yahoo) are lazy-loaded per
    call and need no separate sync step.
 
