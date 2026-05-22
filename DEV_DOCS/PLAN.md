@@ -124,15 +124,24 @@ Landed:
   shell-profile setup), and the checked-in `configs/portfolio_monitor/local.env`
   as final fallback. `local.example.env` now lists `FRED_API_KEY` with a
   header note that the process env always wins.
-- **Agent-shell ROOT inheritance gotcha documented**: CLAUDE.md and AGENTS.md
-  now carry a "Per-machine env vars (Windows gotcha)" section explaining that
-  agent shells may not inherit User-level env vars set after the parent
-  process started, and prescribing the registry-read recovery pattern
-  (`[Environment]::GetEnvironmentVariable("MARKET_HELPER_GDRIVE_ROOT", "User")`
-  → inject into `$env:` before any child command that needs `local.env`).
-  Same pattern applies to FRED_API_KEY etc. Confirmed empirically on the
-  user's machine — `$env:MARKET_HELPER_GDRIVE_ROOT` was empty in tool calls
-  even though the value was set in the User registry hive.
+- **Agent-shell ROOT inheritance gotcha documented + fixed at code level**:
+  - **Docs** — CLAUDE.md and AGENTS.md now carry a "Per-machine env vars
+    (Windows gotcha)" section explaining that agent shells may not inherit
+    User-level env vars set after the parent process started, and
+    prescribing the registry-read recovery pattern
+    (`[Environment]::GetEnvironmentVariable("MARKET_HELPER_GDRIVE_ROOT", "User")`
+    → inject into `$env:` before any child command that needs `local.env`).
+  - **Code** — `market_helper.config.local_env.resolve_local_config_path`
+    now transparently falls back to reading `MARKET_HELPER_GDRIVE_ROOT`
+    from the Windows User registry hive (`HKCU\Environment`) via a new
+    `read_windows_user_env(key)` helper when `os.environ` is empty.
+    Production tools (`fred-macro-sync`, `etf-sector-sync`, `regime-detect`,
+    dashboard launch) now resolve `<ROOT>/local.env` correctly without
+    requiring shell-level injection, no matter when the parent process
+    started. Fallback is no-op on non-Windows and on call-sites that pass
+    explicit `environ=` (tests stay hermetic — `conftest.py` autouse
+    fixture additionally neutralizes the helper to guard tests that
+    monkeypatch `os.environ` without passing `environ=`).
 
 Near-term work:
 - (none open) Portfolio-monitor stack is at a stable shape. Further work
