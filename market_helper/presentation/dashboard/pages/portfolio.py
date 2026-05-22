@@ -18,6 +18,7 @@ from nicegui import ui
 
 from market_helper.app.paths import DATA_DIR
 from market_helper.application.portfolio_monitor import (
+    BenchmarkRefreshInputs,
     EtfSectorSyncInputs,
     FlexPerformanceRefreshInputs,
     GenerateCombinedReportInputs,
@@ -174,6 +175,7 @@ class PortfolioPageState:
             "regime-refresh": ActionStatusState(message="Not refreshed yet"),
             "security-reference": ActionStatusState(),
             "etf": ActionStatusState(),
+            "yahoo": ActionStatusState(),
         }
     )
     # P8: ring buffer of recent runs surfaced in the operate drawer.
@@ -555,6 +557,15 @@ def register_portfolio_page(
                     )
                     state.reference_form.etf_output_path = str(output_path)
                     _set_action_success(state, "etf", message="ETF sector lookthrough synced", output_path=str(output_path))
+                elif action_name == "yahoo":
+                    action_inputs = _benchmark_inputs_from_form(state)
+                    output_path = await asyncio.to_thread(
+                        _ACTION_SERVICE.refresh_benchmark_cache,
+                        action_inputs,
+                        sink=state.progress_sink,
+                    )
+                    _set_action_success(state, "yahoo", message="Benchmark cache refreshed", output_path=str(output_path))
+                    await load_report_data()
                 elif action_name == "refresh":
                     live_inputs = _live_inputs_from_form(state.live_form)
                     try:
@@ -795,6 +806,10 @@ _REMEDIATION_HINTS: tuple[tuple[str, str, str], ...] = (
     ("Performance history file not found", "flex", "Run Flex Refresh"),
     ("Performance history file is empty", "flex", "Run Flex Refresh"),
     ("Dated performance report CSV is missing", "flex", "Run Flex Refresh"),
+    # Yahoo benchmark cache (SPY/BIL) feeds the cash-Sharpe + benchmark traces
+    # in the Performance section. Yahoo path is independent of Flex, so this
+    # gets its own action handler that touches only the history feather.
+    ("SPY/BIL benchmark return cache is missing", "yahoo", "Refresh Benchmark Cache"),
 )
 
 
@@ -1205,6 +1220,15 @@ def _etf_inputs_from_form(form: ReferenceActionFormState) -> EtfSectorSyncInputs
     )
 
 
+def _benchmark_inputs_from_form(state: PortfolioPageState) -> BenchmarkRefreshInputs:
+    return BenchmarkRefreshInputs(
+        performance_history_path=_required_text(
+            state.artifact_form.performance_history_path,
+            "Performance history path",
+        ),
+    )
+
+
 # ===== Served-artifact route ===================================================
 #
 # Chrome blocks navigation from `http://...` (the dashboard) to `file://` URLs,
@@ -1460,6 +1484,7 @@ _ACTION_PRETTY_NAMES: dict[str, str] = {
     "regime-refresh": "Regime refresh",
     "security-reference": "Security reference sync",
     "etf": "ETF sector sync",
+    "yahoo": "Benchmark cache refresh",
 }
 
 

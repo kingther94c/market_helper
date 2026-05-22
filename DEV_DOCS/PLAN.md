@@ -99,6 +99,13 @@ Landed:
   as the operate-drawer Flex button. First-run CLI setup is covered by
   `scripts/dev/bootstrap_flex_history.py` (reads Flex creds from the resolved
   local env and runs the same refresh).
+- **Actionable benchmark-cache warning**: the "SPY/BIL benchmark return cache
+  is missing or empty" warning now promotes to a `pm-error` banner with a
+  "Refresh Benchmark Cache" button wired to a new `yahoo` action
+  (`PortfolioMonitorActionService.refresh_benchmark_cache` →
+  `refresh_benchmark_returns_in_history_feather`). Remaining warnings
+  (history-path-not-configured, regime-artifact-missing) stay informational
+  because no single button can remediate them.
 
 Near-term work:
 1. Finish dashboard Performance USD/SGD parity for the snapshot path.

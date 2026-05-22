@@ -114,6 +114,12 @@ class EtfSectorSyncInputs:
     api_key: str | None = None
 
 
+@dataclass
+class BenchmarkRefreshInputs:
+    performance_history_path: str | Path
+    force_refresh: bool = False
+
+
 @dataclass(frozen=True)
 class UiProgressEvent:
     kind: str

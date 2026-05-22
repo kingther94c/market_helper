@@ -14,6 +14,7 @@ from market_helper.app.paths import PORTFOLIO_ARTIFACTS_DIR
 from market_helper.common.datetime_display import compute_as_of_freshness_note
 from market_helper.application.portfolio_monitor.contracts import (
     ArtifactMetadata,
+    BenchmarkRefreshInputs,
     EtfSectorSyncInputs,
     FlexPerformanceRefreshInputs,
     GenerateCombinedReportInputs,
@@ -403,6 +404,22 @@ class PortfolioMonitorActionService:
             as_of=inputs.as_of,
             progress=reporter,
         )
+
+    def refresh_benchmark_cache(
+        self,
+        inputs: BenchmarkRefreshInputs,
+        *,
+        sink: UiProgressSink | None = None,
+    ) -> Path:
+        history_path = Path(inputs.performance_history_path)
+        _record_manual_event(sink, kind="spinner", label="Benchmark cache", detail="refreshing SPY/BIL")
+        target = refresh_benchmark_returns_in_history_feather(
+            history_path,
+            yahoo_client=YahooFinanceClient(),
+            force_refresh=inputs.force_refresh,
+        )
+        _record_manual_event(sink, kind="done", label="Benchmark cache", detail=f"wrote {target}")
+        return target
 
     def rebuild_flex_performance(
         self,

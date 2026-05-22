@@ -513,6 +513,15 @@ def test_classify_warning_maps_missing_history_to_flex_action() -> None:
     ) == ("flex", "Run Flex Refresh")
 
 
+def test_classify_warning_maps_benchmark_cache_to_yahoo_action() -> None:
+    assert _classify_warning(
+        "SPY/BIL benchmark return cache is missing or empty; performance benchmark trace and cash-based Sharpe may be omitted."
+    ) == ("yahoo", "Refresh Benchmark Cache")
+
+
 def test_classify_warning_returns_none_for_unrelated_warning() -> None:
-    assert _classify_warning("SPY/BIL benchmark return cache is missing") is None
+    # Path-not-configured is informational — the user must edit the artifact
+    # form, no single button can fix it, so it must stay an unclassified
+    # muted warning rather than being promoted to a remediation banner.
+    assert _classify_warning("Performance history path is not configured.") is None
     assert _classify_warning("") is None

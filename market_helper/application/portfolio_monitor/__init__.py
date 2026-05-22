@@ -4,6 +4,7 @@ from typing import TYPE_CHECKING
 
 from .contracts import (
     ArtifactMetadata,
+    BenchmarkRefreshInputs,
     EtfSectorSyncInputs,
     FlexPerformanceRefreshInputs,
     GenerateCombinedReportInputs,
@@ -34,6 +35,7 @@ def __getattr__(name: str) -> object:
 
 __all__ = [
     "ArtifactMetadata",
+    "BenchmarkRefreshInputs",
     "EtfSectorSyncInputs",
     "FlexPerformanceRefreshInputs",
     "GenerateCombinedReportInputs",
