@@ -181,6 +181,17 @@ Landed:
   coverage (GFC 2008, 2022 inflation, 2025 tariff) follows the same
   fixture+config pattern via
   `scripts/dev/regenerate_anchor_period_fixtures.py`.
+- **Auto-sync + historical baseline**: `regime-detect` now auto-syncs the
+  Yahoo market panel if the live cache is missing (`--no-auto-sync` opt-out
+  for hermetic test runs), and the pre-2025 market panel (1984-01-03 to
+  2024-12-31, ~1 MB) is checked into
+  `data/external/regime_detection/historical/market_panel_to_2024.feather`
+  as a reference snapshot. The loader merges historical baseline + live
+  cache (live wins on overlap), so a fresh checkout produces sensible
+  regime output from the first `regime-detect` invocation and incremental
+  syncs only fetch the last ~2 months of bars. FRED auto-sync follows the
+  same pattern but requires `FRED_API_KEY`; missing key gracefully disables
+  the macro layer with a warning rather than failing the whole run.
 
 Near-term work:
 1. Extend the anchor-period harness to additional episodes (GFC 2008, 2022

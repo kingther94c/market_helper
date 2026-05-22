@@ -280,6 +280,11 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Emit only the most-recent result.",
     )
+    regime_detect_v2.add_argument(
+        "--no-auto-sync",
+        action="store_true",
+        help="Disable auto-sync of missing Yahoo / FRED caches. Use for hermetic test runs.",
+    )
 
     regime_calibrate_v2 = subparsers.add_parser(
         "regime-calibrate",
@@ -642,6 +647,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                 market_regime_config=args.market_regime_config,
                 output_path=Path(args.output),
                 latest_only=bool(args.latest_only),
+                auto_sync=not bool(args.no_auto_sync),
             )
         except ValueError as exc:
             print(f"regime-detect: {exc}", file=sys.stderr)
