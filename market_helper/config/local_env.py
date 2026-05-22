@@ -6,8 +6,13 @@ from typing import Mapping
 
 
 MARKET_HELPER_CONFIG_PATH_ENV_VAR = "MARKET_HELPER_CONFIG_PATH"
+# Mirror of the constant in
+# market_helper/domain/portfolio_monitor/pipelines/generate_portfolio_report.py
+# — duplicated as a literal to avoid pulling domain code into the config layer.
+MARKET_HELPER_GDRIVE_ROOT_ENV_VAR = "MARKET_HELPER_GDRIVE_ROOT"
+LOCAL_ENV_FILENAME = "local.env"
 DEFAULT_LOCAL_CONFIG_PATH = (
-    Path(__file__).resolve().parents[2] / "configs" / "portfolio_monitor" / "local.env"
+    Path(__file__).resolve().parents[2] / "configs" / "portfolio_monitor" / LOCAL_ENV_FILENAME
 )
 
 
@@ -16,12 +21,32 @@ def resolve_local_config_path(
     *,
     environ: Mapping[str, str] | None = None,
 ) -> Path:
+    """Resolve the path to ``local.env``.
+
+    Priority order:
+
+    1. ``MARKET_HELPER_CONFIG_PATH`` env var, if set and the file exists.
+    2. ``<MARKET_HELPER_GDRIVE_ROOT>/local.env``, if ROOT is set and the
+       derived file exists. Lets a single per-machine env var
+       (``MARKET_HELPER_GDRIVE_ROOT``) drive both report-mirror placement
+       AND local.env discovery, so users don't have to set both.
+    3. ``default_path`` argument, or the repo-checked-in
+       ``configs/portfolio_monitor/local.env`` as a final fallback.
+    """
     env = environ if environ is not None else os.environ
+
     configured_path = str(env.get(MARKET_HELPER_CONFIG_PATH_ENV_VAR, "")).strip()
     if configured_path:
         override_path = Path(configured_path).expanduser()
         if override_path.is_file():
             return override_path
+
+    gdrive_root = str(env.get(MARKET_HELPER_GDRIVE_ROOT_ENV_VAR, "")).strip()
+    if gdrive_root:
+        derived_path = Path(gdrive_root).expanduser() / LOCAL_ENV_FILENAME
+        if derived_path.is_file():
+            return derived_path
+
     return Path(default_path or DEFAULT_LOCAL_CONFIG_PATH)
 
 
