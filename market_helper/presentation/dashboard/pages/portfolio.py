@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import os
+import socket
 from copy import deepcopy
 from dataclasses import dataclass, field
 from datetime import datetime
@@ -32,6 +33,7 @@ from market_helper.application.portfolio_monitor import (
 )
 from market_helper.common.datetime_display import format_local_datetime
 from market_helper.config.local_env import read_local_config_value
+from market_helper.providers.tws_ib_async import TwsIbAsyncError
 from market_helper.presentation.dashboard.components import render_action_card
 from market_helper.presentation.dashboard.components.common import add_dashboard_styles, render_status_card
 from market_helper.presentation.dashboard.formatters import format_local_text, format_path, format_text
@@ -53,6 +55,11 @@ IBKR_PORT_ENV_VAR = "IBKR_PORT"
 IBKR_HOST_ENV_VAR = "IBKR_HOST"
 DEFAULT_IBKR_PORT = "7497"  # TWS paper. IB Gateway uses 4001 (live) / 4002 (paper); set IBKR_PORT to override per machine.
 DEFAULT_IBKR_HOST = "127.0.0.1"
+# Order matters: IB Gateway first (Win users typically run Gateway), then TWS.
+# Mac users on TWS paper (7497) pay ~600ms one-time probe latency unless they
+# set IBKR_PORT explicitly.
+_IBKR_PORT_PROBE_CANDIDATES: tuple[str, ...] = ("4001", "4002", "7496", "7497")
+_IBKR_PORT_PROBE_TIMEOUT_S = 0.15
 
 
 @dataclass
@@ -275,18 +282,69 @@ def _resolve_default_live_account_id() -> str:
     )
 
 
+def _probe_local_ibkr_port(
+    *,
+    host: str = DEFAULT_IBKR_HOST,
+    candidates: tuple[str, ...] = _IBKR_PORT_PROBE_CANDIDATES,
+    timeout: float = _IBKR_PORT_PROBE_TIMEOUT_S,
+) -> str | None:
+    """TCP-probe candidate IBKR ports; return first one that accepts a
+    connection, or None if none responds. A successful TCP connect only proves
+    *something* is listening — it does not authenticate ib_async — so the
+    actual Live action can still fail if Gateway is mid-startup. This is a
+    best-effort default-picker, not a health check.
+    """
+    for port in candidates:
+        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        sock.settimeout(timeout)
+        try:
+            sock.connect((host, int(port)))
+        except (OSError, ValueError):
+            continue
+        else:
+            return port
+        finally:
+            try:
+                sock.close()
+            except OSError:
+                pass
+    return None
+
+
 def _resolve_default_ibkr_port() -> str:
     """Pick the dashboard's default IBKR port.
 
-    Process env wins, then local.env. Falls back to 7497 (TWS paper). On
-    machines where IB Gateway is the workstation, set IBKR_PORT=4001 (live)
-    or 4002 (paper) in your shell profile to override.
+    Priority order:
+
+    1. ``IBKR_PORT`` env var (process env, then local.env) — explicit user
+       choice always wins, no probing.
+    2. TCP probe of local IB Gateway (4001/4002) then TWS (7496/7497) — auto-
+       picks whichever is running. Useful when one machine runs Gateway and
+       the other runs TWS off the same local.env.
+    3. ``DEFAULT_IBKR_PORT`` (7497, TWS paper) as final fallback.
     """
-    return _resolve_local_env_value(IBKR_PORT_ENV_VAR) or DEFAULT_IBKR_PORT
+    explicit = _resolve_local_env_value(IBKR_PORT_ENV_VAR)
+    if explicit:
+        return explicit
+    probed = _probe_local_ibkr_port(host=_resolve_default_ibkr_host())
+    if probed:
+        return probed
+    return DEFAULT_IBKR_PORT
 
 
 def _resolve_default_ibkr_host() -> str:
     return _resolve_local_env_value(IBKR_HOST_ENV_VAR) or DEFAULT_IBKR_HOST
+
+
+def _existing_cached_position_csv(form_path: str) -> Path | None:
+    """Return the cached position CSV if it exists at the form's currently-
+    bound path. Used as a graceful fallback when TWS is unreachable so the
+    dashboard can at least render the most recent snapshot."""
+    cleaned = (form_path or "").strip()
+    if not cleaned:
+        return None
+    candidate = Path(cleaned)
+    return candidate if candidate.is_file() else None
 
 
 def register_portfolio_page(
@@ -390,15 +448,35 @@ def register_portfolio_page(
             try:
                 if action_name == "live":
                     action_inputs = _live_inputs_from_form(state.live_form)
-                    output_path = await asyncio.to_thread(
-                        _ACTION_SERVICE.refresh_live_positions,
-                        action_inputs,
-                        sink=state.progress_sink,
-                    )
-                    state.artifact_form.positions_csv_path = str(output_path)
-                    state.live_form.output_path = str(output_path)
-                    _set_action_success(state, "live", message="Live positions refreshed", output_path=str(output_path))
-                    await load_report_data()
+                    try:
+                        output_path = await asyncio.to_thread(
+                            _ACTION_SERVICE.refresh_live_positions,
+                            action_inputs,
+                            sink=state.progress_sink,
+                        )
+                    except TwsIbAsyncError as exc:
+                        cached = _existing_cached_position_csv(state.artifact_form.positions_csv_path)
+                        if cached is None:
+                            raise
+                        _logger.warning(
+                            "Live refresh failed (%s); using cached snapshot %s",
+                            exc,
+                            cached,
+                        )
+                        state.artifact_form.positions_csv_path = str(cached)
+                        state.live_form.output_path = str(cached)
+                        _set_action_success(
+                            state,
+                            "live",
+                            message=f"TWS / IB Gateway unreachable; using cached {cached.name}",
+                            output_path=str(cached),
+                        )
+                        await load_report_data()
+                    else:
+                        state.artifact_form.positions_csv_path = str(output_path)
+                        state.live_form.output_path = str(output_path)
+                        _set_action_success(state, "live", message="Live positions refreshed", output_path=str(output_path))
+                        await load_report_data()
                 elif action_name == "flex":
                     action_inputs = _flex_inputs_from_form(state.flex_form)
                     output_path = await asyncio.to_thread(
@@ -479,14 +557,27 @@ def register_portfolio_page(
                     _set_action_success(state, "etf", message="ETF sector lookthrough synced", output_path=str(output_path))
                 elif action_name == "refresh":
                     live_inputs = _live_inputs_from_form(state.live_form)
-                    live_output = await asyncio.to_thread(
-                        _ACTION_SERVICE.refresh_live_positions,
-                        live_inputs,
-                        sink=state.progress_sink,
-                    )
+                    try:
+                        live_output = await asyncio.to_thread(
+                            _ACTION_SERVICE.refresh_live_positions,
+                            live_inputs,
+                            sink=state.progress_sink,
+                        )
+                        live_message = "Live positions refreshed"
+                    except TwsIbAsyncError as exc:
+                        cached = _existing_cached_position_csv(state.artifact_form.positions_csv_path)
+                        if cached is None:
+                            raise
+                        _logger.warning(
+                            "Live refresh failed (%s); continuing with cached snapshot %s",
+                            exc,
+                            cached,
+                        )
+                        live_output = cached
+                        live_message = f"TWS / IB Gateway unreachable; using cached {cached.name}"
                     state.artifact_form.positions_csv_path = str(live_output)
                     state.live_form.output_path = str(live_output)
-                    _set_action_success(state, "live", message="Live positions refreshed", output_path=str(live_output))
+                    _set_action_success(state, "live", message=live_message, output_path=str(live_output))
 
                     flex_inputs = _flex_inputs_from_form(state.flex_form)
                     flex_output = await asyncio.to_thread(

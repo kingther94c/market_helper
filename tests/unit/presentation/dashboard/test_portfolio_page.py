@@ -31,7 +31,11 @@ from market_helper.presentation.dashboard.pages.portfolio import (
     _regime_refresh_inputs_from_form,
     _regime_run_inputs_from_form,
     _report_data_matches_current_local_date,
+    _existing_cached_position_csv,
+    _probe_local_ibkr_port,
+    _resolve_default_ibkr_port,
 )
+import market_helper.presentation.dashboard.pages.portfolio as portfolio_page
 
 
 def test_artifact_form_converts_strings_to_query_inputs() -> None:
@@ -240,6 +244,8 @@ def test_build_initial_state_defaults_to_tws_paper_port_when_unset(tmp_path, mon
         "market_helper.presentation.dashboard.pages.portfolio.DEFAULT_CANONICAL_LOCAL_ENV_PATH",
         tmp_path / "no-such.env",
     )
+    # Force the probe to find nothing so the fallback path is exercised.
+    monkeypatch.setattr(portfolio_page, "_probe_local_ibkr_port", lambda **_: None)
 
     class QueryService:
         def resolve_inputs(self, inputs: PortfolioReportInputs | None = None) -> PortfolioReportInputs:
@@ -252,6 +258,64 @@ def test_build_initial_state_defaults_to_tws_paper_port_when_unset(tmp_path, mon
 
     assert state.live_form.port == "7497"
     assert state.live_form.host == "127.0.0.1"
+
+
+def test_probe_local_ibkr_port_returns_first_listening_port(monkeypatch) -> None:
+    """Probe walks candidates in order and returns the first one that accepts."""
+    listening = {"4002"}  # IB Gateway paper port — second candidate
+
+    class _FakeSock:
+        def __init__(self, *_args, **_kwargs):
+            self._port: int | None = None
+        def settimeout(self, _t): pass
+        def connect(self, address):
+            self._port = int(address[1])
+            if str(self._port) not in listening:
+                raise ConnectionRefusedError("refused")
+        def close(self): pass
+
+    monkeypatch.setattr(portfolio_page.socket, "socket", _FakeSock)
+    assert _probe_local_ibkr_port() == "4002"
+
+
+def test_probe_local_ibkr_port_returns_none_when_nothing_listens(monkeypatch) -> None:
+    class _FakeSock:
+        def __init__(self, *_args, **_kwargs): pass
+        def settimeout(self, _t): pass
+        def connect(self, _address):
+            raise ConnectionRefusedError("nothing here")
+        def close(self): pass
+
+    monkeypatch.setattr(portfolio_page.socket, "socket", _FakeSock)
+    assert _probe_local_ibkr_port() is None
+
+
+def test_resolve_default_ibkr_port_env_var_skips_probe(monkeypatch, tmp_path) -> None:
+    """Explicit env var wins and the probe never runs (so explicit choices are
+    instant)."""
+    monkeypatch.setenv("IBKR_PORT", "9999")
+    probe_called = {"yes": False}
+
+    def _exploding_probe(**_kwargs):
+        probe_called["yes"] = True
+        return "4001"
+
+    monkeypatch.setattr(portfolio_page, "_probe_local_ibkr_port", _exploding_probe)
+    assert _resolve_default_ibkr_port() == "9999"
+    assert probe_called["yes"] is False
+
+
+def test_existing_cached_position_csv_returns_path_when_present(tmp_path) -> None:
+    csv = tmp_path / "live_ibkr_position_report.csv"
+    csv.write_text("as_of\n2026-05-15\n", encoding="utf-8")
+    assert _existing_cached_position_csv(str(csv)) == csv
+
+
+def test_existing_cached_position_csv_returns_none_when_missing(tmp_path) -> None:
+    missing = tmp_path / "no-such.csv"
+    assert _existing_cached_position_csv(str(missing)) is None
+    assert _existing_cached_position_csv("") is None
+    assert _existing_cached_position_csv("   ") is None
 
 
 def test_build_initial_state_prefills_live_account_id_from_local_env(tmp_path, monkeypatch) -> None:
