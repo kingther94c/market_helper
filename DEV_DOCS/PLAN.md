@@ -251,16 +251,55 @@ Landed:
   Lehman-day detection. Report:
   `data/research_artifacts/calibration_report.html` (+ raw grid + Pareto
   analysis JSON next to it). Reproducer scripts in `scripts/research/`.
+- **Macro-axis calibration (Q8 grid-search, FRED-hydrated)**: with the
+  full FRED panel now local, ran a 162-config grid over the full
+  1921-today history (8 dims: min_weight × growth_thresh × inflation_thresh
+  × hysteresis × 3 layer-blend variants). LEVEL-based consensus labels
+  at 13 anchors (2008-2025) — honest framing for the engine's YoY
+  threshold-normalized scoring. Strict improver landed:
+  layer blend macro_nowcast 0.35/0.30 + market_implied 0.65/0.70 →
+  **0.50/0.50 + 0.50/0.50** (balanced), and growth_thresh ±0.15 →
+  **±0.10**. Inflation deadband (±0.12), hysteresis (5), and
+  recency-decay floor (0.65) kept — grid showed they are already
+  optimal. Overall consensus match: 51% → 56% (+5pp); growth axis:
+  35% → 46% (+11pp); inflation axis: 42% → 46% (+5pp); risk overlay:
+  77% (unchanged, Q7 still optimal). Per-anchor wins concentrate on
+  expansion / reflation periods that were getting under-labeled
+  (2017 Goldilocks +45pp growth, 2010-12 +24pp, 2021 +28pp,
+  2022 H1 +30pp). Stability slightly improves
+  (quadrant median run 17 → 19 bd). Surprise non-finding: dropping
+  `recency_weighting.min_weight` 0.65 → 0.10 (the documented
+  next-step for engaging per-frequency decay) does not materially
+  improve match — the decay-relevant series (weekly ICSA) are too
+  small a fraction of the labor concept to swing the axis score.
+  Documented in the report as a caveat. Report:
+  `data/research_artifacts/macro_calibration_report.html` (+
+  `macro_scout.json` baseline, `macro_scout_after.json` post-apply,
+  `macro_calibration_grid.json` raw 162-run, `macro_calibration_analysis.json`
+  Pareto front + recommendation). Reproducer scripts in
+  `scripts/research/macro_*.py`. All 72 regime unit tests + 448 unit
+  suite still pass.
 
 Near-term work:
-1. Calibrate per-frequency decay: lower the `recency_weighting.min_weight`
-   floor in `fred_series.yml` (probably to ~0.10), regenerate the macro
-   panel, and re-check anchor outputs. Today's 0.65 floor neutralizes the
-   new weekly-cadence decay even though the structural plumbing is in.
+1. ~~Calibrate per-frequency decay~~ — investigated in Q8: lowering
+   `min_weight` 0.65 → 0.10/0.30 does not materially change anchor
+   matches because the decay-relevant series are a tiny fraction of
+   each concept's within-weight. Keep floor at 0.65 unless concept
+   composition is restructured to put more weight on high-cadence
+   series (weekly ICSA, daily T5YIFR).
 2. Layer a macro-included anchor into the harness once FRED panel is
    hydrated locally — covers the 2022 inflation case the market-only path
-   structurally cannot read.
-3. Keep ML layers as unavailable/zero-weight until model artifacts and
+   structurally cannot read. **Partially addressed in Q8**: the
+   full-history macro scout + grid now serves as a macro-aware
+   measurement harness; can add per-anchor pytest fixtures from
+   `macro_scout_after.json` if a CI guardrail is desired.
+3. Direction-honest velocity layer (NEW from Q8): the engine's
+   YoY+threshold scoring is structurally level-based — it cannot read
+   "inflation is falling toward target" as Down while CPI YoY is still
+   above 2.5%. Adding a MoM-velocity or 6m-change concept would
+   capture the direction axis. Out of scope for Q8; left as a
+   structural follow-up.
+4. Keep ML layers as unavailable/zero-weight until model artifacts and
    feature schemas are explicit. Standing guardrail — do not emit fake ML
    outputs.
 
@@ -272,7 +311,10 @@ aggregation, beta-adjusted returns, S&P GSCI), Q5 (calibration workflow
 macro-config fix; rebuilt the post-Q4 baseline before the next tuning pass),
 Q6 (market-heavier blend and narrower deadband to improve recovery-window
 responsiveness), Q7 (risk-overlay grid-search; 0.75/3 → 0.65/1, see
-`data/research_artifacts/calibration_report.html`).
+`data/research_artifacts/calibration_report.html`), Q8 (macro-axis
+grid-search after FRED hydration; layer-blend balanced 50/50 +
+growth_thresh ±0.15 → ±0.10, see
+`data/research_artifacts/macro_calibration_report.html`).
 
 Detail: `DEV_DOCS/docs/devplans/regime_engine_devplan.md`.
 

@@ -5,16 +5,19 @@ regime_engine:
     macro_nowcast:
       enabled: true
       available_required: false
-      # Q6: modestly reduce slow macro weight after fixing the calibration
-      # baseline so recovery windows can respond to faster market pricing.
-      weight_growth: 0.35
-      weight_inflation: 0.30
+      # Q8 (2026-05-22): macro layer hydrated with full FRED panel for the
+      # first time; balanced 50/50 blend tested by 162-run grid wins on
+      # overall consensus match (+11pp growth axis, +5pp overall vs
+      # Q6/Q7 baseline at 35/30 macro + 65/70 market). Report:
+      # data/research_artifacts/macro_calibration_report.html
+      weight_growth: 0.50
+      weight_inflation: 0.50
 
     market_implied:
       enabled: true
       available_required: false
-      weight_growth: 0.65
-      weight_inflation: 0.70
+      weight_growth: 0.50
+      weight_inflation: 0.50
 
     macro_truth_ml:
       enabled: false
@@ -46,11 +49,15 @@ regime_engine:
     min_consecutive_days: 1
 
   regime_thresholds:
-    # Q6: lowered from ±0.20 on the corrected Q5 calibration baseline. The
-    # narrower deadband makes 2017 and 2020H2-2021 recoveries show through
-    # without pushing 2022 or 2023-24 back into persistent inflation-hot labels.
-    growth_up: 0.15
-    growth_down: -0.15
+    # Q8 (2026-05-22): tightened growth deadband from ±0.15 to ±0.10. The
+    # 162-config grid (macro now FRED-hydrated) showed the tighter
+    # growth threshold lifts 2017 Goldilocks +45pp, 2010-12 expansion
+    # +24pp, 2021 reflation +28pp, 2022 H1 inflation +30pp — periods
+    # where the model's score legitimately moved above the prior ±0.15
+    # but only marginally. Inflation deadband (±0.12) and hysteresis (5)
+    # kept from Q6 — already optimal in the grid.
+    growth_up: 0.10
+    growth_down: -0.10
     inflation_up: 0.12
     inflation_down: -0.12
     # Require this many consecutive bdays past the threshold before flipping

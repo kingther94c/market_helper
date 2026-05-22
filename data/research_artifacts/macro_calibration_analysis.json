@@ -1,0 +1,5229 @@
+{
+  "n_configs": 162,
+  "baseline": {
+    "params": {
+      "min_weight": 0.65,
+      "growth_thresh": 0.15,
+      "inflation_thresh": 0.12,
+      "axis_min_consecutive": 5,
+      "macro_g_w": 0.35,
+      "macro_i_w": 0.3,
+      "market_g_w": 0.65,
+      "market_i_w": 0.7,
+      "blend_name": "baseline_macro_light"
+    },
+    "metrics": {
+      "g_avg_match_pct": 34.6,
+      "i_avg_match_pct": 41.5,
+      "risk_avg_match_pct": 76.9,
+      "overall_avg_match_pct": 51.0,
+      "g_median_run_bdays": 4,
+      "i_median_run_bdays": 3,
+      "g_n_runs": 1007,
+      "i_n_runs": 1127,
+      "per_anchor": [
+        {
+          "name": "2008 GFC trough",
+          "g_consensus": "Down",
+          "i_consensus": "Down",
+          "g_match_pct": 87.7,
+          "i_match_pct": 73.1,
+          "risk_match": true
+        },
+        {
+          "name": "2010-12 expansion",
+          "g_consensus": "Up",
+          "i_consensus": "Neutral",
+          "g_match_pct": 34.2,
+          "i_match_pct": 43.0,
+          "risk_match": true
+        },
+        {
+          "name": "2015-16 oil bust",
+          "g_consensus": "Neutral",
+          "i_consensus": "Down",
+          "g_match_pct": 26.5,
+          "i_match_pct": 97.4,
+          "risk_match": true
+        },
+        {
+          "name": "2017 Goldilocks",
+          "g_consensus": "Up",
+          "i_consensus": "Neutral",
+          "g_match_pct": 42.6,
+          "i_match_pct": 52.3,
+          "risk_match": true
+        },
+        {
+          "name": "2018 Q4 vol shock",
+          "g_consensus": "Up",
+          "i_consensus": "Neutral",
+          "g_match_pct": 4.5,
+          "i_match_pct": 18.2,
+          "risk_match": true
+        },
+        {
+          "name": "2019 H2 slowdown",
+          "g_consensus": "Neutral",
+          "i_consensus": "Neutral",
+          "g_match_pct": 30.3,
+          "i_match_pct": 35.6,
+          "risk_match": false
+        },
+        {
+          "name": "2020 COVID recession",
+          "g_consensus": "Down",
+          "i_consensus": "Neutral",
+          "g_match_pct": 98.0,
+          "i_match_pct": 0.0,
+          "risk_match": true
+        },
+        {
+          "name": "2020H2 catch-up",
+          "g_consensus": "Down",
+          "i_consensus": "Down",
+          "g_match_pct": 0.0,
+          "i_match_pct": 12.9,
+          "risk_match": true
+        },
+        {
+          "name": "2021 reflation",
+          "g_consensus": "Up",
+          "i_consensus": "Up",
+          "g_match_pct": 66.5,
+          "i_match_pct": 65.5,
+          "risk_match": true
+        },
+        {
+          "name": "2022 H1 inflation",
+          "g_consensus": "Up",
+          "i_consensus": "Up",
+          "g_match_pct": 3.9,
+          "i_match_pct": 48.7,
+          "risk_match": false
+        },
+        {
+          "name": "2023 high inflation",
+          "g_consensus": "Up",
+          "i_consensus": "Up",
+          "g_match_pct": 27.6,
+          "i_match_pct": 48.7,
+          "risk_match": true
+        },
+        {
+          "name": "2024 disinflation",
+          "g_consensus": "Up",
+          "i_consensus": "Neutral",
+          "g_match_pct": 15.6,
+          "i_match_pct": 37.8,
+          "risk_match": false
+        },
+        {
+          "name": "2025 tariff shock",
+          "g_consensus": "Neutral",
+          "i_consensus": "Up",
+          "g_match_pct": 12.5,
+          "i_match_pct": 6.2,
+          "risk_match": true
+        }
+      ],
+      "latencies": [
+        {
+          "probe": "COVID growth turn",
+          "axis": "growth",
+          "target": "Down",
+          "latency_bdays": 0
+        },
+        {
+          "probe": "COVID inflation collapse",
+          "axis": "inflation",
+          "target": "Down",
+          "latency_bdays": 0
+        },
+        {
+          "probe": "2021 reflation start",
+          "axis": "inflation",
+          "target": "Up",
+          "latency_bdays": 0
+        },
+        {
+          "probe": "2022 stagflation start",
+          "axis": "inflation",
+          "target": "Up",
+          "latency_bdays": 0
+        },
+        {
+          "probe": "2024 inflation cooling",
+          "axis": "inflation",
+          "target": "Neutral",
+          "latency_bdays": 0
+        }
+      ]
+    },
+    "composite": 52.05,
+    "is_baseline": true
+  },
+  "recommendation": {
+    "params": {
+      "min_weight": 0.65,
+      "growth_thresh": 0.1,
+      "inflation_thresh": 0.12,
+      "axis_min_consecutive": 5,
+      "macro_g_w": 0.5,
+      "macro_i_w": 0.5,
+      "market_g_w": 0.5,
+      "market_i_w": 0.5,
+      "blend_name": "balanced"
+    },
+    "metrics": {
+      "g_avg_match_pct": 45.6,
+      "i_avg_match_pct": 46.5,
+      "risk_avg_match_pct": 76.9,
+      "overall_avg_match_pct": 56.3,
+      "g_median_run_bdays": 4,
+      "i_median_run_bdays": 4,
+      "g_n_runs": 972,
+      "i_n_runs": 923,
+      "per_anchor": [
+        {
+          "name": "2008 GFC trough",
+          "g_consensus": "Down",
+          "i_consensus": "Down",
+          "g_match_pct": 100.0,
+          "i_match_pct": 88.5,
+          "risk_match": true
+        },
+        {
+          "name": "2010-12 expansion",
+          "g_consensus": "Up",
+          "i_consensus": "Neutral",
+          "g_match_pct": 58.4,
+          "i_match_pct": 49.5,
+          "risk_match": true
+        },
+        {
+          "name": "2015-16 oil bust",
+          "g_consensus": "Neutral",
+          "i_consensus": "Down",
+          "g_match_pct": 26.5,
+          "i_match_pct": 100.0,
+          "risk_match": true
+        },
+        {
+          "name": "2017 Goldilocks",
+          "g_consensus": "Up",
+          "i_consensus": "Neutral",
+          "g_match_pct": 87.7,
+          "i_match_pct": 39.0,
+          "risk_match": true
+        },
+        {
+          "name": "2018 Q4 vol shock",
+          "g_consensus": "Up",
+          "i_consensus": "Neutral",
+          "g_match_pct": 9.1,
+          "i_match_pct": 19.7,
+          "risk_match": true
+        },
+        {
+          "name": "2019 H2 slowdown",
+          "g_consensus": "Neutral",
+          "i_consensus": "Neutral",
+          "g_match_pct": 20.5,
+          "i_match_pct": 25.0,
+          "risk_match": false
+        },
+        {
+          "name": "2020 COVID recession",
+          "g_consensus": "Down",
+          "i_consensus": "Neutral",
+          "g_match_pct": 100.0,
+          "i_match_pct": 0.0,
+          "risk_match": true
+        },
+        {
+          "name": "2020H2 catch-up",
+          "g_consensus": "Down",
+          "i_consensus": "Down",
+          "g_match_pct": 0.8,
+          "i_match_pct": 40.9,
+          "risk_match": true
+        },
+        {
+          "name": "2021 reflation",
+          "g_consensus": "Up",
+          "i_consensus": "Up",
+          "g_match_pct": 94.4,
+          "i_match_pct": 60.4,
+          "risk_match": true
+        },
+        {
+          "name": "2022 H1 inflation",
+          "g_consensus": "Up",
+          "i_consensus": "Up",
+          "g_match_pct": 33.8,
+          "i_match_pct": 59.1,
+          "risk_match": false
+        },
+        {
+          "name": "2023 high inflation",
+          "g_consensus": "Up",
+          "i_consensus": "Up",
+          "g_match_pct": 29.6,
+          "i_match_pct": 80.3,
+          "risk_match": true
+        },
+        {
+          "name": "2024 disinflation",
+          "g_consensus": "Up",
+          "i_consensus": "Neutral",
+          "g_match_pct": 19.8,
+          "i_match_pct": 35.5,
+          "risk_match": false
+        },
+        {
+          "name": "2025 tariff shock",
+          "g_consensus": "Neutral",
+          "i_consensus": "Up",
+          "g_match_pct": 12.5,
+          "i_match_pct": 6.2,
+          "risk_match": true
+        }
+      ],
+      "latencies": [
+        {
+          "probe": "COVID growth turn",
+          "axis": "growth",
+          "target": "Down",
+          "latency_bdays": 0
+        },
+        {
+          "probe": "COVID inflation collapse",
+          "axis": "inflation",
+          "target": "Down",
+          "latency_bdays": 0
+        },
+        {
+          "probe": "2021 reflation start",
+          "axis": "inflation",
+          "target": "Up",
+          "latency_bdays": 42
+        },
+        {
+          "probe": "2022 stagflation start",
+          "axis": "inflation",
+          "target": "Up",
+          "latency_bdays": 0
+        },
+        {
+          "probe": "2024 inflation cooling",
+          "axis": "inflation",
+          "target": "Neutral",
+          "latency_bdays": 0
+        }
+      ]
+    },
+    "composite": 57.5,
+    "is_baseline": false
+  },
+  "strict_improvers_count": 114,
+  "strict_improvers_top10": [
+    {
+      "params": {
+        "min_weight": 0.65,
+        "growth_thresh": 0.1,
+        "inflation_thresh": 0.12,
+        "axis_min_consecutive": 5,
+        "macro_g_w": 0.5,
+        "macro_i_w": 0.5,
+        "market_g_w": 0.5,
+        "market_i_w": 0.5,
+        "blend_name": "balanced"
+      },
+      "metrics": {
+        "g_avg_match_pct": 45.6,
+        "i_avg_match_pct": 46.5,
+        "risk_avg_match_pct": 76.9,
+        "overall_avg_match_pct": 56.3,
+        "g_median_run_bdays": 4,
+        "i_median_run_bdays": 4,
+        "g_n_runs": 972,
+        "i_n_runs": 923,
+        "per_anchor": [
+          {
+            "name": "2008 GFC trough",
+            "g_consensus": "Down",
+            "i_consensus": "Down",
+            "g_match_pct": 100.0,
+            "i_match_pct": 88.5,
+            "risk_match": true
+          },
+          {
+            "name": "2010-12 expansion",
+            "g_consensus": "Up",
+            "i_consensus": "Neutral",
+            "g_match_pct": 58.4,
+            "i_match_pct": 49.5,
+            "risk_match": true
+          },
+          {
+            "name": "2015-16 oil bust",
+            "g_consensus": "Neutral",
+            "i_consensus": "Down",
+            "g_match_pct": 26.5,
+            "i_match_pct": 100.0,
+            "risk_match": true
+          },
+          {
+            "name": "2017 Goldilocks",
+            "g_consensus": "Up",
+            "i_consensus": "Neutral",
+            "g_match_pct": 87.7,
+            "i_match_pct": 39.0,
+            "risk_match": true
+          },
+          {
+            "name": "2018 Q4 vol shock",
+            "g_consensus": "Up",
+            "i_consensus": "Neutral",
+            "g_match_pct": 9.1,
+            "i_match_pct": 19.7,
+            "risk_match": true
+          },
+          {
+            "name": "2019 H2 slowdown",
+            "g_consensus": "Neutral",
+            "i_consensus": "Neutral",
+            "g_match_pct": 20.5,
+            "i_match_pct": 25.0,
+            "risk_match": false
+          },
+          {
+            "name": "2020 COVID recession",
+            "g_consensus": "Down",
+            "i_consensus": "Neutral",
+            "g_match_pct": 100.0,
+            "i_match_pct": 0.0,
+            "risk_match": true
+          },
+          {
+            "name": "2020H2 catch-up",
+            "g_consensus": "Down",
+            "i_consensus": "Down",
+            "g_match_pct": 0.8,
+            "i_match_pct": 40.9,
+            "risk_match": true
+          },
+          {
+            "name": "2021 reflation",
+            "g_consensus": "Up",
+            "i_consensus": "Up",
+            "g_match_pct": 94.4,
+            "i_match_pct": 60.4,
+            "risk_match": true
+          },
+          {
+            "name": "2022 H1 inflation",
+            "g_consensus": "Up",
+            "i_consensus": "Up",
+            "g_match_pct": 33.8,
+            "i_match_pct": 59.1,
+            "risk_match": false
+          },
+          {
+            "name": "2023 high inflation",
+            "g_consensus": "Up",
+            "i_consensus": "Up",
+            "g_match_pct": 29.6,
+            "i_match_pct": 80.3,
+            "risk_match": true
+          },
+          {
+            "name": "2024 disinflation",
+            "g_consensus": "Up",
+            "i_consensus": "Neutral",
+            "g_match_pct": 19.8,
+            "i_match_pct": 35.5,
+            "risk_match": false
+          },
+          {
+            "name": "2025 tariff shock",
+            "g_consensus": "Neutral",
+            "i_consensus": "Up",
+            "g_match_pct": 12.5,
+            "i_match_pct": 6.2,
+            "risk_match": true
+          }
+        ],
+        "latencies": [
+          {
+            "probe": "COVID growth turn",
+            "axis": "growth",
+            "target": "Down",
+            "latency_bdays": 0
+          },
+          {
+            "probe": "COVID inflation collapse",
+            "axis": "inflation",
+            "target": "Down",
+            "latency_bdays": 0
+          },
+          {
+            "probe": "2021 reflation start",
+            "axis": "inflation",
+            "target": "Up",
+            "latency_bdays": 42
+          },
+          {
+            "probe": "2022 stagflation start",
+            "axis": "inflation",
+            "target": "Up",
+            "latency_bdays": 0
+          },
+          {
+            "probe": "2024 inflation cooling",
+            "axis": "inflation",
+            "target": "Neutral",
+            "latency_bdays": 0
+          }
+        ]
+      },
+      "composite": 57.5,
+      "is_baseline": false
+    },
+    {
+      "params": {
+        "min_weight": 0.65,
+        "growth_thresh": 0.1,
+        "inflation_thresh": 0.12,
+        "axis_min_consecutive": 10,
+        "macro_g_w": 0.5,
+        "macro_i_w": 0.5,
+        "market_g_w": 0.5,
+        "market_i_w": 0.5,
+        "blend_name": "balanced"
+      },
+      "metrics": {
+        "g_avg_match_pct": 45.6,
+        "i_avg_match_pct": 46.5,
+        "risk_avg_match_pct": 76.9,
+        "overall_avg_match_pct": 56.3,
+        "g_median_run_bdays": 4,
+        "i_median_run_bdays": 4,
+        "g_n_runs": 972,
+        "i_n_runs": 923,
+        "per_anchor": [
+          {
+            "name": "2008 GFC trough",
+            "g_consensus": "Down",
+            "i_consensus": "Down",
+            "g_match_pct": 100.0,
+            "i_match_pct": 88.5,
+            "risk_match": true
+          },
+          {
+            "name": "2010-12 expansion",
+            "g_consensus": "Up",
+            "i_consensus": "Neutral",
+            "g_match_pct": 58.4,
+            "i_match_pct": 49.5,
+            "risk_match": true
+          },
+          {
+            "name": "2015-16 oil bust",
+            "g_consensus": "Neutral",
+            "i_consensus": "Down",
+            "g_match_pct": 26.5,
+            "i_match_pct": 100.0,
+            "risk_match": true
+          },
+          {
+            "name": "2017 Goldilocks",
+            "g_consensus": "Up",
+            "i_consensus": "Neutral",
+            "g_match_pct": 87.7,
+            "i_match_pct": 39.0,
+            "risk_match": true
+          },
+          {
+            "name": "2018 Q4 vol shock",
+            "g_consensus": "Up",
+            "i_consensus": "Neutral",
+            "g_match_pct": 9.1,
+            "i_match_pct": 19.7,
+            "risk_match": true
+          },
+          {
+            "name": "2019 H2 slowdown",
+            "g_consensus": "Neutral",
+            "i_consensus": "Neutral",
+            "g_match_pct": 20.5,
+            "i_match_pct": 25.0,
+            "risk_match": false
+          },
+          {
+            "name": "2020 COVID recession",
+            "g_consensus": "Down",
+            "i_consensus": "Neutral",
+            "g_match_pct": 100.0,
+            "i_match_pct": 0.0,
+            "risk_match": true
+          },
+          {
+            "name": "2020H2 catch-up",
+            "g_consensus": "Down",
+            "i_consensus": "Down",
+            "g_match_pct": 0.8,
+            "i_match_pct": 40.9,
+            "risk_match": true
+          },
+          {
+            "name": "2021 reflation",
+            "g_consensus": "Up",
+            "i_consensus": "Up",
+            "g_match_pct": 94.4,
+            "i_match_pct": 60.4,
+            "risk_match": true
+          },
+          {
+            "name": "2022 H1 inflation",
+            "g_consensus": "Up",
+            "i_consensus": "Up",
+            "g_match_pct": 33.8,
+            "i_match_pct": 59.1,
+            "risk_match": false
+          },
+          {
+            "name": "2023 high inflation",
+            "g_consensus": "Up",
+            "i_consensus": "Up",
+            "g_match_pct": 29.6,
+            "i_match_pct": 80.3,
+            "risk_match": true
+          },
+          {
+            "name": "2024 disinflation",
+            "g_consensus": "Up",
+            "i_consensus": "Neutral",
+            "g_match_pct": 19.8,
+            "i_match_pct": 35.5,
+            "risk_match": false
+          },
+          {
+            "name": "2025 tariff shock",
+            "g_consensus": "Neutral",
+            "i_consensus": "Up",
+            "g_match_pct": 12.5,
+            "i_match_pct": 6.2,
+            "risk_match": true
+          }
+        ],
+        "latencies": [
+          {
+            "probe": "COVID growth turn",
+            "axis": "growth",
+            "target": "Down",
+            "latency_bdays": 0
+          },
+          {
+            "probe": "COVID inflation collapse",
+            "axis": "inflation",
+            "target": "Down",
+            "latency_bdays": 0
+          },
+          {
+            "probe": "2021 reflation start",
+            "axis": "inflation",
+            "target": "Up",
+            "latency_bdays": 42
+          },
+          {
+            "probe": "2022 stagflation start",
+            "axis": "inflation",
+            "target": "Up",
+            "latency_bdays": 0
+          },
+          {
+            "probe": "2024 inflation cooling",
+            "axis": "inflation",
+            "target": "Neutral",
+            "latency_bdays": 0
+          }
+        ]
+      },
+      "composite": 57.5,
+      "is_baseline": false
+    },
+    {
+      "params": {
+        "min_weight": 0.1,
+        "growth_thresh": 0.1,
+        "inflation_thresh": 0.12,
+        "axis_min_consecutive": 5,
+        "macro_g_w": 0.5,
+        "macro_i_w": 0.5,
+        "market_g_w": 0.5,
+        "market_i_w": 0.5,
+        "blend_name": "balanced"
+      },
+      "metrics": {
+        "g_avg_match_pct": 45.5,
+        "i_avg_match_pct": 46.2,
+        "risk_avg_match_pct": 76.9,
+        "overall_avg_match_pct": 56.2,
+        "g_median_run_bdays": 4,
+        "i_median_run_bdays": 3,
+        "g_n_runs": 1014,
+        "i_n_runs": 973,
+        "per_anchor": [
+          {
+            "name": "2008 GFC trough",
+            "g_consensus": "Down",
+            "i_consensus": "Down",
+            "g_match_pct": 100.0,
+            "i_match_pct": 87.7,
+            "risk_match": true
+          },
+          {
+            "name": "2010-12 expansion",
+            "g_consensus": "Up",
+            "i_consensus": "Neutral",
+            "g_match_pct": 58.2,
+            "i_match_pct": 48.6,
+            "risk_match": true
+          },
+          {
+            "name": "2015-16 oil bust",
+            "g_consensus": "Neutral",
+            "i_consensus": "Down",
+            "g_match_pct": 27.2,
+            "i_match_pct": 100.0,
+            "risk_match": true
+          },
+          {
+            "name": "2017 Goldilocks",
+            "g_consensus": "Up",
+            "i_consensus": "Neutral",
+            "g_match_pct": 87.2,
+            "i_match_pct": 39.5,
+            "risk_match": true
+          },
+          {
+            "name": "2018 Q4 vol shock",
+            "g_consensus": "Up",
+            "i_consensus": "Neutral",
+            "g_match_pct": 9.1,
+            "i_match_pct": 21.2,
+            "risk_match": true
+          },
+          {
+            "name": "2019 H2 slowdown",
+            "g_consensus": "Neutral",
+            "i_consensus": "Neutral",
+            "g_match_pct": 20.5,
+            "i_match_pct": 22.0,
+            "risk_match": false
+          },
+          {
+            "name": "2020 COVID recession",
+            "g_consensus": "Down",
+            "i_consensus": "Neutral",
+            "g_match_pct": 100.0,
+            "i_match_pct": 0.0,
+            "risk_match": true
+          },
+          {
+            "name": "2020H2 catch-up",
+            "g_consensus": "Down",
+            "i_consensus": "Down",
+            "g_match_pct": 21.2,
+            "i_match_pct": 43.2,
+            "risk_match": true
+          },
+          {
+            "name": "2021 reflation",
+            "g_consensus": "Up",
+            "i_consensus": "Up",
+            "g_match_pct": 94.4,
+            "i_match_pct": 59.9,
+            "risk_match": true
+          },
+          {
+            "name": "2022 H1 inflation",
+            "g_consensus": "Up",
+            "i_consensus": "Up",
+            "g_match_pct": 33.8,
+            "i_match_pct": 58.4,
+            "risk_match": false
+          },
+          {
+            "name": "2023 high inflation",
+            "g_consensus": "Up",
+            "i_consensus": "Up",
+            "g_match_pct": 19.7,
+            "i_match_pct": 78.3,
+            "risk_match": true
+          },
+          {
+            "name": "2024 disinflation",
+            "g_consensus": "Up",
+            "i_consensus": "Neutral",
+            "g_match_pct": 10.3,
+            "i_match_pct": 35.9,
+            "risk_match": false
+          },
+          {
+            "name": "2025 tariff shock",
+            "g_consensus": "Neutral",
+            "i_consensus": "Up",
+            "g_match_pct": 9.4,
+            "i_match_pct": 6.2,
+            "risk_match": true
+          }
+        ],
+        "latencies": [
+          {
+            "probe": "COVID growth turn",
+            "axis": "growth",
+            "target": "Down",
+            "latency_bdays": 0
+          },
+          {
+            "probe": "COVID inflation collapse",
+            "axis": "inflation",
+            "target": "Down",
+            "latency_bdays": 0
+          },
+          {
+            "probe": "2021 reflation start",
+            "axis": "inflation",
+            "target": "Up",
+            "latency_bdays": 42
+          },
+          {
+            "probe": "2022 stagflation start",
+            "axis": "inflation",
+            "target": "Up",
+            "latency_bdays": 0
+          },
+          {
+            "probe": "2024 inflation cooling",
+            "axis": "inflation",
+            "target": "Neutral",
+            "latency_bdays": 0
+          }
+        ]
+      },
+      "composite": 57.25,
+      "is_baseline": false
+    },
+    {
+      "params": {
+        "min_weight": 0.1,
+        "growth_thresh": 0.1,
+        "inflation_thresh": 0.12,
+        "axis_min_consecutive": 10,
+        "macro_g_w": 0.5,
+        "macro_i_w": 0.5,
+        "market_g_w": 0.5,
+        "market_i_w": 0.5,
+        "blend_name": "balanced"
+      },
+      "metrics": {
+        "g_avg_match_pct": 45.5,
+        "i_avg_match_pct": 46.2,
+        "risk_avg_match_pct": 76.9,
+        "overall_avg_match_pct": 56.2,
+        "g_median_run_bdays": 4,
+        "i_median_run_bdays": 3,
+        "g_n_runs": 1014,
+        "i_n_runs": 973,
+        "per_anchor": [
+          {
+            "name": "2008 GFC trough",
+            "g_consensus": "Down",
+            "i_consensus": "Down",
+            "g_match_pct": 100.0,
+            "i_match_pct": 87.7,
+            "risk_match": true
+          },
+          {
+            "name": "2010-12 expansion",
+            "g_consensus": "Up",
+            "i_consensus": "Neutral",
+            "g_match_pct": 58.2,
+            "i_match_pct": 48.6,
+            "risk_match": true
+          },
+          {
+            "name": "2015-16 oil bust",
+            "g_consensus": "Neutral",
+            "i_consensus": "Down",
+            "g_match_pct": 27.2,
+            "i_match_pct": 100.0,
+            "risk_match": true
+          },
+          {
+            "name": "2017 Goldilocks",
+            "g_consensus": "Up",
+            "i_consensus": "Neutral",
+            "g_match_pct": 87.2,
+            "i_match_pct": 39.5,
+            "risk_match": true
+          },
+          {
+            "name": "2018 Q4 vol shock",
+            "g_consensus": "Up",
+            "i_consensus": "Neutral",
+            "g_match_pct": 9.1,
+            "i_match_pct": 21.2,
+            "risk_match": true
+          },
+          {
+            "name": "2019 H2 slowdown",
+            "g_consensus": "Neutral",
+            "i_consensus": "Neutral",
+            "g_match_pct": 20.5,
+            "i_match_pct": 22.0,
+            "risk_match": false
+          },
+          {
+            "name": "2020 COVID recession",
+            "g_consensus": "Down",
+            "i_consensus": "Neutral",
+            "g_match_pct": 100.0,
+            "i_match_pct": 0.0,
+            "risk_match": true
+          },
+          {
+            "name": "2020H2 catch-up",
+            "g_consensus": "Down",
+            "i_consensus": "Down",
+            "g_match_pct": 21.2,
+            "i_match_pct": 43.2,
+            "risk_match": true
+          },
+          {
+            "name": "2021 reflation",
+            "g_consensus": "Up",
+            "i_consensus": "Up",
+            "g_match_pct": 94.4,
+            "i_match_pct": 59.9,
+            "risk_match": true
+          },
+          {
+            "name": "2022 H1 inflation",
+            "g_consensus": "Up",
+            "i_consensus": "Up",
+            "g_match_pct": 33.8,
+            "i_match_pct": 58.4,
+            "risk_match": false
+          },
+          {
+            "name": "2023 high inflation",
+            "g_consensus": "Up",
+            "i_consensus": "Up",
+            "g_match_pct": 19.7,
+            "i_match_pct": 78.3,
+            "risk_match": true
+          },
+          {
+            "name": "2024 disinflation",
+            "g_consensus": "Up",
+            "i_consensus": "Neutral",
+            "g_match_pct": 10.3,
+            "i_match_pct": 35.9,
+            "risk_match": false
+          },
+          {
+            "name": "2025 tariff shock",
+            "g_consensus": "Neutral",
+            "i_consensus": "Up",
+            "g_match_pct": 9.4,
+            "i_match_pct": 6.2,
+            "risk_match": true
+          }
+        ],
+        "latencies": [
+          {
+            "probe": "COVID growth turn",
+            "axis": "growth",
+            "target": "Down",
+            "latency_bdays": 0
+          },
+          {
+            "probe": "COVID inflation collapse",
+            "axis": "inflation",
+            "target": "Down",
+            "latency_bdays": 0
+          },
+          {
+            "probe": "2021 reflation start",
+            "axis": "inflation",
+            "target": "Up",
+            "latency_bdays": 42
+          },
+          {
+            "probe": "2022 stagflation start",
+            "axis": "inflation",
+            "target": "Up",
+            "latency_bdays": 0
+          },
+          {
+            "probe": "2024 inflation cooling",
+            "axis": "inflation",
+            "target": "Neutral",
+            "latency_bdays": 0
+          }
+        ]
+      },
+      "composite": 57.25,
+      "is_baseline": false
+    },
+    {
+      "params": {
+        "min_weight": 0.3,
+        "growth_thresh": 0.1,
+        "inflation_thresh": 0.12,
+        "axis_min_consecutive": 5,
+        "macro_g_w": 0.5,
+        "macro_i_w": 0.5,
+        "market_g_w": 0.5,
+        "market_i_w": 0.5,
+        "blend_name": "balanced"
+      },
+      "metrics": {
+        "g_avg_match_pct": 45.4,
+        "i_avg_match_pct": 46.2,
+        "risk_avg_match_pct": 76.9,
+        "overall_avg_match_pct": 56.2,
+        "g_median_run_bdays": 4,
+        "i_median_run_bdays": 3,
+        "g_n_runs": 990,
+        "i_n_runs": 973,
+        "per_anchor": [
+          {
+            "name": "2008 GFC trough",
+            "g_consensus": "Down",
+            "i_consensus": "Down",
+            "g_match_pct": 100.0,
+            "i_match_pct": 87.7,
+            "risk_match": true
+          },
+          {
+            "name": "2010-12 expansion",
+            "g_consensus": "Up",
+            "i_consensus": "Neutral",
+            "g_match_pct": 58.2,
+            "i_match_pct": 48.6,
+            "risk_match": true
+          },
+          {
+            "name": "2015-16 oil bust",
+            "g_consensus": "Neutral",
+            "i_consensus": "Down",
+            "g_match_pct": 27.2,
+            "i_match_pct": 100.0,
+            "risk_match": true
+          },
+          {
+            "name": "2017 Goldilocks",
+            "g_consensus": "Up",
+            "i_consensus": "Neutral",
+            "g_match_pct": 87.2,
+            "i_match_pct": 39.5,
+            "risk_match": true
+          },
+          {
+            "name": "2018 Q4 vol shock",
+            "g_consensus": "Up",
+            "i_consensus": "Neutral",
+            "g_match_pct": 9.1,
+            "i_match_pct": 21.2,
+            "risk_match": true
+          },
+          {
+            "name": "2019 H2 slowdown",
+            "g_consensus": "Neutral",
+            "i_consensus": "Neutral",
+            "g_match_pct": 20.5,
+            "i_match_pct": 22.0,
+            "risk_match": false
+          },
+          {
+            "name": "2020 COVID recession",
+            "g_consensus": "Down",
+            "i_consensus": "Neutral",
+            "g_match_pct": 100.0,
+            "i_match_pct": 0.0,
+            "risk_match": true
+          },
+          {
+            "name": "2020H2 catch-up",
+            "g_consensus": "Down",
+            "i_consensus": "Down",
+            "g_match_pct": 6.8,
+            "i_match_pct": 43.2,
+            "risk_match": true
+          },
+          {
+            "name": "2021 reflation",
+            "g_consensus": "Up",
+            "i_consensus": "Up",
+            "g_match_pct": 94.4,
+            "i_match_pct": 59.9,
+            "risk_match": true
+          },
+          {
+            "name": "2022 H1 inflation",
+            "g_consensus": "Up",
+            "i_consensus": "Up",
+            "g_match_pct": 34.4,
+            "i_match_pct": 58.4,
+            "risk_match": false
+          },
+          {
+            "name": "2023 high inflation",
+            "g_consensus": "Up",
+            "i_consensus": "Up",
+            "g_match_pct": 24.3,
+            "i_match_pct": 78.3,
+            "risk_match": true
+          },
+          {
+            "name": "2024 disinflation",
+            "g_consensus": "Up",
+            "i_consensus": "Neutral",
+            "g_match_pct": 16.0,
+            "i_match_pct": 35.9,
+            "risk_match": false
+          },
+          {
+            "name": "2025 tariff shock",
+            "g_consensus": "Neutral",
+            "i_consensus": "Up",
+            "g_match_pct": 12.5,
+            "i_match_pct": 6.2,
+            "risk_match": true
+          }
+        ],
+        "latencies": [
+          {
+            "probe": "COVID growth turn",
+            "axis": "growth",
+            "target": "Down",
+            "latency_bdays": 0
+          },
+          {
+            "probe": "COVID inflation collapse",
+            "axis": "inflation",
+            "target": "Down",
+            "latency_bdays": 0
+          },
+          {
+            "probe": "2021 reflation start",
+            "axis": "inflation",
+            "target": "Up",
+            "latency_bdays": 42
+          },
+          {
+            "probe": "2022 stagflation start",
+            "axis": "inflation",
+            "target": "Up",
+            "latency_bdays": 0
+          },
+          {
+            "probe": "2024 inflation cooling",
+            "axis": "inflation",
+            "target": "Neutral",
+            "latency_bdays": 0
+          }
+        ]
+      },
+      "composite": 57.25,
+      "is_baseline": false
+    },
+    {
+      "params": {
+        "min_weight": 0.3,
+        "growth_thresh": 0.1,
+        "inflation_thresh": 0.12,
+        "axis_min_consecutive": 10,
+        "macro_g_w": 0.5,
+        "macro_i_w": 0.5,
+        "market_g_w": 0.5,
+        "market_i_w": 0.5,
+        "blend_name": "balanced"
+      },
+      "metrics": {
+        "g_avg_match_pct": 45.4,
+        "i_avg_match_pct": 46.2,
+        "risk_avg_match_pct": 76.9,
+        "overall_avg_match_pct": 56.2,
+        "g_median_run_bdays": 4,
+        "i_median_run_bdays": 3,
+        "g_n_runs": 990,
+        "i_n_runs": 973,
+        "per_anchor": [
+          {
+            "name": "2008 GFC trough",
+            "g_consensus": "Down",
+            "i_consensus": "Down",
+            "g_match_pct": 100.0,
+            "i_match_pct": 87.7,
+            "risk_match": true
+          },
+          {
+            "name": "2010-12 expansion",
+            "g_consensus": "Up",
+            "i_consensus": "Neutral",
+            "g_match_pct": 58.2,
+            "i_match_pct": 48.6,
+            "risk_match": true
+          },
+          {
+            "name": "2015-16 oil bust",
+            "g_consensus": "Neutral",
+            "i_consensus": "Down",
+            "g_match_pct": 27.2,
+            "i_match_pct": 100.0,
+            "risk_match": true
+          },
+          {
+            "name": "2017 Goldilocks",
+            "g_consensus": "Up",
+            "i_consensus": "Neutral",
+            "g_match_pct": 87.2,
+            "i_match_pct": 39.5,
+            "risk_match": true
+          },
+          {
+            "name": "2018 Q4 vol shock",
+            "g_consensus": "Up",
+            "i_consensus": "Neutral",
+            "g_match_pct": 9.1,
+            "i_match_pct": 21.2,
+            "risk_match": true
+          },
+          {
+            "name": "2019 H2 slowdown",
+            "g_consensus": "Neutral",
+            "i_consensus": "Neutral",
+            "g_match_pct": 20.5,
+            "i_match_pct": 22.0,
+            "risk_match": false
+          },
+          {
+            "name": "2020 COVID recession",
+            "g_consensus": "Down",
+            "i_consensus": "Neutral",
+            "g_match_pct": 100.0,
+            "i_match_pct": 0.0,
+            "risk_match": true
+          },
+          {
+            "name": "2020H2 catch-up",
+            "g_consensus": "Down",
+            "i_consensus": "Down",
+            "g_match_pct": 6.8,
+            "i_match_pct": 43.2,
+            "risk_match": true
+          },
+          {
+            "name": "2021 reflation",
+            "g_consensus": "Up",
+            "i_consensus": "Up",
+            "g_match_pct": 94.4,
+            "i_match_pct": 59.9,
+            "risk_match": true
+          },
+          {
+            "name": "2022 H1 inflation",
+            "g_consensus": "Up",
+            "i_consensus": "Up",
+            "g_match_pct": 34.4,
+            "i_match_pct": 58.4,
+            "risk_match": false
+          },
+          {
+            "name": "2023 high inflation",
+            "g_consensus": "Up",
+            "i_consensus": "Up",
+            "g_match_pct": 24.3,
+            "i_match_pct": 78.3,
+            "risk_match": true
+          },
+          {
+            "name": "2024 disinflation",
+            "g_consensus": "Up",
+            "i_consensus": "Neutral",
+            "g_match_pct": 16.0,
+            "i_match_pct": 35.9,
+            "risk_match": false
+          },
+          {
+            "name": "2025 tariff shock",
+            "g_consensus": "Neutral",
+            "i_consensus": "Up",
+            "g_match_pct": 12.5,
+            "i_match_pct": 6.2,
+            "risk_match": true
+          }
+        ],
+        "latencies": [
+          {
+            "probe": "COVID growth turn",
+            "axis": "growth",
+            "target": "Down",
+            "latency_bdays": 0
+          },
+          {
+            "probe": "COVID inflation collapse",
+            "axis": "inflation",
+            "target": "Down",
+            "latency_bdays": 0
+          },
+          {
+            "probe": "2021 reflation start",
+            "axis": "inflation",
+            "target": "Up",
+            "latency_bdays": 42
+          },
+          {
+            "probe": "2022 stagflation start",
+            "axis": "inflation",
+            "target": "Up",
+            "latency_bdays": 0
+          },
+          {
+            "probe": "2024 inflation cooling",
+            "axis": "inflation",
+            "target": "Neutral",
+            "latency_bdays": 0
+          }
+        ]
+      },
+      "composite": 57.25,
+      "is_baseline": false
+    },
+    {
+      "params": {
+        "min_weight": 0.65,
+        "growth_thresh": 0.1,
+        "inflation_thresh": 0.18,
+        "axis_min_consecutive": 5,
+        "macro_g_w": 0.5,
+        "macro_i_w": 0.5,
+        "market_g_w": 0.5,
+        "market_i_w": 0.5,
+        "blend_name": "balanced"
+      },
+      "metrics": {
+        "g_avg_match_pct": 45.6,
+        "i_avg_match_pct": 45.0,
+        "risk_avg_match_pct": 76.9,
+        "overall_avg_match_pct": 55.9,
+        "g_median_run_bdays": 4,
+        "i_median_run_bdays": 4,
+        "g_n_runs": 972,
+        "i_n_runs": 808,
+        "per_anchor": [
+          {
+            "name": "2008 GFC trough",
+            "g_consensus": "Down",
+            "i_consensus": "Down",
+            "g_match_pct": 100.0,
+            "i_match_pct": 69.2,
+            "risk_match": true
+          },
+          {
+            "name": "2010-12 expansion",
+            "g_consensus": "Up",
+            "i_consensus": "Neutral",
+            "g_match_pct": 58.4,
+            "i_match_pct": 63.7,
+            "risk_match": true
+          },
+          {
+            "name": "2015-16 oil bust",
+            "g_consensus": "Neutral",
+            "i_consensus": "Down",
+            "g_match_pct": 26.5,
+            "i_match_pct": 100.0,
+            "risk_match": true
+          },
+          {
+            "name": "2017 Goldilocks",
+            "g_consensus": "Up",
+            "i_consensus": "Neutral",
+            "g_match_pct": 87.7,
+            "i_match_pct": 50.8,
+            "risk_match": true
+          },
+          {
+            "name": "2018 Q4 vol shock",
+            "g_consensus": "Up",
+            "i_consensus": "Neutral",
+            "g_match_pct": 9.1,
+            "i_match_pct": 34.8,
+            "risk_match": true
+          },
+          {
+            "name": "2019 H2 slowdown",
+            "g_consensus": "Neutral",
+            "i_consensus": "Neutral",
+            "g_match_pct": 20.5,
+            "i_match_pct": 39.4,
+            "risk_match": false
+          },
+          {
+            "name": "2020 COVID recession",
+            "g_consensus": "Down",
+            "i_consensus": "Neutral",
+            "g_match_pct": 100.0,
+            "i_match_pct": 0.0,
+            "risk_match": true
+          },
+          {
+            "name": "2020H2 catch-up",
+            "g_consensus": "Down",
+            "i_consensus": "Down",
+            "g_match_pct": 0.8,
+            "i_match_pct": 22.0,
+            "risk_match": true
+          },
+          {
+            "name": "2021 reflation",
+            "g_consensus": "Up",
+            "i_consensus": "Up",
+            "g_match_pct": 94.4,
+            "i_match_pct": 40.6,
+            "risk_match": true
+          },
+          {
+            "name": "2022 H1 inflation",
+            "g_consensus": "Up",
+            "i_consensus": "Up",
+            "g_match_pct": 33.8,
+            "i_match_pct": 51.3,
+            "risk_match": false
+          },
+          {
+            "name": "2023 high inflation",
+            "g_consensus": "Up",
+            "i_consensus": "Up",
+            "g_match_pct": 29.6,
+            "i_match_pct": 63.8,
+            "risk_match": true
+          },
+          {
+            "name": "2024 disinflation",
+            "g_consensus": "Up",
+            "i_consensus": "Neutral",
+            "g_match_pct": 19.8,
+            "i_match_pct": 46.9,
+            "risk_match": false
+          },
+          {
+            "name": "2025 tariff shock",
+            "g_consensus": "Neutral",
+            "i_consensus": "Up",
+            "g_match_pct": 12.5,
+            "i_match_pct": 3.1,
+            "risk_match": true
+          }
+        ],
+        "latencies": [
+          {
+            "probe": "COVID growth turn",
+            "axis": "growth",
+            "target": "Down",
+            "latency_bdays": 0
+          },
+          {
+            "probe": "COVID inflation collapse",
+            "axis": "inflation",
+            "target": "Down",
+            "latency_bdays": 0
+          },
+          {
+            "probe": "2021 reflation start",
+            "axis": "inflation",
+            "target": "Up",
+            "latency_bdays": 47
+          },
+          {
+            "probe": "2022 stagflation start",
+            "axis": "inflation",
+            "target": "Up",
+            "latency_bdays": 0
+          },
+          {
+            "probe": "2024 inflation cooling",
+            "axis": "inflation",
+            "target": "Neutral",
+            "latency_bdays": 0
+          }
+        ]
+      },
+      "composite": 57.1,
+      "is_baseline": false
+    },
+    {
+      "params": {
+        "min_weight": 0.65,
+        "growth_thresh": 0.1,
+        "inflation_thresh": 0.18,
+        "axis_min_consecutive": 10,
+        "macro_g_w": 0.5,
+        "macro_i_w": 0.5,
+        "market_g_w": 0.5,
+        "market_i_w": 0.5,
+        "blend_name": "balanced"
+      },
+      "metrics": {
+        "g_avg_match_pct": 45.6,
+        "i_avg_match_pct": 45.0,
+        "risk_avg_match_pct": 76.9,
+        "overall_avg_match_pct": 55.9,
+        "g_median_run_bdays": 4,
+        "i_median_run_bdays": 4,
+        "g_n_runs": 972,
+        "i_n_runs": 808,
+        "per_anchor": [
+          {
+            "name": "2008 GFC trough",
+            "g_consensus": "Down",
+            "i_consensus": "Down",
+            "g_match_pct": 100.0,
+            "i_match_pct": 69.2,
+            "risk_match": true
+          },
+          {
+            "name": "2010-12 expansion",
+            "g_consensus": "Up",
+            "i_consensus": "Neutral",
+            "g_match_pct": 58.4,
+            "i_match_pct": 63.7,
+            "risk_match": true
+          },
+          {
+            "name": "2015-16 oil bust",
+            "g_consensus": "Neutral",
+            "i_consensus": "Down",
+            "g_match_pct": 26.5,
+            "i_match_pct": 100.0,
+            "risk_match": true
+          },
+          {
+            "name": "2017 Goldilocks",
+            "g_consensus": "Up",
+            "i_consensus": "Neutral",
+            "g_match_pct": 87.7,
+            "i_match_pct": 50.8,
+            "risk_match": true
+          },
+          {
+            "name": "2018 Q4 vol shock",
+            "g_consensus": "Up",
+            "i_consensus": "Neutral",
+            "g_match_pct": 9.1,
+            "i_match_pct": 34.8,
+            "risk_match": true
+          },
+          {
+            "name": "2019 H2 slowdown",
+            "g_consensus": "Neutral",
+            "i_consensus": "Neutral",
+            "g_match_pct": 20.5,
+            "i_match_pct": 39.4,
+            "risk_match": false
+          },
+          {
+            "name": "2020 COVID recession",
+            "g_consensus": "Down",
+            "i_consensus": "Neutral",
+            "g_match_pct": 100.0,
+            "i_match_pct": 0.0,
+            "risk_match": true
+          },
+          {
+            "name": "2020H2 catch-up",
+            "g_consensus": "Down",
+            "i_consensus": "Down",
+            "g_match_pct": 0.8,
+            "i_match_pct": 22.0,
+            "risk_match": true
+          },
+          {
+            "name": "2021 reflation",
+            "g_consensus": "Up",
+            "i_consensus": "Up",
+            "g_match_pct": 94.4,
+            "i_match_pct": 40.6,
+            "risk_match": true
+          },
+          {
+            "name": "2022 H1 inflation",
+            "g_consensus": "Up",
+            "i_consensus": "Up",
+            "g_match_pct": 33.8,
+            "i_match_pct": 51.3,
+            "risk_match": false
+          },
+          {
+            "name": "2023 high inflation",
+            "g_consensus": "Up",
+            "i_consensus": "Up",
+            "g_match_pct": 29.6,
+            "i_match_pct": 63.8,
+            "risk_match": true
+          },
+          {
+            "name": "2024 disinflation",
+            "g_consensus": "Up",
+            "i_consensus": "Neutral",
+            "g_match_pct": 19.8,
+            "i_match_pct": 46.9,
+            "risk_match": false
+          },
+          {
+            "name": "2025 tariff shock",
+            "g_consensus": "Neutral",
+            "i_consensus": "Up",
+            "g_match_pct": 12.5,
+            "i_match_pct": 3.1,
+            "risk_match": true
+          }
+        ],
+        "latencies": [
+          {
+            "probe": "COVID growth turn",
+            "axis": "growth",
+            "target": "Down",
+            "latency_bdays": 0
+          },
+          {
+            "probe": "COVID inflation collapse",
+            "axis": "inflation",
+            "target": "Down",
+            "latency_bdays": 0
+          },
+          {
+            "probe": "2021 reflation start",
+            "axis": "inflation",
+            "target": "Up",
+            "latency_bdays": 47
+          },
+          {
+            "probe": "2022 stagflation start",
+            "axis": "inflation",
+            "target": "Up",
+            "latency_bdays": 0
+          },
+          {
+            "probe": "2024 inflation cooling",
+            "axis": "inflation",
+            "target": "Neutral",
+            "latency_bdays": 0
+          }
+        ]
+      },
+      "composite": 57.1,
+      "is_baseline": false
+    },
+    {
+      "params": {
+        "min_weight": 0.1,
+        "growth_thresh": 0.1,
+        "inflation_thresh": 0.18,
+        "axis_min_consecutive": 5,
+        "macro_g_w": 0.5,
+        "macro_i_w": 0.5,
+        "market_g_w": 0.5,
+        "market_i_w": 0.5,
+        "blend_name": "balanced"
+      },
+      "metrics": {
+        "g_avg_match_pct": 45.5,
+        "i_avg_match_pct": 44.7,
+        "risk_avg_match_pct": 76.9,
+        "overall_avg_match_pct": 55.7,
+        "g_median_run_bdays": 4,
+        "i_median_run_bdays": 5,
+        "g_n_runs": 1014,
+        "i_n_runs": 822,
+        "per_anchor": [
+          {
+            "name": "2008 GFC trough",
+            "g_consensus": "Down",
+            "i_consensus": "Down",
+            "g_match_pct": 100.0,
+            "i_match_pct": 69.2,
+            "risk_match": true
+          },
+          {
+            "name": "2010-12 expansion",
+            "g_consensus": "Up",
+            "i_consensus": "Neutral",
+            "g_match_pct": 58.2,
+            "i_match_pct": 63.6,
+            "risk_match": true
+          },
+          {
+            "name": "2015-16 oil bust",
+            "g_consensus": "Neutral",
+            "i_consensus": "Down",
+            "g_match_pct": 27.2,
+            "i_match_pct": 100.0,
+            "risk_match": true
+          },
+          {
+            "name": "2017 Goldilocks",
+            "g_consensus": "Up",
+            "i_consensus": "Neutral",
+            "g_match_pct": 87.2,
+            "i_match_pct": 50.8,
+            "risk_match": true
+          },
+          {
+            "name": "2018 Q4 vol shock",
+            "g_consensus": "Up",
+            "i_consensus": "Neutral",
+            "g_match_pct": 9.1,
+            "i_match_pct": 33.3,
+            "risk_match": true
+          },
+          {
+            "name": "2019 H2 slowdown",
+            "g_consensus": "Neutral",
+            "i_consensus": "Neutral",
+            "g_match_pct": 20.5,
+            "i_match_pct": 38.6,
+            "risk_match": false
+          },
+          {
+            "name": "2020 COVID recession",
+            "g_consensus": "Down",
+            "i_consensus": "Neutral",
+            "g_match_pct": 100.0,
+            "i_match_pct": 0.0,
+            "risk_match": true
+          },
+          {
+            "name": "2020H2 catch-up",
+            "g_consensus": "Down",
+            "i_consensus": "Down",
+            "g_match_pct": 21.2,
+            "i_match_pct": 21.2,
+            "risk_match": true
+          },
+          {
+            "name": "2021 reflation",
+            "g_consensus": "Up",
+            "i_consensus": "Up",
+            "g_match_pct": 94.4,
+            "i_match_pct": 40.1,
+            "risk_match": true
+          },
+          {
+            "name": "2022 H1 inflation",
+            "g_consensus": "Up",
+            "i_consensus": "Up",
+            "g_match_pct": 33.8,
+            "i_match_pct": 51.3,
+            "risk_match": false
+          },
+          {
+            "name": "2023 high inflation",
+            "g_consensus": "Up",
+            "i_consensus": "Up",
+            "g_match_pct": 19.7,
+            "i_match_pct": 63.2,
+            "risk_match": true
+          },
+          {
+            "name": "2024 disinflation",
+            "g_consensus": "Up",
+            "i_consensus": "Neutral",
+            "g_match_pct": 10.3,
+            "i_match_pct": 47.3,
+            "risk_match": false
+          },
+          {
+            "name": "2025 tariff shock",
+            "g_consensus": "Neutral",
+            "i_consensus": "Up",
+            "g_match_pct": 9.4,
+            "i_match_pct": 3.1,
+            "risk_match": true
+          }
+        ],
+        "latencies": [
+          {
+            "probe": "COVID growth turn",
+            "axis": "growth",
+            "target": "Down",
+            "latency_bdays": 0
+          },
+          {
+            "probe": "COVID inflation collapse",
+            "axis": "inflation",
+            "target": "Down",
+            "latency_bdays": 0
+          },
+          {
+            "probe": "2021 reflation start",
+            "axis": "inflation",
+            "target": "Up",
+            "latency_bdays": 43
+          },
+          {
+            "probe": "2022 stagflation start",
+            "axis": "inflation",
+            "target": "Up",
+            "latency_bdays": 0
+          },
+          {
+            "probe": "2024 inflation cooling",
+            "axis": "inflation",
+            "target": "Neutral",
+            "latency_bdays": 0
+          }
+        ]
+      },
+      "composite": 57.050000000000004,
+      "is_baseline": false
+    },
+    {
+      "params": {
+        "min_weight": 0.1,
+        "growth_thresh": 0.1,
+        "inflation_thresh": 0.18,
+        "axis_min_consecutive": 10,
+        "macro_g_w": 0.5,
+        "macro_i_w": 0.5,
+        "market_g_w": 0.5,
+        "market_i_w": 0.5,
+        "blend_name": "balanced"
+      },
+      "metrics": {
+        "g_avg_match_pct": 45.5,
+        "i_avg_match_pct": 44.7,
+        "risk_avg_match_pct": 76.9,
+        "overall_avg_match_pct": 55.7,
+        "g_median_run_bdays": 4,
+        "i_median_run_bdays": 5,
+        "g_n_runs": 1014,
+        "i_n_runs": 822,
+        "per_anchor": [
+          {
+            "name": "2008 GFC trough",
+            "g_consensus": "Down",
+            "i_consensus": "Down",
+            "g_match_pct": 100.0,
+            "i_match_pct": 69.2,
+            "risk_match": true
+          },
+          {
+            "name": "2010-12 expansion",
+            "g_consensus": "Up",
+            "i_consensus": "Neutral",
+            "g_match_pct": 58.2,
+            "i_match_pct": 63.6,
+            "risk_match": true
+          },
+          {
+            "name": "2015-16 oil bust",
+            "g_consensus": "Neutral",
+            "i_consensus": "Down",
+            "g_match_pct": 27.2,
+            "i_match_pct": 100.0,
+            "risk_match": true
+          },
+          {
+            "name": "2017 Goldilocks",
+            "g_consensus": "Up",
+            "i_consensus": "Neutral",
+            "g_match_pct": 87.2,
+            "i_match_pct": 50.8,
+            "risk_match": true
+          },
+          {
+            "name": "2018 Q4 vol shock",
+            "g_consensus": "Up",
+            "i_consensus": "Neutral",
+            "g_match_pct": 9.1,
+            "i_match_pct": 33.3,
+            "risk_match": true
+          },
+          {
+            "name": "2019 H2 slowdown",
+            "g_consensus": "Neutral",
+            "i_consensus": "Neutral",
+            "g_match_pct": 20.5,
+            "i_match_pct": 38.6,
+            "risk_match": false
+          },
+          {
+            "name": "2020 COVID recession",
+            "g_consensus": "Down",
+            "i_consensus": "Neutral",
+            "g_match_pct": 100.0,
+            "i_match_pct": 0.0,
+            "risk_match": true
+          },
+          {
+            "name": "2020H2 catch-up",
+            "g_consensus": "Down",
+            "i_consensus": "Down",
+            "g_match_pct": 21.2,
+            "i_match_pct": 21.2,
+            "risk_match": true
+          },
+          {
+            "name": "2021 reflation",
+            "g_consensus": "Up",
+            "i_consensus": "Up",
+            "g_match_pct": 94.4,
+            "i_match_pct": 40.1,
+            "risk_match": true
+          },
+          {
+            "name": "2022 H1 inflation",
+            "g_consensus": "Up",
+            "i_consensus": "Up",
+            "g_match_pct": 33.8,
+            "i_match_pct": 51.3,
+            "risk_match": false
+          },
+          {
+            "name": "2023 high inflation",
+            "g_consensus": "Up",
+            "i_consensus": "Up",
+            "g_match_pct": 19.7,
+            "i_match_pct": 63.2,
+            "risk_match": true
+          },
+          {
+            "name": "2024 disinflation",
+            "g_consensus": "Up",
+            "i_consensus": "Neutral",
+            "g_match_pct": 10.3,
+            "i_match_pct": 47.3,
+            "risk_match": false
+          },
+          {
+            "name": "2025 tariff shock",
+            "g_consensus": "Neutral",
+            "i_consensus": "Up",
+            "g_match_pct": 9.4,
+            "i_match_pct": 3.1,
+            "risk_match": true
+          }
+        ],
+        "latencies": [
+          {
+            "probe": "COVID growth turn",
+            "axis": "growth",
+            "target": "Down",
+            "latency_bdays": 0
+          },
+          {
+            "probe": "COVID inflation collapse",
+            "axis": "inflation",
+            "target": "Down",
+            "latency_bdays": 0
+          },
+          {
+            "probe": "2021 reflation start",
+            "axis": "inflation",
+            "target": "Up",
+            "latency_bdays": 43
+          },
+          {
+            "probe": "2022 stagflation start",
+            "axis": "inflation",
+            "target": "Up",
+            "latency_bdays": 0
+          },
+          {
+            "probe": "2024 inflation cooling",
+            "axis": "inflation",
+            "target": "Neutral",
+            "latency_bdays": 0
+          }
+        ]
+      },
+      "composite": 57.050000000000004,
+      "is_baseline": false
+    }
+  ],
+  "pareto_front_count": 10,
+  "pareto_front_top10": [
+    {
+      "params": {
+        "min_weight": 0.65,
+        "growth_thresh": 0.1,
+        "inflation_thresh": 0.12,
+        "axis_min_consecutive": 5,
+        "macro_g_w": 0.5,
+        "macro_i_w": 0.5,
+        "market_g_w": 0.5,
+        "market_i_w": 0.5,
+        "blend_name": "balanced"
+      },
+      "metrics": {
+        "g_avg_match_pct": 45.6,
+        "i_avg_match_pct": 46.5,
+        "risk_avg_match_pct": 76.9,
+        "overall_avg_match_pct": 56.3,
+        "g_median_run_bdays": 4,
+        "i_median_run_bdays": 4,
+        "g_n_runs": 972,
+        "i_n_runs": 923,
+        "per_anchor": [
+          {
+            "name": "2008 GFC trough",
+            "g_consensus": "Down",
+            "i_consensus": "Down",
+            "g_match_pct": 100.0,
+            "i_match_pct": 88.5,
+            "risk_match": true
+          },
+          {
+            "name": "2010-12 expansion",
+            "g_consensus": "Up",
+            "i_consensus": "Neutral",
+            "g_match_pct": 58.4,
+            "i_match_pct": 49.5,
+            "risk_match": true
+          },
+          {
+            "name": "2015-16 oil bust",
+            "g_consensus": "Neutral",
+            "i_consensus": "Down",
+            "g_match_pct": 26.5,
+            "i_match_pct": 100.0,
+            "risk_match": true
+          },
+          {
+            "name": "2017 Goldilocks",
+            "g_consensus": "Up",
+            "i_consensus": "Neutral",
+            "g_match_pct": 87.7,
+            "i_match_pct": 39.0,
+            "risk_match": true
+          },
+          {
+            "name": "2018 Q4 vol shock",
+            "g_consensus": "Up",
+            "i_consensus": "Neutral",
+            "g_match_pct": 9.1,
+            "i_match_pct": 19.7,
+            "risk_match": true
+          },
+          {
+            "name": "2019 H2 slowdown",
+            "g_consensus": "Neutral",
+            "i_consensus": "Neutral",
+            "g_match_pct": 20.5,
+            "i_match_pct": 25.0,
+            "risk_match": false
+          },
+          {
+            "name": "2020 COVID recession",
+            "g_consensus": "Down",
+            "i_consensus": "Neutral",
+            "g_match_pct": 100.0,
+            "i_match_pct": 0.0,
+            "risk_match": true
+          },
+          {
+            "name": "2020H2 catch-up",
+            "g_consensus": "Down",
+            "i_consensus": "Down",
+            "g_match_pct": 0.8,
+            "i_match_pct": 40.9,
+            "risk_match": true
+          },
+          {
+            "name": "2021 reflation",
+            "g_consensus": "Up",
+            "i_consensus": "Up",
+            "g_match_pct": 94.4,
+            "i_match_pct": 60.4,
+            "risk_match": true
+          },
+          {
+            "name": "2022 H1 inflation",
+            "g_consensus": "Up",
+            "i_consensus": "Up",
+            "g_match_pct": 33.8,
+            "i_match_pct": 59.1,
+            "risk_match": false
+          },
+          {
+            "name": "2023 high inflation",
+            "g_consensus": "Up",
+            "i_consensus": "Up",
+            "g_match_pct": 29.6,
+            "i_match_pct": 80.3,
+            "risk_match": true
+          },
+          {
+            "name": "2024 disinflation",
+            "g_consensus": "Up",
+            "i_consensus": "Neutral",
+            "g_match_pct": 19.8,
+            "i_match_pct": 35.5,
+            "risk_match": false
+          },
+          {
+            "name": "2025 tariff shock",
+            "g_consensus": "Neutral",
+            "i_consensus": "Up",
+            "g_match_pct": 12.5,
+            "i_match_pct": 6.2,
+            "risk_match": true
+          }
+        ],
+        "latencies": [
+          {
+            "probe": "COVID growth turn",
+            "axis": "growth",
+            "target": "Down",
+            "latency_bdays": 0
+          },
+          {
+            "probe": "COVID inflation collapse",
+            "axis": "inflation",
+            "target": "Down",
+            "latency_bdays": 0
+          },
+          {
+            "probe": "2021 reflation start",
+            "axis": "inflation",
+            "target": "Up",
+            "latency_bdays": 42
+          },
+          {
+            "probe": "2022 stagflation start",
+            "axis": "inflation",
+            "target": "Up",
+            "latency_bdays": 0
+          },
+          {
+            "probe": "2024 inflation cooling",
+            "axis": "inflation",
+            "target": "Neutral",
+            "latency_bdays": 0
+          }
+        ]
+      },
+      "composite": 57.5,
+      "is_baseline": false
+    },
+    {
+      "params": {
+        "min_weight": 0.65,
+        "growth_thresh": 0.1,
+        "inflation_thresh": 0.12,
+        "axis_min_consecutive": 10,
+        "macro_g_w": 0.5,
+        "macro_i_w": 0.5,
+        "market_g_w": 0.5,
+        "market_i_w": 0.5,
+        "blend_name": "balanced"
+      },
+      "metrics": {
+        "g_avg_match_pct": 45.6,
+        "i_avg_match_pct": 46.5,
+        "risk_avg_match_pct": 76.9,
+        "overall_avg_match_pct": 56.3,
+        "g_median_run_bdays": 4,
+        "i_median_run_bdays": 4,
+        "g_n_runs": 972,
+        "i_n_runs": 923,
+        "per_anchor": [
+          {
+            "name": "2008 GFC trough",
+            "g_consensus": "Down",
+            "i_consensus": "Down",
+            "g_match_pct": 100.0,
+            "i_match_pct": 88.5,
+            "risk_match": true
+          },
+          {
+            "name": "2010-12 expansion",
+            "g_consensus": "Up",
+            "i_consensus": "Neutral",
+            "g_match_pct": 58.4,
+            "i_match_pct": 49.5,
+            "risk_match": true
+          },
+          {
+            "name": "2015-16 oil bust",
+            "g_consensus": "Neutral",
+            "i_consensus": "Down",
+            "g_match_pct": 26.5,
+            "i_match_pct": 100.0,
+            "risk_match": true
+          },
+          {
+            "name": "2017 Goldilocks",
+            "g_consensus": "Up",
+            "i_consensus": "Neutral",
+            "g_match_pct": 87.7,
+            "i_match_pct": 39.0,
+            "risk_match": true
+          },
+          {
+            "name": "2018 Q4 vol shock",
+            "g_consensus": "Up",
+            "i_consensus": "Neutral",
+            "g_match_pct": 9.1,
+            "i_match_pct": 19.7,
+            "risk_match": true
+          },
+          {
+            "name": "2019 H2 slowdown",
+            "g_consensus": "Neutral",
+            "i_consensus": "Neutral",
+            "g_match_pct": 20.5,
+            "i_match_pct": 25.0,
+            "risk_match": false
+          },
+          {
+            "name": "2020 COVID recession",
+            "g_consensus": "Down",
+            "i_consensus": "Neutral",
+            "g_match_pct": 100.0,
+            "i_match_pct": 0.0,
+            "risk_match": true
+          },
+          {
+            "name": "2020H2 catch-up",
+            "g_consensus": "Down",
+            "i_consensus": "Down",
+            "g_match_pct": 0.8,
+            "i_match_pct": 40.9,
+            "risk_match": true
+          },
+          {
+            "name": "2021 reflation",
+            "g_consensus": "Up",
+            "i_consensus": "Up",
+            "g_match_pct": 94.4,
+            "i_match_pct": 60.4,
+            "risk_match": true
+          },
+          {
+            "name": "2022 H1 inflation",
+            "g_consensus": "Up",
+            "i_consensus": "Up",
+            "g_match_pct": 33.8,
+            "i_match_pct": 59.1,
+            "risk_match": false
+          },
+          {
+            "name": "2023 high inflation",
+            "g_consensus": "Up",
+            "i_consensus": "Up",
+            "g_match_pct": 29.6,
+            "i_match_pct": 80.3,
+            "risk_match": true
+          },
+          {
+            "name": "2024 disinflation",
+            "g_consensus": "Up",
+            "i_consensus": "Neutral",
+            "g_match_pct": 19.8,
+            "i_match_pct": 35.5,
+            "risk_match": false
+          },
+          {
+            "name": "2025 tariff shock",
+            "g_consensus": "Neutral",
+            "i_consensus": "Up",
+            "g_match_pct": 12.5,
+            "i_match_pct": 6.2,
+            "risk_match": true
+          }
+        ],
+        "latencies": [
+          {
+            "probe": "COVID growth turn",
+            "axis": "growth",
+            "target": "Down",
+            "latency_bdays": 0
+          },
+          {
+            "probe": "COVID inflation collapse",
+            "axis": "inflation",
+            "target": "Down",
+            "latency_bdays": 0
+          },
+          {
+            "probe": "2021 reflation start",
+            "axis": "inflation",
+            "target": "Up",
+            "latency_bdays": 42
+          },
+          {
+            "probe": "2022 stagflation start",
+            "axis": "inflation",
+            "target": "Up",
+            "latency_bdays": 0
+          },
+          {
+            "probe": "2024 inflation cooling",
+            "axis": "inflation",
+            "target": "Neutral",
+            "latency_bdays": 0
+          }
+        ]
+      },
+      "composite": 57.5,
+      "is_baseline": false
+    },
+    {
+      "params": {
+        "min_weight": 0.1,
+        "growth_thresh": 0.1,
+        "inflation_thresh": 0.18,
+        "axis_min_consecutive": 5,
+        "macro_g_w": 0.5,
+        "macro_i_w": 0.5,
+        "market_g_w": 0.5,
+        "market_i_w": 0.5,
+        "blend_name": "balanced"
+      },
+      "metrics": {
+        "g_avg_match_pct": 45.5,
+        "i_avg_match_pct": 44.7,
+        "risk_avg_match_pct": 76.9,
+        "overall_avg_match_pct": 55.7,
+        "g_median_run_bdays": 4,
+        "i_median_run_bdays": 5,
+        "g_n_runs": 1014,
+        "i_n_runs": 822,
+        "per_anchor": [
+          {
+            "name": "2008 GFC trough",
+            "g_consensus": "Down",
+            "i_consensus": "Down",
+            "g_match_pct": 100.0,
+            "i_match_pct": 69.2,
+            "risk_match": true
+          },
+          {
+            "name": "2010-12 expansion",
+            "g_consensus": "Up",
+            "i_consensus": "Neutral",
+            "g_match_pct": 58.2,
+            "i_match_pct": 63.6,
+            "risk_match": true
+          },
+          {
+            "name": "2015-16 oil bust",
+            "g_consensus": "Neutral",
+            "i_consensus": "Down",
+            "g_match_pct": 27.2,
+            "i_match_pct": 100.0,
+            "risk_match": true
+          },
+          {
+            "name": "2017 Goldilocks",
+            "g_consensus": "Up",
+            "i_consensus": "Neutral",
+            "g_match_pct": 87.2,
+            "i_match_pct": 50.8,
+            "risk_match": true
+          },
+          {
+            "name": "2018 Q4 vol shock",
+            "g_consensus": "Up",
+            "i_consensus": "Neutral",
+            "g_match_pct": 9.1,
+            "i_match_pct": 33.3,
+            "risk_match": true
+          },
+          {
+            "name": "2019 H2 slowdown",
+            "g_consensus": "Neutral",
+            "i_consensus": "Neutral",
+            "g_match_pct": 20.5,
+            "i_match_pct": 38.6,
+            "risk_match": false
+          },
+          {
+            "name": "2020 COVID recession",
+            "g_consensus": "Down",
+            "i_consensus": "Neutral",
+            "g_match_pct": 100.0,
+            "i_match_pct": 0.0,
+            "risk_match": true
+          },
+          {
+            "name": "2020H2 catch-up",
+            "g_consensus": "Down",
+            "i_consensus": "Down",
+            "g_match_pct": 21.2,
+            "i_match_pct": 21.2,
+            "risk_match": true
+          },
+          {
+            "name": "2021 reflation",
+            "g_consensus": "Up",
+            "i_consensus": "Up",
+            "g_match_pct": 94.4,
+            "i_match_pct": 40.1,
+            "risk_match": true
+          },
+          {
+            "name": "2022 H1 inflation",
+            "g_consensus": "Up",
+            "i_consensus": "Up",
+            "g_match_pct": 33.8,
+            "i_match_pct": 51.3,
+            "risk_match": false
+          },
+          {
+            "name": "2023 high inflation",
+            "g_consensus": "Up",
+            "i_consensus": "Up",
+            "g_match_pct": 19.7,
+            "i_match_pct": 63.2,
+            "risk_match": true
+          },
+          {
+            "name": "2024 disinflation",
+            "g_consensus": "Up",
+            "i_consensus": "Neutral",
+            "g_match_pct": 10.3,
+            "i_match_pct": 47.3,
+            "risk_match": false
+          },
+          {
+            "name": "2025 tariff shock",
+            "g_consensus": "Neutral",
+            "i_consensus": "Up",
+            "g_match_pct": 9.4,
+            "i_match_pct": 3.1,
+            "risk_match": true
+          }
+        ],
+        "latencies": [
+          {
+            "probe": "COVID growth turn",
+            "axis": "growth",
+            "target": "Down",
+            "latency_bdays": 0
+          },
+          {
+            "probe": "COVID inflation collapse",
+            "axis": "inflation",
+            "target": "Down",
+            "latency_bdays": 0
+          },
+          {
+            "probe": "2021 reflation start",
+            "axis": "inflation",
+            "target": "Up",
+            "latency_bdays": 43
+          },
+          {
+            "probe": "2022 stagflation start",
+            "axis": "inflation",
+            "target": "Up",
+            "latency_bdays": 0
+          },
+          {
+            "probe": "2024 inflation cooling",
+            "axis": "inflation",
+            "target": "Neutral",
+            "latency_bdays": 0
+          }
+        ]
+      },
+      "composite": 57.050000000000004,
+      "is_baseline": false
+    },
+    {
+      "params": {
+        "min_weight": 0.1,
+        "growth_thresh": 0.1,
+        "inflation_thresh": 0.18,
+        "axis_min_consecutive": 10,
+        "macro_g_w": 0.5,
+        "macro_i_w": 0.5,
+        "market_g_w": 0.5,
+        "market_i_w": 0.5,
+        "blend_name": "balanced"
+      },
+      "metrics": {
+        "g_avg_match_pct": 45.5,
+        "i_avg_match_pct": 44.7,
+        "risk_avg_match_pct": 76.9,
+        "overall_avg_match_pct": 55.7,
+        "g_median_run_bdays": 4,
+        "i_median_run_bdays": 5,
+        "g_n_runs": 1014,
+        "i_n_runs": 822,
+        "per_anchor": [
+          {
+            "name": "2008 GFC trough",
+            "g_consensus": "Down",
+            "i_consensus": "Down",
+            "g_match_pct": 100.0,
+            "i_match_pct": 69.2,
+            "risk_match": true
+          },
+          {
+            "name": "2010-12 expansion",
+            "g_consensus": "Up",
+            "i_consensus": "Neutral",
+            "g_match_pct": 58.2,
+            "i_match_pct": 63.6,
+            "risk_match": true
+          },
+          {
+            "name": "2015-16 oil bust",
+            "g_consensus": "Neutral",
+            "i_consensus": "Down",
+            "g_match_pct": 27.2,
+            "i_match_pct": 100.0,
+            "risk_match": true
+          },
+          {
+            "name": "2017 Goldilocks",
+            "g_consensus": "Up",
+            "i_consensus": "Neutral",
+            "g_match_pct": 87.2,
+            "i_match_pct": 50.8,
+            "risk_match": true
+          },
+          {
+            "name": "2018 Q4 vol shock",
+            "g_consensus": "Up",
+            "i_consensus": "Neutral",
+            "g_match_pct": 9.1,
+            "i_match_pct": 33.3,
+            "risk_match": true
+          },
+          {
+            "name": "2019 H2 slowdown",
+            "g_consensus": "Neutral",
+            "i_consensus": "Neutral",
+            "g_match_pct": 20.5,
+            "i_match_pct": 38.6,
+            "risk_match": false
+          },
+          {
+            "name": "2020 COVID recession",
+            "g_consensus": "Down",
+            "i_consensus": "Neutral",
+            "g_match_pct": 100.0,
+            "i_match_pct": 0.0,
+            "risk_match": true
+          },
+          {
+            "name": "2020H2 catch-up",
+            "g_consensus": "Down",
+            "i_consensus": "Down",
+            "g_match_pct": 21.2,
+            "i_match_pct": 21.2,
+            "risk_match": true
+          },
+          {
+            "name": "2021 reflation",
+            "g_consensus": "Up",
+            "i_consensus": "Up",
+            "g_match_pct": 94.4,
+            "i_match_pct": 40.1,
+            "risk_match": true
+          },
+          {
+            "name": "2022 H1 inflation",
+            "g_consensus": "Up",
+            "i_consensus": "Up",
+            "g_match_pct": 33.8,
+            "i_match_pct": 51.3,
+            "risk_match": false
+          },
+          {
+            "name": "2023 high inflation",
+            "g_consensus": "Up",
+            "i_consensus": "Up",
+            "g_match_pct": 19.7,
+            "i_match_pct": 63.2,
+            "risk_match": true
+          },
+          {
+            "name": "2024 disinflation",
+            "g_consensus": "Up",
+            "i_consensus": "Neutral",
+            "g_match_pct": 10.3,
+            "i_match_pct": 47.3,
+            "risk_match": false
+          },
+          {
+            "name": "2025 tariff shock",
+            "g_consensus": "Neutral",
+            "i_consensus": "Up",
+            "g_match_pct": 9.4,
+            "i_match_pct": 3.1,
+            "risk_match": true
+          }
+        ],
+        "latencies": [
+          {
+            "probe": "COVID growth turn",
+            "axis": "growth",
+            "target": "Down",
+            "latency_bdays": 0
+          },
+          {
+            "probe": "COVID inflation collapse",
+            "axis": "inflation",
+            "target": "Down",
+            "latency_bdays": 0
+          },
+          {
+            "probe": "2021 reflation start",
+            "axis": "inflation",
+            "target": "Up",
+            "latency_bdays": 43
+          },
+          {
+            "probe": "2022 stagflation start",
+            "axis": "inflation",
+            "target": "Up",
+            "latency_bdays": 0
+          },
+          {
+            "probe": "2024 inflation cooling",
+            "axis": "inflation",
+            "target": "Neutral",
+            "latency_bdays": 0
+          }
+        ]
+      },
+      "composite": 57.050000000000004,
+      "is_baseline": false
+    },
+    {
+      "params": {
+        "min_weight": 0.3,
+        "growth_thresh": 0.1,
+        "inflation_thresh": 0.18,
+        "axis_min_consecutive": 5,
+        "macro_g_w": 0.5,
+        "macro_i_w": 0.5,
+        "market_g_w": 0.5,
+        "market_i_w": 0.5,
+        "blend_name": "balanced"
+      },
+      "metrics": {
+        "g_avg_match_pct": 45.4,
+        "i_avg_match_pct": 44.7,
+        "risk_avg_match_pct": 76.9,
+        "overall_avg_match_pct": 55.7,
+        "g_median_run_bdays": 4,
+        "i_median_run_bdays": 5,
+        "g_n_runs": 990,
+        "i_n_runs": 822,
+        "per_anchor": [
+          {
+            "name": "2008 GFC trough",
+            "g_consensus": "Down",
+            "i_consensus": "Down",
+            "g_match_pct": 100.0,
+            "i_match_pct": 69.2,
+            "risk_match": true
+          },
+          {
+            "name": "2010-12 expansion",
+            "g_consensus": "Up",
+            "i_consensus": "Neutral",
+            "g_match_pct": 58.2,
+            "i_match_pct": 63.6,
+            "risk_match": true
+          },
+          {
+            "name": "2015-16 oil bust",
+            "g_consensus": "Neutral",
+            "i_consensus": "Down",
+            "g_match_pct": 27.2,
+            "i_match_pct": 100.0,
+            "risk_match": true
+          },
+          {
+            "name": "2017 Goldilocks",
+            "g_consensus": "Up",
+            "i_consensus": "Neutral",
+            "g_match_pct": 87.2,
+            "i_match_pct": 50.8,
+            "risk_match": true
+          },
+          {
+            "name": "2018 Q4 vol shock",
+            "g_consensus": "Up",
+            "i_consensus": "Neutral",
+            "g_match_pct": 9.1,
+            "i_match_pct": 33.3,
+            "risk_match": true
+          },
+          {
+            "name": "2019 H2 slowdown",
+            "g_consensus": "Neutral",
+            "i_consensus": "Neutral",
+            "g_match_pct": 20.5,
+            "i_match_pct": 38.6,
+            "risk_match": false
+          },
+          {
+            "name": "2020 COVID recession",
+            "g_consensus": "Down",
+            "i_consensus": "Neutral",
+            "g_match_pct": 100.0,
+            "i_match_pct": 0.0,
+            "risk_match": true
+          },
+          {
+            "name": "2020H2 catch-up",
+            "g_consensus": "Down",
+            "i_consensus": "Down",
+            "g_match_pct": 6.8,
+            "i_match_pct": 21.2,
+            "risk_match": true
+          },
+          {
+            "name": "2021 reflation",
+            "g_consensus": "Up",
+            "i_consensus": "Up",
+            "g_match_pct": 94.4,
+            "i_match_pct": 40.1,
+            "risk_match": true
+          },
+          {
+            "name": "2022 H1 inflation",
+            "g_consensus": "Up",
+            "i_consensus": "Up",
+            "g_match_pct": 34.4,
+            "i_match_pct": 51.3,
+            "risk_match": false
+          },
+          {
+            "name": "2023 high inflation",
+            "g_consensus": "Up",
+            "i_consensus": "Up",
+            "g_match_pct": 24.3,
+            "i_match_pct": 63.2,
+            "risk_match": true
+          },
+          {
+            "name": "2024 disinflation",
+            "g_consensus": "Up",
+            "i_consensus": "Neutral",
+            "g_match_pct": 16.0,
+            "i_match_pct": 47.3,
+            "risk_match": false
+          },
+          {
+            "name": "2025 tariff shock",
+            "g_consensus": "Neutral",
+            "i_consensus": "Up",
+            "g_match_pct": 12.5,
+            "i_match_pct": 3.1,
+            "risk_match": true
+          }
+        ],
+        "latencies": [
+          {
+            "probe": "COVID growth turn",
+            "axis": "growth",
+            "target": "Down",
+            "latency_bdays": 0
+          },
+          {
+            "probe": "COVID inflation collapse",
+            "axis": "inflation",
+            "target": "Down",
+            "latency_bdays": 0
+          },
+          {
+            "probe": "2021 reflation start",
+            "axis": "inflation",
+            "target": "Up",
+            "latency_bdays": 43
+          },
+          {
+            "probe": "2022 stagflation start",
+            "axis": "inflation",
+            "target": "Up",
+            "latency_bdays": 0
+          },
+          {
+            "probe": "2024 inflation cooling",
+            "axis": "inflation",
+            "target": "Neutral",
+            "latency_bdays": 0
+          }
+        ]
+      },
+      "composite": 57.050000000000004,
+      "is_baseline": false
+    },
+    {
+      "params": {
+        "min_weight": 0.3,
+        "growth_thresh": 0.1,
+        "inflation_thresh": 0.18,
+        "axis_min_consecutive": 10,
+        "macro_g_w": 0.5,
+        "macro_i_w": 0.5,
+        "market_g_w": 0.5,
+        "market_i_w": 0.5,
+        "blend_name": "balanced"
+      },
+      "metrics": {
+        "g_avg_match_pct": 45.4,
+        "i_avg_match_pct": 44.7,
+        "risk_avg_match_pct": 76.9,
+        "overall_avg_match_pct": 55.7,
+        "g_median_run_bdays": 4,
+        "i_median_run_bdays": 5,
+        "g_n_runs": 990,
+        "i_n_runs": 822,
+        "per_anchor": [
+          {
+            "name": "2008 GFC trough",
+            "g_consensus": "Down",
+            "i_consensus": "Down",
+            "g_match_pct": 100.0,
+            "i_match_pct": 69.2,
+            "risk_match": true
+          },
+          {
+            "name": "2010-12 expansion",
+            "g_consensus": "Up",
+            "i_consensus": "Neutral",
+            "g_match_pct": 58.2,
+            "i_match_pct": 63.6,
+            "risk_match": true
+          },
+          {
+            "name": "2015-16 oil bust",
+            "g_consensus": "Neutral",
+            "i_consensus": "Down",
+            "g_match_pct": 27.2,
+            "i_match_pct": 100.0,
+            "risk_match": true
+          },
+          {
+            "name": "2017 Goldilocks",
+            "g_consensus": "Up",
+            "i_consensus": "Neutral",
+            "g_match_pct": 87.2,
+            "i_match_pct": 50.8,
+            "risk_match": true
+          },
+          {
+            "name": "2018 Q4 vol shock",
+            "g_consensus": "Up",
+            "i_consensus": "Neutral",
+            "g_match_pct": 9.1,
+            "i_match_pct": 33.3,
+            "risk_match": true
+          },
+          {
+            "name": "2019 H2 slowdown",
+            "g_consensus": "Neutral",
+            "i_consensus": "Neutral",
+            "g_match_pct": 20.5,
+            "i_match_pct": 38.6,
+            "risk_match": false
+          },
+          {
+            "name": "2020 COVID recession",
+            "g_consensus": "Down",
+            "i_consensus": "Neutral",
+            "g_match_pct": 100.0,
+            "i_match_pct": 0.0,
+            "risk_match": true
+          },
+          {
+            "name": "2020H2 catch-up",
+            "g_consensus": "Down",
+            "i_consensus": "Down",
+            "g_match_pct": 6.8,
+            "i_match_pct": 21.2,
+            "risk_match": true
+          },
+          {
+            "name": "2021 reflation",
+            "g_consensus": "Up",
+            "i_consensus": "Up",
+            "g_match_pct": 94.4,
+            "i_match_pct": 40.1,
+            "risk_match": true
+          },
+          {
+            "name": "2022 H1 inflation",
+            "g_consensus": "Up",
+            "i_consensus": "Up",
+            "g_match_pct": 34.4,
+            "i_match_pct": 51.3,
+            "risk_match": false
+          },
+          {
+            "name": "2023 high inflation",
+            "g_consensus": "Up",
+            "i_consensus": "Up",
+            "g_match_pct": 24.3,
+            "i_match_pct": 63.2,
+            "risk_match": true
+          },
+          {
+            "name": "2024 disinflation",
+            "g_consensus": "Up",
+            "i_consensus": "Neutral",
+            "g_match_pct": 16.0,
+            "i_match_pct": 47.3,
+            "risk_match": false
+          },
+          {
+            "name": "2025 tariff shock",
+            "g_consensus": "Neutral",
+            "i_consensus": "Up",
+            "g_match_pct": 12.5,
+            "i_match_pct": 3.1,
+            "risk_match": true
+          }
+        ],
+        "latencies": [
+          {
+            "probe": "COVID growth turn",
+            "axis": "growth",
+            "target": "Down",
+            "latency_bdays": 0
+          },
+          {
+            "probe": "COVID inflation collapse",
+            "axis": "inflation",
+            "target": "Down",
+            "latency_bdays": 0
+          },
+          {
+            "probe": "2021 reflation start",
+            "axis": "inflation",
+            "target": "Up",
+            "latency_bdays": 43
+          },
+          {
+            "probe": "2022 stagflation start",
+            "axis": "inflation",
+            "target": "Up",
+            "latency_bdays": 0
+          },
+          {
+            "probe": "2024 inflation cooling",
+            "axis": "inflation",
+            "target": "Neutral",
+            "latency_bdays": 0
+          }
+        ]
+      },
+      "composite": 57.050000000000004,
+      "is_baseline": false
+    },
+    {
+      "params": {
+        "min_weight": 0.1,
+        "growth_thresh": 0.2,
+        "inflation_thresh": 0.18,
+        "axis_min_consecutive": 5,
+        "macro_g_w": 0.5,
+        "macro_i_w": 0.5,
+        "market_g_w": 0.5,
+        "market_i_w": 0.5,
+        "blend_name": "balanced"
+      },
+      "metrics": {
+        "g_avg_match_pct": 36.3,
+        "i_avg_match_pct": 44.7,
+        "risk_avg_match_pct": 76.9,
+        "overall_avg_match_pct": 52.6,
+        "g_median_run_bdays": 5,
+        "i_median_run_bdays": 5,
+        "g_n_runs": 698,
+        "i_n_runs": 822,
+        "per_anchor": [
+          {
+            "name": "2008 GFC trough",
+            "g_consensus": "Down",
+            "i_consensus": "Down",
+            "g_match_pct": 97.7,
+            "i_match_pct": 69.2,
+            "risk_match": true
+          },
+          {
+            "name": "2010-12 expansion",
+            "g_consensus": "Up",
+            "i_consensus": "Neutral",
+            "g_match_pct": 32.1,
+            "i_match_pct": 63.6,
+            "risk_match": true
+          },
+          {
+            "name": "2015-16 oil bust",
+            "g_consensus": "Neutral",
+            "i_consensus": "Down",
+            "g_match_pct": 62.3,
+            "i_match_pct": 100.0,
+            "risk_match": true
+          },
+          {
+            "name": "2017 Goldilocks",
+            "g_consensus": "Up",
+            "i_consensus": "Neutral",
+            "g_match_pct": 13.3,
+            "i_match_pct": 50.8,
+            "risk_match": true
+          },
+          {
+            "name": "2018 Q4 vol shock",
+            "g_consensus": "Up",
+            "i_consensus": "Neutral",
+            "g_match_pct": 1.5,
+            "i_match_pct": 33.3,
+            "risk_match": true
+          },
+          {
+            "name": "2019 H2 slowdown",
+            "g_consensus": "Neutral",
+            "i_consensus": "Neutral",
+            "g_match_pct": 30.3,
+            "i_match_pct": 38.6,
+            "risk_match": false
+          },
+          {
+            "name": "2020 COVID recession",
+            "g_consensus": "Down",
+            "i_consensus": "Neutral",
+            "g_match_pct": 91.8,
+            "i_match_pct": 0.0,
+            "risk_match": true
+          },
+          {
+            "name": "2020H2 catch-up",
+            "g_consensus": "Down",
+            "i_consensus": "Down",
+            "g_match_pct": 0.0,
+            "i_match_pct": 21.2,
+            "risk_match": true
+          },
+          {
+            "name": "2021 reflation",
+            "g_consensus": "Up",
+            "i_consensus": "Up",
+            "g_match_pct": 83.8,
+            "i_match_pct": 40.1,
+            "risk_match": true
+          },
+          {
+            "name": "2022 H1 inflation",
+            "g_consensus": "Up",
+            "i_consensus": "Up",
+            "g_match_pct": 2.6,
+            "i_match_pct": 51.3,
+            "risk_match": false
+          },
+          {
+            "name": "2023 high inflation",
+            "g_consensus": "Up",
+            "i_consensus": "Up",
+            "g_match_pct": 0.0,
+            "i_match_pct": 63.2,
+            "risk_match": true
+          },
+          {
+            "name": "2024 disinflation",
+            "g_consensus": "Up",
+            "i_consensus": "Neutral",
+            "g_match_pct": 0.0,
+            "i_match_pct": 47.3,
+            "risk_match": false
+          },
+          {
+            "name": "2025 tariff shock",
+            "g_consensus": "Neutral",
+            "i_consensus": "Up",
+            "g_match_pct": 56.2,
+            "i_match_pct": 3.1,
+            "risk_match": true
+          }
+        ],
+        "latencies": [
+          {
+            "probe": "COVID growth turn",
+            "axis": "growth",
+            "target": "Down",
+            "latency_bdays": 1
+          },
+          {
+            "probe": "COVID inflation collapse",
+            "axis": "inflation",
+            "target": "Down",
+            "latency_bdays": 0
+          },
+          {
+            "probe": "2021 reflation start",
+            "axis": "inflation",
+            "target": "Up",
+            "latency_bdays": 43
+          },
+          {
+            "probe": "2022 stagflation start",
+            "axis": "inflation",
+            "target": "Up",
+            "latency_bdays": 0
+          },
+          {
+            "probe": "2024 inflation cooling",
+            "axis": "inflation",
+            "target": "Neutral",
+            "latency_bdays": 0
+          }
+        ]
+      },
+      "composite": 54.1,
+      "is_baseline": false
+    },
+    {
+      "params": {
+        "min_weight": 0.1,
+        "growth_thresh": 0.2,
+        "inflation_thresh": 0.18,
+        "axis_min_consecutive": 10,
+        "macro_g_w": 0.5,
+        "macro_i_w": 0.5,
+        "market_g_w": 0.5,
+        "market_i_w": 0.5,
+        "blend_name": "balanced"
+      },
+      "metrics": {
+        "g_avg_match_pct": 36.3,
+        "i_avg_match_pct": 44.7,
+        "risk_avg_match_pct": 76.9,
+        "overall_avg_match_pct": 52.6,
+        "g_median_run_bdays": 5,
+        "i_median_run_bdays": 5,
+        "g_n_runs": 698,
+        "i_n_runs": 822,
+        "per_anchor": [
+          {
+            "name": "2008 GFC trough",
+            "g_consensus": "Down",
+            "i_consensus": "Down",
+            "g_match_pct": 97.7,
+            "i_match_pct": 69.2,
+            "risk_match": true
+          },
+          {
+            "name": "2010-12 expansion",
+            "g_consensus": "Up",
+            "i_consensus": "Neutral",
+            "g_match_pct": 32.1,
+            "i_match_pct": 63.6,
+            "risk_match": true
+          },
+          {
+            "name": "2015-16 oil bust",
+            "g_consensus": "Neutral",
+            "i_consensus": "Down",
+            "g_match_pct": 62.3,
+            "i_match_pct": 100.0,
+            "risk_match": true
+          },
+          {
+            "name": "2017 Goldilocks",
+            "g_consensus": "Up",
+            "i_consensus": "Neutral",
+            "g_match_pct": 13.3,
+            "i_match_pct": 50.8,
+            "risk_match": true
+          },
+          {
+            "name": "2018 Q4 vol shock",
+            "g_consensus": "Up",
+            "i_consensus": "Neutral",
+            "g_match_pct": 1.5,
+            "i_match_pct": 33.3,
+            "risk_match": true
+          },
+          {
+            "name": "2019 H2 slowdown",
+            "g_consensus": "Neutral",
+            "i_consensus": "Neutral",
+            "g_match_pct": 30.3,
+            "i_match_pct": 38.6,
+            "risk_match": false
+          },
+          {
+            "name": "2020 COVID recession",
+            "g_consensus": "Down",
+            "i_consensus": "Neutral",
+            "g_match_pct": 91.8,
+            "i_match_pct": 0.0,
+            "risk_match": true
+          },
+          {
+            "name": "2020H2 catch-up",
+            "g_consensus": "Down",
+            "i_consensus": "Down",
+            "g_match_pct": 0.0,
+            "i_match_pct": 21.2,
+            "risk_match": true
+          },
+          {
+            "name": "2021 reflation",
+            "g_consensus": "Up",
+            "i_consensus": "Up",
+            "g_match_pct": 83.8,
+            "i_match_pct": 40.1,
+            "risk_match": true
+          },
+          {
+            "name": "2022 H1 inflation",
+            "g_consensus": "Up",
+            "i_consensus": "Up",
+            "g_match_pct": 2.6,
+            "i_match_pct": 51.3,
+            "risk_match": false
+          },
+          {
+            "name": "2023 high inflation",
+            "g_consensus": "Up",
+            "i_consensus": "Up",
+            "g_match_pct": 0.0,
+            "i_match_pct": 63.2,
+            "risk_match": true
+          },
+          {
+            "name": "2024 disinflation",
+            "g_consensus": "Up",
+            "i_consensus": "Neutral",
+            "g_match_pct": 0.0,
+            "i_match_pct": 47.3,
+            "risk_match": false
+          },
+          {
+            "name": "2025 tariff shock",
+            "g_consensus": "Neutral",
+            "i_consensus": "Up",
+            "g_match_pct": 56.2,
+            "i_match_pct": 3.1,
+            "risk_match": true
+          }
+        ],
+        "latencies": [
+          {
+            "probe": "COVID growth turn",
+            "axis": "growth",
+            "target": "Down",
+            "latency_bdays": 1
+          },
+          {
+            "probe": "COVID inflation collapse",
+            "axis": "inflation",
+            "target": "Down",
+            "latency_bdays": 0
+          },
+          {
+            "probe": "2021 reflation start",
+            "axis": "inflation",
+            "target": "Up",
+            "latency_bdays": 43
+          },
+          {
+            "probe": "2022 stagflation start",
+            "axis": "inflation",
+            "target": "Up",
+            "latency_bdays": 0
+          },
+          {
+            "probe": "2024 inflation cooling",
+            "axis": "inflation",
+            "target": "Neutral",
+            "latency_bdays": 0
+          }
+        ]
+      },
+      "composite": 54.1,
+      "is_baseline": false
+    },
+    {
+      "params": {
+        "min_weight": 0.3,
+        "growth_thresh": 0.2,
+        "inflation_thresh": 0.18,
+        "axis_min_consecutive": 5,
+        "macro_g_w": 0.5,
+        "macro_i_w": 0.5,
+        "market_g_w": 0.5,
+        "market_i_w": 0.5,
+        "blend_name": "balanced"
+      },
+      "metrics": {
+        "g_avg_match_pct": 36.1,
+        "i_avg_match_pct": 44.7,
+        "risk_avg_match_pct": 76.9,
+        "overall_avg_match_pct": 52.6,
+        "g_median_run_bdays": 5,
+        "i_median_run_bdays": 5,
+        "g_n_runs": 692,
+        "i_n_runs": 822,
+        "per_anchor": [
+          {
+            "name": "2008 GFC trough",
+            "g_consensus": "Down",
+            "i_consensus": "Down",
+            "g_match_pct": 97.7,
+            "i_match_pct": 69.2,
+            "risk_match": true
+          },
+          {
+            "name": "2010-12 expansion",
+            "g_consensus": "Up",
+            "i_consensus": "Neutral",
+            "g_match_pct": 32.1,
+            "i_match_pct": 63.6,
+            "risk_match": true
+          },
+          {
+            "name": "2015-16 oil bust",
+            "g_consensus": "Neutral",
+            "i_consensus": "Down",
+            "g_match_pct": 62.3,
+            "i_match_pct": 100.0,
+            "risk_match": true
+          },
+          {
+            "name": "2017 Goldilocks",
+            "g_consensus": "Up",
+            "i_consensus": "Neutral",
+            "g_match_pct": 13.3,
+            "i_match_pct": 50.8,
+            "risk_match": true
+          },
+          {
+            "name": "2018 Q4 vol shock",
+            "g_consensus": "Up",
+            "i_consensus": "Neutral",
+            "g_match_pct": 1.5,
+            "i_match_pct": 33.3,
+            "risk_match": true
+          },
+          {
+            "name": "2019 H2 slowdown",
+            "g_consensus": "Neutral",
+            "i_consensus": "Neutral",
+            "g_match_pct": 30.3,
+            "i_match_pct": 38.6,
+            "risk_match": false
+          },
+          {
+            "name": "2020 COVID recession",
+            "g_consensus": "Down",
+            "i_consensus": "Neutral",
+            "g_match_pct": 91.8,
+            "i_match_pct": 0.0,
+            "risk_match": true
+          },
+          {
+            "name": "2020H2 catch-up",
+            "g_consensus": "Down",
+            "i_consensus": "Down",
+            "g_match_pct": 0.0,
+            "i_match_pct": 21.2,
+            "risk_match": true
+          },
+          {
+            "name": "2021 reflation",
+            "g_consensus": "Up",
+            "i_consensus": "Up",
+            "g_match_pct": 82.2,
+            "i_match_pct": 40.1,
+            "risk_match": true
+          },
+          {
+            "name": "2022 H1 inflation",
+            "g_consensus": "Up",
+            "i_consensus": "Up",
+            "g_match_pct": 1.3,
+            "i_match_pct": 51.3,
+            "risk_match": false
+          },
+          {
+            "name": "2023 high inflation",
+            "g_consensus": "Up",
+            "i_consensus": "Up",
+            "g_match_pct": 0.0,
+            "i_match_pct": 63.2,
+            "risk_match": true
+          },
+          {
+            "name": "2024 disinflation",
+            "g_consensus": "Up",
+            "i_consensus": "Neutral",
+            "g_match_pct": 0.0,
+            "i_match_pct": 47.3,
+            "risk_match": false
+          },
+          {
+            "name": "2025 tariff shock",
+            "g_consensus": "Neutral",
+            "i_consensus": "Up",
+            "g_match_pct": 56.2,
+            "i_match_pct": 3.1,
+            "risk_match": true
+          }
+        ],
+        "latencies": [
+          {
+            "probe": "COVID growth turn",
+            "axis": "growth",
+            "target": "Down",
+            "latency_bdays": 1
+          },
+          {
+            "probe": "COVID inflation collapse",
+            "axis": "inflation",
+            "target": "Down",
+            "latency_bdays": 0
+          },
+          {
+            "probe": "2021 reflation start",
+            "axis": "inflation",
+            "target": "Up",
+            "latency_bdays": 43
+          },
+          {
+            "probe": "2022 stagflation start",
+            "axis": "inflation",
+            "target": "Up",
+            "latency_bdays": 0
+          },
+          {
+            "probe": "2024 inflation cooling",
+            "axis": "inflation",
+            "target": "Neutral",
+            "latency_bdays": 0
+          }
+        ]
+      },
+      "composite": 54.1,
+      "is_baseline": false
+    },
+    {
+      "params": {
+        "min_weight": 0.3,
+        "growth_thresh": 0.2,
+        "inflation_thresh": 0.18,
+        "axis_min_consecutive": 10,
+        "macro_g_w": 0.5,
+        "macro_i_w": 0.5,
+        "market_g_w": 0.5,
+        "market_i_w": 0.5,
+        "blend_name": "balanced"
+      },
+      "metrics": {
+        "g_avg_match_pct": 36.1,
+        "i_avg_match_pct": 44.7,
+        "risk_avg_match_pct": 76.9,
+        "overall_avg_match_pct": 52.6,
+        "g_median_run_bdays": 5,
+        "i_median_run_bdays": 5,
+        "g_n_runs": 692,
+        "i_n_runs": 822,
+        "per_anchor": [
+          {
+            "name": "2008 GFC trough",
+            "g_consensus": "Down",
+            "i_consensus": "Down",
+            "g_match_pct": 97.7,
+            "i_match_pct": 69.2,
+            "risk_match": true
+          },
+          {
+            "name": "2010-12 expansion",
+            "g_consensus": "Up",
+            "i_consensus": "Neutral",
+            "g_match_pct": 32.1,
+            "i_match_pct": 63.6,
+            "risk_match": true
+          },
+          {
+            "name": "2015-16 oil bust",
+            "g_consensus": "Neutral",
+            "i_consensus": "Down",
+            "g_match_pct": 62.3,
+            "i_match_pct": 100.0,
+            "risk_match": true
+          },
+          {
+            "name": "2017 Goldilocks",
+            "g_consensus": "Up",
+            "i_consensus": "Neutral",
+            "g_match_pct": 13.3,
+            "i_match_pct": 50.8,
+            "risk_match": true
+          },
+          {
+            "name": "2018 Q4 vol shock",
+            "g_consensus": "Up",
+            "i_consensus": "Neutral",
+            "g_match_pct": 1.5,
+            "i_match_pct": 33.3,
+            "risk_match": true
+          },
+          {
+            "name": "2019 H2 slowdown",
+            "g_consensus": "Neutral",
+            "i_consensus": "Neutral",
+            "g_match_pct": 30.3,
+            "i_match_pct": 38.6,
+            "risk_match": false
+          },
+          {
+            "name": "2020 COVID recession",
+            "g_consensus": "Down",
+            "i_consensus": "Neutral",
+            "g_match_pct": 91.8,
+            "i_match_pct": 0.0,
+            "risk_match": true
+          },
+          {
+            "name": "2020H2 catch-up",
+            "g_consensus": "Down",
+            "i_consensus": "Down",
+            "g_match_pct": 0.0,
+            "i_match_pct": 21.2,
+            "risk_match": true
+          },
+          {
+            "name": "2021 reflation",
+            "g_consensus": "Up",
+            "i_consensus": "Up",
+            "g_match_pct": 82.2,
+            "i_match_pct": 40.1,
+            "risk_match": true
+          },
+          {
+            "name": "2022 H1 inflation",
+            "g_consensus": "Up",
+            "i_consensus": "Up",
+            "g_match_pct": 1.3,
+            "i_match_pct": 51.3,
+            "risk_match": false
+          },
+          {
+            "name": "2023 high inflation",
+            "g_consensus": "Up",
+            "i_consensus": "Up",
+            "g_match_pct": 0.0,
+            "i_match_pct": 63.2,
+            "risk_match": true
+          },
+          {
+            "name": "2024 disinflation",
+            "g_consensus": "Up",
+            "i_consensus": "Neutral",
+            "g_match_pct": 0.0,
+            "i_match_pct": 47.3,
+            "risk_match": false
+          },
+          {
+            "name": "2025 tariff shock",
+            "g_consensus": "Neutral",
+            "i_consensus": "Up",
+            "g_match_pct": 56.2,
+            "i_match_pct": 3.1,
+            "risk_match": true
+          }
+        ],
+        "latencies": [
+          {
+            "probe": "COVID growth turn",
+            "axis": "growth",
+            "target": "Down",
+            "latency_bdays": 1
+          },
+          {
+            "probe": "COVID inflation collapse",
+            "axis": "inflation",
+            "target": "Down",
+            "latency_bdays": 0
+          },
+          {
+            "probe": "2021 reflation start",
+            "axis": "inflation",
+            "target": "Up",
+            "latency_bdays": 43
+          },
+          {
+            "probe": "2022 stagflation start",
+            "axis": "inflation",
+            "target": "Up",
+            "latency_bdays": 0
+          },
+          {
+            "probe": "2024 inflation cooling",
+            "axis": "inflation",
+            "target": "Neutral",
+            "latency_bdays": 0
+          }
+        ]
+      },
+      "composite": 54.1,
+      "is_baseline": false
+    }
+  ],
+  "safe_count": 0,
+  "safe_top10": [],
+  "top10_composite": [
+    {
+      "params": {
+        "min_weight": 0.65,
+        "growth_thresh": 0.1,
+        "inflation_thresh": 0.12,
+        "axis_min_consecutive": 5,
+        "macro_g_w": 0.5,
+        "macro_i_w": 0.5,
+        "market_g_w": 0.5,
+        "market_i_w": 0.5,
+        "blend_name": "balanced"
+      },
+      "metrics": {
+        "g_avg_match_pct": 45.6,
+        "i_avg_match_pct": 46.5,
+        "risk_avg_match_pct": 76.9,
+        "overall_avg_match_pct": 56.3,
+        "g_median_run_bdays": 4,
+        "i_median_run_bdays": 4,
+        "g_n_runs": 972,
+        "i_n_runs": 923,
+        "per_anchor": [
+          {
+            "name": "2008 GFC trough",
+            "g_consensus": "Down",
+            "i_consensus": "Down",
+            "g_match_pct": 100.0,
+            "i_match_pct": 88.5,
+            "risk_match": true
+          },
+          {
+            "name": "2010-12 expansion",
+            "g_consensus": "Up",
+            "i_consensus": "Neutral",
+            "g_match_pct": 58.4,
+            "i_match_pct": 49.5,
+            "risk_match": true
+          },
+          {
+            "name": "2015-16 oil bust",
+            "g_consensus": "Neutral",
+            "i_consensus": "Down",
+            "g_match_pct": 26.5,
+            "i_match_pct": 100.0,
+            "risk_match": true
+          },
+          {
+            "name": "2017 Goldilocks",
+            "g_consensus": "Up",
+            "i_consensus": "Neutral",
+            "g_match_pct": 87.7,
+            "i_match_pct": 39.0,
+            "risk_match": true
+          },
+          {
+            "name": "2018 Q4 vol shock",
+            "g_consensus": "Up",
+            "i_consensus": "Neutral",
+            "g_match_pct": 9.1,
+            "i_match_pct": 19.7,
+            "risk_match": true
+          },
+          {
+            "name": "2019 H2 slowdown",
+            "g_consensus": "Neutral",
+            "i_consensus": "Neutral",
+            "g_match_pct": 20.5,
+            "i_match_pct": 25.0,
+            "risk_match": false
+          },
+          {
+            "name": "2020 COVID recession",
+            "g_consensus": "Down",
+            "i_consensus": "Neutral",
+            "g_match_pct": 100.0,
+            "i_match_pct": 0.0,
+            "risk_match": true
+          },
+          {
+            "name": "2020H2 catch-up",
+            "g_consensus": "Down",
+            "i_consensus": "Down",
+            "g_match_pct": 0.8,
+            "i_match_pct": 40.9,
+            "risk_match": true
+          },
+          {
+            "name": "2021 reflation",
+            "g_consensus": "Up",
+            "i_consensus": "Up",
+            "g_match_pct": 94.4,
+            "i_match_pct": 60.4,
+            "risk_match": true
+          },
+          {
+            "name": "2022 H1 inflation",
+            "g_consensus": "Up",
+            "i_consensus": "Up",
+            "g_match_pct": 33.8,
+            "i_match_pct": 59.1,
+            "risk_match": false
+          },
+          {
+            "name": "2023 high inflation",
+            "g_consensus": "Up",
+            "i_consensus": "Up",
+            "g_match_pct": 29.6,
+            "i_match_pct": 80.3,
+            "risk_match": true
+          },
+          {
+            "name": "2024 disinflation",
+            "g_consensus": "Up",
+            "i_consensus": "Neutral",
+            "g_match_pct": 19.8,
+            "i_match_pct": 35.5,
+            "risk_match": false
+          },
+          {
+            "name": "2025 tariff shock",
+            "g_consensus": "Neutral",
+            "i_consensus": "Up",
+            "g_match_pct": 12.5,
+            "i_match_pct": 6.2,
+            "risk_match": true
+          }
+        ],
+        "latencies": [
+          {
+            "probe": "COVID growth turn",
+            "axis": "growth",
+            "target": "Down",
+            "latency_bdays": 0
+          },
+          {
+            "probe": "COVID inflation collapse",
+            "axis": "inflation",
+            "target": "Down",
+            "latency_bdays": 0
+          },
+          {
+            "probe": "2021 reflation start",
+            "axis": "inflation",
+            "target": "Up",
+            "latency_bdays": 42
+          },
+          {
+            "probe": "2022 stagflation start",
+            "axis": "inflation",
+            "target": "Up",
+            "latency_bdays": 0
+          },
+          {
+            "probe": "2024 inflation cooling",
+            "axis": "inflation",
+            "target": "Neutral",
+            "latency_bdays": 0
+          }
+        ]
+      },
+      "composite": 57.5,
+      "is_baseline": false
+    },
+    {
+      "params": {
+        "min_weight": 0.65,
+        "growth_thresh": 0.1,
+        "inflation_thresh": 0.12,
+        "axis_min_consecutive": 10,
+        "macro_g_w": 0.5,
+        "macro_i_w": 0.5,
+        "market_g_w": 0.5,
+        "market_i_w": 0.5,
+        "blend_name": "balanced"
+      },
+      "metrics": {
+        "g_avg_match_pct": 45.6,
+        "i_avg_match_pct": 46.5,
+        "risk_avg_match_pct": 76.9,
+        "overall_avg_match_pct": 56.3,
+        "g_median_run_bdays": 4,
+        "i_median_run_bdays": 4,
+        "g_n_runs": 972,
+        "i_n_runs": 923,
+        "per_anchor": [
+          {
+            "name": "2008 GFC trough",
+            "g_consensus": "Down",
+            "i_consensus": "Down",
+            "g_match_pct": 100.0,
+            "i_match_pct": 88.5,
+            "risk_match": true
+          },
+          {
+            "name": "2010-12 expansion",
+            "g_consensus": "Up",
+            "i_consensus": "Neutral",
+            "g_match_pct": 58.4,
+            "i_match_pct": 49.5,
+            "risk_match": true
+          },
+          {
+            "name": "2015-16 oil bust",
+            "g_consensus": "Neutral",
+            "i_consensus": "Down",
+            "g_match_pct": 26.5,
+            "i_match_pct": 100.0,
+            "risk_match": true
+          },
+          {
+            "name": "2017 Goldilocks",
+            "g_consensus": "Up",
+            "i_consensus": "Neutral",
+            "g_match_pct": 87.7,
+            "i_match_pct": 39.0,
+            "risk_match": true
+          },
+          {
+            "name": "2018 Q4 vol shock",
+            "g_consensus": "Up",
+            "i_consensus": "Neutral",
+            "g_match_pct": 9.1,
+            "i_match_pct": 19.7,
+            "risk_match": true
+          },
+          {
+            "name": "2019 H2 slowdown",
+            "g_consensus": "Neutral",
+            "i_consensus": "Neutral",
+            "g_match_pct": 20.5,
+            "i_match_pct": 25.0,
+            "risk_match": false
+          },
+          {
+            "name": "2020 COVID recession",
+            "g_consensus": "Down",
+            "i_consensus": "Neutral",
+            "g_match_pct": 100.0,
+            "i_match_pct": 0.0,
+            "risk_match": true
+          },
+          {
+            "name": "2020H2 catch-up",
+            "g_consensus": "Down",
+            "i_consensus": "Down",
+            "g_match_pct": 0.8,
+            "i_match_pct": 40.9,
+            "risk_match": true
+          },
+          {
+            "name": "2021 reflation",
+            "g_consensus": "Up",
+            "i_consensus": "Up",
+            "g_match_pct": 94.4,
+            "i_match_pct": 60.4,
+            "risk_match": true
+          },
+          {
+            "name": "2022 H1 inflation",
+            "g_consensus": "Up",
+            "i_consensus": "Up",
+            "g_match_pct": 33.8,
+            "i_match_pct": 59.1,
+            "risk_match": false
+          },
+          {
+            "name": "2023 high inflation",
+            "g_consensus": "Up",
+            "i_consensus": "Up",
+            "g_match_pct": 29.6,
+            "i_match_pct": 80.3,
+            "risk_match": true
+          },
+          {
+            "name": "2024 disinflation",
+            "g_consensus": "Up",
+            "i_consensus": "Neutral",
+            "g_match_pct": 19.8,
+            "i_match_pct": 35.5,
+            "risk_match": false
+          },
+          {
+            "name": "2025 tariff shock",
+            "g_consensus": "Neutral",
+            "i_consensus": "Up",
+            "g_match_pct": 12.5,
+            "i_match_pct": 6.2,
+            "risk_match": true
+          }
+        ],
+        "latencies": [
+          {
+            "probe": "COVID growth turn",
+            "axis": "growth",
+            "target": "Down",
+            "latency_bdays": 0
+          },
+          {
+            "probe": "COVID inflation collapse",
+            "axis": "inflation",
+            "target": "Down",
+            "latency_bdays": 0
+          },
+          {
+            "probe": "2021 reflation start",
+            "axis": "inflation",
+            "target": "Up",
+            "latency_bdays": 42
+          },
+          {
+            "probe": "2022 stagflation start",
+            "axis": "inflation",
+            "target": "Up",
+            "latency_bdays": 0
+          },
+          {
+            "probe": "2024 inflation cooling",
+            "axis": "inflation",
+            "target": "Neutral",
+            "latency_bdays": 0
+          }
+        ]
+      },
+      "composite": 57.5,
+      "is_baseline": false
+    },
+    {
+      "params": {
+        "min_weight": 0.1,
+        "growth_thresh": 0.1,
+        "inflation_thresh": 0.12,
+        "axis_min_consecutive": 5,
+        "macro_g_w": 0.5,
+        "macro_i_w": 0.5,
+        "market_g_w": 0.5,
+        "market_i_w": 0.5,
+        "blend_name": "balanced"
+      },
+      "metrics": {
+        "g_avg_match_pct": 45.5,
+        "i_avg_match_pct": 46.2,
+        "risk_avg_match_pct": 76.9,
+        "overall_avg_match_pct": 56.2,
+        "g_median_run_bdays": 4,
+        "i_median_run_bdays": 3,
+        "g_n_runs": 1014,
+        "i_n_runs": 973,
+        "per_anchor": [
+          {
+            "name": "2008 GFC trough",
+            "g_consensus": "Down",
+            "i_consensus": "Down",
+            "g_match_pct": 100.0,
+            "i_match_pct": 87.7,
+            "risk_match": true
+          },
+          {
+            "name": "2010-12 expansion",
+            "g_consensus": "Up",
+            "i_consensus": "Neutral",
+            "g_match_pct": 58.2,
+            "i_match_pct": 48.6,
+            "risk_match": true
+          },
+          {
+            "name": "2015-16 oil bust",
+            "g_consensus": "Neutral",
+            "i_consensus": "Down",
+            "g_match_pct": 27.2,
+            "i_match_pct": 100.0,
+            "risk_match": true
+          },
+          {
+            "name": "2017 Goldilocks",
+            "g_consensus": "Up",
+            "i_consensus": "Neutral",
+            "g_match_pct": 87.2,
+            "i_match_pct": 39.5,
+            "risk_match": true
+          },
+          {
+            "name": "2018 Q4 vol shock",
+            "g_consensus": "Up",
+            "i_consensus": "Neutral",
+            "g_match_pct": 9.1,
+            "i_match_pct": 21.2,
+            "risk_match": true
+          },
+          {
+            "name": "2019 H2 slowdown",
+            "g_consensus": "Neutral",
+            "i_consensus": "Neutral",
+            "g_match_pct": 20.5,
+            "i_match_pct": 22.0,
+            "risk_match": false
+          },
+          {
+            "name": "2020 COVID recession",
+            "g_consensus": "Down",
+            "i_consensus": "Neutral",
+            "g_match_pct": 100.0,
+            "i_match_pct": 0.0,
+            "risk_match": true
+          },
+          {
+            "name": "2020H2 catch-up",
+            "g_consensus": "Down",
+            "i_consensus": "Down",
+            "g_match_pct": 21.2,
+            "i_match_pct": 43.2,
+            "risk_match": true
+          },
+          {
+            "name": "2021 reflation",
+            "g_consensus": "Up",
+            "i_consensus": "Up",
+            "g_match_pct": 94.4,
+            "i_match_pct": 59.9,
+            "risk_match": true
+          },
+          {
+            "name": "2022 H1 inflation",
+            "g_consensus": "Up",
+            "i_consensus": "Up",
+            "g_match_pct": 33.8,
+            "i_match_pct": 58.4,
+            "risk_match": false
+          },
+          {
+            "name": "2023 high inflation",
+            "g_consensus": "Up",
+            "i_consensus": "Up",
+            "g_match_pct": 19.7,
+            "i_match_pct": 78.3,
+            "risk_match": true
+          },
+          {
+            "name": "2024 disinflation",
+            "g_consensus": "Up",
+            "i_consensus": "Neutral",
+            "g_match_pct": 10.3,
+            "i_match_pct": 35.9,
+            "risk_match": false
+          },
+          {
+            "name": "2025 tariff shock",
+            "g_consensus": "Neutral",
+            "i_consensus": "Up",
+            "g_match_pct": 9.4,
+            "i_match_pct": 6.2,
+            "risk_match": true
+          }
+        ],
+        "latencies": [
+          {
+            "probe": "COVID growth turn",
+            "axis": "growth",
+            "target": "Down",
+            "latency_bdays": 0
+          },
+          {
+            "probe": "COVID inflation collapse",
+            "axis": "inflation",
+            "target": "Down",
+            "latency_bdays": 0
+          },
+          {
+            "probe": "2021 reflation start",
+            "axis": "inflation",
+            "target": "Up",
+            "latency_bdays": 42
+          },
+          {
+            "probe": "2022 stagflation start",
+            "axis": "inflation",
+            "target": "Up",
+            "latency_bdays": 0
+          },
+          {
+            "probe": "2024 inflation cooling",
+            "axis": "inflation",
+            "target": "Neutral",
+            "latency_bdays": 0
+          }
+        ]
+      },
+      "composite": 57.25,
+      "is_baseline": false
+    },
+    {
+      "params": {
+        "min_weight": 0.1,
+        "growth_thresh": 0.1,
+        "inflation_thresh": 0.12,
+        "axis_min_consecutive": 10,
+        "macro_g_w": 0.5,
+        "macro_i_w": 0.5,
+        "market_g_w": 0.5,
+        "market_i_w": 0.5,
+        "blend_name": "balanced"
+      },
+      "metrics": {
+        "g_avg_match_pct": 45.5,
+        "i_avg_match_pct": 46.2,
+        "risk_avg_match_pct": 76.9,
+        "overall_avg_match_pct": 56.2,
+        "g_median_run_bdays": 4,
+        "i_median_run_bdays": 3,
+        "g_n_runs": 1014,
+        "i_n_runs": 973,
+        "per_anchor": [
+          {
+            "name": "2008 GFC trough",
+            "g_consensus": "Down",
+            "i_consensus": "Down",
+            "g_match_pct": 100.0,
+            "i_match_pct": 87.7,
+            "risk_match": true
+          },
+          {
+            "name": "2010-12 expansion",
+            "g_consensus": "Up",
+            "i_consensus": "Neutral",
+            "g_match_pct": 58.2,
+            "i_match_pct": 48.6,
+            "risk_match": true
+          },
+          {
+            "name": "2015-16 oil bust",
+            "g_consensus": "Neutral",
+            "i_consensus": "Down",
+            "g_match_pct": 27.2,
+            "i_match_pct": 100.0,
+            "risk_match": true
+          },
+          {
+            "name": "2017 Goldilocks",
+            "g_consensus": "Up",
+            "i_consensus": "Neutral",
+            "g_match_pct": 87.2,
+            "i_match_pct": 39.5,
+            "risk_match": true
+          },
+          {
+            "name": "2018 Q4 vol shock",
+            "g_consensus": "Up",
+            "i_consensus": "Neutral",
+            "g_match_pct": 9.1,
+            "i_match_pct": 21.2,
+            "risk_match": true
+          },
+          {
+            "name": "2019 H2 slowdown",
+            "g_consensus": "Neutral",
+            "i_consensus": "Neutral",
+            "g_match_pct": 20.5,
+            "i_match_pct": 22.0,
+            "risk_match": false
+          },
+          {
+            "name": "2020 COVID recession",
+            "g_consensus": "Down",
+            "i_consensus": "Neutral",
+            "g_match_pct": 100.0,
+            "i_match_pct": 0.0,
+            "risk_match": true
+          },
+          {
+            "name": "2020H2 catch-up",
+            "g_consensus": "Down",
+            "i_consensus": "Down",
+            "g_match_pct": 21.2,
+            "i_match_pct": 43.2,
+            "risk_match": true
+          },
+          {
+            "name": "2021 reflation",
+            "g_consensus": "Up",
+            "i_consensus": "Up",
+            "g_match_pct": 94.4,
+            "i_match_pct": 59.9,
+            "risk_match": true
+          },
+          {
+            "name": "2022 H1 inflation",
+            "g_consensus": "Up",
+            "i_consensus": "Up",
+            "g_match_pct": 33.8,
+            "i_match_pct": 58.4,
+            "risk_match": false
+          },
+          {
+            "name": "2023 high inflation",
+            "g_consensus": "Up",
+            "i_consensus": "Up",
+            "g_match_pct": 19.7,
+            "i_match_pct": 78.3,
+            "risk_match": true
+          },
+          {
+            "name": "2024 disinflation",
+            "g_consensus": "Up",
+            "i_consensus": "Neutral",
+            "g_match_pct": 10.3,
+            "i_match_pct": 35.9,
+            "risk_match": false
+          },
+          {
+            "name": "2025 tariff shock",
+            "g_consensus": "Neutral",
+            "i_consensus": "Up",
+            "g_match_pct": 9.4,
+            "i_match_pct": 6.2,
+            "risk_match": true
+          }
+        ],
+        "latencies": [
+          {
+            "probe": "COVID growth turn",
+            "axis": "growth",
+            "target": "Down",
+            "latency_bdays": 0
+          },
+          {
+            "probe": "COVID inflation collapse",
+            "axis": "inflation",
+            "target": "Down",
+            "latency_bdays": 0
+          },
+          {
+            "probe": "2021 reflation start",
+            "axis": "inflation",
+            "target": "Up",
+            "latency_bdays": 42
+          },
+          {
+            "probe": "2022 stagflation start",
+            "axis": "inflation",
+            "target": "Up",
+            "latency_bdays": 0
+          },
+          {
+            "probe": "2024 inflation cooling",
+            "axis": "inflation",
+            "target": "Neutral",
+            "latency_bdays": 0
+          }
+        ]
+      },
+      "composite": 57.25,
+      "is_baseline": false
+    },
+    {
+      "params": {
+        "min_weight": 0.3,
+        "growth_thresh": 0.1,
+        "inflation_thresh": 0.12,
+        "axis_min_consecutive": 5,
+        "macro_g_w": 0.5,
+        "macro_i_w": 0.5,
+        "market_g_w": 0.5,
+        "market_i_w": 0.5,
+        "blend_name": "balanced"
+      },
+      "metrics": {
+        "g_avg_match_pct": 45.4,
+        "i_avg_match_pct": 46.2,
+        "risk_avg_match_pct": 76.9,
+        "overall_avg_match_pct": 56.2,
+        "g_median_run_bdays": 4,
+        "i_median_run_bdays": 3,
+        "g_n_runs": 990,
+        "i_n_runs": 973,
+        "per_anchor": [
+          {
+            "name": "2008 GFC trough",
+            "g_consensus": "Down",
+            "i_consensus": "Down",
+            "g_match_pct": 100.0,
+            "i_match_pct": 87.7,
+            "risk_match": true
+          },
+          {
+            "name": "2010-12 expansion",
+            "g_consensus": "Up",
+            "i_consensus": "Neutral",
+            "g_match_pct": 58.2,
+            "i_match_pct": 48.6,
+            "risk_match": true
+          },
+          {
+            "name": "2015-16 oil bust",
+            "g_consensus": "Neutral",
+            "i_consensus": "Down",
+            "g_match_pct": 27.2,
+            "i_match_pct": 100.0,
+            "risk_match": true
+          },
+          {
+            "name": "2017 Goldilocks",
+            "g_consensus": "Up",
+            "i_consensus": "Neutral",
+            "g_match_pct": 87.2,
+            "i_match_pct": 39.5,
+            "risk_match": true
+          },
+          {
+            "name": "2018 Q4 vol shock",
+            "g_consensus": "Up",
+            "i_consensus": "Neutral",
+            "g_match_pct": 9.1,
+            "i_match_pct": 21.2,
+            "risk_match": true
+          },
+          {
+            "name": "2019 H2 slowdown",
+            "g_consensus": "Neutral",
+            "i_consensus": "Neutral",
+            "g_match_pct": 20.5,
+            "i_match_pct": 22.0,
+            "risk_match": false
+          },
+          {
+            "name": "2020 COVID recession",
+            "g_consensus": "Down",
+            "i_consensus": "Neutral",
+            "g_match_pct": 100.0,
+            "i_match_pct": 0.0,
+            "risk_match": true
+          },
+          {
+            "name": "2020H2 catch-up",
+            "g_consensus": "Down",
+            "i_consensus": "Down",
+            "g_match_pct": 6.8,
+            "i_match_pct": 43.2,
+            "risk_match": true
+          },
+          {
+            "name": "2021 reflation",
+            "g_consensus": "Up",
+            "i_consensus": "Up",
+            "g_match_pct": 94.4,
+            "i_match_pct": 59.9,
+            "risk_match": true
+          },
+          {
+            "name": "2022 H1 inflation",
+            "g_consensus": "Up",
+            "i_consensus": "Up",
+            "g_match_pct": 34.4,
+            "i_match_pct": 58.4,
+            "risk_match": false
+          },
+          {
+            "name": "2023 high inflation",
+            "g_consensus": "Up",
+            "i_consensus": "Up",
+            "g_match_pct": 24.3,
+            "i_match_pct": 78.3,
+            "risk_match": true
+          },
+          {
+            "name": "2024 disinflation",
+            "g_consensus": "Up",
+            "i_consensus": "Neutral",
+            "g_match_pct": 16.0,
+            "i_match_pct": 35.9,
+            "risk_match": false
+          },
+          {
+            "name": "2025 tariff shock",
+            "g_consensus": "Neutral",
+            "i_consensus": "Up",
+            "g_match_pct": 12.5,
+            "i_match_pct": 6.2,
+            "risk_match": true
+          }
+        ],
+        "latencies": [
+          {
+            "probe": "COVID growth turn",
+            "axis": "growth",
+            "target": "Down",
+            "latency_bdays": 0
+          },
+          {
+            "probe": "COVID inflation collapse",
+            "axis": "inflation",
+            "target": "Down",
+            "latency_bdays": 0
+          },
+          {
+            "probe": "2021 reflation start",
+            "axis": "inflation",
+            "target": "Up",
+            "latency_bdays": 42
+          },
+          {
+            "probe": "2022 stagflation start",
+            "axis": "inflation",
+            "target": "Up",
+            "latency_bdays": 0
+          },
+          {
+            "probe": "2024 inflation cooling",
+            "axis": "inflation",
+            "target": "Neutral",
+            "latency_bdays": 0
+          }
+        ]
+      },
+      "composite": 57.25,
+      "is_baseline": false
+    },
+    {
+      "params": {
+        "min_weight": 0.3,
+        "growth_thresh": 0.1,
+        "inflation_thresh": 0.12,
+        "axis_min_consecutive": 10,
+        "macro_g_w": 0.5,
+        "macro_i_w": 0.5,
+        "market_g_w": 0.5,
+        "market_i_w": 0.5,
+        "blend_name": "balanced"
+      },
+      "metrics": {
+        "g_avg_match_pct": 45.4,
+        "i_avg_match_pct": 46.2,
+        "risk_avg_match_pct": 76.9,
+        "overall_avg_match_pct": 56.2,
+        "g_median_run_bdays": 4,
+        "i_median_run_bdays": 3,
+        "g_n_runs": 990,
+        "i_n_runs": 973,
+        "per_anchor": [
+          {
+            "name": "2008 GFC trough",
+            "g_consensus": "Down",
+            "i_consensus": "Down",
+            "g_match_pct": 100.0,
+            "i_match_pct": 87.7,
+            "risk_match": true
+          },
+          {
+            "name": "2010-12 expansion",
+            "g_consensus": "Up",
+            "i_consensus": "Neutral",
+            "g_match_pct": 58.2,
+            "i_match_pct": 48.6,
+            "risk_match": true
+          },
+          {
+            "name": "2015-16 oil bust",
+            "g_consensus": "Neutral",
+            "i_consensus": "Down",
+            "g_match_pct": 27.2,
+            "i_match_pct": 100.0,
+            "risk_match": true
+          },
+          {
+            "name": "2017 Goldilocks",
+            "g_consensus": "Up",
+            "i_consensus": "Neutral",
+            "g_match_pct": 87.2,
+            "i_match_pct": 39.5,
+            "risk_match": true
+          },
+          {
+            "name": "2018 Q4 vol shock",
+            "g_consensus": "Up",
+            "i_consensus": "Neutral",
+            "g_match_pct": 9.1,
+            "i_match_pct": 21.2,
+            "risk_match": true
+          },
+          {
+            "name": "2019 H2 slowdown",
+            "g_consensus": "Neutral",
+            "i_consensus": "Neutral",
+            "g_match_pct": 20.5,
+            "i_match_pct": 22.0,
+            "risk_match": false
+          },
+          {
+            "name": "2020 COVID recession",
+            "g_consensus": "Down",
+            "i_consensus": "Neutral",
+            "g_match_pct": 100.0,
+            "i_match_pct": 0.0,
+            "risk_match": true
+          },
+          {
+            "name": "2020H2 catch-up",
+            "g_consensus": "Down",
+            "i_consensus": "Down",
+            "g_match_pct": 6.8,
+            "i_match_pct": 43.2,
+            "risk_match": true
+          },
+          {
+            "name": "2021 reflation",
+            "g_consensus": "Up",
+            "i_consensus": "Up",
+            "g_match_pct": 94.4,
+            "i_match_pct": 59.9,
+            "risk_match": true
+          },
+          {
+            "name": "2022 H1 inflation",
+            "g_consensus": "Up",
+            "i_consensus": "Up",
+            "g_match_pct": 34.4,
+            "i_match_pct": 58.4,
+            "risk_match": false
+          },
+          {
+            "name": "2023 high inflation",
+            "g_consensus": "Up",
+            "i_consensus": "Up",
+            "g_match_pct": 24.3,
+            "i_match_pct": 78.3,
+            "risk_match": true
+          },
+          {
+            "name": "2024 disinflation",
+            "g_consensus": "Up",
+            "i_consensus": "Neutral",
+            "g_match_pct": 16.0,
+            "i_match_pct": 35.9,
+            "risk_match": false
+          },
+          {
+            "name": "2025 tariff shock",
+            "g_consensus": "Neutral",
+            "i_consensus": "Up",
+            "g_match_pct": 12.5,
+            "i_match_pct": 6.2,
+            "risk_match": true
+          }
+        ],
+        "latencies": [
+          {
+            "probe": "COVID growth turn",
+            "axis": "growth",
+            "target": "Down",
+            "latency_bdays": 0
+          },
+          {
+            "probe": "COVID inflation collapse",
+            "axis": "inflation",
+            "target": "Down",
+            "latency_bdays": 0
+          },
+          {
+            "probe": "2021 reflation start",
+            "axis": "inflation",
+            "target": "Up",
+            "latency_bdays": 42
+          },
+          {
+            "probe": "2022 stagflation start",
+            "axis": "inflation",
+            "target": "Up",
+            "latency_bdays": 0
+          },
+          {
+            "probe": "2024 inflation cooling",
+            "axis": "inflation",
+            "target": "Neutral",
+            "latency_bdays": 0
+          }
+        ]
+      },
+      "composite": 57.25,
+      "is_baseline": false
+    },
+    {
+      "params": {
+        "min_weight": 0.65,
+        "growth_thresh": 0.1,
+        "inflation_thresh": 0.18,
+        "axis_min_consecutive": 5,
+        "macro_g_w": 0.5,
+        "macro_i_w": 0.5,
+        "market_g_w": 0.5,
+        "market_i_w": 0.5,
+        "blend_name": "balanced"
+      },
+      "metrics": {
+        "g_avg_match_pct": 45.6,
+        "i_avg_match_pct": 45.0,
+        "risk_avg_match_pct": 76.9,
+        "overall_avg_match_pct": 55.9,
+        "g_median_run_bdays": 4,
+        "i_median_run_bdays": 4,
+        "g_n_runs": 972,
+        "i_n_runs": 808,
+        "per_anchor": [
+          {
+            "name": "2008 GFC trough",
+            "g_consensus": "Down",
+            "i_consensus": "Down",
+            "g_match_pct": 100.0,
+            "i_match_pct": 69.2,
+            "risk_match": true
+          },
+          {
+            "name": "2010-12 expansion",
+            "g_consensus": "Up",
+            "i_consensus": "Neutral",
+            "g_match_pct": 58.4,
+            "i_match_pct": 63.7,
+            "risk_match": true
+          },
+          {
+            "name": "2015-16 oil bust",
+            "g_consensus": "Neutral",
+            "i_consensus": "Down",
+            "g_match_pct": 26.5,
+            "i_match_pct": 100.0,
+            "risk_match": true
+          },
+          {
+            "name": "2017 Goldilocks",
+            "g_consensus": "Up",
+            "i_consensus": "Neutral",
+            "g_match_pct": 87.7,
+            "i_match_pct": 50.8,
+            "risk_match": true
+          },
+          {
+            "name": "2018 Q4 vol shock",
+            "g_consensus": "Up",
+            "i_consensus": "Neutral",
+            "g_match_pct": 9.1,
+            "i_match_pct": 34.8,
+            "risk_match": true
+          },
+          {
+            "name": "2019 H2 slowdown",
+            "g_consensus": "Neutral",
+            "i_consensus": "Neutral",
+            "g_match_pct": 20.5,
+            "i_match_pct": 39.4,
+            "risk_match": false
+          },
+          {
+            "name": "2020 COVID recession",
+            "g_consensus": "Down",
+            "i_consensus": "Neutral",
+            "g_match_pct": 100.0,
+            "i_match_pct": 0.0,
+            "risk_match": true
+          },
+          {
+            "name": "2020H2 catch-up",
+            "g_consensus": "Down",
+            "i_consensus": "Down",
+            "g_match_pct": 0.8,
+            "i_match_pct": 22.0,
+            "risk_match": true
+          },
+          {
+            "name": "2021 reflation",
+            "g_consensus": "Up",
+            "i_consensus": "Up",
+            "g_match_pct": 94.4,
+            "i_match_pct": 40.6,
+            "risk_match": true
+          },
+          {
+            "name": "2022 H1 inflation",
+            "g_consensus": "Up",
+            "i_consensus": "Up",
+            "g_match_pct": 33.8,
+            "i_match_pct": 51.3,
+            "risk_match": false
+          },
+          {
+            "name": "2023 high inflation",
+            "g_consensus": "Up",
+            "i_consensus": "Up",
+            "g_match_pct": 29.6,
+            "i_match_pct": 63.8,
+            "risk_match": true
+          },
+          {
+            "name": "2024 disinflation",
+            "g_consensus": "Up",
+            "i_consensus": "Neutral",
+            "g_match_pct": 19.8,
+            "i_match_pct": 46.9,
+            "risk_match": false
+          },
+          {
+            "name": "2025 tariff shock",
+            "g_consensus": "Neutral",
+            "i_consensus": "Up",
+            "g_match_pct": 12.5,
+            "i_match_pct": 3.1,
+            "risk_match": true
+          }
+        ],
+        "latencies": [
+          {
+            "probe": "COVID growth turn",
+            "axis": "growth",
+            "target": "Down",
+            "latency_bdays": 0
+          },
+          {
+            "probe": "COVID inflation collapse",
+            "axis": "inflation",
+            "target": "Down",
+            "latency_bdays": 0
+          },
+          {
+            "probe": "2021 reflation start",
+            "axis": "inflation",
+            "target": "Up",
+            "latency_bdays": 47
+          },
+          {
+            "probe": "2022 stagflation start",
+            "axis": "inflation",
+            "target": "Up",
+            "latency_bdays": 0
+          },
+          {
+            "probe": "2024 inflation cooling",
+            "axis": "inflation",
+            "target": "Neutral",
+            "latency_bdays": 0
+          }
+        ]
+      },
+      "composite": 57.1,
+      "is_baseline": false
+    },
+    {
+      "params": {
+        "min_weight": 0.65,
+        "growth_thresh": 0.1,
+        "inflation_thresh": 0.18,
+        "axis_min_consecutive": 10,
+        "macro_g_w": 0.5,
+        "macro_i_w": 0.5,
+        "market_g_w": 0.5,
+        "market_i_w": 0.5,
+        "blend_name": "balanced"
+      },
+      "metrics": {
+        "g_avg_match_pct": 45.6,
+        "i_avg_match_pct": 45.0,
+        "risk_avg_match_pct": 76.9,
+        "overall_avg_match_pct": 55.9,
+        "g_median_run_bdays": 4,
+        "i_median_run_bdays": 4,
+        "g_n_runs": 972,
+        "i_n_runs": 808,
+        "per_anchor": [
+          {
+            "name": "2008 GFC trough",
+            "g_consensus": "Down",
+            "i_consensus": "Down",
+            "g_match_pct": 100.0,
+            "i_match_pct": 69.2,
+            "risk_match": true
+          },
+          {
+            "name": "2010-12 expansion",
+            "g_consensus": "Up",
+            "i_consensus": "Neutral",
+            "g_match_pct": 58.4,
+            "i_match_pct": 63.7,
+            "risk_match": true
+          },
+          {
+            "name": "2015-16 oil bust",
+            "g_consensus": "Neutral",
+            "i_consensus": "Down",
+            "g_match_pct": 26.5,
+            "i_match_pct": 100.0,
+            "risk_match": true
+          },
+          {
+            "name": "2017 Goldilocks",
+            "g_consensus": "Up",
+            "i_consensus": "Neutral",
+            "g_match_pct": 87.7,
+            "i_match_pct": 50.8,
+            "risk_match": true
+          },
+          {
+            "name": "2018 Q4 vol shock",
+            "g_consensus": "Up",
+            "i_consensus": "Neutral",
+            "g_match_pct": 9.1,
+            "i_match_pct": 34.8,
+            "risk_match": true
+          },
+          {
+            "name": "2019 H2 slowdown",
+            "g_consensus": "Neutral",
+            "i_consensus": "Neutral",
+            "g_match_pct": 20.5,
+            "i_match_pct": 39.4,
+            "risk_match": false
+          },
+          {
+            "name": "2020 COVID recession",
+            "g_consensus": "Down",
+            "i_consensus": "Neutral",
+            "g_match_pct": 100.0,
+            "i_match_pct": 0.0,
+            "risk_match": true
+          },
+          {
+            "name": "2020H2 catch-up",
+            "g_consensus": "Down",
+            "i_consensus": "Down",
+            "g_match_pct": 0.8,
+            "i_match_pct": 22.0,
+            "risk_match": true
+          },
+          {
+            "name": "2021 reflation",
+            "g_consensus": "Up",
+            "i_consensus": "Up",
+            "g_match_pct": 94.4,
+            "i_match_pct": 40.6,
+            "risk_match": true
+          },
+          {
+            "name": "2022 H1 inflation",
+            "g_consensus": "Up",
+            "i_consensus": "Up",
+            "g_match_pct": 33.8,
+            "i_match_pct": 51.3,
+            "risk_match": false
+          },
+          {
+            "name": "2023 high inflation",
+            "g_consensus": "Up",
+            "i_consensus": "Up",
+            "g_match_pct": 29.6,
+            "i_match_pct": 63.8,
+            "risk_match": true
+          },
+          {
+            "name": "2024 disinflation",
+            "g_consensus": "Up",
+            "i_consensus": "Neutral",
+            "g_match_pct": 19.8,
+            "i_match_pct": 46.9,
+            "risk_match": false
+          },
+          {
+            "name": "2025 tariff shock",
+            "g_consensus": "Neutral",
+            "i_consensus": "Up",
+            "g_match_pct": 12.5,
+            "i_match_pct": 3.1,
+            "risk_match": true
+          }
+        ],
+        "latencies": [
+          {
+            "probe": "COVID growth turn",
+            "axis": "growth",
+            "target": "Down",
+            "latency_bdays": 0
+          },
+          {
+            "probe": "COVID inflation collapse",
+            "axis": "inflation",
+            "target": "Down",
+            "latency_bdays": 0
+          },
+          {
+            "probe": "2021 reflation start",
+            "axis": "inflation",
+            "target": "Up",
+            "latency_bdays": 47
+          },
+          {
+            "probe": "2022 stagflation start",
+            "axis": "inflation",
+            "target": "Up",
+            "latency_bdays": 0
+          },
+          {
+            "probe": "2024 inflation cooling",
+            "axis": "inflation",
+            "target": "Neutral",
+            "latency_bdays": 0
+          }
+        ]
+      },
+      "composite": 57.1,
+      "is_baseline": false
+    },
+    {
+      "params": {
+        "min_weight": 0.1,
+        "growth_thresh": 0.1,
+        "inflation_thresh": 0.18,
+        "axis_min_consecutive": 5,
+        "macro_g_w": 0.5,
+        "macro_i_w": 0.5,
+        "market_g_w": 0.5,
+        "market_i_w": 0.5,
+        "blend_name": "balanced"
+      },
+      "metrics": {
+        "g_avg_match_pct": 45.5,
+        "i_avg_match_pct": 44.7,
+        "risk_avg_match_pct": 76.9,
+        "overall_avg_match_pct": 55.7,
+        "g_median_run_bdays": 4,
+        "i_median_run_bdays": 5,
+        "g_n_runs": 1014,
+        "i_n_runs": 822,
+        "per_anchor": [
+          {
+            "name": "2008 GFC trough",
+            "g_consensus": "Down",
+            "i_consensus": "Down",
+            "g_match_pct": 100.0,
+            "i_match_pct": 69.2,
+            "risk_match": true
+          },
+          {
+            "name": "2010-12 expansion",
+            "g_consensus": "Up",
+            "i_consensus": "Neutral",
+            "g_match_pct": 58.2,
+            "i_match_pct": 63.6,
+            "risk_match": true
+          },
+          {
+            "name": "2015-16 oil bust",
+            "g_consensus": "Neutral",
+            "i_consensus": "Down",
+            "g_match_pct": 27.2,
+            "i_match_pct": 100.0,
+            "risk_match": true
+          },
+          {
+            "name": "2017 Goldilocks",
+            "g_consensus": "Up",
+            "i_consensus": "Neutral",
+            "g_match_pct": 87.2,
+            "i_match_pct": 50.8,
+            "risk_match": true
+          },
+          {
+            "name": "2018 Q4 vol shock",
+            "g_consensus": "Up",
+            "i_consensus": "Neutral",
+            "g_match_pct": 9.1,
+            "i_match_pct": 33.3,
+            "risk_match": true
+          },
+          {
+            "name": "2019 H2 slowdown",
+            "g_consensus": "Neutral",
+            "i_consensus": "Neutral",
+            "g_match_pct": 20.5,
+            "i_match_pct": 38.6,
+            "risk_match": false
+          },
+          {
+            "name": "2020 COVID recession",
+            "g_consensus": "Down",
+            "i_consensus": "Neutral",
+            "g_match_pct": 100.0,
+            "i_match_pct": 0.0,
+            "risk_match": true
+          },
+          {
+            "name": "2020H2 catch-up",
+            "g_consensus": "Down",
+            "i_consensus": "Down",
+            "g_match_pct": 21.2,
+            "i_match_pct": 21.2,
+            "risk_match": true
+          },
+          {
+            "name": "2021 reflation",
+            "g_consensus": "Up",
+            "i_consensus": "Up",
+            "g_match_pct": 94.4,
+            "i_match_pct": 40.1,
+            "risk_match": true
+          },
+          {
+            "name": "2022 H1 inflation",
+            "g_consensus": "Up",
+            "i_consensus": "Up",
+            "g_match_pct": 33.8,
+            "i_match_pct": 51.3,
+            "risk_match": false
+          },
+          {
+            "name": "2023 high inflation",
+            "g_consensus": "Up",
+            "i_consensus": "Up",
+            "g_match_pct": 19.7,
+            "i_match_pct": 63.2,
+            "risk_match": true
+          },
+          {
+            "name": "2024 disinflation",
+            "g_consensus": "Up",
+            "i_consensus": "Neutral",
+            "g_match_pct": 10.3,
+            "i_match_pct": 47.3,
+            "risk_match": false
+          },
+          {
+            "name": "2025 tariff shock",
+            "g_consensus": "Neutral",
+            "i_consensus": "Up",
+            "g_match_pct": 9.4,
+            "i_match_pct": 3.1,
+            "risk_match": true
+          }
+        ],
+        "latencies": [
+          {
+            "probe": "COVID growth turn",
+            "axis": "growth",
+            "target": "Down",
+            "latency_bdays": 0
+          },
+          {
+            "probe": "COVID inflation collapse",
+            "axis": "inflation",
+            "target": "Down",
+            "latency_bdays": 0
+          },
+          {
+            "probe": "2021 reflation start",
+            "axis": "inflation",
+            "target": "Up",
+            "latency_bdays": 43
+          },
+          {
+            "probe": "2022 stagflation start",
+            "axis": "inflation",
+            "target": "Up",
+            "latency_bdays": 0
+          },
+          {
+            "probe": "2024 inflation cooling",
+            "axis": "inflation",
+            "target": "Neutral",
+            "latency_bdays": 0
+          }
+        ]
+      },
+      "composite": 57.050000000000004,
+      "is_baseline": false
+    },
+    {
+      "params": {
+        "min_weight": 0.1,
+        "growth_thresh": 0.1,
+        "inflation_thresh": 0.18,
+        "axis_min_consecutive": 10,
+        "macro_g_w": 0.5,
+        "macro_i_w": 0.5,
+        "market_g_w": 0.5,
+        "market_i_w": 0.5,
+        "blend_name": "balanced"
+      },
+      "metrics": {
+        "g_avg_match_pct": 45.5,
+        "i_avg_match_pct": 44.7,
+        "risk_avg_match_pct": 76.9,
+        "overall_avg_match_pct": 55.7,
+        "g_median_run_bdays": 4,
+        "i_median_run_bdays": 5,
+        "g_n_runs": 1014,
+        "i_n_runs": 822,
+        "per_anchor": [
+          {
+            "name": "2008 GFC trough",
+            "g_consensus": "Down",
+            "i_consensus": "Down",
+            "g_match_pct": 100.0,
+            "i_match_pct": 69.2,
+            "risk_match": true
+          },
+          {
+            "name": "2010-12 expansion",
+            "g_consensus": "Up",
+            "i_consensus": "Neutral",
+            "g_match_pct": 58.2,
+            "i_match_pct": 63.6,
+            "risk_match": true
+          },
+          {
+            "name": "2015-16 oil bust",
+            "g_consensus": "Neutral",
+            "i_consensus": "Down",
+            "g_match_pct": 27.2,
+            "i_match_pct": 100.0,
+            "risk_match": true
+          },
+          {
+            "name": "2017 Goldilocks",
+            "g_consensus": "Up",
+            "i_consensus": "Neutral",
+            "g_match_pct": 87.2,
+            "i_match_pct": 50.8,
+            "risk_match": true
+          },
+          {
+            "name": "2018 Q4 vol shock",
+            "g_consensus": "Up",
+            "i_consensus": "Neutral",
+            "g_match_pct": 9.1,
+            "i_match_pct": 33.3,
+            "risk_match": true
+          },
+          {
+            "name": "2019 H2 slowdown",
+            "g_consensus": "Neutral",
+            "i_consensus": "Neutral",
+            "g_match_pct": 20.5,
+            "i_match_pct": 38.6,
+            "risk_match": false
+          },
+          {
+            "name": "2020 COVID recession",
+            "g_consensus": "Down",
+            "i_consensus": "Neutral",
+            "g_match_pct": 100.0,
+            "i_match_pct": 0.0,
+            "risk_match": true
+          },
+          {
+            "name": "2020H2 catch-up",
+            "g_consensus": "Down",
+            "i_consensus": "Down",
+            "g_match_pct": 21.2,
+            "i_match_pct": 21.2,
+            "risk_match": true
+          },
+          {
+            "name": "2021 reflation",
+            "g_consensus": "Up",
+            "i_consensus": "Up",
+            "g_match_pct": 94.4,
+            "i_match_pct": 40.1,
+            "risk_match": true
+          },
+          {
+            "name": "2022 H1 inflation",
+            "g_consensus": "Up",
+            "i_consensus": "Up",
+            "g_match_pct": 33.8,
+            "i_match_pct": 51.3,
+            "risk_match": false
+          },
+          {
+            "name": "2023 high inflation",
+            "g_consensus": "Up",
+            "i_consensus": "Up",
+            "g_match_pct": 19.7,
+            "i_match_pct": 63.2,
+            "risk_match": true
+          },
+          {
+            "name": "2024 disinflation",
+            "g_consensus": "Up",
+            "i_consensus": "Neutral",
+            "g_match_pct": 10.3,
+            "i_match_pct": 47.3,
+            "risk_match": false
+          },
+          {
+            "name": "2025 tariff shock",
+            "g_consensus": "Neutral",
+            "i_consensus": "Up",
+            "g_match_pct": 9.4,
+            "i_match_pct": 3.1,
+            "risk_match": true
+          }
+        ],
+        "latencies": [
+          {
+            "probe": "COVID growth turn",
+            "axis": "growth",
+            "target": "Down",
+            "latency_bdays": 0
+          },
+          {
+            "probe": "COVID inflation collapse",
+            "axis": "inflation",
+            "target": "Down",
+            "latency_bdays": 0
+          },
+          {
+            "probe": "2021 reflation start",
+            "axis": "inflation",
+            "target": "Up",
+            "latency_bdays": 43
+          },
+          {
+            "probe": "2022 stagflation start",
+            "axis": "inflation",
+            "target": "Up",
+            "latency_bdays": 0
+          },
+          {
+            "probe": "2024 inflation cooling",
+            "axis": "inflation",
+            "target": "Neutral",
+            "latency_bdays": 0
+          }
+        ]
+      },
+      "composite": 57.050000000000004,
+      "is_baseline": false
+    }
+  ]
+}

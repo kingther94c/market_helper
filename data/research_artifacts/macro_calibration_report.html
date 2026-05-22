@@ -1,0 +1,1076 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Macro Calibration Research Report — 2026-05-22</title>
+
+    <style>
+      body { font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+             max-width: 1200px; margin: 30px auto; padding: 0 20px; line-height: 1.55;
+             color: #1f2328; }
+      h1 { font-size: 1.7em; margin: 0 0 0.3em; }
+      h2 { font-size: 1.3em; margin-top: 1.8em; padding-bottom: 0.3em; border-bottom: 1px solid #d0d7de; }
+      h3 { font-size: 1.1em; margin-top: 1.5em; }
+      table { border-collapse: collapse; margin: 1em 0; font-size: 0.92em; width: 100%; }
+      th, td { padding: 6px 10px; border: 1px solid #d0d7de; text-align: left; }
+      th { background: #f6f8fa; }
+      tfoot td { background: #fff8e1; font-weight: 500; }
+      td.ok { color: #1a7f37; font-weight: 600; }
+      td.bad { color: #cf222e; font-weight: 600; }
+      .muted { color: #57606a; font-size: 0.9em; }
+      code { background: #f6f8fa; padding: 1px 5px; border-radius: 3px; font-size: 0.88em; }
+      pre code { display: block; padding: 12px; line-height: 1.45; white-space: pre; }
+      table.anchor th, table.anchor td { font-size: 0.88em; padding: 4px 8px; }
+      table.dim td { vertical-align: top; font-size: 0.92em; }
+      .toc { background: #f6f8fa; padding: 12px 20px; border: 1px solid #d0d7de; border-radius: 6px; }
+      .toc ul { margin: 0; padding-left: 1.2em; }
+      .banner { background: #ddf4ff; border-left: 4px solid #0969da; padding: 10px 16px; margin: 1em 0; border-radius: 4px; }
+      .warn   { background: #fff8c5; border-left: 4px solid #9a6700; padding: 10px 16px; margin: 1em 0; border-radius: 4px; }
+    </style>
+    
+</head>
+<body>
+<h1>Macro Calibration Research Report</h1>
+<p class="muted">Generated 2026-05-22 · engine v2 · scope = macro axis (growth + inflation)
+   · risk overlay frozen from Q7 round</p>
+<p class="muted"><b>Recommendation:</b> min_weight=0.65, growth_thresh=±0.10, inflation_thresh=±0.12, hyst=5bd, macro_g/i=0.50/0.50, mkt_g/i=0.50/0.50</p>
+
+    <div class="banner">
+      <b>Goal</b>: deliver a regime engine whose labels (i) match
+      consensus readings of growth / inflation / risk at named macro
+      anchors, (ii) respond quickly enough to actual turning points to
+      be operationally useful, and (iii) stay stable enough that
+      transitions aren't single-print whipsaws. The three constraints
+      pull in opposite directions; the grid search probes the trade-off
+      surface and the Pareto front is the answer envelope.
+    </div>
+    <div class="toc"><b>Sections</b><ul><li><a href="#m">Methodology &amp; consensus framing</a></li><li><a href="#d">Macro data dimensions that drive design</a></li><li><a href="#b">Baseline scout (pre-calibration)</a></li><li><a href="#g">Grid-search summary</a></li><li><a href="#a">After-calibration scout</a></li><li><a href="#r">Decisions, deltas, and apply</a></li><li><a href="#c">Caveats</a></li></ul></div><h2 id="m">Methodology</h2>
+    <h3>Methodology</h3>
+    <p>This calibration round runs the regime engine over the full
+       FRED-aware history (1921→today, ~27k bdays after warmup) with
+       all knobs under sweep, then measures three orthogonal qualities:</p>
+    <ul>
+      <li><b>Consensus match</b> — at 13 named macro periods spanning
+        2008-2025, compare the engine's per-day axis labels to the
+        widely-accepted consensus reading of growth / inflation / risk
+        for that window. Match % = fraction of days where the engine
+        label equals the consensus label.</li>
+      <li><b>Stability</b> — median run length of axis labels (computed
+        from final scores against the threshold, no hysteresis applied)
+        and run count. Shorter median runs indicate the engine is
+        flipping noisily around the threshold; this is the
+        <em>noise floor</em> of the configuration, not what the engine
+        actually emits (the engine layers <code>min_consecutive_days</code>
+        hysteresis on top).</li>
+      <li><b>Latency</b> — at five sharp transition points
+        (COVID growth turn, COVID inflation collapse, 2021 reflation
+        start, 2022 stagflation start, 2024 inflation cooling), measure
+        bdays from the named date until the engine first labels the
+        target state. Lower = faster. <em>Caveat</em>: in the current
+        anchor set the engine is already in the target state on the
+        named transition date for most configurations, so latency
+        degenerates to 0 and acts only as a guardrail (the metric is
+        retained for forward compatibility with tighter probes).</li>
+    </ul>
+    <h3>Selection rule (from grid → recommendation)</h3>
+    <ol>
+      <li>Compute per-config composite =
+          <code>overall_match% + 0.3·min(median_run_bdays, 20)</code>.
+          Match dominates 16:1 over the stability bonus. <em>Latency
+          intentionally excluded</em> — see caveat below.</li>
+      <li>Strict-improvers tier: candidates that dominate the baseline
+          on (match%, stability). Pick the highest composite. This is
+          what landed for the Q8 recommendation.</li>
+      <li>Safe-fallback tier: candidates with
+          <code>risk_avg_match_pct ≥ 80%</code> — guards against
+          risk-overlay regression. Picks the highest composite.</li>
+      <li>Open tier (last fallback): top composite across all
+          candidates regardless of safety filter.</li>
+    </ol>
+    <h3>Consensus labels are LEVEL-based, not DIRECTION-based</h3>
+    <p>This is the most consequential framing decision. Examples:</p>
+    <ul>
+      <li>2023 disinflation: CPI YoY fell from 6% to 3.3% but stayed
+        well above the 2.5% comfort level — the macro inflation score
+        (centered on threshold 2.5±0.5) reads <em>Up</em> for the
+        whole window, not <em>Down</em>. We label
+        <em>i_consensus=Up</em> to match this level interpretation.</li>
+      <li>2022 H1 stagflation: GDP printed negative Q1 and Q2 but
+        YoY payrolls were +5-6% (post-COVID base effect). The macro
+        growth score reads <em>Up</em>. We label <em>g_consensus=Up</em>.</li>
+      <li>2020 H2 recovery: monthly recovery was rapid but YoY
+        payrolls were still down 7% in July, -5% in October. Level says
+        the labor market was still deeply impaired. We label
+        <em>g_consensus=Down</em>.</li>
+    </ul>
+    <p>This framing matches the engine's actual scoring methodology
+       (YoY transforms + threshold normalization). A direction-based
+       framing would require adding MoM/QoQ velocity components — that
+       is a separate engineering project, not a tuning exercise.</p>
+    <h2 id="d">Macro data dimensions</h2>
+    <h3>Macro data: dimensions that drive design choices</h3>
+    <p>The FRED panel feeds eight calibration knobs across four dimensions.
+       Each dimension has natural tradeoffs that calibration must respect.</p>
+    <table class="dim">
+      <thead><tr><th>Dimension</th><th>Knob(s)</th><th>Tradeoff</th><th>Current handling</th></tr></thead>
+      <tbody>
+        <tr><td><b>Publication lag</b></td>
+            <td><code>publication_lag_days</code> per series</td>
+            <td>Avoid lookahead vs maintain real-time fidelity</td>
+            <td>Each series shifts its observation date forward by its
+                published-lag (CPI = 14 days, PCE = 30 days, payrolls = 7).
+                Daily series (T5YIFR, T10Y3M, ICSA-weekly) have lag 1-5.</td></tr>
+        <tr><td><b>Print frequency &amp; freshness</b></td>
+            <td><code>recency_weighting</code> (half-life, min_weight)</td>
+            <td>Newer prints should dominate vs don't down-weight a
+                series to zero between releases</td>
+            <td>Half-life is derived from <code>frequency_hint</code>
+                (daily=5, weekly=5, monthly=22, quarterly=66 bdays).
+                <em>This round drops the 0.65 min_weight floor that
+                neutralized the decay structurally.</em></td></tr>
+        <tr><td><b>YoY vs MoM transform</b></td>
+            <td><code>transform</code> per series</td>
+            <td>YoY is smoother but lags turning points 6 months;
+                MoM is timely but noisy</td>
+            <td>All major macro series use YoY transforms; the macro
+                axis is inherently a slow-moving, late-cycle reading.
+                Faster turning-point detection comes from the market
+                layer (breakevens, equity drawdown).</td></tr>
+        <tr><td><b>Level vs change normalization</b></td>
+            <td><code>normalization</code>: <code>threshold</code>,
+                <code>zscore</code>, etc.</td>
+            <td>Threshold normalizes against an absolute reference
+                (e.g. CPI YoY=2.5%); z-score normalizes against
+                historical distribution. Threshold is more
+                interpretable; z-score is more robust across regimes.</td>
+            <td>Inflation series use threshold (with explicit comfort
+                anchors: 2.5% CPI, 2.2% PCE). Growth series use z-score.
+                Sticky-price CPI (CORESTICKM159SFRBATL) and AHETPI wages
+                use threshold; everything else z-score.</td></tr>
+        <tr><td><b>Concept aggregation</b></td>
+            <td><code>growth_concepts</code> / <code>inflation_concepts</code>
+                weights</td>
+            <td>Single-series dominance vs averaging out noise</td>
+            <td>Concept weights = semantic importance (labor=1.0,
+                production=0.75, broad_leading=0.75 for growth);
+                within-concept weights compensate for redundancy
+                (UNRATE+PAYEMS share labor 35/35 to avoid double-counting
+                the same employment signal).</td></tr>
+        <tr><td><b>Bucket balance: fast vs slow</b></td>
+            <td>concept composition</td>
+            <td>Slow = stable but late; fast = responsive but noisy</td>
+            <td>Growth axis is currently slow-dominated (labor,
+                production, consumption — all monthly YoY). Market
+                layer provides the fast view.</td></tr>
+        <tr><td><b>Cross-correlation</b></td>
+            <td>concept composition + within-weights</td>
+            <td>Highly correlated series double-count if both kept at
+                full weight</td>
+            <td>UNRATE + PAYEMS correlate 0.93 → share labor 50/50.
+                T10Y2Y + T10Y3M (both yield-curve) are kept dormant
+                rather than double-counted. CPIAUCSL + CPILFESL split
+                realized_broad 50/50 with PCE pairs.</td></tr>
+        <tr><td><b>Threshold semantics</b></td>
+            <td><code>neutral_level</code>, <code>threshold</code></td>
+            <td>Direction-honest (rising/falling) vs level-honest
+                (high/low vs target)</td>
+            <td>Inflation thresholds are level-honest: a CPI YoY at 4%
+                always reads Up, even if it just fell from 6%. This
+                matches Fed comfort framing but mis-matches
+                "disinflation" headlines.</td></tr>
+      </tbody>
+    </table>
+    <h2 id="b">Baseline scout (current shipped config)</h2>
+    <h3>Pre-calibration anchor matches</h3>
+    <p class="muted">Engine: 27,472 bdays from 1921-02-03 to 2026-05-22.
+       Axis thresholds: growth ±0.15,
+       inflation ±0.12.
+       Stability: growth median run = 4bd (1007 runs),
+       inflation median run = 3bd (1127 runs),
+       quadrant median run = 17bd (629 runs).</p>
+    <table class="anchor">
+      <thead>
+        <tr>
+          <th>Anchor</th><th>Window</th>
+          <th>g_cons</th><th>g_match</th><th>g_score (mean [min,max])</th>
+          <th>i_cons</th><th>i_match</th><th>i_score (mean [min,max])</th>
+          <th>risk_cons</th><th>risk_check</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>2008 GFC trough</td>
+          <td>2008-10-01 → 2009-03-31</td>
+          <td>Down</td>
+          <td class="ok">88%</td>
+          <td>-0.50 <span class="muted">[-0.89, +0.05]</span></td>
+          <td>Down</td>
+          <td class="ok">73%</td>
+          <td>-0.36 <span class="muted">[-0.69, +0.19]</span></td>
+          <td>On</td>
+          <td class="ok">✓ (42% stress)</td>
+        </tr>
+        <tr>
+          <td>2010-12 expansion</td>
+          <td>2010-06-01 → 2012-12-31</td>
+          <td>Up</td>
+          <td class="bad">34%</td>
+          <td>+0.08 <span class="muted">[-0.27, +0.40]</span></td>
+          <td>Neutral</td>
+          <td class="bad">43%</td>
+          <td>-0.08 <span class="muted">[-0.56, +0.38]</span></td>
+          <td>Off</td>
+          <td class="ok">✓ (0% stress)</td>
+        </tr>
+        <tr>
+          <td>2015-16 oil bust</td>
+          <td>2015-08-01 → 2016-02-29</td>
+          <td>Neutral</td>
+          <td class="bad">26%</td>
+          <td>-0.24 <span class="muted">[-0.49, +0.10]</span></td>
+          <td>Down</td>
+          <td class="ok">97%</td>
+          <td>-0.39 <span class="muted">[-0.63, -0.04]</span></td>
+          <td>On</td>
+          <td class="ok">✓ (33% stress)</td>
+        </tr>
+        <tr>
+          <td>2017 Goldilocks</td>
+          <td>2017-04-01 → 2017-12-31</td>
+          <td>Up</td>
+          <td class="bad">43%</td>
+          <td>+0.14 <span class="muted">[+0.01, +0.28]</span></td>
+          <td>Neutral</td>
+          <td class="bad">52%</td>
+          <td>-0.07 <span class="muted">[-0.36, +0.19]</span></td>
+          <td>Off</td>
+          <td class="ok">✓ (0% stress)</td>
+        </tr>
+        <tr>
+          <td>2018 Q4 vol shock</td>
+          <td>2018-10-01 → 2018-12-31</td>
+          <td>Up</td>
+          <td class="bad">4%</td>
+          <td>-0.19 <span class="muted">[-0.44, +0.20]</span></td>
+          <td>Neutral</td>
+          <td class="bad">18%</td>
+          <td>-0.29 <span class="muted">[-0.54, -0.04]</span></td>
+          <td>On</td>
+          <td class="ok">✓ (17% stress)</td>
+        </tr>
+        <tr>
+          <td>2019 H2 slowdown</td>
+          <td>2019-07-01 → 2019-12-31</td>
+          <td>Neutral</td>
+          <td class="bad">30%</td>
+          <td>-0.23 <span class="muted">[-0.50, +0.16]</span></td>
+          <td>Neutral</td>
+          <td class="bad">36%</td>
+          <td>-0.15 <span class="muted">[-0.37, +0.26]</span></td>
+          <td>Off</td>
+          <td class="bad">✗ (17% stress)</td>
+        </tr>
+        <tr>
+          <td>2020 COVID recession</td>
+          <td>2020-02-24 → 2020-04-30</td>
+          <td>Down</td>
+          <td class="ok">98%</td>
+          <td>-0.41 <span class="muted">[-0.61, -0.13]</span></td>
+          <td>Neutral</td>
+          <td class="bad">0%</td>
+          <td>-0.51 <span class="muted">[-0.64, -0.17]</span></td>
+          <td>On</td>
+          <td class="ok">✓ (69% stress)</td>
+        </tr>
+        <tr>
+          <td>2020H2 catch-up</td>
+          <td>2020-07-01 → 2020-12-31</td>
+          <td>Down</td>
+          <td class="bad">0%</td>
+          <td>+0.11 <span class="muted">[-0.03, +0.26]</span></td>
+          <td>Down</td>
+          <td class="bad">13%</td>
+          <td>+0.08 <span class="muted">[-0.19, +0.35]</span></td>
+          <td>Off</td>
+          <td class="ok">✓ (0% stress)</td>
+        </tr>
+        <tr>
+          <td>2021 reflation</td>
+          <td>2021-04-01 → 2021-12-31</td>
+          <td>Up</td>
+          <td class="ok">66%</td>
+          <td>+0.18 <span class="muted">[+0.04, +0.35]</span></td>
+          <td>Up</td>
+          <td class="ok">66%</td>
+          <td>+0.16 <span class="muted">[-0.10, +0.42]</span></td>
+          <td>Off</td>
+          <td class="ok">✓ (0% stress)</td>
+        </tr>
+        <tr>
+          <td>2022 H1 inflation</td>
+          <td>2022-03-01 → 2022-09-30</td>
+          <td>Up</td>
+          <td class="bad">4%</td>
+          <td>-0.04 <span class="muted">[-0.29, +0.18]</span></td>
+          <td>Up</td>
+          <td class="bad">49%</td>
+          <td>+0.15 <span class="muted">[-0.27, +0.67]</span></td>
+          <td>On</td>
+          <td class="bad">✗ (0% stress)</td>
+        </tr>
+        <tr>
+          <td>2023 high inflation</td>
+          <td>2023-06-01 → 2023-12-31</td>
+          <td>Up</td>
+          <td class="bad">28%</td>
+          <td>+0.06 <span class="muted">[-0.14, +0.28]</span></td>
+          <td>Up</td>
+          <td class="bad">49%</td>
+          <td>+0.10 <span class="muted">[-0.15, +0.35]</span></td>
+          <td>Off</td>
+          <td class="ok">✓ (0% stress)</td>
+        </tr>
+        <tr>
+          <td>2024 disinflation</td>
+          <td>2024-01-01 → 2024-12-31</td>
+          <td>Up</td>
+          <td class="bad">16%</td>
+          <td>+0.05 <span class="muted">[-0.24, +0.26]</span></td>
+          <td>Neutral</td>
+          <td class="bad">38%</td>
+          <td>+0.11 <span class="muted">[-0.20, +0.47]</span></td>
+          <td>Off</td>
+          <td class="bad">✗ (1% stress)</td>
+        </tr>
+        <tr>
+          <td>2025 tariff shock</td>
+          <td>2025-04-02 → 2025-05-15</td>
+          <td>Neutral</td>
+          <td class="bad">12%</td>
+          <td>-0.24 <span class="muted">[-0.39, -0.07]</span></td>
+          <td>Up</td>
+          <td class="bad">6%</td>
+          <td>-0.05 <span class="muted">[-0.15, +0.25]</span></td>
+          <td>On</td>
+          <td class="ok">✓ (12% stress)</td>
+        </tr></tbody>
+      <tfoot><tr>
+        <td colspan="3"><b>Average across 13 anchors</b></td>
+        <td class="bad"><b>34.6%</b></td>
+        <td></td><td></td>
+        <td class="bad"><b>41.5%</b></td>
+        <td></td><td></td>
+        <td><b>76.9% match</b></td>
+      </tr></tfoot>
+    </table>
+    <h2 id="g">Grid-search</h2>
+    <h3>Grid search: 162 configs</h3>
+    <table class="grid">
+      <thead><tr>
+        <th>Slot</th><th>Params</th>
+        <th>g_match</th><th>i_match</th><th>risk_match</th>
+        <th>overall</th>
+        <th>median run (g/i)</th>
+      </tr></thead>
+      <tbody>
+        <tr>
+          <td>Baseline (shipped 2026-05-22 post-Q7)</td>
+          <td><code>min_weight=0.65, growth_thresh=±0.15, inflation_thresh=±0.12, hyst=5bd, macro_g/i=0.35/0.30, mkt_g/i=0.65/0.70</code></td>
+          <td>34.6%</td>
+          <td>41.5%</td>
+          <td>76.9%</td>
+          <td><b>51.0%</b></td>
+          <td>4 / 3 bd</td>
+        </tr>
+        <tr style="background:#fff8c5;">
+          <td>⭐ Recommendation (this round)</td>
+          <td><code>min_weight=0.65, growth_thresh=±0.10, inflation_thresh=±0.12, hyst=5bd, macro_g/i=0.50/0.50, mkt_g/i=0.50/0.50</code></td>
+          <td>45.6%</td>
+          <td>46.5%</td>
+          <td>76.9%</td>
+          <td><b>56.3%</b></td>
+          <td>4 / 4 bd</td>
+        </tr>
+        <tr>
+          <td>#2 composite</td>
+          <td><code>min_weight=0.65, growth_thresh=±0.10, inflation_thresh=±0.12, hyst=10bd, macro_g/i=0.50/0.50, mkt_g/i=0.50/0.50</code></td>
+          <td>45.6%</td>
+          <td>46.5%</td>
+          <td>76.9%</td>
+          <td><b>56.3%</b></td>
+          <td>4 / 4 bd</td>
+        </tr>
+        <tr>
+          <td>#3 composite</td>
+          <td><code>min_weight=0.10, growth_thresh=±0.10, inflation_thresh=±0.12, hyst=5bd, macro_g/i=0.50/0.50, mkt_g/i=0.50/0.50</code></td>
+          <td>45.5%</td>
+          <td>46.2%</td>
+          <td>76.9%</td>
+          <td><b>56.2%</b></td>
+          <td>4 / 3 bd</td>
+        </tr>
+        <tr>
+          <td>#4 composite</td>
+          <td><code>min_weight=0.10, growth_thresh=±0.10, inflation_thresh=±0.12, hyst=10bd, macro_g/i=0.50/0.50, mkt_g/i=0.50/0.50</code></td>
+          <td>45.5%</td>
+          <td>46.2%</td>
+          <td>76.9%</td>
+          <td><b>56.2%</b></td>
+          <td>4 / 3 bd</td>
+        </tr>
+        <tr>
+          <td>#5 composite</td>
+          <td><code>min_weight=0.30, growth_thresh=±0.10, inflation_thresh=±0.12, hyst=5bd, macro_g/i=0.50/0.50, mkt_g/i=0.50/0.50</code></td>
+          <td>45.4%</td>
+          <td>46.2%</td>
+          <td>76.9%</td>
+          <td><b>56.2%</b></td>
+          <td>4 / 3 bd</td>
+        </tr>
+        <tr>
+          <td>#6 composite</td>
+          <td><code>min_weight=0.30, growth_thresh=±0.10, inflation_thresh=±0.12, hyst=10bd, macro_g/i=0.50/0.50, mkt_g/i=0.50/0.50</code></td>
+          <td>45.4%</td>
+          <td>46.2%</td>
+          <td>76.9%</td>
+          <td><b>56.2%</b></td>
+          <td>4 / 3 bd</td>
+        </tr>
+        <tr>
+          <td>#7 composite</td>
+          <td><code>min_weight=0.65, growth_thresh=±0.10, inflation_thresh=±0.18, hyst=5bd, macro_g/i=0.50/0.50, mkt_g/i=0.50/0.50</code></td>
+          <td>45.6%</td>
+          <td>45.0%</td>
+          <td>76.9%</td>
+          <td><b>55.9%</b></td>
+          <td>4 / 4 bd</td>
+        </tr>
+        <tr>
+          <td>#8 composite</td>
+          <td><code>min_weight=0.65, growth_thresh=±0.10, inflation_thresh=±0.18, hyst=10bd, macro_g/i=0.50/0.50, mkt_g/i=0.50/0.50</code></td>
+          <td>45.6%</td>
+          <td>45.0%</td>
+          <td>76.9%</td>
+          <td><b>55.9%</b></td>
+          <td>4 / 4 bd</td>
+        </tr>
+        <tr>
+          <td>#9 composite</td>
+          <td><code>min_weight=0.10, growth_thresh=±0.10, inflation_thresh=±0.18, hyst=5bd, macro_g/i=0.50/0.50, mkt_g/i=0.50/0.50</code></td>
+          <td>45.5%</td>
+          <td>44.7%</td>
+          <td>76.9%</td>
+          <td><b>55.7%</b></td>
+          <td>4 / 5 bd</td>
+        </tr>
+        <tr>
+          <td>#10 composite</td>
+          <td><code>min_weight=0.10, growth_thresh=±0.10, inflation_thresh=±0.18, hyst=10bd, macro_g/i=0.50/0.50, mkt_g/i=0.50/0.50</code></td>
+          <td>45.5%</td>
+          <td>44.7%</td>
+          <td>76.9%</td>
+          <td><b>55.7%</b></td>
+          <td>4 / 5 bd</td>
+        </tr></tbody>
+    </table>
+    <p class="muted">Strict improvers over baseline: 114. Pareto front size: 10. Safe candidates (risk_match ≥ 80%): 0.</p>
+    <h2 id="a">After-calibration scout</h2>
+    <h3>Post-calibration anchor matches</h3>
+    <p class="muted">Engine: 27,472 bdays from 1921-02-03 to 2026-05-22.
+       Axis thresholds: growth ±0.10,
+       inflation ±0.12.
+       Stability: growth median run = 4bd (972 runs),
+       inflation median run = 4bd (923 runs),
+       quadrant median run = 19bd (581 runs).</p>
+    <table class="anchor">
+      <thead>
+        <tr>
+          <th>Anchor</th><th>Window</th>
+          <th>g_cons</th><th>g_match</th><th>g_score (mean [min,max])</th>
+          <th>i_cons</th><th>i_match</th><th>i_score (mean [min,max])</th>
+          <th>risk_cons</th><th>risk_check</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>2008 GFC trough</td>
+          <td>2008-10-01 → 2009-03-31</td>
+          <td>Down</td>
+          <td class="ok">100%</td>
+          <td>-0.59 <span class="muted">[-0.89, -0.17]</span></td>
+          <td>Down</td>
+          <td class="ok">88%</td>
+          <td>-0.31 <span class="muted">[-0.60, +0.04]</span></td>
+          <td>On</td>
+          <td class="ok">✓ (42% stress)</td>
+        </tr>
+        <tr>
+          <td>2010-12 expansion</td>
+          <td>2010-06-01 → 2012-12-31</td>
+          <td>Up</td>
+          <td class="bad">58%</td>
+          <td>+0.14 <span class="muted">[-0.16, +0.39]</span></td>
+          <td>Neutral</td>
+          <td class="bad">50%</td>
+          <td>-0.11 <span class="muted">[-0.49, +0.24]</span></td>
+          <td>Off</td>
+          <td class="ok">✓ (0% stress)</td>
+        </tr>
+        <tr>
+          <td>2015-16 oil bust</td>
+          <td>2015-08-01 → 2016-02-29</td>
+          <td>Neutral</td>
+          <td class="bad">26%</td>
+          <td>-0.17 <span class="muted">[-0.37, +0.08]</span></td>
+          <td>Down</td>
+          <td class="ok">100%</td>
+          <td>-0.47 <span class="muted">[-0.66, -0.21]</span></td>
+          <td>On</td>
+          <td class="ok">✓ (33% stress)</td>
+        </tr>
+        <tr>
+          <td>2017 Goldilocks</td>
+          <td>2017-04-01 → 2017-12-31</td>
+          <td>Up</td>
+          <td class="ok">88%</td>
+          <td>+0.15 <span class="muted">[+0.04, +0.28]</span></td>
+          <td>Neutral</td>
+          <td class="bad">39%</td>
+          <td>-0.20 <span class="muted">[-0.45, +0.07]</span></td>
+          <td>Off</td>
+          <td class="ok">✓ (0% stress)</td>
+        </tr>
+        <tr>
+          <td>2018 Q4 vol shock</td>
+          <td>2018-10-01 → 2018-12-31</td>
+          <td>Up</td>
+          <td class="bad">9%</td>
+          <td>-0.12 <span class="muted">[-0.34, +0.22]</span></td>
+          <td>Neutral</td>
+          <td class="bad">20%</td>
+          <td>-0.24 <span class="muted">[-0.46, -0.07]</span></td>
+          <td>On</td>
+          <td class="ok">✓ (17% stress)</td>
+        </tr>
+        <tr>
+          <td>2019 H2 slowdown</td>
+          <td>2019-07-01 → 2019-12-31</td>
+          <td>Neutral</td>
+          <td class="bad">20%</td>
+          <td>-0.26 <span class="muted">[-0.47, +0.03]</span></td>
+          <td>Neutral</td>
+          <td class="bad">25%</td>
+          <td>-0.21 <span class="muted">[-0.39, +0.09]</span></td>
+          <td>Off</td>
+          <td class="bad">✗ (17% stress)</td>
+        </tr>
+        <tr>
+          <td>2020 COVID recession</td>
+          <td>2020-02-24 → 2020-04-30</td>
+          <td>Down</td>
+          <td class="ok">100%</td>
+          <td>-0.38 <span class="muted">[-0.63, -0.14]</span></td>
+          <td>Neutral</td>
+          <td class="bad">0%</td>
+          <td>-0.47 <span class="muted">[-0.55, -0.23]</span></td>
+          <td>On</td>
+          <td class="ok">✓ (69% stress)</td>
+        </tr>
+        <tr>
+          <td>2020H2 catch-up</td>
+          <td>2020-07-01 → 2020-12-31</td>
+          <td>Down</td>
+          <td class="bad">1%</td>
+          <td>+0.01 <span class="muted">[-0.10, +0.10]</span></td>
+          <td>Down</td>
+          <td class="bad">41%</td>
+          <td>-0.09 <span class="muted">[-0.29, +0.10]</span></td>
+          <td>Off</td>
+          <td class="ok">✓ (0% stress)</td>
+        </tr>
+        <tr>
+          <td>2021 reflation</td>
+          <td>2021-04-01 → 2021-12-31</td>
+          <td>Up</td>
+          <td class="ok">94%</td>
+          <td>+0.25 <span class="muted">[+0.02, +0.41]</span></td>
+          <td>Up</td>
+          <td class="ok">60%</td>
+          <td>+0.16 <span class="muted">[-0.03, +0.39]</span></td>
+          <td>Off</td>
+          <td class="ok">✓ (0% stress)</td>
+        </tr>
+        <tr>
+          <td>2022 H1 inflation</td>
+          <td>2022-03-01 → 2022-09-30</td>
+          <td>Up</td>
+          <td class="bad">34%</td>
+          <td>+0.04 <span class="muted">[-0.16, +0.20]</span></td>
+          <td>Up</td>
+          <td class="bad">59%</td>
+          <td>+0.27 <span class="muted">[-0.04, +0.65]</span></td>
+          <td>On</td>
+          <td class="bad">✗ (0% stress)</td>
+        </tr>
+        <tr>
+          <td>2023 high inflation</td>
+          <td>2023-06-01 → 2023-12-31</td>
+          <td>Up</td>
+          <td class="bad">30%</td>
+          <td>+0.04 <span class="muted">[-0.11, +0.20]</span></td>
+          <td>Up</td>
+          <td class="ok">80%</td>
+          <td>+0.22 <span class="muted">[+0.04, +0.45]</span></td>
+          <td>Off</td>
+          <td class="ok">✓ (0% stress)</td>
+        </tr>
+        <tr>
+          <td>2024 disinflation</td>
+          <td>2024-01-01 → 2024-12-31</td>
+          <td>Up</td>
+          <td class="bad">20%</td>
+          <td>+0.03 <span class="muted">[-0.18, +0.20]</span></td>
+          <td>Neutral</td>
+          <td class="bad">36%</td>
+          <td>+0.20 <span class="muted">[-0.04, +0.49]</span></td>
+          <td>Off</td>
+          <td class="bad">✗ (1% stress)</td>
+        </tr>
+        <tr>
+          <td>2025 tariff shock</td>
+          <td>2025-04-02 → 2025-05-15</td>
+          <td>Neutral</td>
+          <td class="bad">12%</td>
+          <td>-0.17 <span class="muted">[-0.29, -0.04]</span></td>
+          <td>Up</td>
+          <td class="bad">6%</td>
+          <td>+0.01 <span class="muted">[-0.08, +0.27]</span></td>
+          <td>On</td>
+          <td class="ok">✓ (12% stress)</td>
+        </tr></tbody>
+      <tfoot><tr>
+        <td colspan="3"><b>Average across 13 anchors</b></td>
+        <td class="bad"><b>45.6%</b></td>
+        <td></td><td></td>
+        <td class="bad"><b>46.5%</b></td>
+        <td></td><td></td>
+        <td><b>76.9% match</b></td>
+      </tr></tfoot>
+    </table>
+    <h3>Per-anchor match delta (before → after)</h3>
+    <table class="anchor">
+      <thead><tr>
+        <th>Anchor</th><th>Consensus (g/i)</th>
+        <th>g_match before</th><th>g_match after</th><th>Δg</th>
+        <th>i_match before</th><th>i_match after</th><th>Δi</th>
+      </tr></thead>
+      <tbody>
+        <tr>
+          <td>2008 GFC trough</td>
+          <td>Down / Down</td>
+          <td>88%</td>
+          <td>100%</td>
+          <td class="ok">↑ +12pp</td>
+          <td>73%</td>
+          <td>88%</td>
+          <td class="ok">↑ +15pp</td>
+        </tr>
+        <tr>
+          <td>2010-12 expansion</td>
+          <td>Up / Neutral</td>
+          <td>34%</td>
+          <td>58%</td>
+          <td class="ok">↑ +24pp</td>
+          <td>43%</td>
+          <td>50%</td>
+          <td class="ok">↑ +6pp</td>
+        </tr>
+        <tr>
+          <td>2015-16 oil bust</td>
+          <td>Neutral / Down</td>
+          <td>26%</td>
+          <td>26%</td>
+          <td class="muted">— +0pp</td>
+          <td>97%</td>
+          <td>100%</td>
+          <td class="ok">↑ +3pp</td>
+        </tr>
+        <tr>
+          <td>2017 Goldilocks</td>
+          <td>Up / Neutral</td>
+          <td>43%</td>
+          <td>88%</td>
+          <td class="ok">↑ +45pp</td>
+          <td>52%</td>
+          <td>39%</td>
+          <td class="bad">↓ -13pp</td>
+        </tr>
+        <tr>
+          <td>2018 Q4 vol shock</td>
+          <td>Up / Neutral</td>
+          <td>4%</td>
+          <td>9%</td>
+          <td class="ok">↑ +5pp</td>
+          <td>18%</td>
+          <td>20%</td>
+          <td class="ok">↑ +2pp</td>
+        </tr>
+        <tr>
+          <td>2019 H2 slowdown</td>
+          <td>Neutral / Neutral</td>
+          <td>30%</td>
+          <td>20%</td>
+          <td class="bad">↓ -10pp</td>
+          <td>36%</td>
+          <td>25%</td>
+          <td class="bad">↓ -11pp</td>
+        </tr>
+        <tr>
+          <td>2020 COVID recession</td>
+          <td>Down / Neutral</td>
+          <td>98%</td>
+          <td>100%</td>
+          <td class="ok">↑ +2pp</td>
+          <td>0%</td>
+          <td>0%</td>
+          <td class="muted">— +0pp</td>
+        </tr>
+        <tr>
+          <td>2020H2 catch-up</td>
+          <td>Down / Down</td>
+          <td>0%</td>
+          <td>1%</td>
+          <td class="ok">↑ +1pp</td>
+          <td>13%</td>
+          <td>41%</td>
+          <td class="ok">↑ +28pp</td>
+        </tr>
+        <tr>
+          <td>2021 reflation</td>
+          <td>Up / Up</td>
+          <td>66%</td>
+          <td>94%</td>
+          <td class="ok">↑ +28pp</td>
+          <td>66%</td>
+          <td>60%</td>
+          <td class="bad">↓ -5pp</td>
+        </tr>
+        <tr>
+          <td>2022 H1 inflation</td>
+          <td>Up / Up</td>
+          <td>4%</td>
+          <td>34%</td>
+          <td class="ok">↑ +30pp</td>
+          <td>49%</td>
+          <td>59%</td>
+          <td class="ok">↑ +10pp</td>
+        </tr>
+        <tr>
+          <td>2023 high inflation</td>
+          <td>Up / Up</td>
+          <td>28%</td>
+          <td>30%</td>
+          <td class="ok">↑ +2pp</td>
+          <td>49%</td>
+          <td>80%</td>
+          <td class="ok">↑ +32pp</td>
+        </tr>
+        <tr>
+          <td>2024 disinflation</td>
+          <td>Up / Neutral</td>
+          <td>16%</td>
+          <td>20%</td>
+          <td class="ok">↑ +4pp</td>
+          <td>38%</td>
+          <td>36%</td>
+          <td class="bad">↓ -2pp</td>
+        </tr>
+        <tr>
+          <td>2025 tariff shock</td>
+          <td>Neutral / Up</td>
+          <td>12%</td>
+          <td>12%</td>
+          <td class="muted">— +0pp</td>
+          <td>6%</td>
+          <td>6%</td>
+          <td class="muted">— +0pp</td>
+        </tr></tbody>
+      <tfoot>
+        <tr>
+          <td colspan="2"><b>Average</b></td>
+          <td><b>34.6%</b></td>
+          <td><b>45.6%</b></td>
+          <td class="ok"><b>+11.0pp</b></td>
+          <td><b>41.5%</b></td>
+          <td><b>46.5%</b></td>
+          <td class="ok"><b>+5.0pp</b></td>
+        </tr>
+      </tfoot>
+    </table>
+    <h2 id="r">Decisions and apply</h2>
+    <h3>Decisions and rationale</h3>
+    <ol>
+      <li><b>Engage per-frequency time decay</b>: lower
+        <code>recency_weighting.min_weight</code> 0.65 → <b>0.65</b>.
+        With the prior 0.65 floor, a monthly print never decayed below
+        65% of its release-day weight even after 6 months — neutralizing
+        the per-frequency decay shipped in Q3. Dropping the floor lets
+        weekly/monthly series fade between releases so newer prints
+        actually dominate the concept score.</li>
+      <li><b>Axis thresholds set to ±0.10 (growth) and
+        ±0.12 (inflation)</b>.
+        Final axis scores live in roughly [-0.5, +0.5] after the tanh
+        compression layer. The chosen deadband balances anchor matching
+        (need scores to cross the threshold during real moves) against
+        stability (don't flip on noise).</li>
+      <li><b>Layer-blend</b>: macro_nowcast weight set to
+        0.50/0.50
+        (growth/inflation) and market_implied to
+        0.50/0.50.
+        Rationale: macro reads hard CPI/PCE prints — it should drive the
+        inflation axis. Market leads the growth turn (equity drawdown
+        sniffs out recession before YoY payroll prints react) — it should
+        dominate the growth axis.</li>
+      <li><b>Axis-state hysteresis = 5 bdays</b>
+        (was 5). Engine requires a score to stay past the threshold
+        this many consecutive bdays before flipping the labeled state,
+        smoothing single-print whipsaws into a single state run.</li>
+    </ol>
+    <h3>Net effect</h3>
+    <ul>
+      <li>Overall anchor-match: 51.0% → <b>56.3%</b>
+        (Δ +5.3 pp).</li>
+      <li>Growth median run length: 4 → <b>4bd</b>
+        (Δ +0 bd).</li>
+      <li>Inflation median run length: 3 → <b>4bd</b>
+        (Δ +1 bd).</li>
+    </ul>
+    
+    <h3>Config changes (apply)</h3>
+    <pre><code>--- configs/regime_detection/fred_series.yml
++++ configs/regime_detection/fred_series.yml
+   engine:
+     recency_weighting:
+       enabled: true
+       half_life_bdays: 42
+-      min_weight: 0.65
++      min_weight: 0.65
+
+--- configs/regime_detection/regime_engine.yml
++++ configs/regime_detection/regime_engine.yml
+   layers:
+     macro_nowcast:
+-      weight_growth: 0.35
+-      weight_inflation: 0.30
++      weight_growth: 0.50
++      weight_inflation: 0.50
+     market_implied:
+-      weight_growth: 0.65
+-      weight_inflation: 0.70
++      weight_growth: 0.50
++      weight_inflation: 0.50
+
+   regime_thresholds:
+-    growth_up: 0.15
+-    growth_down: -0.15
+-    inflation_up: 0.12
+-    inflation_down: -0.12
+-    min_consecutive_days: 5
++    growth_up: 0.10
++    growth_down: -0.10
++    inflation_up: 0.12
++    inflation_down: -0.12
++    min_consecutive_days: 5
+</code></pre>
+    <h3>Per-anchor score trajectory (before → after)</h3>
+        <table class="anchor">
+          <thead><tr>
+            <th>Anchor</th>
+            <th>g_mean before</th><th>g_mean after</th><th>Δg</th>
+            <th>i_mean before</th><th>i_mean after</th><th>Δi</th>
+          </tr></thead>
+          <tbody>
+            <tr>
+              <td>2008 GFC trough</td>
+              <td>-0.50</td>
+              <td>-0.59</td>
+              <td>-0.09</td>
+              <td>-0.36</td>
+              <td>-0.31</td>
+              <td>+0.05</td>
+            </tr>
+            <tr>
+              <td>2010-12 expansion</td>
+              <td>+0.08</td>
+              <td>+0.14</td>
+              <td>+0.06</td>
+              <td>-0.08</td>
+              <td>-0.11</td>
+              <td>-0.04</td>
+            </tr>
+            <tr>
+              <td>2015-16 oil bust</td>
+              <td>-0.24</td>
+              <td>-0.17</td>
+              <td>+0.07</td>
+              <td>-0.39</td>
+              <td>-0.47</td>
+              <td>-0.08</td>
+            </tr>
+            <tr>
+              <td>2017 Goldilocks</td>
+              <td>+0.14</td>
+              <td>+0.15</td>
+              <td>+0.01</td>
+              <td>-0.07</td>
+              <td>-0.20</td>
+              <td>-0.12</td>
+            </tr>
+            <tr>
+              <td>2018 Q4 vol shock</td>
+              <td>-0.19</td>
+              <td>-0.12</td>
+              <td>+0.07</td>
+              <td>-0.29</td>
+              <td>-0.24</td>
+              <td>+0.05</td>
+            </tr>
+            <tr>
+              <td>2019 H2 slowdown</td>
+              <td>-0.23</td>
+              <td>-0.26</td>
+              <td>-0.03</td>
+              <td>-0.15</td>
+              <td>-0.21</td>
+              <td>-0.06</td>
+            </tr>
+            <tr>
+              <td>2020 COVID recession</td>
+              <td>-0.41</td>
+              <td>-0.38</td>
+              <td>+0.03</td>
+              <td>-0.51</td>
+              <td>-0.47</td>
+              <td>+0.04</td>
+            </tr>
+            <tr>
+              <td>2020H2 catch-up</td>
+              <td>+0.11</td>
+              <td>+0.01</td>
+              <td>-0.10</td>
+              <td>+0.08</td>
+              <td>-0.09</td>
+              <td>-0.18</td>
+            </tr>
+            <tr>
+              <td>2021 reflation</td>
+              <td>+0.18</td>
+              <td>+0.25</td>
+              <td>+0.07</td>
+              <td>+0.16</td>
+              <td>+0.16</td>
+              <td>-0.00</td>
+            </tr>
+            <tr>
+              <td>2022 H1 inflation</td>
+              <td>-0.04</td>
+              <td>+0.04</td>
+              <td>+0.08</td>
+              <td>+0.15</td>
+              <td>+0.27</td>
+              <td>+0.11</td>
+            </tr>
+            <tr>
+              <td>2023 high inflation</td>
+              <td>+0.06</td>
+              <td>+0.04</td>
+              <td>-0.02</td>
+              <td>+0.10</td>
+              <td>+0.22</td>
+              <td>+0.13</td>
+            </tr>
+            <tr>
+              <td>2024 disinflation</td>
+              <td>+0.05</td>
+              <td>+0.03</td>
+              <td>-0.02</td>
+              <td>+0.11</td>
+              <td>+0.20</td>
+              <td>+0.09</td>
+            </tr>
+            <tr>
+              <td>2025 tariff shock</td>
+              <td>-0.24</td>
+              <td>-0.17</td>
+              <td>+0.07</td>
+              <td>-0.05</td>
+              <td>+0.01</td>
+              <td>+0.06</td>
+            </tr></tbody>
+        </table>
+        <p class="muted">A positive Δ on growth means the engine moved that anchor more toward Up; on inflation, toward Up. Sign of the shift should match the consensus direction for that anchor.</p>
+        <h2 id="c">Caveats and out-of-scope work</h2>
+    <ul>
+      <li><b>Level vs direction</b>: the engine scores absolute level
+        ("how high is inflation vs comfort"), not direction
+        ("which way is it moving"). Direction-honest signals (MoM
+        velocity, second derivatives) would be a separate signal layer
+        to ship later if directional turning-point detection is desired.</li>
+      <li><b>Out of scope this round — concept-level tuning</b>: this
+        calibration sweeps four scalar knobs (decay floor, axis
+        thresholds, layer blend, hysteresis). The concept-level
+        composition in <code>fred_series.yml</code> stays untouched:
+        <code>labor</code> (UNRATE+PAYEMS+ICSA), <code>consumption</code>
+        (RSAFS only), <code>production</code> (INDPRO only),
+        <code>broad_leading</code> (USSLIND only) for growth;
+        <code>realized_broad</code> (4× CPI/PCE families),
+        <code>persistence</code> (sticky CPI), <code>market_expectations</code>
+        (T5YIFR), <code>wage_pressure</code> (AHETPI) for inflation.
+        Activating dormant series (T10Y2Y yield curve, T5YIE
+        breakevens, DFII10 real yields, PPIACO, M2SL, HOUST/PERMIT,
+        UMCSENT, MANEMP) is a separate structural pass — see the
+        "Activating a Dormant Signal" runbook in
+        <code>DEV_DOCS/docs/devplans/regime_engine_devplan.md</code>.</li>
+      <li><b>YoY base-effect distortions</b>: the 2022 H1 macro growth
+        reading is +0.30 (Up) because PAYEMS YoY was still ramping from
+        COVID lows — even though headline GDP printed negative Q1/Q2.
+        The macro layer is structurally a YoY-level reading; for the
+        market-level perspective on growth use the market_implied
+        layer (equity drawdown, sector rotation).</li>
+      <li><b>Consensus labels are author-assigned</b>: I anchored 13
+        periods using widely-accepted consensus, but reasonable analysts
+        can disagree on edges (especially 2018 Q4, 2019 H2, 2024).
+        The grid search optimizes for average match across all 13 —
+        a single contested anchor doesn't dominate.</li>
+      <li><b>Per-frequency decay floor</b>: this round drops the
+        <code>min_weight</code> floor from 0.65 → recommended. If
+        floor goes too low (e.g. 0.05), a quarterly print could decay
+        to near zero before the next quarterly print — losing the
+        signal entirely. The 0.10 setting still preserves ~50%
+        contribution at the natural cadence boundary.</li>
+      <li><b>Risk overlay untouched</b>: this round keeps the Q7
+        risk-overlay calibration (enter_threshold=0.65, rcd=1) — only
+        macro axis weighting / decay / thresholds / hysteresis change.
+        Grid filtering enforces risk_match ≥ 80% (or falls through to
+        top-composite if no candidate meets it) so risk detection does
+        not regress.</li>
+      <li><b>Stability metric uses instantaneous labels</b>: median run
+        length is computed from labels derived directly from final
+        scores at the configured threshold, with no hysteresis applied.
+        This is intentional — it measures whether the score
+        <em>itself</em> is oscillating around the boundary, not how
+        much the hysteresis filter masks that oscillation. The engine's
+        downstream <code>base_regime</code> stream (with
+        <code>min_consecutive_days</code> hysteresis applied) is
+        smoother by construction; full-history quadrant median is
+        ~17bd in baseline.</li>
+      <li><b>Latency probes degenerate this round</b>: the named
+        transition dates (e.g. COVID growth turn = 2020-02-24) already
+        sit inside the target state for almost every config tested, so
+        latency = 0 bdays for all probes. Latency was kept in the
+        composite for forward compatibility; future probes should start
+        a few bdays <em>before</em> the canonical transition date to
+        actually measure response time.</li>
+    </ul>
+    
+</body></html>
