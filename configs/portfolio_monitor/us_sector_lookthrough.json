@@ -1,7 +1,7 @@
 {
   "api_usage": {
-    "count": 1,
-    "date": "2026-05-16"
+    "count": 20,
+    "date": "2026-05-22"
   },
   "daily_call_limit": 20,
   "provider": "alpha_vantage",
@@ -31,39 +31,39 @@
       "sectors": [
         {
           "sector": "Technology",
-          "weight": 0.494
+          "weight": 0.552
         },
         {
           "sector": "Communication Services",
-          "weight": 0.161
+          "weight": 0.147
         },
         {
           "sector": "Consumer Discretionary",
-          "weight": 0.114
+          "weight": 0.111
         },
         {
           "sector": "Consumer Staples",
-          "weight": 0.081
+          "weight": 0.07
         },
         {
           "sector": "Health Care",
-          "weight": 0.049
+          "weight": 0.039
         },
         {
           "sector": "Industrials",
-          "weight": 0.036
+          "weight": 0.03
         },
         {
           "sector": "Utilities",
-          "weight": 0.015
-        },
-        {
-          "sector": "Materials",
           "weight": 0.013
         },
         {
+          "sector": "Materials",
+          "weight": 0.011
+        },
+        {
           "sector": "Energy",
-          "weight": 0.007
+          "weight": 0.006
         },
         {
           "sector": "Financials",
@@ -71,76 +71,76 @@
         }
       ],
       "status": "ok",
-      "updated_at": "2026-04-16"
+      "updated_at": "2026-05-22"
     },
     "SOXL": {
       "error_message": "",
       "sectors": [
         {
           "sector": "Technology",
-          "weight": 0.527
+          "weight": 0.584
         },
         {
           "sector": "Communication Services",
-          "weight": 0.021
+          "weight": 0.017
         }
       ],
       "status": "ok",
-      "updated_at": "2026-04-16"
+      "updated_at": "2026-05-22"
     },
     "SOXX": {
       "error_message": "",
       "sectors": [
         {
           "sector": "Technology",
-          "weight": 0.862
+          "weight": 0.915
         },
         {
           "sector": "Communication Services",
-          "weight": 0.034
+          "weight": 0.026
         }
       ],
       "status": "ok",
-      "updated_at": "2026-04-16"
+      "updated_at": "2026-05-22"
     },
     "SPY": {
       "error_message": "",
       "sectors": [
         {
           "sector": "Technology",
-          "weight": 0.33
-        },
-        {
-          "sector": "Financials",
-          "weight": 0.107
+          "weight": 0.368
         },
         {
           "sector": "Communication Services",
-          "weight": 0.103
+          "weight": 0.107
+        },
+        {
+          "sector": "Financials",
+          "weight": 0.101
         },
         {
           "sector": "Consumer Discretionary",
-          "weight": 0.1
-        },
-        {
-          "sector": "Health Care",
-          "weight": 0.093
+          "weight": 0.099
         },
         {
           "sector": "Industrials",
-          "weight": 0.091
+          "weight": 0.086
+        },
+        {
+          "sector": "Health Care",
+          "weight": 0.083
         },
         {
           "sector": "Consumer Staples",
-          "weight": 0.051
+          "weight": 0.048
         },
         {
           "sector": "Energy",
-          "weight": 0.04
+          "weight": 0.033
         },
         {
           "sector": "Utilities",
-          "weight": 0.025
+          "weight": 0.022
         },
         {
           "sector": "Materials",
@@ -148,7 +148,7 @@
         }
       ],
       "status": "ok",
-      "updated_at": "2026-04-16"
+      "updated_at": "2026-05-22"
     },
     "SPYL": {
       "error_message": "Alpha Vantage ETF profile for SPYL did not include sectors",
@@ -237,39 +237,39 @@
       "sectors": [
         {
           "sector": "Technology",
-          "weight": 0.291
+          "weight": 0.204
         },
         {
           "sector": "Communication Services",
-          "weight": 0.094
+          "weight": 0.06
         },
         {
           "sector": "Consumer Discretionary",
-          "weight": 0.067
+          "weight": 0.045
         },
         {
           "sector": "Consumer Staples",
-          "weight": 0.048
-        },
-        {
-          "sector": "Health Care",
           "weight": 0.029
         },
         {
+          "sector": "Health Care",
+          "weight": 0.016
+        },
+        {
           "sector": "Industrials",
-          "weight": 0.021
+          "weight": 0.012
         },
         {
           "sector": "Utilities",
-          "weight": 0.009
+          "weight": 0.006
         },
         {
           "sector": "Materials",
-          "weight": 0.008
+          "weight": 0.004
         },
         {
           "sector": "Energy",
-          "weight": 0.004
+          "weight": 0.002
         },
         {
           "sector": "Financials",
@@ -277,22 +277,22 @@
         }
       ],
       "status": "ok",
-      "updated_at": "2026-04-16"
+      "updated_at": "2026-05-22"
     },
     "VOO": {
       "error_message": "",
       "sectors": [
         {
           "sector": "Technology",
-          "weight": 0.322
+          "weight": 0.328
         },
         {
           "sector": "Financials",
-          "weight": 0.106
+          "weight": 0.107
         },
         {
           "sector": "Communication Services",
-          "weight": 0.105
+          "weight": 0.103
         },
         {
           "sector": "Consumer Discretionary",
@@ -300,19 +300,19 @@
         },
         {
           "sector": "Health Care",
-          "weight": 0.098
+          "weight": 0.095
         },
         {
           "sector": "Industrials",
-          "weight": 0.092
+          "weight": 0.091
         },
         {
           "sector": "Consumer Staples",
-          "weight": 0.054
+          "weight": 0.052
         },
         {
           "sector": "Energy",
-          "weight": 0.035
+          "weight": 0.04
         },
         {
           "sector": "Utilities",
@@ -320,11 +320,11 @@
         },
         {
           "sector": "Materials",
-          "weight": 0.021
+          "weight": 0.02
         }
       ],
       "status": "ok",
-      "updated_at": "2026-04-16"
+      "updated_at": "2026-05-22"
     },
     "XLB": {
       "error_message": "",
@@ -335,18 +335,18 @@
         }
       ],
       "status": "ok",
-      "updated_at": "2026-04-16"
+      "updated_at": "2026-05-22"
     },
     "XLC": {
       "error_message": "",
       "sectors": [
         {
           "sector": "Communication Services",
-          "weight": 0.996
+          "weight": 0.994
         }
       ],
       "status": "ok",
-      "updated_at": "2026-04-16"
+      "updated_at": "2026-05-22"
     },
     "XLE": {
       "error_message": "",
@@ -357,99 +357,103 @@
         }
       ],
       "status": "ok",
-      "updated_at": "2026-04-16"
+      "updated_at": "2026-05-22"
     },
     "XLF": {
       "error_message": "",
       "sectors": [
         {
           "sector": "Financials",
-          "weight": 0.858
+          "weight": 0.865
         },
         {
           "sector": "Consumer Discretionary",
-          "weight": 0.017
+          "weight": 0.016
         }
       ],
       "status": "ok",
-      "updated_at": "2026-04-16"
+      "updated_at": "2026-05-22"
     },
     "XLI": {
       "error_message": "",
       "sectors": [
         {
           "sector": "Industrials",
-          "weight": 0.997
+          "weight": 0.999
         }
       ],
       "status": "ok",
-      "updated_at": "2026-04-16"
+      "updated_at": "2026-05-22"
     },
     "XLK": {
       "error_message": "",
       "sectors": [
         {
           "sector": "Technology",
-          "weight": 0.988
+          "weight": 0.995
         }
       ],
       "status": "ok",
-      "updated_at": "2026-04-16"
+      "updated_at": "2026-05-22"
     },
     "XLP": {
       "error_message": "",
       "sectors": [
         {
           "sector": "Consumer Staples",
-          "weight": 0.99
+          "weight": 0.994
         }
       ],
       "status": "ok",
-      "updated_at": "2026-04-16"
+      "updated_at": "2026-05-22"
     },
     "XLRE": {
       "error_message": "",
       "sectors": [
         {
           "sector": "Real Estate",
-          "weight": 0.993
+          "weight": 0.998
         }
       ],
       "status": "ok",
-      "updated_at": "2026-04-16"
+      "updated_at": "2026-05-22"
     },
     "XLU": {
-      "error_message": "Alpha Vantage ETF profile request failed for XLU: We have detected your API key as CT1IP99LO086RPDB and our standard API rate limit is 25 requests per day. Please subscribe to any of the premium plans at https://www.alphavantage.co/premium/ to instantly remove all daily rate limits.",
+      "error_message": "",
       "sectors": [
         {
           "sector": "Utilities",
-          "weight": 1.0
+          "weight": 0.997
         }
       ],
-      "status": "error",
-      "updated_at": "2026-04-16"
+      "status": "ok",
+      "updated_at": "2026-05-22"
     },
     "XLV": {
-      "error_message": "Alpha Vantage ETF profile request failed for XLV: We have detected your API key as CT1IP99LO086RPDB and our standard API rate limit is 25 requests per day. Please subscribe to any of the premium plans at https://www.alphavantage.co/premium/ to instantly remove all daily rate limits.",
+      "error_message": "",
       "sectors": [
         {
           "sector": "Health Care",
-          "weight": 1.0
+          "weight": 0.996
         }
       ],
-      "status": "error",
-      "updated_at": "2026-04-16"
+      "status": "ok",
+      "updated_at": "2026-05-22"
     },
     "XLY": {
-      "error_message": "Alpha Vantage ETF profile request failed for XLY: We have detected your API key as CT1IP99LO086RPDB and our standard API rate limit is 25 requests per day. Please subscribe to any of the premium plans at https://www.alphavantage.co/premium/ to instantly remove all daily rate limits.",
+      "error_message": "",
       "sectors": [
         {
           "sector": "Consumer Discretionary",
-          "weight": 1.0
+          "weight": 0.989
+        },
+        {
+          "sector": "Financials",
+          "weight": 0.009
         }
       ],
-      "status": "error",
-      "updated_at": "2026-04-16"
+      "status": "ok",
+      "updated_at": "2026-05-22"
     }
   }
 }
