@@ -92,7 +92,6 @@ DEFAULT_IBKR_FLEX_BACKFILL_MAX_INFLIGHT_REQUESTS = 3
 DEFAULT_PREVIOUS_FULL_YEAR_MAX_ATTEMPTS_MULTIPLIER = 2
 DEFAULT_GOOGLE_DRIVE_POSITIONS_FILENAME = "live_ibkr_position_report.csv"
 DEFAULT_GOOGLE_DRIVE_COMBINED_REPORT_FILENAME = "portfolio_combined_report.html"
-MARKET_HELPER_GOOGLE_DRIVE_DIR_ENV_VAR = "MARKET_HELPER_GOOGLE_DRIVE_DIR"
 MARKET_HELPER_GDRIVE_ROOT_ENV_VAR = "MARKET_HELPER_GDRIVE_ROOT"
 REPORT_SUBDIR = "Portfolio_Report"
 
@@ -1568,12 +1567,11 @@ def _mirror_artifact_if_configured(
         # interpreted on Windows as `\Users\<other>\...`) shouldn't crash the
         # report. Log and continue without the mirror.
         _logger.warning(
-            "Skipping artifact mirror to %s: %s. Set %s in local.env / env to "
-            "fix, or leave artifact_mirror.google_drive_dir blank in "
-            "report_config.yaml to silence.",
+            "Skipping artifact mirror to %s: %s. Update %s in your shell "
+            "profile / local.env, or unset it to silence.",
             mirror_dir,
             exc,
-            MARKET_HELPER_GOOGLE_DRIVE_DIR_ENV_VAR,
+            MARKET_HELPER_GDRIVE_ROOT_ENV_VAR,
         )
         return None
     return target_path
@@ -1590,44 +1588,23 @@ def _read_env_or_local(key: str) -> str:
 def _load_artifact_mirror_dir(config_path: str | Path | None = None) -> Path | None:
     """Resolve the artifact-mirror directory.
 
-    The mirror path is inherently machine-specific (GDrive sync roots differ
-    between macOS and Windows), so per-machine overrides come first.
+    Reads ``MARKET_HELPER_GDRIVE_ROOT`` from the process env (then local.env)
+    and joins it with the fixed subdir ``Portfolio_Report``. One per-machine
+    env var drives both report mirror placement and local.env discovery
+    (see :func:`market_helper.config.local_env.resolve_local_config_path`).
 
-    Priority order:
+    Returns ``None`` when ROOT is unset, so mirroring is silently skipped on
+    hosts that don't opt in.
 
-    1. ``MARKET_HELPER_GOOGLE_DRIVE_DIR`` (env, then local.env) — single full
-       path to the leaf destination. Kept for back-compat with the previous
-       single-var design.
-    2. ``MARKET_HELPER_GDRIVE_ROOT`` (env, then local.env) joined with the
-       fixed subdir ``Portfolio_Report``. One per-machine env var drives
-       both report mirror placement and local.env discovery (see
-       :func:`market_helper.config.local_env.resolve_local_config_path`).
-    3. ``artifact_mirror.google_drive_dir`` in ``report_config.yaml`` (kept
-       for back-compat; new installs should leave this blank).
-
-    Returns ``None`` when no source produces a non-empty value.
+    ``config_path`` is unused and kept only for the existing call signature
+    in the report pipeline; the YAML fallback was removed in favor of the
+    single-env-var model.
     """
-    full_path = _read_env_or_local(MARKET_HELPER_GOOGLE_DRIVE_DIR_ENV_VAR)
-    if full_path:
-        return Path(full_path).expanduser()
-
+    del config_path  # legacy parameter retained for caller compatibility
     root = _read_env_or_local(MARKET_HELPER_GDRIVE_ROOT_ENV_VAR)
-    if root:
-        return Path(root).expanduser() / REPORT_SUBDIR
-
-    resolved_config_path = Path(config_path) if config_path is not None else _default_report_config_path()
-    if not resolved_config_path.exists():
+    if not root:
         return None
-    payload = yaml.safe_load(resolved_config_path.read_text(encoding="utf-8")) or {}
-    artifact_mirror = payload.get("artifact_mirror")
-    if artifact_mirror is None:
-        return None
-    if not isinstance(artifact_mirror, dict):
-        raise ValueError("artifact_mirror must be a mapping")
-    google_drive_dir = str(artifact_mirror.get("google_drive_dir", "")).strip()
-    if google_drive_dir == "":
-        return None
-    return Path(google_drive_dir).expanduser()
+    return Path(root).expanduser() / REPORT_SUBDIR
 
 
 def _default_report_config_path() -> Path:

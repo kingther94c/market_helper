@@ -98,115 +98,33 @@ def test_generate_combined_html_report_writes_direct_html_and_mirrors_artifact(
     assert mirrored_path.read_text(encoding="utf-8") == "<html><body>report</body></html>"
 
 
-def test_generate_combined_html_report_uses_configured_google_drive_mirror_dir(
-    monkeypatch, tmp_path: Path
-) -> None:
-    config_path = tmp_path / "report_config.yaml"
-    config_path.write_text(
-        "artifact_mirror:\n"
-        f"  google_drive_dir: {str(tmp_path / 'google-drive')!r}\n",
-        encoding="utf-8",
-    )
-
-    fake_report_data = _fake_report_data(tmp_path)
-
-    monkeypatch.setattr(pipeline, "_load_portfolio_report_data", lambda inputs: fake_report_data)
-
-    def fake_write(report_data, output_path):
-        output_path = Path(output_path)
-        output_path.write_text("<html>report</html>", encoding="utf-8")
-        return output_path
-
-    monkeypatch.setattr(pipeline, "write_portfolio_report", fake_write)
-    monkeypatch.setattr(pipeline, "sync_security_reference_csv", lambda reference_path: Path(reference_path))
-
-    pipeline.generate_combined_html_report(
-        positions_csv_path=tmp_path / "positions.csv",
-        output_path=tmp_path / "combined_report.html",
-        security_reference_path=tmp_path / "security_reference.csv",
-        risk_config_path=config_path,
-    )
-
-    mirrored_path = tmp_path / "google-drive" / "portfolio_combined_report.html"
-    assert mirrored_path.exists()
-    assert mirrored_path.read_text(encoding="utf-8") == "<html>report</html>"
-
-
-def test_load_artifact_mirror_dir_prefers_env_var_over_yaml(
-    monkeypatch, tmp_path: Path
-) -> None:
-    yaml_dir = tmp_path / "from-yaml"
-    env_dir = tmp_path / "from-env"
-    config_path = tmp_path / "report_config.yaml"
-    config_path.write_text(
-        "artifact_mirror:\n" f"  google_drive_dir: {str(yaml_dir)!r}\n",
-        encoding="utf-8",
-    )
-    monkeypatch.setenv(pipeline.MARKET_HELPER_GOOGLE_DRIVE_DIR_ENV_VAR, str(env_dir))
-
-    resolved = pipeline._load_artifact_mirror_dir(config_path)
-
-    assert resolved == env_dir
-
-
-def test_load_artifact_mirror_dir_falls_back_to_local_env_then_yaml(
-    monkeypatch, tmp_path: Path
-) -> None:
-    monkeypatch.delenv(pipeline.MARKET_HELPER_GOOGLE_DRIVE_DIR_ENV_VAR, raising=False)
-    local_env_dir = tmp_path / "from-local-env"
-    yaml_dir = tmp_path / "from-yaml"
-    config_path = tmp_path / "report_config.yaml"
-    config_path.write_text(
-        "artifact_mirror:\n" f"  google_drive_dir: {str(yaml_dir)!r}\n",
-        encoding="utf-8",
-    )
-
-    monkeypatch.setattr(
-        pipeline,
-        "read_local_config_value",
-        lambda key: str(local_env_dir) if key == pipeline.MARKET_HELPER_GOOGLE_DRIVE_DIR_ENV_VAR else "",
-    )
-    assert pipeline._load_artifact_mirror_dir(config_path) == local_env_dir
-
-    # With local.env empty, the YAML value wins.
-    monkeypatch.setattr(pipeline, "read_local_config_value", lambda key: "")
-    assert pipeline._load_artifact_mirror_dir(config_path) == yaml_dir
-
-
 def test_load_artifact_mirror_dir_joins_gdrive_root_with_portfolio_report(
     monkeypatch, tmp_path: Path
 ) -> None:
     """ROOT-based resolution: mirror dir is always <ROOT>/Portfolio_Report."""
-    monkeypatch.delenv(pipeline.MARKET_HELPER_GOOGLE_DRIVE_DIR_ENV_VAR, raising=False)
     monkeypatch.setattr(pipeline, "read_local_config_value", lambda key: "")
     root = tmp_path / "005 Portfolio"
     monkeypatch.setenv(pipeline.MARKET_HELPER_GDRIVE_ROOT_ENV_VAR, str(root))
 
-    resolved = pipeline._load_artifact_mirror_dir(tmp_path / "no-yaml.yaml")
+    resolved = pipeline._load_artifact_mirror_dir()
     assert resolved == root / pipeline.REPORT_SUBDIR
     assert resolved == root / "Portfolio_Report"
 
 
-def test_load_artifact_mirror_dir_back_compat_single_var_wins_over_root_pair(
+def test_load_artifact_mirror_dir_returns_none_when_root_unset(
     monkeypatch, tmp_path: Path
 ) -> None:
-    """If both the legacy single-var and ROOT+SUBDIR are set, the single-var
-    wins so existing setups don't change behavior."""
+    """Without GDRIVE_ROOT, mirroring is silently skipped."""
+    monkeypatch.delenv(pipeline.MARKET_HELPER_GDRIVE_ROOT_ENV_VAR, raising=False)
     monkeypatch.setattr(pipeline, "read_local_config_value", lambda key: "")
-    full = tmp_path / "legacy" / "leaf"
-    root = tmp_path / "root"
-    monkeypatch.setenv(pipeline.MARKET_HELPER_GOOGLE_DRIVE_DIR_ENV_VAR, str(full))
-    monkeypatch.setenv(pipeline.MARKET_HELPER_GDRIVE_ROOT_ENV_VAR, str(root))
 
-    resolved = pipeline._load_artifact_mirror_dir(tmp_path / "no-yaml.yaml")
-    assert resolved == full
+    assert pipeline._load_artifact_mirror_dir() is None
 
 
 def test_load_artifact_mirror_dir_root_falls_back_to_local_env(
     monkeypatch, tmp_path: Path
 ) -> None:
     """GDRIVE_ROOT can come from local.env (not just process env)."""
-    monkeypatch.delenv(pipeline.MARKET_HELPER_GOOGLE_DRIVE_DIR_ENV_VAR, raising=False)
     monkeypatch.delenv(pipeline.MARKET_HELPER_GDRIVE_ROOT_ENV_VAR, raising=False)
     root = tmp_path / "005 Portfolio"
     monkeypatch.setattr(
@@ -215,7 +133,7 @@ def test_load_artifact_mirror_dir_root_falls_back_to_local_env(
         lambda key: str(root) if key == pipeline.MARKET_HELPER_GDRIVE_ROOT_ENV_VAR else "",
     )
 
-    resolved = pipeline._load_artifact_mirror_dir(tmp_path / "no-yaml.yaml")
+    resolved = pipeline._load_artifact_mirror_dir()
     assert resolved == root / pipeline.REPORT_SUBDIR
 
 
@@ -224,7 +142,6 @@ def test_mirror_artifact_swallows_permission_error_when_path_unreachable(
 ) -> None:
     """Stale per-user GDrive path (e.g. macOS path resolved on Windows) must
     not crash the report — the mirror step is best-effort."""
-    monkeypatch.delenv(pipeline.MARKET_HELPER_GOOGLE_DRIVE_DIR_ENV_VAR, raising=False)
     monkeypatch.setattr(pipeline, "read_local_config_value", lambda key: "")
     unreachable_dir = tmp_path / "no-such-root"
     monkeypatch.setattr(
