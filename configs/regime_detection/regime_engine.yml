@@ -33,9 +33,17 @@ regime_engine:
   risk_overlay:
     enabled: true
     independent: true
-    enter_threshold: 0.75
+    # Calibration 2026-05-22 (grid search across 4 anchors): lowered
+    # enter_threshold 0.75 -> 0.65 and min_consecutive_days 3 -> 1. Under
+    # the old setting the overlay fired ~25 bdays late on Lehman day and
+    # never on the critical day of any anchor; under the new setting it
+    # fires same-day on Lehman, within 1-3 bdays on COVID waterfall and
+    # Liberation Day. Benign false-positive rate rises from 3.0% to 6.4%
+    # (~3 extra muted-stress days per benign year). Report:
+    # data/research_artifacts/calibration_report.html
+    enter_threshold: 0.65
     exit_threshold: 0.55
-    min_consecutive_days: 3
+    min_consecutive_days: 1
 
   regime_thresholds:
     # Q6: lowered from ±0.20 on the corrected Q5 calibration baseline. The

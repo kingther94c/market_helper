@@ -1,0 +1,3266 @@
+[
+  {
+    "config": {
+      "risk_enter_threshold": 0.55,
+      "risk_min_consecutive_days": 1,
+      "axis_min_consecutive_days": 3
+    },
+    "anchor": "COVID 2020",
+    "crisis_days": 49,
+    "crisis_stress_days": 31,
+    "benign_days": 175,
+    "benign_stress_days": 19,
+    "critical_day_stress": false,
+    "critical_day_latency_bdays": 1,
+    "trough_growth_score": -0.5345078589288665,
+    "crisis_max_negative_growth": -0.6520662893661778,
+    "median_axis_run_length": 3.0
+  },
+  {
+    "config": {
+      "risk_enter_threshold": 0.55,
+      "risk_min_consecutive_days": 1,
+      "axis_min_consecutive_days": 3
+    },
+    "anchor": "GFC 2008-09",
+    "crisis_days": 78,
+    "crisis_stress_days": 56,
+    "benign_days": 195,
+    "benign_stress_days": 13,
+    "critical_day_stress": true,
+    "critical_day_latency_bdays": 0,
+    "trough_growth_score": -0.883616872109885,
+    "crisis_max_negative_growth": -0.8879673448331615,
+    "median_axis_run_length": 3.0
+  },
+  {
+    "config": {
+      "risk_enter_threshold": 0.55,
+      "risk_min_consecutive_days": 1,
+      "axis_min_consecutive_days": 3
+    },
+    "anchor": "2022 Inflation Surge",
+    "crisis_days": 109,
+    "crisis_stress_days": 13,
+    "benign_days": 73,
+    "benign_stress_days": 6,
+    "critical_day_stress": false,
+    "critical_day_latency_bdays": 3,
+    "trough_growth_score": 0.3667874100611902,
+    "crisis_max_negative_growth": -0.6455059984485798,
+    "median_axis_run_length": 3.0
+  },
+  {
+    "config": {
+      "risk_enter_threshold": 0.55,
+      "risk_min_consecutive_days": 1,
+      "axis_min_consecutive_days": 3
+    },
+    "anchor": "2025 Tariff Shock",
+    "crisis_days": 32,
+    "crisis_stress_days": 16,
+    "benign_days": 204,
+    "benign_stress_days": 22,
+    "critical_day_stress": true,
+    "critical_day_latency_bdays": 0,
+    "trough_growth_score": -0.5226680334461726,
+    "crisis_max_negative_growth": -0.6670256573291179,
+    "median_axis_run_length": 3.0
+  },
+  {
+    "config": {
+      "risk_enter_threshold": 0.55,
+      "risk_min_consecutive_days": 1,
+      "axis_min_consecutive_days": 5
+    },
+    "anchor": "COVID 2020",
+    "crisis_days": 49,
+    "crisis_stress_days": 31,
+    "benign_days": 175,
+    "benign_stress_days": 19,
+    "critical_day_stress": false,
+    "critical_day_latency_bdays": 1,
+    "trough_growth_score": -0.5345078589288665,
+    "crisis_max_negative_growth": -0.6520662893661778,
+    "median_axis_run_length": 3.0
+  },
+  {
+    "config": {
+      "risk_enter_threshold": 0.55,
+      "risk_min_consecutive_days": 1,
+      "axis_min_consecutive_days": 5
+    },
+    "anchor": "GFC 2008-09",
+    "crisis_days": 78,
+    "crisis_stress_days": 56,
+    "benign_days": 195,
+    "benign_stress_days": 13,
+    "critical_day_stress": true,
+    "critical_day_latency_bdays": 0,
+    "trough_growth_score": -0.883616872109885,
+    "crisis_max_negative_growth": -0.8879673448331615,
+    "median_axis_run_length": 3.0
+  },
+  {
+    "config": {
+      "risk_enter_threshold": 0.55,
+      "risk_min_consecutive_days": 1,
+      "axis_min_consecutive_days": 5
+    },
+    "anchor": "2022 Inflation Surge",
+    "crisis_days": 109,
+    "crisis_stress_days": 13,
+    "benign_days": 73,
+    "benign_stress_days": 6,
+    "critical_day_stress": false,
+    "critical_day_latency_bdays": 3,
+    "trough_growth_score": 0.3667874100611902,
+    "crisis_max_negative_growth": -0.6455059984485798,
+    "median_axis_run_length": 3.0
+  },
+  {
+    "config": {
+      "risk_enter_threshold": 0.55,
+      "risk_min_consecutive_days": 1,
+      "axis_min_consecutive_days": 5
+    },
+    "anchor": "2025 Tariff Shock",
+    "crisis_days": 32,
+    "crisis_stress_days": 16,
+    "benign_days": 204,
+    "benign_stress_days": 22,
+    "critical_day_stress": true,
+    "critical_day_latency_bdays": 0,
+    "trough_growth_score": -0.5226680334461726,
+    "crisis_max_negative_growth": -0.6670256573291179,
+    "median_axis_run_length": 3.0
+  },
+  {
+    "config": {
+      "risk_enter_threshold": 0.55,
+      "risk_min_consecutive_days": 1,
+      "axis_min_consecutive_days": 10
+    },
+    "anchor": "COVID 2020",
+    "crisis_days": 49,
+    "crisis_stress_days": 31,
+    "benign_days": 175,
+    "benign_stress_days": 19,
+    "critical_day_stress": false,
+    "critical_day_latency_bdays": 1,
+    "trough_growth_score": -0.5345078589288665,
+    "crisis_max_negative_growth": -0.6520662893661778,
+    "median_axis_run_length": 3.0
+  },
+  {
+    "config": {
+      "risk_enter_threshold": 0.55,
+      "risk_min_consecutive_days": 1,
+      "axis_min_consecutive_days": 10
+    },
+    "anchor": "GFC 2008-09",
+    "crisis_days": 78,
+    "crisis_stress_days": 56,
+    "benign_days": 195,
+    "benign_stress_days": 13,
+    "critical_day_stress": true,
+    "critical_day_latency_bdays": 0,
+    "trough_growth_score": -0.883616872109885,
+    "crisis_max_negative_growth": -0.8879673448331615,
+    "median_axis_run_length": 3.0
+  },
+  {
+    "config": {
+      "risk_enter_threshold": 0.55,
+      "risk_min_consecutive_days": 1,
+      "axis_min_consecutive_days": 10
+    },
+    "anchor": "2022 Inflation Surge",
+    "crisis_days": 109,
+    "crisis_stress_days": 13,
+    "benign_days": 73,
+    "benign_stress_days": 6,
+    "critical_day_stress": false,
+    "critical_day_latency_bdays": 3,
+    "trough_growth_score": 0.3667874100611902,
+    "crisis_max_negative_growth": -0.6455059984485798,
+    "median_axis_run_length": 3.0
+  },
+  {
+    "config": {
+      "risk_enter_threshold": 0.55,
+      "risk_min_consecutive_days": 1,
+      "axis_min_consecutive_days": 10
+    },
+    "anchor": "2025 Tariff Shock",
+    "crisis_days": 32,
+    "crisis_stress_days": 16,
+    "benign_days": 204,
+    "benign_stress_days": 22,
+    "critical_day_stress": true,
+    "critical_day_latency_bdays": 0,
+    "trough_growth_score": -0.5226680334461726,
+    "crisis_max_negative_growth": -0.6670256573291179,
+    "median_axis_run_length": 3.0
+  },
+  {
+    "config": {
+      "risk_enter_threshold": 0.55,
+      "risk_min_consecutive_days": 2,
+      "axis_min_consecutive_days": 3
+    },
+    "anchor": "COVID 2020",
+    "crisis_days": 49,
+    "crisis_stress_days": 33,
+    "benign_days": 175,
+    "benign_stress_days": 20,
+    "critical_day_stress": false,
+    "critical_day_latency_bdays": 2,
+    "trough_growth_score": -0.5345078589288665,
+    "crisis_max_negative_growth": -0.6520662893661778,
+    "median_axis_run_length": 3.0
+  },
+  {
+    "config": {
+      "risk_enter_threshold": 0.55,
+      "risk_min_consecutive_days": 2,
+      "axis_min_consecutive_days": 3
+    },
+    "anchor": "GFC 2008-09",
+    "crisis_days": 78,
+    "crisis_stress_days": 58,
+    "benign_days": 195,
+    "benign_stress_days": 11,
+    "critical_day_stress": false,
+    "critical_day_latency_bdays": 23,
+    "trough_growth_score": -0.883616872109885,
+    "crisis_max_negative_growth": -0.8879673448331615,
+    "median_axis_run_length": 3.0
+  },
+  {
+    "config": {
+      "risk_enter_threshold": 0.55,
+      "risk_min_consecutive_days": 2,
+      "axis_min_consecutive_days": 3
+    },
+    "anchor": "2022 Inflation Surge",
+    "crisis_days": 109,
+    "crisis_stress_days": 14,
+    "benign_days": 73,
+    "benign_stress_days": 5,
+    "critical_day_stress": false,
+    "critical_day_latency_bdays": 4,
+    "trough_growth_score": 0.3667874100611902,
+    "crisis_max_negative_growth": -0.6455059984485798,
+    "median_axis_run_length": 3.0
+  },
+  {
+    "config": {
+      "risk_enter_threshold": 0.55,
+      "risk_min_consecutive_days": 2,
+      "axis_min_consecutive_days": 3
+    },
+    "anchor": "2025 Tariff Shock",
+    "crisis_days": 32,
+    "crisis_stress_days": 16,
+    "benign_days": 204,
+    "benign_stress_days": 20,
+    "critical_day_stress": false,
+    "critical_day_latency_bdays": 1,
+    "trough_growth_score": -0.5226680334461726,
+    "crisis_max_negative_growth": -0.6670256573291179,
+    "median_axis_run_length": 3.0
+  },
+  {
+    "config": {
+      "risk_enter_threshold": 0.55,
+      "risk_min_consecutive_days": 2,
+      "axis_min_consecutive_days": 5
+    },
+    "anchor": "COVID 2020",
+    "crisis_days": 49,
+    "crisis_stress_days": 33,
+    "benign_days": 175,
+    "benign_stress_days": 20,
+    "critical_day_stress": false,
+    "critical_day_latency_bdays": 2,
+    "trough_growth_score": -0.5345078589288665,
+    "crisis_max_negative_growth": -0.6520662893661778,
+    "median_axis_run_length": 3.0
+  },
+  {
+    "config": {
+      "risk_enter_threshold": 0.55,
+      "risk_min_consecutive_days": 2,
+      "axis_min_consecutive_days": 5
+    },
+    "anchor": "GFC 2008-09",
+    "crisis_days": 78,
+    "crisis_stress_days": 58,
+    "benign_days": 195,
+    "benign_stress_days": 11,
+    "critical_day_stress": false,
+    "critical_day_latency_bdays": 23,
+    "trough_growth_score": -0.883616872109885,
+    "crisis_max_negative_growth": -0.8879673448331615,
+    "median_axis_run_length": 3.0
+  },
+  {
+    "config": {
+      "risk_enter_threshold": 0.55,
+      "risk_min_consecutive_days": 2,
+      "axis_min_consecutive_days": 5
+    },
+    "anchor": "2022 Inflation Surge",
+    "crisis_days": 109,
+    "crisis_stress_days": 14,
+    "benign_days": 73,
+    "benign_stress_days": 5,
+    "critical_day_stress": false,
+    "critical_day_latency_bdays": 4,
+    "trough_growth_score": 0.3667874100611902,
+    "crisis_max_negative_growth": -0.6455059984485798,
+    "median_axis_run_length": 3.0
+  },
+  {
+    "config": {
+      "risk_enter_threshold": 0.55,
+      "risk_min_consecutive_days": 2,
+      "axis_min_consecutive_days": 5
+    },
+    "anchor": "2025 Tariff Shock",
+    "crisis_days": 32,
+    "crisis_stress_days": 16,
+    "benign_days": 204,
+    "benign_stress_days": 20,
+    "critical_day_stress": false,
+    "critical_day_latency_bdays": 1,
+    "trough_growth_score": -0.5226680334461726,
+    "crisis_max_negative_growth": -0.6670256573291179,
+    "median_axis_run_length": 3.0
+  },
+  {
+    "config": {
+      "risk_enter_threshold": 0.55,
+      "risk_min_consecutive_days": 2,
+      "axis_min_consecutive_days": 10
+    },
+    "anchor": "COVID 2020",
+    "crisis_days": 49,
+    "crisis_stress_days": 33,
+    "benign_days": 175,
+    "benign_stress_days": 20,
+    "critical_day_stress": false,
+    "critical_day_latency_bdays": 2,
+    "trough_growth_score": -0.5345078589288665,
+    "crisis_max_negative_growth": -0.6520662893661778,
+    "median_axis_run_length": 3.0
+  },
+  {
+    "config": {
+      "risk_enter_threshold": 0.55,
+      "risk_min_consecutive_days": 2,
+      "axis_min_consecutive_days": 10
+    },
+    "anchor": "GFC 2008-09",
+    "crisis_days": 78,
+    "crisis_stress_days": 58,
+    "benign_days": 195,
+    "benign_stress_days": 11,
+    "critical_day_stress": false,
+    "critical_day_latency_bdays": 23,
+    "trough_growth_score": -0.883616872109885,
+    "crisis_max_negative_growth": -0.8879673448331615,
+    "median_axis_run_length": 3.0
+  },
+  {
+    "config": {
+      "risk_enter_threshold": 0.55,
+      "risk_min_consecutive_days": 2,
+      "axis_min_consecutive_days": 10
+    },
+    "anchor": "2022 Inflation Surge",
+    "crisis_days": 109,
+    "crisis_stress_days": 14,
+    "benign_days": 73,
+    "benign_stress_days": 5,
+    "critical_day_stress": false,
+    "critical_day_latency_bdays": 4,
+    "trough_growth_score": 0.3667874100611902,
+    "crisis_max_negative_growth": -0.6455059984485798,
+    "median_axis_run_length": 3.0
+  },
+  {
+    "config": {
+      "risk_enter_threshold": 0.55,
+      "risk_min_consecutive_days": 2,
+      "axis_min_consecutive_days": 10
+    },
+    "anchor": "2025 Tariff Shock",
+    "crisis_days": 32,
+    "crisis_stress_days": 16,
+    "benign_days": 204,
+    "benign_stress_days": 20,
+    "critical_day_stress": false,
+    "critical_day_latency_bdays": 1,
+    "trough_growth_score": -0.5226680334461726,
+    "crisis_max_negative_growth": -0.6670256573291179,
+    "median_axis_run_length": 3.0
+  },
+  {
+    "config": {
+      "risk_enter_threshold": 0.55,
+      "risk_min_consecutive_days": 3,
+      "axis_min_consecutive_days": 3
+    },
+    "anchor": "COVID 2020",
+    "crisis_days": 49,
+    "crisis_stress_days": 33,
+    "benign_days": 175,
+    "benign_stress_days": 20,
+    "critical_day_stress": false,
+    "critical_day_latency_bdays": 3,
+    "trough_growth_score": -0.5345078589288665,
+    "crisis_max_negative_growth": -0.6520662893661778,
+    "median_axis_run_length": 3.0
+  },
+  {
+    "config": {
+      "risk_enter_threshold": 0.55,
+      "risk_min_consecutive_days": 3,
+      "axis_min_consecutive_days": 3
+    },
+    "anchor": "GFC 2008-09",
+    "crisis_days": 78,
+    "crisis_stress_days": 60,
+    "benign_days": 195,
+    "benign_stress_days": 11,
+    "critical_day_stress": false,
+    "critical_day_latency_bdays": 24,
+    "trough_growth_score": -0.883616872109885,
+    "crisis_max_negative_growth": -0.8879673448331615,
+    "median_axis_run_length": 3.0
+  },
+  {
+    "config": {
+      "risk_enter_threshold": 0.55,
+      "risk_min_consecutive_days": 3,
+      "axis_min_consecutive_days": 3
+    },
+    "anchor": "2022 Inflation Surge",
+    "crisis_days": 109,
+    "crisis_stress_days": 12,
+    "benign_days": 73,
+    "benign_stress_days": 5,
+    "critical_day_stress": false,
+    "critical_day_latency_bdays": 18,
+    "trough_growth_score": 0.3667874100611902,
+    "crisis_max_negative_growth": -0.6455059984485798,
+    "median_axis_run_length": 3.0
+  },
+  {
+    "config": {
+      "risk_enter_threshold": 0.55,
+      "risk_min_consecutive_days": 3,
+      "axis_min_consecutive_days": 3
+    },
+    "anchor": "2025 Tariff Shock",
+    "crisis_days": 32,
+    "crisis_stress_days": 16,
+    "benign_days": 204,
+    "benign_stress_days": 16,
+    "critical_day_stress": false,
+    "critical_day_latency_bdays": 2,
+    "trough_growth_score": -0.5226680334461726,
+    "crisis_max_negative_growth": -0.6670256573291179,
+    "median_axis_run_length": 3.0
+  },
+  {
+    "config": {
+      "risk_enter_threshold": 0.55,
+      "risk_min_consecutive_days": 3,
+      "axis_min_consecutive_days": 5
+    },
+    "anchor": "COVID 2020",
+    "crisis_days": 49,
+    "crisis_stress_days": 33,
+    "benign_days": 175,
+    "benign_stress_days": 20,
+    "critical_day_stress": false,
+    "critical_day_latency_bdays": 3,
+    "trough_growth_score": -0.5345078589288665,
+    "crisis_max_negative_growth": -0.6520662893661778,
+    "median_axis_run_length": 3.0
+  },
+  {
+    "config": {
+      "risk_enter_threshold": 0.55,
+      "risk_min_consecutive_days": 3,
+      "axis_min_consecutive_days": 5
+    },
+    "anchor": "GFC 2008-09",
+    "crisis_days": 78,
+    "crisis_stress_days": 60,
+    "benign_days": 195,
+    "benign_stress_days": 11,
+    "critical_day_stress": false,
+    "critical_day_latency_bdays": 24,
+    "trough_growth_score": -0.883616872109885,
+    "crisis_max_negative_growth": -0.8879673448331615,
+    "median_axis_run_length": 3.0
+  },
+  {
+    "config": {
+      "risk_enter_threshold": 0.55,
+      "risk_min_consecutive_days": 3,
+      "axis_min_consecutive_days": 5
+    },
+    "anchor": "2022 Inflation Surge",
+    "crisis_days": 109,
+    "crisis_stress_days": 12,
+    "benign_days": 73,
+    "benign_stress_days": 5,
+    "critical_day_stress": false,
+    "critical_day_latency_bdays": 18,
+    "trough_growth_score": 0.3667874100611902,
+    "crisis_max_negative_growth": -0.6455059984485798,
+    "median_axis_run_length": 3.0
+  },
+  {
+    "config": {
+      "risk_enter_threshold": 0.55,
+      "risk_min_consecutive_days": 3,
+      "axis_min_consecutive_days": 5
+    },
+    "anchor": "2025 Tariff Shock",
+    "crisis_days": 32,
+    "crisis_stress_days": 16,
+    "benign_days": 204,
+    "benign_stress_days": 16,
+    "critical_day_stress": false,
+    "critical_day_latency_bdays": 2,
+    "trough_growth_score": -0.5226680334461726,
+    "crisis_max_negative_growth": -0.6670256573291179,
+    "median_axis_run_length": 3.0
+  },
+  {
+    "config": {
+      "risk_enter_threshold": 0.55,
+      "risk_min_consecutive_days": 3,
+      "axis_min_consecutive_days": 10
+    },
+    "anchor": "COVID 2020",
+    "crisis_days": 49,
+    "crisis_stress_days": 33,
+    "benign_days": 175,
+    "benign_stress_days": 20,
+    "critical_day_stress": false,
+    "critical_day_latency_bdays": 3,
+    "trough_growth_score": -0.5345078589288665,
+    "crisis_max_negative_growth": -0.6520662893661778,
+    "median_axis_run_length": 3.0
+  },
+  {
+    "config": {
+      "risk_enter_threshold": 0.55,
+      "risk_min_consecutive_days": 3,
+      "axis_min_consecutive_days": 10
+    },
+    "anchor": "GFC 2008-09",
+    "crisis_days": 78,
+    "crisis_stress_days": 60,
+    "benign_days": 195,
+    "benign_stress_days": 11,
+    "critical_day_stress": false,
+    "critical_day_latency_bdays": 24,
+    "trough_growth_score": -0.883616872109885,
+    "crisis_max_negative_growth": -0.8879673448331615,
+    "median_axis_run_length": 3.0
+  },
+  {
+    "config": {
+      "risk_enter_threshold": 0.55,
+      "risk_min_consecutive_days": 3,
+      "axis_min_consecutive_days": 10
+    },
+    "anchor": "2022 Inflation Surge",
+    "crisis_days": 109,
+    "crisis_stress_days": 12,
+    "benign_days": 73,
+    "benign_stress_days": 5,
+    "critical_day_stress": false,
+    "critical_day_latency_bdays": 18,
+    "trough_growth_score": 0.3667874100611902,
+    "crisis_max_negative_growth": -0.6455059984485798,
+    "median_axis_run_length": 3.0
+  },
+  {
+    "config": {
+      "risk_enter_threshold": 0.55,
+      "risk_min_consecutive_days": 3,
+      "axis_min_consecutive_days": 10
+    },
+    "anchor": "2025 Tariff Shock",
+    "crisis_days": 32,
+    "crisis_stress_days": 16,
+    "benign_days": 204,
+    "benign_stress_days": 16,
+    "critical_day_stress": false,
+    "critical_day_latency_bdays": 2,
+    "trough_growth_score": -0.5226680334461726,
+    "crisis_max_negative_growth": -0.6670256573291179,
+    "median_axis_run_length": 3.0
+  },
+  {
+    "config": {
+      "risk_enter_threshold": 0.55,
+      "risk_min_consecutive_days": 5,
+      "axis_min_consecutive_days": 3
+    },
+    "anchor": "COVID 2020",
+    "crisis_days": 49,
+    "crisis_stress_days": 33,
+    "benign_days": 175,
+    "benign_stress_days": 20,
+    "critical_day_stress": false,
+    "critical_day_latency_bdays": 7,
+    "trough_growth_score": -0.5345078589288665,
+    "crisis_max_negative_growth": -0.6520662893661778,
+    "median_axis_run_length": 3.0
+  },
+  {
+    "config": {
+      "risk_enter_threshold": 0.55,
+      "risk_min_consecutive_days": 5,
+      "axis_min_consecutive_days": 3
+    },
+    "anchor": "GFC 2008-09",
+    "crisis_days": 78,
+    "crisis_stress_days": 58,
+    "benign_days": 195,
+    "benign_stress_days": 8,
+    "critical_day_stress": false,
+    "critical_day_latency_bdays": 28,
+    "trough_growth_score": -0.883616872109885,
+    "crisis_max_negative_growth": -0.8879673448331615,
+    "median_axis_run_length": 3.0
+  },
+  {
+    "config": {
+      "risk_enter_threshold": 0.55,
+      "risk_min_consecutive_days": 5,
+      "axis_min_consecutive_days": 3
+    },
+    "anchor": "2022 Inflation Surge",
+    "crisis_days": 109,
+    "crisis_stress_days": 12,
+    "benign_days": 73,
+    "benign_stress_days": 5,
+    "critical_day_stress": false,
+    "critical_day_latency_bdays": 22,
+    "trough_growth_score": 0.3667874100611902,
+    "crisis_max_negative_growth": -0.6455059984485798,
+    "median_axis_run_length": 3.0
+  },
+  {
+    "config": {
+      "risk_enter_threshold": 0.55,
+      "risk_min_consecutive_days": 5,
+      "axis_min_consecutive_days": 3
+    },
+    "anchor": "2025 Tariff Shock",
+    "crisis_days": 32,
+    "crisis_stress_days": 16,
+    "benign_days": 204,
+    "benign_stress_days": 19,
+    "critical_day_stress": false,
+    "critical_day_latency_bdays": 6,
+    "trough_growth_score": -0.5226680334461726,
+    "crisis_max_negative_growth": -0.6670256573291179,
+    "median_axis_run_length": 3.0
+  },
+  {
+    "config": {
+      "risk_enter_threshold": 0.55,
+      "risk_min_consecutive_days": 5,
+      "axis_min_consecutive_days": 5
+    },
+    "anchor": "COVID 2020",
+    "crisis_days": 49,
+    "crisis_stress_days": 33,
+    "benign_days": 175,
+    "benign_stress_days": 20,
+    "critical_day_stress": false,
+    "critical_day_latency_bdays": 7,
+    "trough_growth_score": -0.5345078589288665,
+    "crisis_max_negative_growth": -0.6520662893661778,
+    "median_axis_run_length": 3.0
+  },
+  {
+    "config": {
+      "risk_enter_threshold": 0.55,
+      "risk_min_consecutive_days": 5,
+      "axis_min_consecutive_days": 5
+    },
+    "anchor": "GFC 2008-09",
+    "crisis_days": 78,
+    "crisis_stress_days": 58,
+    "benign_days": 195,
+    "benign_stress_days": 8,
+    "critical_day_stress": false,
+    "critical_day_latency_bdays": 28,
+    "trough_growth_score": -0.883616872109885,
+    "crisis_max_negative_growth": -0.8879673448331615,
+    "median_axis_run_length": 3.0
+  },
+  {
+    "config": {
+      "risk_enter_threshold": 0.55,
+      "risk_min_consecutive_days": 5,
+      "axis_min_consecutive_days": 5
+    },
+    "anchor": "2022 Inflation Surge",
+    "crisis_days": 109,
+    "crisis_stress_days": 12,
+    "benign_days": 73,
+    "benign_stress_days": 5,
+    "critical_day_stress": false,
+    "critical_day_latency_bdays": 22,
+    "trough_growth_score": 0.3667874100611902,
+    "crisis_max_negative_growth": -0.6455059984485798,
+    "median_axis_run_length": 3.0
+  },
+  {
+    "config": {
+      "risk_enter_threshold": 0.55,
+      "risk_min_consecutive_days": 5,
+      "axis_min_consecutive_days": 5
+    },
+    "anchor": "2025 Tariff Shock",
+    "crisis_days": 32,
+    "crisis_stress_days": 16,
+    "benign_days": 204,
+    "benign_stress_days": 19,
+    "critical_day_stress": false,
+    "critical_day_latency_bdays": 6,
+    "trough_growth_score": -0.5226680334461726,
+    "crisis_max_negative_growth": -0.6670256573291179,
+    "median_axis_run_length": 3.0
+  },
+  {
+    "config": {
+      "risk_enter_threshold": 0.55,
+      "risk_min_consecutive_days": 5,
+      "axis_min_consecutive_days": 10
+    },
+    "anchor": "COVID 2020",
+    "crisis_days": 49,
+    "crisis_stress_days": 33,
+    "benign_days": 175,
+    "benign_stress_days": 20,
+    "critical_day_stress": false,
+    "critical_day_latency_bdays": 7,
+    "trough_growth_score": -0.5345078589288665,
+    "crisis_max_negative_growth": -0.6520662893661778,
+    "median_axis_run_length": 3.0
+  },
+  {
+    "config": {
+      "risk_enter_threshold": 0.55,
+      "risk_min_consecutive_days": 5,
+      "axis_min_consecutive_days": 10
+    },
+    "anchor": "GFC 2008-09",
+    "crisis_days": 78,
+    "crisis_stress_days": 58,
+    "benign_days": 195,
+    "benign_stress_days": 8,
+    "critical_day_stress": false,
+    "critical_day_latency_bdays": 28,
+    "trough_growth_score": -0.883616872109885,
+    "crisis_max_negative_growth": -0.8879673448331615,
+    "median_axis_run_length": 3.0
+  },
+  {
+    "config": {
+      "risk_enter_threshold": 0.55,
+      "risk_min_consecutive_days": 5,
+      "axis_min_consecutive_days": 10
+    },
+    "anchor": "2022 Inflation Surge",
+    "crisis_days": 109,
+    "crisis_stress_days": 12,
+    "benign_days": 73,
+    "benign_stress_days": 5,
+    "critical_day_stress": false,
+    "critical_day_latency_bdays": 22,
+    "trough_growth_score": 0.3667874100611902,
+    "crisis_max_negative_growth": -0.6455059984485798,
+    "median_axis_run_length": 3.0
+  },
+  {
+    "config": {
+      "risk_enter_threshold": 0.55,
+      "risk_min_consecutive_days": 5,
+      "axis_min_consecutive_days": 10
+    },
+    "anchor": "2025 Tariff Shock",
+    "crisis_days": 32,
+    "crisis_stress_days": 16,
+    "benign_days": 204,
+    "benign_stress_days": 19,
+    "critical_day_stress": false,
+    "critical_day_latency_bdays": 6,
+    "trough_growth_score": -0.5226680334461726,
+    "crisis_max_negative_growth": -0.6670256573291179,
+    "median_axis_run_length": 3.0
+  },
+  {
+    "config": {
+      "risk_enter_threshold": 0.65,
+      "risk_min_consecutive_days": 1,
+      "axis_min_consecutive_days": 3
+    },
+    "anchor": "COVID 2020",
+    "crisis_days": 49,
+    "crisis_stress_days": 27,
+    "benign_days": 175,
+    "benign_stress_days": 18,
+    "critical_day_stress": false,
+    "critical_day_latency_bdays": 3,
+    "trough_growth_score": -0.5345078589288665,
+    "crisis_max_negative_growth": -0.6520662893661778,
+    "median_axis_run_length": 3.0
+  },
+  {
+    "config": {
+      "risk_enter_threshold": 0.65,
+      "risk_min_consecutive_days": 1,
+      "axis_min_consecutive_days": 3
+    },
+    "anchor": "GFC 2008-09",
+    "crisis_days": 78,
+    "crisis_stress_days": 52,
+    "benign_days": 195,
+    "benign_stress_days": 5,
+    "critical_day_stress": true,
+    "critical_day_latency_bdays": 0,
+    "trough_growth_score": -0.883616872109885,
+    "crisis_max_negative_growth": -0.8879673448331615,
+    "median_axis_run_length": 3.0
+  },
+  {
+    "config": {
+      "risk_enter_threshold": 0.65,
+      "risk_min_consecutive_days": 1,
+      "axis_min_consecutive_days": 3
+    },
+    "anchor": "2022 Inflation Surge",
+    "crisis_days": 109,
+    "crisis_stress_days": 6,
+    "benign_days": 73,
+    "benign_stress_days": 5,
+    "critical_day_stress": false,
+    "critical_day_latency_bdays": 17,
+    "trough_growth_score": 0.3667874100611902,
+    "crisis_max_negative_growth": -0.6455059984485798,
+    "median_axis_run_length": 3.0
+  },
+  {
+    "config": {
+      "risk_enter_threshold": 0.65,
+      "risk_min_consecutive_days": 1,
+      "axis_min_consecutive_days": 3
+    },
+    "anchor": "2025 Tariff Shock",
+    "crisis_days": 32,
+    "crisis_stress_days": 15,
+    "benign_days": 204,
+    "benign_stress_days": 12,
+    "critical_day_stress": false,
+    "critical_day_latency_bdays": 1,
+    "trough_growth_score": -0.5226680334461726,
+    "crisis_max_negative_growth": -0.6670256573291179,
+    "median_axis_run_length": 3.0
+  },
+  {
+    "config": {
+      "risk_enter_threshold": 0.65,
+      "risk_min_consecutive_days": 1,
+      "axis_min_consecutive_days": 5
+    },
+    "anchor": "COVID 2020",
+    "crisis_days": 49,
+    "crisis_stress_days": 27,
+    "benign_days": 175,
+    "benign_stress_days": 18,
+    "critical_day_stress": false,
+    "critical_day_latency_bdays": 3,
+    "trough_growth_score": -0.5345078589288665,
+    "crisis_max_negative_growth": -0.6520662893661778,
+    "median_axis_run_length": 3.0
+  },
+  {
+    "config": {
+      "risk_enter_threshold": 0.65,
+      "risk_min_consecutive_days": 1,
+      "axis_min_consecutive_days": 5
+    },
+    "anchor": "GFC 2008-09",
+    "crisis_days": 78,
+    "crisis_stress_days": 52,
+    "benign_days": 195,
+    "benign_stress_days": 5,
+    "critical_day_stress": true,
+    "critical_day_latency_bdays": 0,
+    "trough_growth_score": -0.883616872109885,
+    "crisis_max_negative_growth": -0.8879673448331615,
+    "median_axis_run_length": 3.0
+  },
+  {
+    "config": {
+      "risk_enter_threshold": 0.65,
+      "risk_min_consecutive_days": 1,
+      "axis_min_consecutive_days": 5
+    },
+    "anchor": "2022 Inflation Surge",
+    "crisis_days": 109,
+    "crisis_stress_days": 6,
+    "benign_days": 73,
+    "benign_stress_days": 5,
+    "critical_day_stress": false,
+    "critical_day_latency_bdays": 17,
+    "trough_growth_score": 0.3667874100611902,
+    "crisis_max_negative_growth": -0.6455059984485798,
+    "median_axis_run_length": 3.0
+  },
+  {
+    "config": {
+      "risk_enter_threshold": 0.65,
+      "risk_min_consecutive_days": 1,
+      "axis_min_consecutive_days": 5
+    },
+    "anchor": "2025 Tariff Shock",
+    "crisis_days": 32,
+    "crisis_stress_days": 15,
+    "benign_days": 204,
+    "benign_stress_days": 12,
+    "critical_day_stress": false,
+    "critical_day_latency_bdays": 1,
+    "trough_growth_score": -0.5226680334461726,
+    "crisis_max_negative_growth": -0.6670256573291179,
+    "median_axis_run_length": 3.0
+  },
+  {
+    "config": {
+      "risk_enter_threshold": 0.65,
+      "risk_min_consecutive_days": 1,
+      "axis_min_consecutive_days": 10
+    },
+    "anchor": "COVID 2020",
+    "crisis_days": 49,
+    "crisis_stress_days": 27,
+    "benign_days": 175,
+    "benign_stress_days": 18,
+    "critical_day_stress": false,
+    "critical_day_latency_bdays": 3,
+    "trough_growth_score": -0.5345078589288665,
+    "crisis_max_negative_growth": -0.6520662893661778,
+    "median_axis_run_length": 3.0
+  },
+  {
+    "config": {
+      "risk_enter_threshold": 0.65,
+      "risk_min_consecutive_days": 1,
+      "axis_min_consecutive_days": 10
+    },
+    "anchor": "GFC 2008-09",
+    "crisis_days": 78,
+    "crisis_stress_days": 52,
+    "benign_days": 195,
+    "benign_stress_days": 5,
+    "critical_day_stress": true,
+    "critical_day_latency_bdays": 0,
+    "trough_growth_score": -0.883616872109885,
+    "crisis_max_negative_growth": -0.8879673448331615,
+    "median_axis_run_length": 3.0
+  },
+  {
+    "config": {
+      "risk_enter_threshold": 0.65,
+      "risk_min_consecutive_days": 1,
+      "axis_min_consecutive_days": 10
+    },
+    "anchor": "2022 Inflation Surge",
+    "crisis_days": 109,
+    "crisis_stress_days": 6,
+    "benign_days": 73,
+    "benign_stress_days": 5,
+    "critical_day_stress": false,
+    "critical_day_latency_bdays": 17,
+    "trough_growth_score": 0.3667874100611902,
+    "crisis_max_negative_growth": -0.6455059984485798,
+    "median_axis_run_length": 3.0
+  },
+  {
+    "config": {
+      "risk_enter_threshold": 0.65,
+      "risk_min_consecutive_days": 1,
+      "axis_min_consecutive_days": 10
+    },
+    "anchor": "2025 Tariff Shock",
+    "crisis_days": 32,
+    "crisis_stress_days": 15,
+    "benign_days": 204,
+    "benign_stress_days": 12,
+    "critical_day_stress": false,
+    "critical_day_latency_bdays": 1,
+    "trough_growth_score": -0.5226680334461726,
+    "crisis_max_negative_growth": -0.6670256573291179,
+    "median_axis_run_length": 3.0
+  },
+  {
+    "config": {
+      "risk_enter_threshold": 0.65,
+      "risk_min_consecutive_days": 2,
+      "axis_min_consecutive_days": 3
+    },
+    "anchor": "COVID 2020",
+    "crisis_days": 49,
+    "crisis_stress_days": 31,
+    "benign_days": 175,
+    "benign_stress_days": 20,
+    "critical_day_stress": false,
+    "critical_day_latency_bdays": 4,
+    "trough_growth_score": -0.5345078589288665,
+    "crisis_max_negative_growth": -0.6520662893661778,
+    "median_axis_run_length": 3.0
+  },
+  {
+    "config": {
+      "risk_enter_threshold": 0.65,
+      "risk_min_consecutive_days": 2,
+      "axis_min_consecutive_days": 3
+    },
+    "anchor": "GFC 2008-09",
+    "crisis_days": 78,
+    "crisis_stress_days": 58,
+    "benign_days": 195,
+    "benign_stress_days": 5,
+    "critical_day_stress": false,
+    "critical_day_latency_bdays": 23,
+    "trough_growth_score": -0.883616872109885,
+    "crisis_max_negative_growth": -0.8879673448331615,
+    "median_axis_run_length": 3.0
+  },
+  {
+    "config": {
+      "risk_enter_threshold": 0.65,
+      "risk_min_consecutive_days": 2,
+      "axis_min_consecutive_days": 3
+    },
+    "anchor": "2022 Inflation Surge",
+    "crisis_days": 109,
+    "crisis_stress_days": 11,
+    "benign_days": 73,
+    "benign_stress_days": 5,
+    "critical_day_stress": false,
+    "critical_day_latency_bdays": 18,
+    "trough_growth_score": 0.3667874100611902,
+    "crisis_max_negative_growth": -0.6455059984485798,
+    "median_axis_run_length": 3.0
+  },
+  {
+    "config": {
+      "risk_enter_threshold": 0.65,
+      "risk_min_consecutive_days": 2,
+      "axis_min_consecutive_days": 3
+    },
+    "anchor": "2025 Tariff Shock",
+    "crisis_days": 32,
+    "crisis_stress_days": 15,
+    "benign_days": 204,
+    "benign_stress_days": 10,
+    "critical_day_stress": false,
+    "critical_day_latency_bdays": 2,
+    "trough_growth_score": -0.5226680334461726,
+    "crisis_max_negative_growth": -0.6670256573291179,
+    "median_axis_run_length": 3.0
+  },
+  {
+    "config": {
+      "risk_enter_threshold": 0.65,
+      "risk_min_consecutive_days": 2,
+      "axis_min_consecutive_days": 5
+    },
+    "anchor": "COVID 2020",
+    "crisis_days": 49,
+    "crisis_stress_days": 31,
+    "benign_days": 175,
+    "benign_stress_days": 20,
+    "critical_day_stress": false,
+    "critical_day_latency_bdays": 4,
+    "trough_growth_score": -0.5345078589288665,
+    "crisis_max_negative_growth": -0.6520662893661778,
+    "median_axis_run_length": 3.0
+  },
+  {
+    "config": {
+      "risk_enter_threshold": 0.65,
+      "risk_min_consecutive_days": 2,
+      "axis_min_consecutive_days": 5
+    },
+    "anchor": "GFC 2008-09",
+    "crisis_days": 78,
+    "crisis_stress_days": 58,
+    "benign_days": 195,
+    "benign_stress_days": 5,
+    "critical_day_stress": false,
+    "critical_day_latency_bdays": 23,
+    "trough_growth_score": -0.883616872109885,
+    "crisis_max_negative_growth": -0.8879673448331615,
+    "median_axis_run_length": 3.0
+  },
+  {
+    "config": {
+      "risk_enter_threshold": 0.65,
+      "risk_min_consecutive_days": 2,
+      "axis_min_consecutive_days": 5
+    },
+    "anchor": "2022 Inflation Surge",
+    "crisis_days": 109,
+    "crisis_stress_days": 11,
+    "benign_days": 73,
+    "benign_stress_days": 5,
+    "critical_day_stress": false,
+    "critical_day_latency_bdays": 18,
+    "trough_growth_score": 0.3667874100611902,
+    "crisis_max_negative_growth": -0.6455059984485798,
+    "median_axis_run_length": 3.0
+  },
+  {
+    "config": {
+      "risk_enter_threshold": 0.65,
+      "risk_min_consecutive_days": 2,
+      "axis_min_consecutive_days": 5
+    },
+    "anchor": "2025 Tariff Shock",
+    "crisis_days": 32,
+    "crisis_stress_days": 15,
+    "benign_days": 204,
+    "benign_stress_days": 10,
+    "critical_day_stress": false,
+    "critical_day_latency_bdays": 2,
+    "trough_growth_score": -0.5226680334461726,
+    "crisis_max_negative_growth": -0.6670256573291179,
+    "median_axis_run_length": 3.0
+  },
+  {
+    "config": {
+      "risk_enter_threshold": 0.65,
+      "risk_min_consecutive_days": 2,
+      "axis_min_consecutive_days": 10
+    },
+    "anchor": "COVID 2020",
+    "crisis_days": 49,
+    "crisis_stress_days": 31,
+    "benign_days": 175,
+    "benign_stress_days": 20,
+    "critical_day_stress": false,
+    "critical_day_latency_bdays": 4,
+    "trough_growth_score": -0.5345078589288665,
+    "crisis_max_negative_growth": -0.6520662893661778,
+    "median_axis_run_length": 3.0
+  },
+  {
+    "config": {
+      "risk_enter_threshold": 0.65,
+      "risk_min_consecutive_days": 2,
+      "axis_min_consecutive_days": 10
+    },
+    "anchor": "GFC 2008-09",
+    "crisis_days": 78,
+    "crisis_stress_days": 58,
+    "benign_days": 195,
+    "benign_stress_days": 5,
+    "critical_day_stress": false,
+    "critical_day_latency_bdays": 23,
+    "trough_growth_score": -0.883616872109885,
+    "crisis_max_negative_growth": -0.8879673448331615,
+    "median_axis_run_length": 3.0
+  },
+  {
+    "config": {
+      "risk_enter_threshold": 0.65,
+      "risk_min_consecutive_days": 2,
+      "axis_min_consecutive_days": 10
+    },
+    "anchor": "2022 Inflation Surge",
+    "crisis_days": 109,
+    "crisis_stress_days": 11,
+    "benign_days": 73,
+    "benign_stress_days": 5,
+    "critical_day_stress": false,
+    "critical_day_latency_bdays": 18,
+    "trough_growth_score": 0.3667874100611902,
+    "crisis_max_negative_growth": -0.6455059984485798,
+    "median_axis_run_length": 3.0
+  },
+  {
+    "config": {
+      "risk_enter_threshold": 0.65,
+      "risk_min_consecutive_days": 2,
+      "axis_min_consecutive_days": 10
+    },
+    "anchor": "2025 Tariff Shock",
+    "crisis_days": 32,
+    "crisis_stress_days": 15,
+    "benign_days": 204,
+    "benign_stress_days": 10,
+    "critical_day_stress": false,
+    "critical_day_latency_bdays": 2,
+    "trough_growth_score": -0.5226680334461726,
+    "crisis_max_negative_growth": -0.6670256573291179,
+    "median_axis_run_length": 3.0
+  },
+  {
+    "config": {
+      "risk_enter_threshold": 0.65,
+      "risk_min_consecutive_days": 3,
+      "axis_min_consecutive_days": 3
+    },
+    "anchor": "COVID 2020",
+    "crisis_days": 49,
+    "crisis_stress_days": 28,
+    "benign_days": 175,
+    "benign_stress_days": 20,
+    "critical_day_stress": false,
+    "critical_day_latency_bdays": 10,
+    "trough_growth_score": -0.5345078589288665,
+    "crisis_max_negative_growth": -0.6520662893661778,
+    "median_axis_run_length": 3.0
+  },
+  {
+    "config": {
+      "risk_enter_threshold": 0.65,
+      "risk_min_consecutive_days": 3,
+      "axis_min_consecutive_days": 3
+    },
+    "anchor": "GFC 2008-09",
+    "crisis_days": 78,
+    "crisis_stress_days": 60,
+    "benign_days": 195,
+    "benign_stress_days": 0,
+    "critical_day_stress": false,
+    "critical_day_latency_bdays": 24,
+    "trough_growth_score": -0.883616872109885,
+    "crisis_max_negative_growth": -0.8879673448331615,
+    "median_axis_run_length": 3.0
+  },
+  {
+    "config": {
+      "risk_enter_threshold": 0.65,
+      "risk_min_consecutive_days": 3,
+      "axis_min_consecutive_days": 3
+    },
+    "anchor": "2022 Inflation Surge",
+    "crisis_days": 109,
+    "crisis_stress_days": 11,
+    "benign_days": 73,
+    "benign_stress_days": 5,
+    "critical_day_stress": false,
+    "critical_day_latency_bdays": 21,
+    "trough_growth_score": 0.3667874100611902,
+    "crisis_max_negative_growth": -0.6455059984485798,
+    "median_axis_run_length": 3.0
+  },
+  {
+    "config": {
+      "risk_enter_threshold": 0.65,
+      "risk_min_consecutive_days": 3,
+      "axis_min_consecutive_days": 3
+    },
+    "anchor": "2025 Tariff Shock",
+    "crisis_days": 32,
+    "crisis_stress_days": 15,
+    "benign_days": 204,
+    "benign_stress_days": 10,
+    "critical_day_stress": false,
+    "critical_day_latency_bdays": 5,
+    "trough_growth_score": -0.5226680334461726,
+    "crisis_max_negative_growth": -0.6670256573291179,
+    "median_axis_run_length": 3.0
+  },
+  {
+    "config": {
+      "risk_enter_threshold": 0.65,
+      "risk_min_consecutive_days": 3,
+      "axis_min_consecutive_days": 5
+    },
+    "anchor": "COVID 2020",
+    "crisis_days": 49,
+    "crisis_stress_days": 28,
+    "benign_days": 175,
+    "benign_stress_days": 20,
+    "critical_day_stress": false,
+    "critical_day_latency_bdays": 10,
+    "trough_growth_score": -0.5345078589288665,
+    "crisis_max_negative_growth": -0.6520662893661778,
+    "median_axis_run_length": 3.0
+  },
+  {
+    "config": {
+      "risk_enter_threshold": 0.65,
+      "risk_min_consecutive_days": 3,
+      "axis_min_consecutive_days": 5
+    },
+    "anchor": "GFC 2008-09",
+    "crisis_days": 78,
+    "crisis_stress_days": 60,
+    "benign_days": 195,
+    "benign_stress_days": 0,
+    "critical_day_stress": false,
+    "critical_day_latency_bdays": 24,
+    "trough_growth_score": -0.883616872109885,
+    "crisis_max_negative_growth": -0.8879673448331615,
+    "median_axis_run_length": 3.0
+  },
+  {
+    "config": {
+      "risk_enter_threshold": 0.65,
+      "risk_min_consecutive_days": 3,
+      "axis_min_consecutive_days": 5
+    },
+    "anchor": "2022 Inflation Surge",
+    "crisis_days": 109,
+    "crisis_stress_days": 11,
+    "benign_days": 73,
+    "benign_stress_days": 5,
+    "critical_day_stress": false,
+    "critical_day_latency_bdays": 21,
+    "trough_growth_score": 0.3667874100611902,
+    "crisis_max_negative_growth": -0.6455059984485798,
+    "median_axis_run_length": 3.0
+  },
+  {
+    "config": {
+      "risk_enter_threshold": 0.65,
+      "risk_min_consecutive_days": 3,
+      "axis_min_consecutive_days": 5
+    },
+    "anchor": "2025 Tariff Shock",
+    "crisis_days": 32,
+    "crisis_stress_days": 15,
+    "benign_days": 204,
+    "benign_stress_days": 10,
+    "critical_day_stress": false,
+    "critical_day_latency_bdays": 5,
+    "trough_growth_score": -0.5226680334461726,
+    "crisis_max_negative_growth": -0.6670256573291179,
+    "median_axis_run_length": 3.0
+  },
+  {
+    "config": {
+      "risk_enter_threshold": 0.65,
+      "risk_min_consecutive_days": 3,
+      "axis_min_consecutive_days": 10
+    },
+    "anchor": "COVID 2020",
+    "crisis_days": 49,
+    "crisis_stress_days": 28,
+    "benign_days": 175,
+    "benign_stress_days": 20,
+    "critical_day_stress": false,
+    "critical_day_latency_bdays": 10,
+    "trough_growth_score": -0.5345078589288665,
+    "crisis_max_negative_growth": -0.6520662893661778,
+    "median_axis_run_length": 3.0
+  },
+  {
+    "config": {
+      "risk_enter_threshold": 0.65,
+      "risk_min_consecutive_days": 3,
+      "axis_min_consecutive_days": 10
+    },
+    "anchor": "GFC 2008-09",
+    "crisis_days": 78,
+    "crisis_stress_days": 60,
+    "benign_days": 195,
+    "benign_stress_days": 0,
+    "critical_day_stress": false,
+    "critical_day_latency_bdays": 24,
+    "trough_growth_score": -0.883616872109885,
+    "crisis_max_negative_growth": -0.8879673448331615,
+    "median_axis_run_length": 3.0
+  },
+  {
+    "config": {
+      "risk_enter_threshold": 0.65,
+      "risk_min_consecutive_days": 3,
+      "axis_min_consecutive_days": 10
+    },
+    "anchor": "2022 Inflation Surge",
+    "crisis_days": 109,
+    "crisis_stress_days": 11,
+    "benign_days": 73,
+    "benign_stress_days": 5,
+    "critical_day_stress": false,
+    "critical_day_latency_bdays": 21,
+    "trough_growth_score": 0.3667874100611902,
+    "crisis_max_negative_growth": -0.6455059984485798,
+    "median_axis_run_length": 3.0
+  },
+  {
+    "config": {
+      "risk_enter_threshold": 0.65,
+      "risk_min_consecutive_days": 3,
+      "axis_min_consecutive_days": 10
+    },
+    "anchor": "2025 Tariff Shock",
+    "crisis_days": 32,
+    "crisis_stress_days": 15,
+    "benign_days": 204,
+    "benign_stress_days": 10,
+    "critical_day_stress": false,
+    "critical_day_latency_bdays": 5,
+    "trough_growth_score": -0.5226680334461726,
+    "crisis_max_negative_growth": -0.6670256573291179,
+    "median_axis_run_length": 3.0
+  },
+  {
+    "config": {
+      "risk_enter_threshold": 0.65,
+      "risk_min_consecutive_days": 5,
+      "axis_min_consecutive_days": 3
+    },
+    "anchor": "COVID 2020",
+    "crisis_days": 49,
+    "crisis_stress_days": 28,
+    "benign_days": 175,
+    "benign_stress_days": 16,
+    "critical_day_stress": false,
+    "critical_day_latency_bdays": 14,
+    "trough_growth_score": -0.5345078589288665,
+    "crisis_max_negative_growth": -0.6520662893661778,
+    "median_axis_run_length": 3.0
+  },
+  {
+    "config": {
+      "risk_enter_threshold": 0.65,
+      "risk_min_consecutive_days": 5,
+      "axis_min_consecutive_days": 3
+    },
+    "anchor": "GFC 2008-09",
+    "crisis_days": 78,
+    "crisis_stress_days": 52,
+    "benign_days": 195,
+    "benign_stress_days": 0,
+    "critical_day_stress": false,
+    "critical_day_latency_bdays": 36,
+    "trough_growth_score": -0.883616872109885,
+    "crisis_max_negative_growth": -0.8879673448331615,
+    "median_axis_run_length": 3.0
+  },
+  {
+    "config": {
+      "risk_enter_threshold": 0.65,
+      "risk_min_consecutive_days": 5,
+      "axis_min_consecutive_days": 3
+    },
+    "anchor": "2022 Inflation Surge",
+    "crisis_days": 109,
+    "crisis_stress_days": 11,
+    "benign_days": 73,
+    "benign_stress_days": 0,
+    "critical_day_stress": false,
+    "critical_day_latency_bdays": 23,
+    "trough_growth_score": 0.3667874100611902,
+    "crisis_max_negative_growth": -0.6455059984485798,
+    "median_axis_run_length": 3.0
+  },
+  {
+    "config": {
+      "risk_enter_threshold": 0.65,
+      "risk_min_consecutive_days": 5,
+      "axis_min_consecutive_days": 3
+    },
+    "anchor": "2025 Tariff Shock",
+    "crisis_days": 32,
+    "crisis_stress_days": 0,
+    "benign_days": 204,
+    "benign_stress_days": 16,
+    "critical_day_stress": false,
+    "critical_day_latency_bdays": null,
+    "trough_growth_score": -0.5226680334461726,
+    "crisis_max_negative_growth": -0.6670256573291179,
+    "median_axis_run_length": 3.0
+  },
+  {
+    "config": {
+      "risk_enter_threshold": 0.65,
+      "risk_min_consecutive_days": 5,
+      "axis_min_consecutive_days": 5
+    },
+    "anchor": "COVID 2020",
+    "crisis_days": 49,
+    "crisis_stress_days": 28,
+    "benign_days": 175,
+    "benign_stress_days": 16,
+    "critical_day_stress": false,
+    "critical_day_latency_bdays": 14,
+    "trough_growth_score": -0.5345078589288665,
+    "crisis_max_negative_growth": -0.6520662893661778,
+    "median_axis_run_length": 3.0
+  },
+  {
+    "config": {
+      "risk_enter_threshold": 0.65,
+      "risk_min_consecutive_days": 5,
+      "axis_min_consecutive_days": 5
+    },
+    "anchor": "GFC 2008-09",
+    "crisis_days": 78,
+    "crisis_stress_days": 52,
+    "benign_days": 195,
+    "benign_stress_days": 0,
+    "critical_day_stress": false,
+    "critical_day_latency_bdays": 36,
+    "trough_growth_score": -0.883616872109885,
+    "crisis_max_negative_growth": -0.8879673448331615,
+    "median_axis_run_length": 3.0
+  },
+  {
+    "config": {
+      "risk_enter_threshold": 0.65,
+      "risk_min_consecutive_days": 5,
+      "axis_min_consecutive_days": 5
+    },
+    "anchor": "2022 Inflation Surge",
+    "crisis_days": 109,
+    "crisis_stress_days": 11,
+    "benign_days": 73,
+    "benign_stress_days": 0,
+    "critical_day_stress": false,
+    "critical_day_latency_bdays": 23,
+    "trough_growth_score": 0.3667874100611902,
+    "crisis_max_negative_growth": -0.6455059984485798,
+    "median_axis_run_length": 3.0
+  },
+  {
+    "config": {
+      "risk_enter_threshold": 0.65,
+      "risk_min_consecutive_days": 5,
+      "axis_min_consecutive_days": 5
+    },
+    "anchor": "2025 Tariff Shock",
+    "crisis_days": 32,
+    "crisis_stress_days": 0,
+    "benign_days": 204,
+    "benign_stress_days": 16,
+    "critical_day_stress": false,
+    "critical_day_latency_bdays": null,
+    "trough_growth_score": -0.5226680334461726,
+    "crisis_max_negative_growth": -0.6670256573291179,
+    "median_axis_run_length": 3.0
+  },
+  {
+    "config": {
+      "risk_enter_threshold": 0.65,
+      "risk_min_consecutive_days": 5,
+      "axis_min_consecutive_days": 10
+    },
+    "anchor": "COVID 2020",
+    "crisis_days": 49,
+    "crisis_stress_days": 28,
+    "benign_days": 175,
+    "benign_stress_days": 16,
+    "critical_day_stress": false,
+    "critical_day_latency_bdays": 14,
+    "trough_growth_score": -0.5345078589288665,
+    "crisis_max_negative_growth": -0.6520662893661778,
+    "median_axis_run_length": 3.0
+  },
+  {
+    "config": {
+      "risk_enter_threshold": 0.65,
+      "risk_min_consecutive_days": 5,
+      "axis_min_consecutive_days": 10
+    },
+    "anchor": "GFC 2008-09",
+    "crisis_days": 78,
+    "crisis_stress_days": 52,
+    "benign_days": 195,
+    "benign_stress_days": 0,
+    "critical_day_stress": false,
+    "critical_day_latency_bdays": 36,
+    "trough_growth_score": -0.883616872109885,
+    "crisis_max_negative_growth": -0.8879673448331615,
+    "median_axis_run_length": 3.0
+  },
+  {
+    "config": {
+      "risk_enter_threshold": 0.65,
+      "risk_min_consecutive_days": 5,
+      "axis_min_consecutive_days": 10
+    },
+    "anchor": "2022 Inflation Surge",
+    "crisis_days": 109,
+    "crisis_stress_days": 11,
+    "benign_days": 73,
+    "benign_stress_days": 0,
+    "critical_day_stress": false,
+    "critical_day_latency_bdays": 23,
+    "trough_growth_score": 0.3667874100611902,
+    "crisis_max_negative_growth": -0.6455059984485798,
+    "median_axis_run_length": 3.0
+  },
+  {
+    "config": {
+      "risk_enter_threshold": 0.65,
+      "risk_min_consecutive_days": 5,
+      "axis_min_consecutive_days": 10
+    },
+    "anchor": "2025 Tariff Shock",
+    "crisis_days": 32,
+    "crisis_stress_days": 0,
+    "benign_days": 204,
+    "benign_stress_days": 16,
+    "critical_day_stress": false,
+    "critical_day_latency_bdays": null,
+    "trough_growth_score": -0.5226680334461726,
+    "crisis_max_negative_growth": -0.6670256573291179,
+    "median_axis_run_length": 3.0
+  },
+  {
+    "config": {
+      "risk_enter_threshold": 0.75,
+      "risk_min_consecutive_days": 1,
+      "axis_min_consecutive_days": 3
+    },
+    "anchor": "COVID 2020",
+    "crisis_days": 49,
+    "crisis_stress_days": 23,
+    "benign_days": 175,
+    "benign_stress_days": 18,
+    "critical_day_stress": false,
+    "critical_day_latency_bdays": 8,
+    "trough_growth_score": -0.5345078589288665,
+    "crisis_max_negative_growth": -0.6520662893661778,
+    "median_axis_run_length": 3.0
+  },
+  {
+    "config": {
+      "risk_enter_threshold": 0.75,
+      "risk_min_consecutive_days": 1,
+      "axis_min_consecutive_days": 3
+    },
+    "anchor": "GFC 2008-09",
+    "crisis_days": 78,
+    "crisis_stress_days": 42,
+    "benign_days": 195,
+    "benign_stress_days": 0,
+    "critical_day_stress": false,
+    "critical_day_latency_bdays": 23,
+    "trough_growth_score": -0.883616872109885,
+    "crisis_max_negative_growth": -0.8879673448331615,
+    "median_axis_run_length": 3.0
+  },
+  {
+    "config": {
+      "risk_enter_threshold": 0.75,
+      "risk_min_consecutive_days": 1,
+      "axis_min_consecutive_days": 3
+    },
+    "anchor": "2022 Inflation Surge",
+    "crisis_days": 109,
+    "crisis_stress_days": 0,
+    "benign_days": 73,
+    "benign_stress_days": 2,
+    "critical_day_stress": false,
+    "critical_day_latency_bdays": null,
+    "trough_growth_score": 0.3667874100611902,
+    "crisis_max_negative_growth": -0.6455059984485798,
+    "median_axis_run_length": 3.0
+  },
+  {
+    "config": {
+      "risk_enter_threshold": 0.75,
+      "risk_min_consecutive_days": 1,
+      "axis_min_consecutive_days": 3
+    },
+    "anchor": "2025 Tariff Shock",
+    "crisis_days": 32,
+    "crisis_stress_days": 15,
+    "benign_days": 204,
+    "benign_stress_days": 9,
+    "critical_day_stress": false,
+    "critical_day_latency_bdays": 1,
+    "trough_growth_score": -0.5226680334461726,
+    "crisis_max_negative_growth": -0.6670256573291179,
+    "median_axis_run_length": 3.0
+  },
+  {
+    "config": {
+      "risk_enter_threshold": 0.75,
+      "risk_min_consecutive_days": 1,
+      "axis_min_consecutive_days": 5
+    },
+    "anchor": "COVID 2020",
+    "crisis_days": 49,
+    "crisis_stress_days": 23,
+    "benign_days": 175,
+    "benign_stress_days": 18,
+    "critical_day_stress": false,
+    "critical_day_latency_bdays": 8,
+    "trough_growth_score": -0.5345078589288665,
+    "crisis_max_negative_growth": -0.6520662893661778,
+    "median_axis_run_length": 3.0
+  },
+  {
+    "config": {
+      "risk_enter_threshold": 0.75,
+      "risk_min_consecutive_days": 1,
+      "axis_min_consecutive_days": 5
+    },
+    "anchor": "GFC 2008-09",
+    "crisis_days": 78,
+    "crisis_stress_days": 42,
+    "benign_days": 195,
+    "benign_stress_days": 0,
+    "critical_day_stress": false,
+    "critical_day_latency_bdays": 23,
+    "trough_growth_score": -0.883616872109885,
+    "crisis_max_negative_growth": -0.8879673448331615,
+    "median_axis_run_length": 3.0
+  },
+  {
+    "config": {
+      "risk_enter_threshold": 0.75,
+      "risk_min_consecutive_days": 1,
+      "axis_min_consecutive_days": 5
+    },
+    "anchor": "2022 Inflation Surge",
+    "crisis_days": 109,
+    "crisis_stress_days": 0,
+    "benign_days": 73,
+    "benign_stress_days": 2,
+    "critical_day_stress": false,
+    "critical_day_latency_bdays": null,
+    "trough_growth_score": 0.3667874100611902,
+    "crisis_max_negative_growth": -0.6455059984485798,
+    "median_axis_run_length": 3.0
+  },
+  {
+    "config": {
+      "risk_enter_threshold": 0.75,
+      "risk_min_consecutive_days": 1,
+      "axis_min_consecutive_days": 5
+    },
+    "anchor": "2025 Tariff Shock",
+    "crisis_days": 32,
+    "crisis_stress_days": 15,
+    "benign_days": 204,
+    "benign_stress_days": 9,
+    "critical_day_stress": false,
+    "critical_day_latency_bdays": 1,
+    "trough_growth_score": -0.5226680334461726,
+    "crisis_max_negative_growth": -0.6670256573291179,
+    "median_axis_run_length": 3.0
+  },
+  {
+    "config": {
+      "risk_enter_threshold": 0.75,
+      "risk_min_consecutive_days": 1,
+      "axis_min_consecutive_days": 10
+    },
+    "anchor": "COVID 2020",
+    "crisis_days": 49,
+    "crisis_stress_days": 23,
+    "benign_days": 175,
+    "benign_stress_days": 18,
+    "critical_day_stress": false,
+    "critical_day_latency_bdays": 8,
+    "trough_growth_score": -0.5345078589288665,
+    "crisis_max_negative_growth": -0.6520662893661778,
+    "median_axis_run_length": 3.0
+  },
+  {
+    "config": {
+      "risk_enter_threshold": 0.75,
+      "risk_min_consecutive_days": 1,
+      "axis_min_consecutive_days": 10
+    },
+    "anchor": "GFC 2008-09",
+    "crisis_days": 78,
+    "crisis_stress_days": 42,
+    "benign_days": 195,
+    "benign_stress_days": 0,
+    "critical_day_stress": false,
+    "critical_day_latency_bdays": 23,
+    "trough_growth_score": -0.883616872109885,
+    "crisis_max_negative_growth": -0.8879673448331615,
+    "median_axis_run_length": 3.0
+  },
+  {
+    "config": {
+      "risk_enter_threshold": 0.75,
+      "risk_min_consecutive_days": 1,
+      "axis_min_consecutive_days": 10
+    },
+    "anchor": "2022 Inflation Surge",
+    "crisis_days": 109,
+    "crisis_stress_days": 0,
+    "benign_days": 73,
+    "benign_stress_days": 2,
+    "critical_day_stress": false,
+    "critical_day_latency_bdays": null,
+    "trough_growth_score": 0.3667874100611902,
+    "crisis_max_negative_growth": -0.6455059984485798,
+    "median_axis_run_length": 3.0
+  },
+  {
+    "config": {
+      "risk_enter_threshold": 0.75,
+      "risk_min_consecutive_days": 1,
+      "axis_min_consecutive_days": 10
+    },
+    "anchor": "2025 Tariff Shock",
+    "crisis_days": 32,
+    "crisis_stress_days": 15,
+    "benign_days": 204,
+    "benign_stress_days": 9,
+    "critical_day_stress": false,
+    "critical_day_latency_bdays": 1,
+    "trough_growth_score": -0.5226680334461726,
+    "crisis_max_negative_growth": -0.6670256573291179,
+    "median_axis_run_length": 3.0
+  },
+  {
+    "config": {
+      "risk_enter_threshold": 0.75,
+      "risk_min_consecutive_days": 2,
+      "axis_min_consecutive_days": 3
+    },
+    "anchor": "COVID 2020",
+    "crisis_days": 49,
+    "crisis_stress_days": 26,
+    "benign_days": 175,
+    "benign_stress_days": 13,
+    "critical_day_stress": false,
+    "critical_day_latency_bdays": 11,
+    "trough_growth_score": -0.5345078589288665,
+    "crisis_max_negative_growth": -0.6520662893661778,
+    "median_axis_run_length": 3.0
+  },
+  {
+    "config": {
+      "risk_enter_threshold": 0.75,
+      "risk_min_consecutive_days": 2,
+      "axis_min_consecutive_days": 3
+    },
+    "anchor": "GFC 2008-09",
+    "crisis_days": 78,
+    "crisis_stress_days": 52,
+    "benign_days": 195,
+    "benign_stress_days": 0,
+    "critical_day_stress": false,
+    "critical_day_latency_bdays": 24,
+    "trough_growth_score": -0.883616872109885,
+    "crisis_max_negative_growth": -0.8879673448331615,
+    "median_axis_run_length": 3.0
+  },
+  {
+    "config": {
+      "risk_enter_threshold": 0.75,
+      "risk_min_consecutive_days": 2,
+      "axis_min_consecutive_days": 3
+    },
+    "anchor": "2022 Inflation Surge",
+    "crisis_days": 109,
+    "crisis_stress_days": 0,
+    "benign_days": 73,
+    "benign_stress_days": 0,
+    "critical_day_stress": false,
+    "critical_day_latency_bdays": null,
+    "trough_growth_score": 0.3667874100611902,
+    "crisis_max_negative_growth": -0.6455059984485798,
+    "median_axis_run_length": 3.0
+  },
+  {
+    "config": {
+      "risk_enter_threshold": 0.75,
+      "risk_min_consecutive_days": 2,
+      "axis_min_consecutive_days": 3
+    },
+    "anchor": "2025 Tariff Shock",
+    "crisis_days": 32,
+    "crisis_stress_days": 15,
+    "benign_days": 204,
+    "benign_stress_days": 9,
+    "critical_day_stress": false,
+    "critical_day_latency_bdays": 2,
+    "trough_growth_score": -0.5226680334461726,
+    "crisis_max_negative_growth": -0.6670256573291179,
+    "median_axis_run_length": 3.0
+  },
+  {
+    "config": {
+      "risk_enter_threshold": 0.75,
+      "risk_min_consecutive_days": 2,
+      "axis_min_consecutive_days": 5
+    },
+    "anchor": "COVID 2020",
+    "crisis_days": 49,
+    "crisis_stress_days": 26,
+    "benign_days": 175,
+    "benign_stress_days": 13,
+    "critical_day_stress": false,
+    "critical_day_latency_bdays": 11,
+    "trough_growth_score": -0.5345078589288665,
+    "crisis_max_negative_growth": -0.6520662893661778,
+    "median_axis_run_length": 3.0
+  },
+  {
+    "config": {
+      "risk_enter_threshold": 0.75,
+      "risk_min_consecutive_days": 2,
+      "axis_min_consecutive_days": 5
+    },
+    "anchor": "GFC 2008-09",
+    "crisis_days": 78,
+    "crisis_stress_days": 52,
+    "benign_days": 195,
+    "benign_stress_days": 0,
+    "critical_day_stress": false,
+    "critical_day_latency_bdays": 24,
+    "trough_growth_score": -0.883616872109885,
+    "crisis_max_negative_growth": -0.8879673448331615,
+    "median_axis_run_length": 3.0
+  },
+  {
+    "config": {
+      "risk_enter_threshold": 0.75,
+      "risk_min_consecutive_days": 2,
+      "axis_min_consecutive_days": 5
+    },
+    "anchor": "2022 Inflation Surge",
+    "crisis_days": 109,
+    "crisis_stress_days": 0,
+    "benign_days": 73,
+    "benign_stress_days": 0,
+    "critical_day_stress": false,
+    "critical_day_latency_bdays": null,
+    "trough_growth_score": 0.3667874100611902,
+    "crisis_max_negative_growth": -0.6455059984485798,
+    "median_axis_run_length": 3.0
+  },
+  {
+    "config": {
+      "risk_enter_threshold": 0.75,
+      "risk_min_consecutive_days": 2,
+      "axis_min_consecutive_days": 5
+    },
+    "anchor": "2025 Tariff Shock",
+    "crisis_days": 32,
+    "crisis_stress_days": 15,
+    "benign_days": 204,
+    "benign_stress_days": 9,
+    "critical_day_stress": false,
+    "critical_day_latency_bdays": 2,
+    "trough_growth_score": -0.5226680334461726,
+    "crisis_max_negative_growth": -0.6670256573291179,
+    "median_axis_run_length": 3.0
+  },
+  {
+    "config": {
+      "risk_enter_threshold": 0.75,
+      "risk_min_consecutive_days": 2,
+      "axis_min_consecutive_days": 10
+    },
+    "anchor": "COVID 2020",
+    "crisis_days": 49,
+    "crisis_stress_days": 26,
+    "benign_days": 175,
+    "benign_stress_days": 13,
+    "critical_day_stress": false,
+    "critical_day_latency_bdays": 11,
+    "trough_growth_score": -0.5345078589288665,
+    "crisis_max_negative_growth": -0.6520662893661778,
+    "median_axis_run_length": 3.0
+  },
+  {
+    "config": {
+      "risk_enter_threshold": 0.75,
+      "risk_min_consecutive_days": 2,
+      "axis_min_consecutive_days": 10
+    },
+    "anchor": "GFC 2008-09",
+    "crisis_days": 78,
+    "crisis_stress_days": 52,
+    "benign_days": 195,
+    "benign_stress_days": 0,
+    "critical_day_stress": false,
+    "critical_day_latency_bdays": 24,
+    "trough_growth_score": -0.883616872109885,
+    "crisis_max_negative_growth": -0.8879673448331615,
+    "median_axis_run_length": 3.0
+  },
+  {
+    "config": {
+      "risk_enter_threshold": 0.75,
+      "risk_min_consecutive_days": 2,
+      "axis_min_consecutive_days": 10
+    },
+    "anchor": "2022 Inflation Surge",
+    "crisis_days": 109,
+    "crisis_stress_days": 0,
+    "benign_days": 73,
+    "benign_stress_days": 0,
+    "critical_day_stress": false,
+    "critical_day_latency_bdays": null,
+    "trough_growth_score": 0.3667874100611902,
+    "crisis_max_negative_growth": -0.6455059984485798,
+    "median_axis_run_length": 3.0
+  },
+  {
+    "config": {
+      "risk_enter_threshold": 0.75,
+      "risk_min_consecutive_days": 2,
+      "axis_min_consecutive_days": 10
+    },
+    "anchor": "2025 Tariff Shock",
+    "crisis_days": 32,
+    "crisis_stress_days": 15,
+    "benign_days": 204,
+    "benign_stress_days": 9,
+    "critical_day_stress": false,
+    "critical_day_latency_bdays": 2,
+    "trough_growth_score": -0.5226680334461726,
+    "crisis_max_negative_growth": -0.6670256573291179,
+    "median_axis_run_length": 3.0
+  },
+  {
+    "config": {
+      "risk_enter_threshold": 0.75,
+      "risk_min_consecutive_days": 3,
+      "axis_min_consecutive_days": 3
+    },
+    "anchor": "COVID 2020",
+    "crisis_days": 49,
+    "crisis_stress_days": 26,
+    "benign_days": 175,
+    "benign_stress_days": 13,
+    "critical_day_stress": false,
+    "critical_day_latency_bdays": 14,
+    "trough_growth_score": -0.5345078589288665,
+    "crisis_max_negative_growth": -0.6520662893661778,
+    "median_axis_run_length": 3.0
+  },
+  {
+    "config": {
+      "risk_enter_threshold": 0.75,
+      "risk_min_consecutive_days": 3,
+      "axis_min_consecutive_days": 3
+    },
+    "anchor": "GFC 2008-09",
+    "crisis_days": 78,
+    "crisis_stress_days": 59,
+    "benign_days": 195,
+    "benign_stress_days": 0,
+    "critical_day_stress": false,
+    "critical_day_latency_bdays": 25,
+    "trough_growth_score": -0.883616872109885,
+    "crisis_max_negative_growth": -0.8879673448331615,
+    "median_axis_run_length": 3.0
+  },
+  {
+    "config": {
+      "risk_enter_threshold": 0.75,
+      "risk_min_consecutive_days": 3,
+      "axis_min_consecutive_days": 3
+    },
+    "anchor": "2022 Inflation Surge",
+    "crisis_days": 109,
+    "crisis_stress_days": 0,
+    "benign_days": 73,
+    "benign_stress_days": 0,
+    "critical_day_stress": false,
+    "critical_day_latency_bdays": null,
+    "trough_growth_score": 0.3667874100611902,
+    "crisis_max_negative_growth": -0.6455059984485798,
+    "median_axis_run_length": 3.0
+  },
+  {
+    "config": {
+      "risk_enter_threshold": 0.75,
+      "risk_min_consecutive_days": 3,
+      "axis_min_consecutive_days": 3
+    },
+    "anchor": "2025 Tariff Shock",
+    "crisis_days": 32,
+    "crisis_stress_days": 15,
+    "benign_days": 204,
+    "benign_stress_days": 9,
+    "critical_day_stress": false,
+    "critical_day_latency_bdays": 5,
+    "trough_growth_score": -0.5226680334461726,
+    "crisis_max_negative_growth": -0.6670256573291179,
+    "median_axis_run_length": 3.0
+  },
+  {
+    "config": {
+      "risk_enter_threshold": 0.75,
+      "risk_min_consecutive_days": 3,
+      "axis_min_consecutive_days": 5
+    },
+    "anchor": "COVID 2020",
+    "crisis_days": 49,
+    "crisis_stress_days": 26,
+    "benign_days": 175,
+    "benign_stress_days": 13,
+    "critical_day_stress": false,
+    "critical_day_latency_bdays": 14,
+    "trough_growth_score": -0.5345078589288665,
+    "crisis_max_negative_growth": -0.6520662893661778,
+    "median_axis_run_length": 3.0
+  },
+  {
+    "config": {
+      "risk_enter_threshold": 0.75,
+      "risk_min_consecutive_days": 3,
+      "axis_min_consecutive_days": 5
+    },
+    "anchor": "GFC 2008-09",
+    "crisis_days": 78,
+    "crisis_stress_days": 59,
+    "benign_days": 195,
+    "benign_stress_days": 0,
+    "critical_day_stress": false,
+    "critical_day_latency_bdays": 25,
+    "trough_growth_score": -0.883616872109885,
+    "crisis_max_negative_growth": -0.8879673448331615,
+    "median_axis_run_length": 3.0
+  },
+  {
+    "config": {
+      "risk_enter_threshold": 0.75,
+      "risk_min_consecutive_days": 3,
+      "axis_min_consecutive_days": 5
+    },
+    "anchor": "2022 Inflation Surge",
+    "crisis_days": 109,
+    "crisis_stress_days": 0,
+    "benign_days": 73,
+    "benign_stress_days": 0,
+    "critical_day_stress": false,
+    "critical_day_latency_bdays": null,
+    "trough_growth_score": 0.3667874100611902,
+    "crisis_max_negative_growth": -0.6455059984485798,
+    "median_axis_run_length": 3.0
+  },
+  {
+    "config": {
+      "risk_enter_threshold": 0.75,
+      "risk_min_consecutive_days": 3,
+      "axis_min_consecutive_days": 5
+    },
+    "anchor": "2025 Tariff Shock",
+    "crisis_days": 32,
+    "crisis_stress_days": 15,
+    "benign_days": 204,
+    "benign_stress_days": 9,
+    "critical_day_stress": false,
+    "critical_day_latency_bdays": 5,
+    "trough_growth_score": -0.5226680334461726,
+    "crisis_max_negative_growth": -0.6670256573291179,
+    "median_axis_run_length": 3.0
+  },
+  {
+    "config": {
+      "risk_enter_threshold": 0.75,
+      "risk_min_consecutive_days": 3,
+      "axis_min_consecutive_days": 10
+    },
+    "anchor": "COVID 2020",
+    "crisis_days": 49,
+    "crisis_stress_days": 26,
+    "benign_days": 175,
+    "benign_stress_days": 13,
+    "critical_day_stress": false,
+    "critical_day_latency_bdays": 14,
+    "trough_growth_score": -0.5345078589288665,
+    "crisis_max_negative_growth": -0.6520662893661778,
+    "median_axis_run_length": 3.0
+  },
+  {
+    "config": {
+      "risk_enter_threshold": 0.75,
+      "risk_min_consecutive_days": 3,
+      "axis_min_consecutive_days": 10
+    },
+    "anchor": "GFC 2008-09",
+    "crisis_days": 78,
+    "crisis_stress_days": 59,
+    "benign_days": 195,
+    "benign_stress_days": 0,
+    "critical_day_stress": false,
+    "critical_day_latency_bdays": 25,
+    "trough_growth_score": -0.883616872109885,
+    "crisis_max_negative_growth": -0.8879673448331615,
+    "median_axis_run_length": 3.0
+  },
+  {
+    "config": {
+      "risk_enter_threshold": 0.75,
+      "risk_min_consecutive_days": 3,
+      "axis_min_consecutive_days": 10
+    },
+    "anchor": "2022 Inflation Surge",
+    "crisis_days": 109,
+    "crisis_stress_days": 0,
+    "benign_days": 73,
+    "benign_stress_days": 0,
+    "critical_day_stress": false,
+    "critical_day_latency_bdays": null,
+    "trough_growth_score": 0.3667874100611902,
+    "crisis_max_negative_growth": -0.6455059984485798,
+    "median_axis_run_length": 3.0
+  },
+  {
+    "config": {
+      "risk_enter_threshold": 0.75,
+      "risk_min_consecutive_days": 3,
+      "axis_min_consecutive_days": 10
+    },
+    "anchor": "2025 Tariff Shock",
+    "crisis_days": 32,
+    "crisis_stress_days": 15,
+    "benign_days": 204,
+    "benign_stress_days": 9,
+    "critical_day_stress": false,
+    "critical_day_latency_bdays": 5,
+    "trough_growth_score": -0.5226680334461726,
+    "crisis_max_negative_growth": -0.6670256573291179,
+    "median_axis_run_length": 3.0
+  },
+  {
+    "config": {
+      "risk_enter_threshold": 0.75,
+      "risk_min_consecutive_days": 5,
+      "axis_min_consecutive_days": 3
+    },
+    "anchor": "COVID 2020",
+    "crisis_days": 49,
+    "crisis_stress_days": 14,
+    "benign_days": 175,
+    "benign_stress_days": 0,
+    "critical_day_stress": false,
+    "critical_day_latency_bdays": 32,
+    "trough_growth_score": -0.5345078589288665,
+    "crisis_max_negative_growth": -0.6520662893661778,
+    "median_axis_run_length": 3.0
+  },
+  {
+    "config": {
+      "risk_enter_threshold": 0.75,
+      "risk_min_consecutive_days": 5,
+      "axis_min_consecutive_days": 3
+    },
+    "anchor": "GFC 2008-09",
+    "crisis_days": 78,
+    "crisis_stress_days": 52,
+    "benign_days": 195,
+    "benign_stress_days": 0,
+    "critical_day_stress": false,
+    "critical_day_latency_bdays": 36,
+    "trough_growth_score": -0.883616872109885,
+    "crisis_max_negative_growth": -0.8879673448331615,
+    "median_axis_run_length": 3.0
+  },
+  {
+    "config": {
+      "risk_enter_threshold": 0.75,
+      "risk_min_consecutive_days": 5,
+      "axis_min_consecutive_days": 3
+    },
+    "anchor": "2022 Inflation Surge",
+    "crisis_days": 109,
+    "crisis_stress_days": 0,
+    "benign_days": 73,
+    "benign_stress_days": 0,
+    "critical_day_stress": false,
+    "critical_day_latency_bdays": null,
+    "trough_growth_score": 0.3667874100611902,
+    "crisis_max_negative_growth": -0.6455059984485798,
+    "median_axis_run_length": 3.0
+  },
+  {
+    "config": {
+      "risk_enter_threshold": 0.75,
+      "risk_min_consecutive_days": 5,
+      "axis_min_consecutive_days": 3
+    },
+    "anchor": "2025 Tariff Shock",
+    "crisis_days": 32,
+    "crisis_stress_days": 0,
+    "benign_days": 204,
+    "benign_stress_days": 0,
+    "critical_day_stress": false,
+    "critical_day_latency_bdays": null,
+    "trough_growth_score": -0.5226680334461726,
+    "crisis_max_negative_growth": -0.6670256573291179,
+    "median_axis_run_length": 3.0
+  },
+  {
+    "config": {
+      "risk_enter_threshold": 0.75,
+      "risk_min_consecutive_days": 5,
+      "axis_min_consecutive_days": 5
+    },
+    "anchor": "COVID 2020",
+    "crisis_days": 49,
+    "crisis_stress_days": 14,
+    "benign_days": 175,
+    "benign_stress_days": 0,
+    "critical_day_stress": false,
+    "critical_day_latency_bdays": 32,
+    "trough_growth_score": -0.5345078589288665,
+    "crisis_max_negative_growth": -0.6520662893661778,
+    "median_axis_run_length": 3.0
+  },
+  {
+    "config": {
+      "risk_enter_threshold": 0.75,
+      "risk_min_consecutive_days": 5,
+      "axis_min_consecutive_days": 5
+    },
+    "anchor": "GFC 2008-09",
+    "crisis_days": 78,
+    "crisis_stress_days": 52,
+    "benign_days": 195,
+    "benign_stress_days": 0,
+    "critical_day_stress": false,
+    "critical_day_latency_bdays": 36,
+    "trough_growth_score": -0.883616872109885,
+    "crisis_max_negative_growth": -0.8879673448331615,
+    "median_axis_run_length": 3.0
+  },
+  {
+    "config": {
+      "risk_enter_threshold": 0.75,
+      "risk_min_consecutive_days": 5,
+      "axis_min_consecutive_days": 5
+    },
+    "anchor": "2022 Inflation Surge",
+    "crisis_days": 109,
+    "crisis_stress_days": 0,
+    "benign_days": 73,
+    "benign_stress_days": 0,
+    "critical_day_stress": false,
+    "critical_day_latency_bdays": null,
+    "trough_growth_score": 0.3667874100611902,
+    "crisis_max_negative_growth": -0.6455059984485798,
+    "median_axis_run_length": 3.0
+  },
+  {
+    "config": {
+      "risk_enter_threshold": 0.75,
+      "risk_min_consecutive_days": 5,
+      "axis_min_consecutive_days": 5
+    },
+    "anchor": "2025 Tariff Shock",
+    "crisis_days": 32,
+    "crisis_stress_days": 0,
+    "benign_days": 204,
+    "benign_stress_days": 0,
+    "critical_day_stress": false,
+    "critical_day_latency_bdays": null,
+    "trough_growth_score": -0.5226680334461726,
+    "crisis_max_negative_growth": -0.6670256573291179,
+    "median_axis_run_length": 3.0
+  },
+  {
+    "config": {
+      "risk_enter_threshold": 0.75,
+      "risk_min_consecutive_days": 5,
+      "axis_min_consecutive_days": 10
+    },
+    "anchor": "COVID 2020",
+    "crisis_days": 49,
+    "crisis_stress_days": 14,
+    "benign_days": 175,
+    "benign_stress_days": 0,
+    "critical_day_stress": false,
+    "critical_day_latency_bdays": 32,
+    "trough_growth_score": -0.5345078589288665,
+    "crisis_max_negative_growth": -0.6520662893661778,
+    "median_axis_run_length": 3.0
+  },
+  {
+    "config": {
+      "risk_enter_threshold": 0.75,
+      "risk_min_consecutive_days": 5,
+      "axis_min_consecutive_days": 10
+    },
+    "anchor": "GFC 2008-09",
+    "crisis_days": 78,
+    "crisis_stress_days": 52,
+    "benign_days": 195,
+    "benign_stress_days": 0,
+    "critical_day_stress": false,
+    "critical_day_latency_bdays": 36,
+    "trough_growth_score": -0.883616872109885,
+    "crisis_max_negative_growth": -0.8879673448331615,
+    "median_axis_run_length": 3.0
+  },
+  {
+    "config": {
+      "risk_enter_threshold": 0.75,
+      "risk_min_consecutive_days": 5,
+      "axis_min_consecutive_days": 10
+    },
+    "anchor": "2022 Inflation Surge",
+    "crisis_days": 109,
+    "crisis_stress_days": 0,
+    "benign_days": 73,
+    "benign_stress_days": 0,
+    "critical_day_stress": false,
+    "critical_day_latency_bdays": null,
+    "trough_growth_score": 0.3667874100611902,
+    "crisis_max_negative_growth": -0.6455059984485798,
+    "median_axis_run_length": 3.0
+  },
+  {
+    "config": {
+      "risk_enter_threshold": 0.75,
+      "risk_min_consecutive_days": 5,
+      "axis_min_consecutive_days": 10
+    },
+    "anchor": "2025 Tariff Shock",
+    "crisis_days": 32,
+    "crisis_stress_days": 0,
+    "benign_days": 204,
+    "benign_stress_days": 0,
+    "critical_day_stress": false,
+    "critical_day_latency_bdays": null,
+    "trough_growth_score": -0.5226680334461726,
+    "crisis_max_negative_growth": -0.6670256573291179,
+    "median_axis_run_length": 3.0
+  },
+  {
+    "config": {
+      "risk_enter_threshold": 0.85,
+      "risk_min_consecutive_days": 1,
+      "axis_min_consecutive_days": 3
+    },
+    "anchor": "COVID 2020",
+    "crisis_days": 49,
+    "crisis_stress_days": 20,
+    "benign_days": 175,
+    "benign_stress_days": 11,
+    "critical_day_stress": false,
+    "critical_day_latency_bdays": 11,
+    "trough_growth_score": -0.5345078589288665,
+    "crisis_max_negative_growth": -0.6520662893661778,
+    "median_axis_run_length": 3.0
+  },
+  {
+    "config": {
+      "risk_enter_threshold": 0.85,
+      "risk_min_consecutive_days": 1,
+      "axis_min_consecutive_days": 3
+    },
+    "anchor": "GFC 2008-09",
+    "crisis_days": 78,
+    "crisis_stress_days": 37,
+    "benign_days": 195,
+    "benign_stress_days": 0,
+    "critical_day_stress": false,
+    "critical_day_latency_bdays": 23,
+    "trough_growth_score": -0.883616872109885,
+    "crisis_max_negative_growth": -0.8879673448331615,
+    "median_axis_run_length": 3.0
+  },
+  {
+    "config": {
+      "risk_enter_threshold": 0.85,
+      "risk_min_consecutive_days": 1,
+      "axis_min_consecutive_days": 3
+    },
+    "anchor": "2022 Inflation Surge",
+    "crisis_days": 109,
+    "crisis_stress_days": 0,
+    "benign_days": 73,
+    "benign_stress_days": 0,
+    "critical_day_stress": false,
+    "critical_day_latency_bdays": null,
+    "trough_growth_score": 0.3667874100611902,
+    "crisis_max_negative_growth": -0.6455059984485798,
+    "median_axis_run_length": 3.0
+  },
+  {
+    "config": {
+      "risk_enter_threshold": 0.85,
+      "risk_min_consecutive_days": 1,
+      "axis_min_consecutive_days": 3
+    },
+    "anchor": "2025 Tariff Shock",
+    "crisis_days": 32,
+    "crisis_stress_days": 14,
+    "benign_days": 204,
+    "benign_stress_days": 8,
+    "critical_day_stress": false,
+    "critical_day_latency_bdays": 2,
+    "trough_growth_score": -0.5226680334461726,
+    "crisis_max_negative_growth": -0.6670256573291179,
+    "median_axis_run_length": 3.0
+  },
+  {
+    "config": {
+      "risk_enter_threshold": 0.85,
+      "risk_min_consecutive_days": 1,
+      "axis_min_consecutive_days": 5
+    },
+    "anchor": "COVID 2020",
+    "crisis_days": 49,
+    "crisis_stress_days": 20,
+    "benign_days": 175,
+    "benign_stress_days": 11,
+    "critical_day_stress": false,
+    "critical_day_latency_bdays": 11,
+    "trough_growth_score": -0.5345078589288665,
+    "crisis_max_negative_growth": -0.6520662893661778,
+    "median_axis_run_length": 3.0
+  },
+  {
+    "config": {
+      "risk_enter_threshold": 0.85,
+      "risk_min_consecutive_days": 1,
+      "axis_min_consecutive_days": 5
+    },
+    "anchor": "GFC 2008-09",
+    "crisis_days": 78,
+    "crisis_stress_days": 37,
+    "benign_days": 195,
+    "benign_stress_days": 0,
+    "critical_day_stress": false,
+    "critical_day_latency_bdays": 23,
+    "trough_growth_score": -0.883616872109885,
+    "crisis_max_negative_growth": -0.8879673448331615,
+    "median_axis_run_length": 3.0
+  },
+  {
+    "config": {
+      "risk_enter_threshold": 0.85,
+      "risk_min_consecutive_days": 1,
+      "axis_min_consecutive_days": 5
+    },
+    "anchor": "2022 Inflation Surge",
+    "crisis_days": 109,
+    "crisis_stress_days": 0,
+    "benign_days": 73,
+    "benign_stress_days": 0,
+    "critical_day_stress": false,
+    "critical_day_latency_bdays": null,
+    "trough_growth_score": 0.3667874100611902,
+    "crisis_max_negative_growth": -0.6455059984485798,
+    "median_axis_run_length": 3.0
+  },
+  {
+    "config": {
+      "risk_enter_threshold": 0.85,
+      "risk_min_consecutive_days": 1,
+      "axis_min_consecutive_days": 5
+    },
+    "anchor": "2025 Tariff Shock",
+    "crisis_days": 32,
+    "crisis_stress_days": 14,
+    "benign_days": 204,
+    "benign_stress_days": 8,
+    "critical_day_stress": false,
+    "critical_day_latency_bdays": 2,
+    "trough_growth_score": -0.5226680334461726,
+    "crisis_max_negative_growth": -0.6670256573291179,
+    "median_axis_run_length": 3.0
+  },
+  {
+    "config": {
+      "risk_enter_threshold": 0.85,
+      "risk_min_consecutive_days": 1,
+      "axis_min_consecutive_days": 10
+    },
+    "anchor": "COVID 2020",
+    "crisis_days": 49,
+    "crisis_stress_days": 20,
+    "benign_days": 175,
+    "benign_stress_days": 11,
+    "critical_day_stress": false,
+    "critical_day_latency_bdays": 11,
+    "trough_growth_score": -0.5345078589288665,
+    "crisis_max_negative_growth": -0.6520662893661778,
+    "median_axis_run_length": 3.0
+  },
+  {
+    "config": {
+      "risk_enter_threshold": 0.85,
+      "risk_min_consecutive_days": 1,
+      "axis_min_consecutive_days": 10
+    },
+    "anchor": "GFC 2008-09",
+    "crisis_days": 78,
+    "crisis_stress_days": 37,
+    "benign_days": 195,
+    "benign_stress_days": 0,
+    "critical_day_stress": false,
+    "critical_day_latency_bdays": 23,
+    "trough_growth_score": -0.883616872109885,
+    "crisis_max_negative_growth": -0.8879673448331615,
+    "median_axis_run_length": 3.0
+  },
+  {
+    "config": {
+      "risk_enter_threshold": 0.85,
+      "risk_min_consecutive_days": 1,
+      "axis_min_consecutive_days": 10
+    },
+    "anchor": "2022 Inflation Surge",
+    "crisis_days": 109,
+    "crisis_stress_days": 0,
+    "benign_days": 73,
+    "benign_stress_days": 0,
+    "critical_day_stress": false,
+    "critical_day_latency_bdays": null,
+    "trough_growth_score": 0.3667874100611902,
+    "crisis_max_negative_growth": -0.6455059984485798,
+    "median_axis_run_length": 3.0
+  },
+  {
+    "config": {
+      "risk_enter_threshold": 0.85,
+      "risk_min_consecutive_days": 1,
+      "axis_min_consecutive_days": 10
+    },
+    "anchor": "2025 Tariff Shock",
+    "crisis_days": 32,
+    "crisis_stress_days": 14,
+    "benign_days": 204,
+    "benign_stress_days": 8,
+    "critical_day_stress": false,
+    "critical_day_latency_bdays": 2,
+    "trough_growth_score": -0.5226680334461726,
+    "crisis_max_negative_growth": -0.6670256573291179,
+    "median_axis_run_length": 3.0
+  },
+  {
+    "config": {
+      "risk_enter_threshold": 0.85,
+      "risk_min_consecutive_days": 2,
+      "axis_min_consecutive_days": 3
+    },
+    "anchor": "COVID 2020",
+    "crisis_days": 49,
+    "crisis_stress_days": 25,
+    "benign_days": 175,
+    "benign_stress_days": 13,
+    "critical_day_stress": false,
+    "critical_day_latency_bdays": 14,
+    "trough_growth_score": -0.5345078589288665,
+    "crisis_max_negative_growth": -0.6520662893661778,
+    "median_axis_run_length": 3.0
+  },
+  {
+    "config": {
+      "risk_enter_threshold": 0.85,
+      "risk_min_consecutive_days": 2,
+      "axis_min_consecutive_days": 3
+    },
+    "anchor": "GFC 2008-09",
+    "crisis_days": 78,
+    "crisis_stress_days": 43,
+    "benign_days": 195,
+    "benign_stress_days": 0,
+    "critical_day_stress": false,
+    "critical_day_latency_bdays": 35,
+    "trough_growth_score": -0.883616872109885,
+    "crisis_max_negative_growth": -0.8879673448331615,
+    "median_axis_run_length": 3.0
+  },
+  {
+    "config": {
+      "risk_enter_threshold": 0.85,
+      "risk_min_consecutive_days": 2,
+      "axis_min_consecutive_days": 3
+    },
+    "anchor": "2022 Inflation Surge",
+    "crisis_days": 109,
+    "crisis_stress_days": 0,
+    "benign_days": 73,
+    "benign_stress_days": 0,
+    "critical_day_stress": false,
+    "critical_day_latency_bdays": null,
+    "trough_growth_score": 0.3667874100611902,
+    "crisis_max_negative_growth": -0.6455059984485798,
+    "median_axis_run_length": 3.0
+  },
+  {
+    "config": {
+      "risk_enter_threshold": 0.85,
+      "risk_min_consecutive_days": 2,
+      "axis_min_consecutive_days": 3
+    },
+    "anchor": "2025 Tariff Shock",
+    "crisis_days": 32,
+    "crisis_stress_days": 14,
+    "benign_days": 204,
+    "benign_stress_days": 0,
+    "critical_day_stress": false,
+    "critical_day_latency_bdays": 5,
+    "trough_growth_score": -0.5226680334461726,
+    "crisis_max_negative_growth": -0.6670256573291179,
+    "median_axis_run_length": 3.0
+  },
+  {
+    "config": {
+      "risk_enter_threshold": 0.85,
+      "risk_min_consecutive_days": 2,
+      "axis_min_consecutive_days": 5
+    },
+    "anchor": "COVID 2020",
+    "crisis_days": 49,
+    "crisis_stress_days": 25,
+    "benign_days": 175,
+    "benign_stress_days": 13,
+    "critical_day_stress": false,
+    "critical_day_latency_bdays": 14,
+    "trough_growth_score": -0.5345078589288665,
+    "crisis_max_negative_growth": -0.6520662893661778,
+    "median_axis_run_length": 3.0
+  },
+  {
+    "config": {
+      "risk_enter_threshold": 0.85,
+      "risk_min_consecutive_days": 2,
+      "axis_min_consecutive_days": 5
+    },
+    "anchor": "GFC 2008-09",
+    "crisis_days": 78,
+    "crisis_stress_days": 43,
+    "benign_days": 195,
+    "benign_stress_days": 0,
+    "critical_day_stress": false,
+    "critical_day_latency_bdays": 35,
+    "trough_growth_score": -0.883616872109885,
+    "crisis_max_negative_growth": -0.8879673448331615,
+    "median_axis_run_length": 3.0
+  },
+  {
+    "config": {
+      "risk_enter_threshold": 0.85,
+      "risk_min_consecutive_days": 2,
+      "axis_min_consecutive_days": 5
+    },
+    "anchor": "2022 Inflation Surge",
+    "crisis_days": 109,
+    "crisis_stress_days": 0,
+    "benign_days": 73,
+    "benign_stress_days": 0,
+    "critical_day_stress": false,
+    "critical_day_latency_bdays": null,
+    "trough_growth_score": 0.3667874100611902,
+    "crisis_max_negative_growth": -0.6455059984485798,
+    "median_axis_run_length": 3.0
+  },
+  {
+    "config": {
+      "risk_enter_threshold": 0.85,
+      "risk_min_consecutive_days": 2,
+      "axis_min_consecutive_days": 5
+    },
+    "anchor": "2025 Tariff Shock",
+    "crisis_days": 32,
+    "crisis_stress_days": 14,
+    "benign_days": 204,
+    "benign_stress_days": 0,
+    "critical_day_stress": false,
+    "critical_day_latency_bdays": 5,
+    "trough_growth_score": -0.5226680334461726,
+    "crisis_max_negative_growth": -0.6670256573291179,
+    "median_axis_run_length": 3.0
+  },
+  {
+    "config": {
+      "risk_enter_threshold": 0.85,
+      "risk_min_consecutive_days": 2,
+      "axis_min_consecutive_days": 10
+    },
+    "anchor": "COVID 2020",
+    "crisis_days": 49,
+    "crisis_stress_days": 25,
+    "benign_days": 175,
+    "benign_stress_days": 13,
+    "critical_day_stress": false,
+    "critical_day_latency_bdays": 14,
+    "trough_growth_score": -0.5345078589288665,
+    "crisis_max_negative_growth": -0.6520662893661778,
+    "median_axis_run_length": 3.0
+  },
+  {
+    "config": {
+      "risk_enter_threshold": 0.85,
+      "risk_min_consecutive_days": 2,
+      "axis_min_consecutive_days": 10
+    },
+    "anchor": "GFC 2008-09",
+    "crisis_days": 78,
+    "crisis_stress_days": 43,
+    "benign_days": 195,
+    "benign_stress_days": 0,
+    "critical_day_stress": false,
+    "critical_day_latency_bdays": 35,
+    "trough_growth_score": -0.883616872109885,
+    "crisis_max_negative_growth": -0.8879673448331615,
+    "median_axis_run_length": 3.0
+  },
+  {
+    "config": {
+      "risk_enter_threshold": 0.85,
+      "risk_min_consecutive_days": 2,
+      "axis_min_consecutive_days": 10
+    },
+    "anchor": "2022 Inflation Surge",
+    "crisis_days": 109,
+    "crisis_stress_days": 0,
+    "benign_days": 73,
+    "benign_stress_days": 0,
+    "critical_day_stress": false,
+    "critical_day_latency_bdays": null,
+    "trough_growth_score": 0.3667874100611902,
+    "crisis_max_negative_growth": -0.6455059984485798,
+    "median_axis_run_length": 3.0
+  },
+  {
+    "config": {
+      "risk_enter_threshold": 0.85,
+      "risk_min_consecutive_days": 2,
+      "axis_min_consecutive_days": 10
+    },
+    "anchor": "2025 Tariff Shock",
+    "crisis_days": 32,
+    "crisis_stress_days": 14,
+    "benign_days": 204,
+    "benign_stress_days": 0,
+    "critical_day_stress": false,
+    "critical_day_latency_bdays": 5,
+    "trough_growth_score": -0.5226680334461726,
+    "crisis_max_negative_growth": -0.6670256573291179,
+    "median_axis_run_length": 3.0
+  },
+  {
+    "config": {
+      "risk_enter_threshold": 0.85,
+      "risk_min_consecutive_days": 3,
+      "axis_min_consecutive_days": 3
+    },
+    "anchor": "COVID 2020",
+    "crisis_days": 49,
+    "crisis_stress_days": 14,
+    "benign_days": 175,
+    "benign_stress_days": 0,
+    "critical_day_stress": false,
+    "critical_day_latency_bdays": 30,
+    "trough_growth_score": -0.5345078589288665,
+    "crisis_max_negative_growth": -0.6520662893661778,
+    "median_axis_run_length": 3.0
+  },
+  {
+    "config": {
+      "risk_enter_threshold": 0.85,
+      "risk_min_consecutive_days": 3,
+      "axis_min_consecutive_days": 3
+    },
+    "anchor": "GFC 2008-09",
+    "crisis_days": 78,
+    "crisis_stress_days": 52,
+    "benign_days": 195,
+    "benign_stress_days": 0,
+    "critical_day_stress": false,
+    "critical_day_latency_bdays": 36,
+    "trough_growth_score": -0.883616872109885,
+    "crisis_max_negative_growth": -0.8879673448331615,
+    "median_axis_run_length": 3.0
+  },
+  {
+    "config": {
+      "risk_enter_threshold": 0.85,
+      "risk_min_consecutive_days": 3,
+      "axis_min_consecutive_days": 3
+    },
+    "anchor": "2022 Inflation Surge",
+    "crisis_days": 109,
+    "crisis_stress_days": 0,
+    "benign_days": 73,
+    "benign_stress_days": 0,
+    "critical_day_stress": false,
+    "critical_day_latency_bdays": null,
+    "trough_growth_score": 0.3667874100611902,
+    "crisis_max_negative_growth": -0.6455059984485798,
+    "median_axis_run_length": 3.0
+  },
+  {
+    "config": {
+      "risk_enter_threshold": 0.85,
+      "risk_min_consecutive_days": 3,
+      "axis_min_consecutive_days": 3
+    },
+    "anchor": "2025 Tariff Shock",
+    "crisis_days": 32,
+    "crisis_stress_days": 0,
+    "benign_days": 204,
+    "benign_stress_days": 0,
+    "critical_day_stress": false,
+    "critical_day_latency_bdays": null,
+    "trough_growth_score": -0.5226680334461726,
+    "crisis_max_negative_growth": -0.6670256573291179,
+    "median_axis_run_length": 3.0
+  },
+  {
+    "config": {
+      "risk_enter_threshold": 0.85,
+      "risk_min_consecutive_days": 3,
+      "axis_min_consecutive_days": 5
+    },
+    "anchor": "COVID 2020",
+    "crisis_days": 49,
+    "crisis_stress_days": 14,
+    "benign_days": 175,
+    "benign_stress_days": 0,
+    "critical_day_stress": false,
+    "critical_day_latency_bdays": 30,
+    "trough_growth_score": -0.5345078589288665,
+    "crisis_max_negative_growth": -0.6520662893661778,
+    "median_axis_run_length": 3.0
+  },
+  {
+    "config": {
+      "risk_enter_threshold": 0.85,
+      "risk_min_consecutive_days": 3,
+      "axis_min_consecutive_days": 5
+    },
+    "anchor": "GFC 2008-09",
+    "crisis_days": 78,
+    "crisis_stress_days": 52,
+    "benign_days": 195,
+    "benign_stress_days": 0,
+    "critical_day_stress": false,
+    "critical_day_latency_bdays": 36,
+    "trough_growth_score": -0.883616872109885,
+    "crisis_max_negative_growth": -0.8879673448331615,
+    "median_axis_run_length": 3.0
+  },
+  {
+    "config": {
+      "risk_enter_threshold": 0.85,
+      "risk_min_consecutive_days": 3,
+      "axis_min_consecutive_days": 5
+    },
+    "anchor": "2022 Inflation Surge",
+    "crisis_days": 109,
+    "crisis_stress_days": 0,
+    "benign_days": 73,
+    "benign_stress_days": 0,
+    "critical_day_stress": false,
+    "critical_day_latency_bdays": null,
+    "trough_growth_score": 0.3667874100611902,
+    "crisis_max_negative_growth": -0.6455059984485798,
+    "median_axis_run_length": 3.0
+  },
+  {
+    "config": {
+      "risk_enter_threshold": 0.85,
+      "risk_min_consecutive_days": 3,
+      "axis_min_consecutive_days": 5
+    },
+    "anchor": "2025 Tariff Shock",
+    "crisis_days": 32,
+    "crisis_stress_days": 0,
+    "benign_days": 204,
+    "benign_stress_days": 0,
+    "critical_day_stress": false,
+    "critical_day_latency_bdays": null,
+    "trough_growth_score": -0.5226680334461726,
+    "crisis_max_negative_growth": -0.6670256573291179,
+    "median_axis_run_length": 3.0
+  },
+  {
+    "config": {
+      "risk_enter_threshold": 0.85,
+      "risk_min_consecutive_days": 3,
+      "axis_min_consecutive_days": 10
+    },
+    "anchor": "COVID 2020",
+    "crisis_days": 49,
+    "crisis_stress_days": 14,
+    "benign_days": 175,
+    "benign_stress_days": 0,
+    "critical_day_stress": false,
+    "critical_day_latency_bdays": 30,
+    "trough_growth_score": -0.5345078589288665,
+    "crisis_max_negative_growth": -0.6520662893661778,
+    "median_axis_run_length": 3.0
+  },
+  {
+    "config": {
+      "risk_enter_threshold": 0.85,
+      "risk_min_consecutive_days": 3,
+      "axis_min_consecutive_days": 10
+    },
+    "anchor": "GFC 2008-09",
+    "crisis_days": 78,
+    "crisis_stress_days": 52,
+    "benign_days": 195,
+    "benign_stress_days": 0,
+    "critical_day_stress": false,
+    "critical_day_latency_bdays": 36,
+    "trough_growth_score": -0.883616872109885,
+    "crisis_max_negative_growth": -0.8879673448331615,
+    "median_axis_run_length": 3.0
+  },
+  {
+    "config": {
+      "risk_enter_threshold": 0.85,
+      "risk_min_consecutive_days": 3,
+      "axis_min_consecutive_days": 10
+    },
+    "anchor": "2022 Inflation Surge",
+    "crisis_days": 109,
+    "crisis_stress_days": 0,
+    "benign_days": 73,
+    "benign_stress_days": 0,
+    "critical_day_stress": false,
+    "critical_day_latency_bdays": null,
+    "trough_growth_score": 0.3667874100611902,
+    "crisis_max_negative_growth": -0.6455059984485798,
+    "median_axis_run_length": 3.0
+  },
+  {
+    "config": {
+      "risk_enter_threshold": 0.85,
+      "risk_min_consecutive_days": 3,
+      "axis_min_consecutive_days": 10
+    },
+    "anchor": "2025 Tariff Shock",
+    "crisis_days": 32,
+    "crisis_stress_days": 0,
+    "benign_days": 204,
+    "benign_stress_days": 0,
+    "critical_day_stress": false,
+    "critical_day_latency_bdays": null,
+    "trough_growth_score": -0.5226680334461726,
+    "crisis_max_negative_growth": -0.6670256573291179,
+    "median_axis_run_length": 3.0
+  },
+  {
+    "config": {
+      "risk_enter_threshold": 0.85,
+      "risk_min_consecutive_days": 5,
+      "axis_min_consecutive_days": 3
+    },
+    "anchor": "COVID 2020",
+    "crisis_days": 49,
+    "crisis_stress_days": 0,
+    "benign_days": 175,
+    "benign_stress_days": 0,
+    "critical_day_stress": false,
+    "critical_day_latency_bdays": null,
+    "trough_growth_score": -0.5345078589288665,
+    "crisis_max_negative_growth": -0.6520662893661778,
+    "median_axis_run_length": 3.0
+  },
+  {
+    "config": {
+      "risk_enter_threshold": 0.85,
+      "risk_min_consecutive_days": 5,
+      "axis_min_consecutive_days": 3
+    },
+    "anchor": "GFC 2008-09",
+    "crisis_days": 78,
+    "crisis_stress_days": 50,
+    "benign_days": 195,
+    "benign_stress_days": 0,
+    "critical_day_stress": false,
+    "critical_day_latency_bdays": 38,
+    "trough_growth_score": -0.883616872109885,
+    "crisis_max_negative_growth": -0.8879673448331615,
+    "median_axis_run_length": 3.0
+  },
+  {
+    "config": {
+      "risk_enter_threshold": 0.85,
+      "risk_min_consecutive_days": 5,
+      "axis_min_consecutive_days": 3
+    },
+    "anchor": "2022 Inflation Surge",
+    "crisis_days": 109,
+    "crisis_stress_days": 0,
+    "benign_days": 73,
+    "benign_stress_days": 0,
+    "critical_day_stress": false,
+    "critical_day_latency_bdays": null,
+    "trough_growth_score": 0.3667874100611902,
+    "crisis_max_negative_growth": -0.6455059984485798,
+    "median_axis_run_length": 3.0
+  },
+  {
+    "config": {
+      "risk_enter_threshold": 0.85,
+      "risk_min_consecutive_days": 5,
+      "axis_min_consecutive_days": 3
+    },
+    "anchor": "2025 Tariff Shock",
+    "crisis_days": 32,
+    "crisis_stress_days": 0,
+    "benign_days": 204,
+    "benign_stress_days": 0,
+    "critical_day_stress": false,
+    "critical_day_latency_bdays": null,
+    "trough_growth_score": -0.5226680334461726,
+    "crisis_max_negative_growth": -0.6670256573291179,
+    "median_axis_run_length": 3.0
+  },
+  {
+    "config": {
+      "risk_enter_threshold": 0.85,
+      "risk_min_consecutive_days": 5,
+      "axis_min_consecutive_days": 5
+    },
+    "anchor": "COVID 2020",
+    "crisis_days": 49,
+    "crisis_stress_days": 0,
+    "benign_days": 175,
+    "benign_stress_days": 0,
+    "critical_day_stress": false,
+    "critical_day_latency_bdays": null,
+    "trough_growth_score": -0.5345078589288665,
+    "crisis_max_negative_growth": -0.6520662893661778,
+    "median_axis_run_length": 3.0
+  },
+  {
+    "config": {
+      "risk_enter_threshold": 0.85,
+      "risk_min_consecutive_days": 5,
+      "axis_min_consecutive_days": 5
+    },
+    "anchor": "GFC 2008-09",
+    "crisis_days": 78,
+    "crisis_stress_days": 50,
+    "benign_days": 195,
+    "benign_stress_days": 0,
+    "critical_day_stress": false,
+    "critical_day_latency_bdays": 38,
+    "trough_growth_score": -0.883616872109885,
+    "crisis_max_negative_growth": -0.8879673448331615,
+    "median_axis_run_length": 3.0
+  },
+  {
+    "config": {
+      "risk_enter_threshold": 0.85,
+      "risk_min_consecutive_days": 5,
+      "axis_min_consecutive_days": 5
+    },
+    "anchor": "2022 Inflation Surge",
+    "crisis_days": 109,
+    "crisis_stress_days": 0,
+    "benign_days": 73,
+    "benign_stress_days": 0,
+    "critical_day_stress": false,
+    "critical_day_latency_bdays": null,
+    "trough_growth_score": 0.3667874100611902,
+    "crisis_max_negative_growth": -0.6455059984485798,
+    "median_axis_run_length": 3.0
+  },
+  {
+    "config": {
+      "risk_enter_threshold": 0.85,
+      "risk_min_consecutive_days": 5,
+      "axis_min_consecutive_days": 5
+    },
+    "anchor": "2025 Tariff Shock",
+    "crisis_days": 32,
+    "crisis_stress_days": 0,
+    "benign_days": 204,
+    "benign_stress_days": 0,
+    "critical_day_stress": false,
+    "critical_day_latency_bdays": null,
+    "trough_growth_score": -0.5226680334461726,
+    "crisis_max_negative_growth": -0.6670256573291179,
+    "median_axis_run_length": 3.0
+  },
+  {
+    "config": {
+      "risk_enter_threshold": 0.85,
+      "risk_min_consecutive_days": 5,
+      "axis_min_consecutive_days": 10
+    },
+    "anchor": "COVID 2020",
+    "crisis_days": 49,
+    "crisis_stress_days": 0,
+    "benign_days": 175,
+    "benign_stress_days": 0,
+    "critical_day_stress": false,
+    "critical_day_latency_bdays": null,
+    "trough_growth_score": -0.5345078589288665,
+    "crisis_max_negative_growth": -0.6520662893661778,
+    "median_axis_run_length": 3.0
+  },
+  {
+    "config": {
+      "risk_enter_threshold": 0.85,
+      "risk_min_consecutive_days": 5,
+      "axis_min_consecutive_days": 10
+    },
+    "anchor": "GFC 2008-09",
+    "crisis_days": 78,
+    "crisis_stress_days": 50,
+    "benign_days": 195,
+    "benign_stress_days": 0,
+    "critical_day_stress": false,
+    "critical_day_latency_bdays": 38,
+    "trough_growth_score": -0.883616872109885,
+    "crisis_max_negative_growth": -0.8879673448331615,
+    "median_axis_run_length": 3.0
+  },
+  {
+    "config": {
+      "risk_enter_threshold": 0.85,
+      "risk_min_consecutive_days": 5,
+      "axis_min_consecutive_days": 10
+    },
+    "anchor": "2022 Inflation Surge",
+    "crisis_days": 109,
+    "crisis_stress_days": 0,
+    "benign_days": 73,
+    "benign_stress_days": 0,
+    "critical_day_stress": false,
+    "critical_day_latency_bdays": null,
+    "trough_growth_score": 0.3667874100611902,
+    "crisis_max_negative_growth": -0.6455059984485798,
+    "median_axis_run_length": 3.0
+  },
+  {
+    "config": {
+      "risk_enter_threshold": 0.85,
+      "risk_min_consecutive_days": 5,
+      "axis_min_consecutive_days": 10
+    },
+    "anchor": "2025 Tariff Shock",
+    "crisis_days": 32,
+    "crisis_stress_days": 0,
+    "benign_days": 204,
+    "benign_stress_days": 0,
+    "critical_day_stress": false,
+    "critical_day_latency_bdays": null,
+    "trough_growth_score": -0.5226680334461726,
+    "crisis_max_negative_growth": -0.6670256573291179,
+    "median_axis_run_length": 3.0
+  }
+]

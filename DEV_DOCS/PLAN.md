@@ -207,6 +207,19 @@ Landed:
   `min_weight: 0.65` floor (would clip a weekly-cadence series before its
   decay matters) and end-to-end verification against an FRED-hydrated
   anchor — left as the next-step item.
+- **Risk-overlay calibration (Q7 grid-search)**: lowered
+  `risk_overlay.enter_threshold` 0.75 → 0.65 and `min_consecutive_days`
+  3 → 1 based on a 192-run grid (4×4×3 parameter space × 4 anchors). The
+  prior config tripped the overlay an average of 26 bdays late at the
+  critical day of each crisis (Lehman, COVID waterfall, Liberation Day)
+  and never fired same-day on any of them. New config fires same-day on
+  Lehman, within 1-3 bdays on COVID and Tariff. Cost: benign-window FP
+  rate rises 3.0% → 6.4% (~3 extra muted-stress days per benign year),
+  judged acceptable for a daily-checked operator dashboard. No strict
+  Pareto improver exists; this is the lowest-FP point that achieves
+  Lehman-day detection. Report:
+  `data/research_artifacts/calibration_report.html` (+ raw grid + Pareto
+  analysis JSON next to it). Reproducer scripts in `scripts/research/`.
 
 Near-term work:
 1. Calibrate per-frequency decay: lower the `recency_weighting.min_weight`
@@ -227,7 +240,8 @@ per-round notebooks: Q1+Q2 (macro scale fix and concept aggregation), Q3
 aggregation, beta-adjusted returns, S&P GSCI), Q5 (calibration workflow
 macro-config fix; rebuilt the post-Q4 baseline before the next tuning pass),
 Q6 (market-heavier blend and narrower deadband to improve recovery-window
-responsiveness).
+responsiveness), Q7 (risk-overlay grid-search; 0.75/3 → 0.65/1, see
+`data/research_artifacts/calibration_report.html`).
 
 Detail: `DEV_DOCS/docs/devplans/regime_engine_devplan.md`.
 
