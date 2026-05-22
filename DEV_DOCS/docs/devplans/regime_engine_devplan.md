@@ -59,11 +59,14 @@ dormant series has no cached observations until you run it. To activate:
 
 1. **Hydrate the FRED cache** (one-shot; ~1.5h cold for all 23 series):
    ```bash
+   export FRED_API_KEY=...        # or put it in local.env (see below)
    python -m market_helper.cli.main fred-macro-sync
    ```
-   Requires `FRED_API_KEY` in `configs/portfolio_monitor/local.env` (or env
-   var). Subsequent runs are incremental from the last cached date. Market
-   signals (Yahoo) are lazy-loaded per call and need no separate sync step.
+   Requires `FRED_API_KEY` from the process env (preferred) or
+   `configs/portfolio_monitor/local.env` /
+   `<MARKET_HELPER_GDRIVE_ROOT>/local.env`. Subsequent runs are incremental
+   from the last cached date. Market signals (Yahoo) are lazy-loaded per
+   call and need no separate sync step.
 
 2. **Wire the series into a concept** in `fred_series.yml`
    (`growth_concepts:` / `inflation_concepts:`) or set `weight > 0` for a

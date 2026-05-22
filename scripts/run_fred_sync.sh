@@ -39,7 +39,7 @@ if [ -z "${FRED_API_KEY:-}" ] && [ -f "${LOCAL_CONFIG}" ]; then
 fi
 
 if [ -z "${FRED_API_KEY:-}" ]; then
-    echo "FRED_API_KEY is not set. Add it to ${LOCAL_CONFIG} or export it in the environment." >&2
+    echo "FRED_API_KEY is not set. Export it (e.g. 'export FRED_API_KEY=...') or add it to ${LOCAL_CONFIG}." >&2
     exit 1
 fi
 

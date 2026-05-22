@@ -113,6 +113,15 @@ Landed:
   contract layer (`application/portfolio_monitor/contracts.py` — 9 `*Inputs`
   dataclasses including the new `BenchmarkRefreshInputs`); no separate
   snapshot pipeline or ViewModel rewire is planned for combined-html-report.
+- **Env-var path made first-class for secrets**: `scripts/dev/bootstrap_flex_history.py`
+  now resolves `IBKR_FLEX_QUERY_ID` / `IBKR_FLEX_TOKEN` env-first (was
+  local.env-only — a real gap; matches the existing env-first resolution in
+  `etf_sector_lookthrough`, `sync_fred_macro_panel`, and dashboard
+  `_resolve_local_env_value`). User-facing wording across `generate_regime.py`
+  warning, `run_fred_sync.sh` error, `regime_engine_devplan.md` runbook, and
+  `perf_report.ipynb` raises reordered to lead with the env-var path and
+  treat local.env as the fallback. `local.example.env` now lists
+  `FRED_API_KEY` with a header note that the process env always wins.
 
 Near-term work:
 - (none open) Portfolio-monitor stack is at a stable shape. Further work
