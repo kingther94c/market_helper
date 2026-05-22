@@ -159,6 +159,11 @@ Landed:
   concept block, or `weight: 0.0` for market signals): curve / breakeven /
   DXY / ISM proxy / housing / consumer sentiment / growth-vs-value / extra
   sector pairs. Flip a series into a concept (or set weight > 0) to activate.
+- **Dormant-signal activation runbook**: `regime_engine_devplan.md` now
+  documents the four-step activation flow (hydrate FRED cache via
+  `fred-macro-sync`, wire into a concept block, rebuild the panel, re-
+  calibrate). The fetcher already pulls every declared series, so activation
+  is a config flip + sync, not a code change.
 
 Near-term work:
 1. ~~Dashboard: surface per-concept contributions, internal disagreement,
@@ -170,7 +175,8 @@ Near-term work:
    `disagreement_penalty_active` on `FinalRegimeResult`.
 2. Propagate the same concept panel into the combined portfolio report (the
    regime ribbon there still shows only the summary card).
-3. Sync the dormant FRED series so they can be activated via config flip.
+3. ~~Sync the dormant FRED series so they can be activated via config flip~~
+   — replaced by the activation runbook above; no proactive bulk sync needed.
 4. Add a small backtest sanity harness with pinned fixture snapshots for
    anchor periods.
 5. Keep ML layers as unavailable/zero-weight until model artifacts and feature

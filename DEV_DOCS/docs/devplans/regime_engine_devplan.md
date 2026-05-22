@@ -51,6 +51,35 @@ initial claims, housing starts/permits, U. Michigan sentiment, manufacturing
 employment, growth-vs-value (IWF/IWD), additional sector relatives (XLB, XLE,
 XLV, XLF, AGG/SPY), USD strength (UUP), copper-vs-gold.
 
+### Activating a Dormant Signal
+
+The fetcher (`sync_fred_macro_panel`) already pulls every series declared in
+`fred_series.yml`, but `data/interim/fred/` is created on first sync, so a
+dormant series has no cached observations until you run it. To activate:
+
+1. **Hydrate the FRED cache** (one-shot; ~1.5h cold for all 23 series):
+   ```bash
+   python -m market_helper.cli.main fred-macro-sync
+   ```
+   Requires `FRED_API_KEY` in `configs/portfolio_monitor/local.env` (or env
+   var). Subsequent runs are incremental from the last cached date. Market
+   signals (Yahoo) are lazy-loaded per call and need no separate sync step.
+
+2. **Wire the series into a concept** in `fred_series.yml`
+   (`growth_concepts:` / `inflation_concepts:`) or set `weight > 0` for a
+   market signal in `market_regime.yml`.
+
+3. **Rebuild the panel** — `build_panel()` only emits columns referenced by
+   active concepts, so newly activated series need a panel rebuild
+   (`regime-detect` or `regime-refresh-report`) before they contribute.
+
+4. **Re-run calibration** (`regime-calibrate`) to verify the added signal
+   does not destabilize axis state classification on anchor periods.
+
+If FRED deprecates a dormant series between the time it shipped and the time
+it is activated, the sync will fail loudly — swap to an active replacement
+in `fred_series.yml`.
+
 ## Current State
 
 Landed:
