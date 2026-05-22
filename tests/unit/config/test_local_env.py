@@ -2,7 +2,6 @@ from __future__ import annotations
 
 from market_helper.config.local_env import (
     LOCAL_ENV_FILENAME,
-    MARKET_HELPER_CONFIG_PATH_ENV_VAR,
     MARKET_HELPER_GDRIVE_ROOT_ENV_VAR,
     read_env_file_value,
     read_local_config_value,
@@ -10,34 +9,8 @@ from market_helper.config.local_env import (
 )
 
 
-def test_resolve_local_config_path_prefers_existing_market_helper_config_path(tmp_path) -> None:
-    default_path = tmp_path / "default.env"
-    override_path = tmp_path / "Google Drive" / "market_helper.env"
-    override_path.parent.mkdir()
-    override_path.write_text('DEMO_KEY="override"\n', encoding="utf-8")
-
-    resolved = resolve_local_config_path(
-        default_path=default_path,
-        environ={MARKET_HELPER_CONFIG_PATH_ENV_VAR: str(override_path)},
-    )
-
-    assert resolved == override_path
-
-
-def test_resolve_local_config_path_falls_back_when_override_missing(tmp_path) -> None:
-    default_path = tmp_path / "default.env"
-    missing_override = tmp_path / "missing.env"
-
-    resolved = resolve_local_config_path(
-        default_path=default_path,
-        environ={MARKET_HELPER_CONFIG_PATH_ENV_VAR: str(missing_override)},
-    )
-
-    assert resolved == default_path
-
-
 def test_resolve_local_config_path_derives_from_gdrive_root(tmp_path) -> None:
-    """When CONFIG_PATH is unset but GDRIVE_ROOT is, derive <ROOT>/local.env."""
+    """When GDRIVE_ROOT is set, derive <ROOT>/local.env."""
     default_path = tmp_path / "default.env"
     gdrive_root = tmp_path / "005 Portfolio"
     gdrive_root.mkdir()
@@ -50,26 +23,6 @@ def test_resolve_local_config_path_derives_from_gdrive_root(tmp_path) -> None:
     )
 
     assert resolved == derived_path
-
-
-def test_resolve_local_config_path_prefers_explicit_path_over_gdrive_root(tmp_path) -> None:
-    """CONFIG_PATH still wins when both are set, so legacy setups don't change."""
-    default_path = tmp_path / "default.env"
-    explicit = tmp_path / "explicit.env"
-    explicit.write_text("x=y\n", encoding="utf-8")
-    gdrive_root = tmp_path / "005 Portfolio"
-    gdrive_root.mkdir()
-    (gdrive_root / LOCAL_ENV_FILENAME).write_text("x=y\n", encoding="utf-8")
-
-    resolved = resolve_local_config_path(
-        default_path=default_path,
-        environ={
-            MARKET_HELPER_CONFIG_PATH_ENV_VAR: str(explicit),
-            MARKET_HELPER_GDRIVE_ROOT_ENV_VAR: str(gdrive_root),
-        },
-    )
-
-    assert resolved == explicit
 
 
 def test_resolve_local_config_path_falls_through_when_gdrive_root_has_no_env_file(tmp_path) -> None:
@@ -86,16 +39,27 @@ def test_resolve_local_config_path_falls_through_when_gdrive_root_has_no_env_fil
     assert resolved == default_path
 
 
-def test_read_local_config_value_uses_market_helper_config_path(tmp_path) -> None:
+def test_resolve_local_config_path_falls_back_to_default_when_no_env(tmp_path) -> None:
+    """Neither env var set → use default_path argument."""
     default_path = tmp_path / "default.env"
-    override_path = tmp_path / "synced.env"
+
+    resolved = resolve_local_config_path(default_path=default_path, environ={})
+
+    assert resolved == default_path
+
+
+def test_read_local_config_value_uses_gdrive_root(tmp_path) -> None:
+    default_path = tmp_path / "default.env"
+    gdrive_root = tmp_path / "005 Portfolio"
+    gdrive_root.mkdir()
+    synced = gdrive_root / LOCAL_ENV_FILENAME
     default_path.write_text('DEMO_KEY="default"\n', encoding="utf-8")
-    override_path.write_text("export DEMO_KEY='override'\n", encoding="utf-8")
+    synced.write_text("export DEMO_KEY='override'\n", encoding="utf-8")
 
     value = read_local_config_value(
         "DEMO_KEY",
         default_path=default_path,
-        environ={MARKET_HELPER_CONFIG_PATH_ENV_VAR: str(override_path)},
+        environ={MARKET_HELPER_GDRIVE_ROOT_ENV_VAR: str(gdrive_root)},
     )
 
     assert value == "override"

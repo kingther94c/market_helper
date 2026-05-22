@@ -96,7 +96,7 @@ The dashboard module lives at `market_helper/presentation/dashboard/`. The NiceG
 
 ## ETF sector lookthrough sync
 
-To refresh ETF sector weights in [`configs/portfolio_monitor/us_sector_lookthrough.json`](configs/portfolio_monitor/us_sector_lookthrough.json), put your local secrets in [`configs/portfolio_monitor/local.env`](configs/portfolio_monitor/local.env), or set `MARKET_HELPER_CONFIG_PATH` to a synced env file, and run:
+To refresh ETF sector weights in [`configs/portfolio_monitor/us_sector_lookthrough.json`](configs/portfolio_monitor/us_sector_lookthrough.json), put your local secrets in [`configs/portfolio_monitor/local.env`](configs/portfolio_monitor/local.env) (or in `<MARKET_HELPER_GDRIVE_ROOT>/local.env` if you sync a shared env file via GDrive), and run:
 
 ```bash
 conda run -n py313 python -m market_helper.cli.main etf-sector-sync \
@@ -111,7 +111,7 @@ Or via the script wrapper:
 ```
 
 - The command fetches ETF sector weights from Financial Modeling Prep and merges just those tickers into `us_sector_lookthrough.json`.
-- `--api-key` is optional; if omitted, the command reads `ALPHA_VANTAGE_API_KEY` from the process environment, then falls back to `MARKET_HELPER_CONFIG_PATH` if it points to an existing file, then `configs/portfolio_monitor/local.env`.
+- `--api-key` is optional; if omitted, the command reads `ALPHA_VANTAGE_API_KEY` from the process environment, then from `local.env` (auto-resolved to `<MARKET_HELPER_GDRIVE_ROOT>/local.env` when ROOT is set, otherwise `configs/portfolio_monitor/local.env`).
 - FMP sector labels are normalized into the portfolio monitor's existing buckets such as `Financials`, `Health Care`, and `Consumer Discretionary`.
 - The JSON store tracks each symbol's `updated_at`, cached sector weights, and the shared daily FMP call count.
 - During `risk-html-report`, the report flow now auto-registers newly seen US ETF candidates with `updated_at=2000-01-01`, then refreshes only symbols older than 30 days, subject to the `250` calls/day budget.
@@ -206,7 +206,7 @@ If `--account` is omitted, `./scripts/run_report.sh ibkr-live` now defaults to:
 - `ACCOUNT_ENV=prod` -> `DEFAULT_PROD_ACCOUNT_ID`
 - `ACCOUNT_ENV=dev` -> `DEFAULT_DEV_ACCOUNT_ID`
 
-Keep those defaults, plus local-only secrets like `ALPHA_VANTAGE_API_KEY`, in the gitignored file `configs/portfolio_monitor/local.env`. To sync this config outside the repo, set `MARKET_HELPER_CONFIG_PATH` to an existing env file, for example a file in Google Drive; if that variable is unset or points to a missing file, the tools fall back to `configs/portfolio_monitor/local.env`. A tracked template lives at `configs/portfolio_monitor/local.example.env`.
+Keep those defaults, plus local-only secrets like `ALPHA_VANTAGE_API_KEY`, in the gitignored file `configs/portfolio_monitor/local.env`. To sync this config outside the repo via Google Drive, set `MARKET_HELPER_GDRIVE_ROOT` in your shell profile and place `local.env` at `<ROOT>/local.env`; the tools auto-load it. If ROOT is unset or contains no `local.env`, they fall back to `configs/portfolio_monitor/local.env`. A tracked template lives at `configs/portfolio_monitor/local.example.env`.
 
 Example:
 

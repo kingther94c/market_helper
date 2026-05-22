@@ -5,7 +5,9 @@
 # (override with FRED_SERIES_CONFIG). Writes per-series feather caches and
 # the joined daily panel to data/interim/fred/.
 #
-# Requires FRED_API_KEY in the environment, MARKET_HELPER_CONFIG_PATH, or local.env.
+# Requires FRED_API_KEY in the environment or local.env. local.env is read
+# from <MARKET_HELPER_GDRIVE_ROOT>/local.env when ROOT is set, otherwise
+# falls back to configs/portfolio_monitor/local.env.
 
 set -euo pipefail
 
@@ -13,8 +15,8 @@ ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT_DIR"
 
 DEFAULT_LOCAL_CONFIG="configs/portfolio_monitor/local.env"
-if [ -n "${MARKET_HELPER_CONFIG_PATH:-}" ] && [ -f "${MARKET_HELPER_CONFIG_PATH}" ]; then
-    LOCAL_CONFIG="${MARKET_HELPER_CONFIG_PATH}"
+if [ -n "${MARKET_HELPER_GDRIVE_ROOT:-}" ] && [ -f "${MARKET_HELPER_GDRIVE_ROOT}/local.env" ]; then
+    LOCAL_CONFIG="${MARKET_HELPER_GDRIVE_ROOT}/local.env"
 else
     LOCAL_CONFIG="${DEFAULT_LOCAL_CONFIG}"
 fi
@@ -37,7 +39,7 @@ if [ -z "${FRED_API_KEY:-}" ] && [ -f "${LOCAL_CONFIG}" ]; then
 fi
 
 if [ -z "${FRED_API_KEY:-}" ]; then
-    echo "FRED_API_KEY is not set. Add it to MARKET_HELPER_CONFIG_PATH, ${DEFAULT_LOCAL_CONFIG}, or the environment." >&2
+    echo "FRED_API_KEY is not set. Add it to ${LOCAL_CONFIG} or export it in the environment." >&2
     exit 1
 fi
 

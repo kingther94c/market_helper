@@ -24,7 +24,8 @@ Canonical artifacts/config:
 - `configs/portfolio_monitor/report_config.yaml`: tracked risk/report runtime
   config.
 - `configs/portfolio_monitor/local.env`: gitignored account/provider secrets;
-  `MARKET_HELPER_CONFIG_PATH` can point to a synced replacement file.
+  set `MARKET_HELPER_GDRIVE_ROOT` and place `local.env` at `<ROOT>/local.env`
+  to share one file across machines via GDrive sync.
 - `configs/portfolio_monitor/us_sector_lookthrough.json`: tracked ETF sector
   look-through cache.
 

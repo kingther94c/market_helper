@@ -54,7 +54,7 @@ def _run_script(
     env.pop("ACCOUNT_ENV", None)
     env.pop("DEFAULT_PROD_ACCOUNT_ID", None)
     env.pop("DEFAULT_DEV_ACCOUNT_ID", None)
-    env.pop("MARKET_HELPER_CONFIG_PATH", None)
+    env.pop("MARKET_HELPER_GDRIVE_ROOT", None)
     env.pop("ALPHA_VANTAGE_API_KEY", None)
     env.pop("FMP_API_KEY", None)
     env.update(env_overrides or {})
@@ -92,12 +92,13 @@ def test_run_report_uses_canonical_local_account_config(tmp_path: Path) -> None:
     assert "deprecated" not in result.stderr.lower()
 
 
-def test_run_report_prefers_market_helper_config_path(tmp_path: Path) -> None:
+def test_run_report_prefers_gdrive_root_local_env(tmp_path: Path) -> None:
     project_root, fake_conda = _prepare_script_project(tmp_path)
     canonical_config = project_root / "configs" / "portfolio_monitor" / "local.env"
-    synced_config = tmp_path / "Google Drive" / "market_helper.env"
+    gdrive_root = tmp_path / "005 Portfolio"
+    gdrive_root.mkdir()
+    synced_config = gdrive_root / "local.env"
     canonical_config.parent.mkdir(parents=True)
-    synced_config.parent.mkdir()
     canonical_config.write_text('DEFAULT_PROD_ACCOUNT_ID="U10001"\n', encoding="utf-8")
     synced_config.write_text('DEFAULT_PROD_ACCOUNT_ID="U99999"\n', encoding="utf-8")
 
@@ -107,7 +108,7 @@ def test_run_report_prefers_market_helper_config_path(tmp_path: Path) -> None:
         "ibkr-live",
         "--output",
         str(project_root / "outputs" / "live.csv"),
-        env_overrides={"MARKET_HELPER_CONFIG_PATH": str(synced_config)},
+        env_overrides={"MARKET_HELPER_GDRIVE_ROOT": str(gdrive_root)},
     )
 
     assert result.returncode == 0
@@ -116,11 +117,13 @@ def test_run_report_prefers_market_helper_config_path(tmp_path: Path) -> None:
     assert "U10001" not in result.stdout
 
 
-def test_run_report_falls_back_to_canonical_config_when_override_missing(tmp_path: Path) -> None:
+def test_run_report_falls_back_to_canonical_config_when_gdrive_root_has_no_env_file(tmp_path: Path) -> None:
     project_root, fake_conda = _prepare_script_project(tmp_path)
     local_config = project_root / "configs" / "portfolio_monitor" / "local.env"
     local_config.parent.mkdir(parents=True)
     local_config.write_text('DEFAULT_PROD_ACCOUNT_ID="U10001"\n', encoding="utf-8")
+    empty_root = tmp_path / "empty"
+    empty_root.mkdir()
 
     result = _run_script(
         project_root,
@@ -128,7 +131,7 @@ def test_run_report_falls_back_to_canonical_config_when_override_missing(tmp_pat
         "ibkr-live",
         "--output",
         str(project_root / "outputs" / "live.csv"),
-        env_overrides={"MARKET_HELPER_CONFIG_PATH": str(tmp_path / "missing.env")},
+        env_overrides={"MARKET_HELPER_GDRIVE_ROOT": str(empty_root)},
     )
 
     assert result.returncode == 0
@@ -280,12 +283,13 @@ def test_run_report_etf_sector_sync_forwards_symbols_and_output(tmp_path: Path) 
     assert "--api-key" in result.stdout
 
 
-def test_run_report_etf_sector_sync_reads_alpha_vantage_key_from_market_helper_config_path(
+def test_run_report_etf_sector_sync_reads_alpha_vantage_key_from_gdrive_root(
     tmp_path: Path,
 ) -> None:
     project_root, fake_conda = _prepare_script_project(tmp_path)
-    synced_config = tmp_path / "Google Drive" / "market_helper.env"
-    synced_config.parent.mkdir()
+    gdrive_root = tmp_path / "005 Portfolio"
+    gdrive_root.mkdir()
+    synced_config = gdrive_root / "local.env"
     synced_config.write_text('ALPHA_VANTAGE_API_KEY="synced-alpha-key"\n', encoding="utf-8")
 
     result = _run_script(
@@ -294,7 +298,7 @@ def test_run_report_etf_sector_sync_reads_alpha_vantage_key_from_market_helper_c
         "etf-sector-sync",
         "--symbol",
         "SOXX",
-        env_overrides={"MARKET_HELPER_CONFIG_PATH": str(synced_config)},
+        env_overrides={"MARKET_HELPER_GDRIVE_ROOT": str(gdrive_root)},
     )
 
     assert result.returncode == 0

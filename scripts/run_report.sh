@@ -6,8 +6,10 @@ ENV_NAME="${ENV_NAME:-py313}"
 CONDA_BIN="${CONDA_BIN:-$(command -v conda || true)}"
 ACCOUNT_ENV="${ACCOUNT_ENV:-prod}"
 CANONICAL_LOCAL_CONFIG="${ROOT_DIR}/configs/portfolio_monitor/local.env"
-if [[ -n "${MARKET_HELPER_CONFIG_PATH:-}" && -f "${MARKET_HELPER_CONFIG_PATH}" ]]; then
-    LOCAL_CONFIG="${MARKET_HELPER_CONFIG_PATH}"
+# Per-machine local.env can live at <MARKET_HELPER_GDRIVE_ROOT>/local.env;
+# this matches the Python-side resolution in market_helper.config.local_env.
+if [[ -n "${MARKET_HELPER_GDRIVE_ROOT:-}" && -f "${MARKET_HELPER_GDRIVE_ROOT}/local.env" ]]; then
+    LOCAL_CONFIG="${MARKET_HELPER_GDRIVE_ROOT}/local.env"
 else
     LOCAL_CONFIG="${CANONICAL_LOCAL_CONFIG}"
 fi
@@ -50,7 +52,7 @@ Environment:
   CONDA_BIN   Optional explicit path to the conda executable.
   ALPHA_VANTAGE_API_KEY Optional default API key for etf-sector-sync.
   ACCOUNT_ENV Live-account profile. Use prod or dev. Defaults to: prod
-  MARKET_HELPER_CONFIG_PATH Optional local config file. Falls back to: configs/portfolio_monitor/local.env
+  MARKET_HELPER_GDRIVE_ROOT Optional GDrive root; <ROOT>/local.env is auto-loaded. Falls back to: configs/portfolio_monitor/local.env
 EOF
 }
 
@@ -105,7 +107,7 @@ resolve_live_account() {
             ;;
     esac
 
-    [[ -n "${ACCOUNT_ID}" ]] || fail "No default account configured for ACCOUNT_ENV=${ACCOUNT_ENV}. Set it in MARKET_HELPER_CONFIG_PATH or ${CANONICAL_LOCAL_CONFIG}, or pass --account explicitly."
+    [[ -n "${ACCOUNT_ID}" ]] || fail "No default account configured for ACCOUNT_ENV=${ACCOUNT_ENV}. Set it in ${LOCAL_CONFIG}, or pass --account explicitly."
     echo "Using default ${ACCOUNT_ENV} live account: ${ACCOUNT_ID}"
 }
 

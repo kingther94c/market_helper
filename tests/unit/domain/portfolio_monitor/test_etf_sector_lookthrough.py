@@ -51,7 +51,7 @@ def test_refresh_us_sector_lookthrough_for_report_adds_pending_symbol_without_ap
 ) -> None:
     path = tmp_path / "us_sector_lookthrough.json"
     monkeypatch.delenv("ALPHA_VANTAGE_API_KEY", raising=False)
-    monkeypatch.delenv("MARKET_HELPER_CONFIG_PATH", raising=False)
+    monkeypatch.delenv("MARKET_HELPER_GDRIVE_ROOT", raising=False)
     monkeypatch.setattr(etf_sector_lookthrough, "DEFAULT_CANONICAL_LOCAL_ENV_PATH", tmp_path / "missing-local.env")
 
     written_path = refresh_us_sector_lookthrough_for_report(
@@ -119,7 +119,7 @@ def test_refresh_us_sector_lookthrough_reads_fmp_api_key_from_local_env(
     local_env.write_text('ALPHA_VANTAGE_API_KEY="local-file-key"\n', encoding="utf-8")
 
     monkeypatch.delenv("ALPHA_VANTAGE_API_KEY", raising=False)
-    monkeypatch.delenv("MARKET_HELPER_CONFIG_PATH", raising=False)
+    monkeypatch.delenv("MARKET_HELPER_GDRIVE_ROOT", raising=False)
     monkeypatch.setattr(etf_sector_lookthrough, "DEFAULT_CANONICAL_LOCAL_ENV_PATH", local_env)
 
     captured: dict[str, object] = {}
@@ -147,19 +147,20 @@ def test_refresh_us_sector_lookthrough_reads_fmp_api_key_from_local_env(
     assert payload["symbols"]["SOXX"]["updated_at"] == "2026-04-08"
 
 
-def test_refresh_us_sector_lookthrough_reads_api_key_from_market_helper_config_path(
+def test_refresh_us_sector_lookthrough_reads_api_key_from_gdrive_root(
     tmp_path,
     monkeypatch,
 ) -> None:
     path = tmp_path / "us_sector_lookthrough.json"
     default_env = tmp_path / "local.env"
-    override_env = tmp_path / "Google Drive" / "market_helper.env"
-    override_env.parent.mkdir()
+    gdrive_root = tmp_path / "005 Portfolio"
+    gdrive_root.mkdir()
+    override_env = gdrive_root / "local.env"
     default_env.write_text('ALPHA_VANTAGE_API_KEY="default-key"\n', encoding="utf-8")
     override_env.write_text('ALPHA_VANTAGE_API_KEY="synced-key"\n', encoding="utf-8")
 
     monkeypatch.delenv("ALPHA_VANTAGE_API_KEY", raising=False)
-    monkeypatch.setenv("MARKET_HELPER_CONFIG_PATH", str(override_env))
+    monkeypatch.setenv("MARKET_HELPER_GDRIVE_ROOT", str(gdrive_root))
     monkeypatch.setattr(etf_sector_lookthrough, "DEFAULT_CANONICAL_LOCAL_ENV_PATH", default_env)
 
     captured: dict[str, object] = {}

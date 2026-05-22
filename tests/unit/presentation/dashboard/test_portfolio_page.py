@@ -179,7 +179,7 @@ def test_build_initial_state_prefills_flex_credentials_from_local_env(tmp_path, 
         ),
         encoding="utf-8",
     )
-    monkeypatch.delenv("MARKET_HELPER_CONFIG_PATH", raising=False)
+    monkeypatch.delenv("MARKET_HELPER_GDRIVE_ROOT", raising=False)
     monkeypatch.setattr(
         "market_helper.presentation.dashboard.pages.portfolio.DEFAULT_CANONICAL_LOCAL_ENV_PATH",
         local_env,
@@ -204,7 +204,7 @@ def test_build_initial_state_prefills_live_account_id_from_local_env(tmp_path, m
         'DEFAULT_PROD_ACCOUNT_ID="U0000000"\n',
         encoding="utf-8",
     )
-    monkeypatch.delenv("MARKET_HELPER_CONFIG_PATH", raising=False)
+    monkeypatch.delenv("MARKET_HELPER_GDRIVE_ROOT", raising=False)
     monkeypatch.setattr(
         "market_helper.presentation.dashboard.pages.portfolio.DEFAULT_CANONICAL_LOCAL_ENV_PATH",
         local_env,
@@ -222,13 +222,14 @@ def test_build_initial_state_prefills_live_account_id_from_local_env(tmp_path, m
     assert state.live_form.account_id == "U0000000"
 
 
-def test_build_initial_state_prefers_market_helper_config_path_for_local_env(tmp_path, monkeypatch) -> None:
+def test_build_initial_state_prefers_gdrive_root_local_env(tmp_path, monkeypatch) -> None:
     default_env = tmp_path / "local.env"
-    override_env = tmp_path / "Google Drive" / "market_helper.env"
-    override_env.parent.mkdir()
+    gdrive_root = tmp_path / "005 Portfolio"
+    gdrive_root.mkdir()
+    override_env = gdrive_root / "local.env"
     default_env.write_text('IBKR_FLEX_QUERY_ID="default-query"\n', encoding="utf-8")
     override_env.write_text('IBKR_FLEX_QUERY_ID="synced-query"\n', encoding="utf-8")
-    monkeypatch.setenv("MARKET_HELPER_CONFIG_PATH", str(override_env))
+    monkeypatch.setenv("MARKET_HELPER_GDRIVE_ROOT", str(gdrive_root))
     monkeypatch.setattr(
         "market_helper.presentation.dashboard.pages.portfolio.DEFAULT_CANONICAL_LOCAL_ENV_PATH",
         default_env,

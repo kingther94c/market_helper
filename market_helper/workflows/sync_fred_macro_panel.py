@@ -1,6 +1,7 @@
 """Thin CLI-facing wrapper around the FRED macro panel sync.
 
-Handles API-key resolution (arg -> env -> MARKET_HELPER_CONFIG_PATH -> local.env)
+Handles API-key resolution (arg -> env -> local.env, with local.env auto-
+derived from MARKET_HELPER_GDRIVE_ROOT or falling back to the repo default)
 and delegates to ``market_helper.data_sources.fred.macro_panel.sync_macro_panel``.
 """
 from __future__ import annotations
@@ -40,7 +41,8 @@ def run_fred_macro_sync(
     if not resolved_key:
         raise RuntimeError(
             "FRED_API_KEY is not set. Pass --api-key, export FRED_API_KEY, "
-            "or add it to MARKET_HELPER_CONFIG_PATH / configs/portfolio_monitor/local.env."
+            "or add it to local.env (under MARKET_HELPER_GDRIVE_ROOT or in "
+            "configs/portfolio_monitor/local.env)."
         )
     return sync_macro_panel(
         config_path=config_path,

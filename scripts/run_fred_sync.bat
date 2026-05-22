@@ -1,9 +1,10 @@
 @echo off
 rem Sync the FRED macro panel used by the regime-detection macro_regime method.
 rem
-rem FRED_API_KEY is read by the Python side from MARKET_HELPER_CONFIG_PATH /
-rem configs/portfolio_monitor/local.env / the process environment — no shell
-rem sourcing needed here. See market_helper.workflows.sync_fred_macro_panel.
+rem FRED_API_KEY is read by the Python side from the process environment or
+rem local.env (resolved from %MARKET_HELPER_GDRIVE_ROOT%\local.env when set,
+rem otherwise configs\portfolio_monitor\local.env). No shell sourcing needed.
+rem See market_helper.workflows.sync_fred_macro_panel.
 setlocal
 
 set "ROOT_DIR=%~dp0.."
