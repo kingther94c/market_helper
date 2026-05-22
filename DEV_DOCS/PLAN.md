@@ -164,6 +164,17 @@ Landed:
   `fred-macro-sync`, wire into a concept block, rebuild the panel, re-
   calibrate). The fetcher already pulls every declared series, so activation
   is a config flip + sync, not a code change.
+- **Anchor-period sanity harness (MVP)**:
+  `tests/unit/regimes/test_anchor_periods.py` pins regime engine output on a
+  checked-in COVID 2020 market-panel slice
+  (`tests/unit/regimes/fixtures/market_panel_covid_2020.feather`, 97 KB,
+  2019-01-01 to 2020-12-31). Three pinned assertions cover the pre-crisis
+  benign-growth baseline, the 2020-03-18 stress-overlay + deep-negative
+  scores trigger, and the 2020-06 reflation recovery. Macro layer is
+  disabled because the FRED panel is not checked in; broader anchor
+  coverage (GFC 2008, 2022 inflation, 2025 tariff) follows the same
+  fixture+config pattern via
+  `scripts/dev/regenerate_anchor_period_fixtures.py`.
 
 Near-term work:
 1. ~~Dashboard: surface per-concept contributions, internal disagreement,
@@ -177,8 +188,10 @@ Near-term work:
    regime ribbon there still shows only the summary card).
 3. ~~Sync the dormant FRED series so they can be activated via config flip~~
    — replaced by the activation runbook above; no proactive bulk sync needed.
-4. Add a small backtest sanity harness with pinned fixture snapshots for
-   anchor periods.
+4. Extend the anchor-period harness beyond the COVID 2020 MVP — add GFC
+   2008, 2022 inflation surge, 2025 tariff shock slices via
+   `regenerate_anchor_period_fixtures.py`. Optional: layer in a macro-
+   included anchor once the FRED panel is hydrated locally.
 5. Keep ML layers as unavailable/zero-weight until model artifacts and feature
    schemas are explicit.
 
