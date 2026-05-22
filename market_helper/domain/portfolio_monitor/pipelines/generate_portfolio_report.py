@@ -94,8 +94,7 @@ DEFAULT_GOOGLE_DRIVE_POSITIONS_FILENAME = "live_ibkr_position_report.csv"
 DEFAULT_GOOGLE_DRIVE_COMBINED_REPORT_FILENAME = "portfolio_combined_report.html"
 MARKET_HELPER_GOOGLE_DRIVE_DIR_ENV_VAR = "MARKET_HELPER_GOOGLE_DRIVE_DIR"
 MARKET_HELPER_GDRIVE_ROOT_ENV_VAR = "MARKET_HELPER_GDRIVE_ROOT"
-MARKET_HELPER_REPORT_SUBDIR_ENV_VAR = "MARKET_HELPER_REPORT_SUBDIR"
-DEFAULT_REPORT_SUBDIR = "Portfolio_Report"
+REPORT_SUBDIR = "Portfolio_Report"
 
 _logger = logging.getLogger(__name__)
 
@@ -1599,11 +1598,10 @@ def _load_artifact_mirror_dir(config_path: str | Path | None = None) -> Path | N
     1. ``MARKET_HELPER_GOOGLE_DRIVE_DIR`` (env, then local.env) — single full
        path to the leaf destination. Kept for back-compat with the previous
        single-var design.
-    2. ``MARKET_HELPER_GDRIVE_ROOT`` (env, then local.env) joined with
-       ``MARKET_HELPER_REPORT_SUBDIR`` (default ``Portfolio_Report``). Lets
-       a shared local.env (e.g. one synced via GDrive itself) declare only
-       the GDrive root, while each machine sets ROOT independently in its
-       shell profile.
+    2. ``MARKET_HELPER_GDRIVE_ROOT`` (env, then local.env) joined with the
+       fixed subdir ``Portfolio_Report``. One per-machine env var drives
+       both report mirror placement and local.env discovery (see
+       :func:`market_helper.config.local_env.resolve_local_config_path`).
     3. ``artifact_mirror.google_drive_dir`` in ``report_config.yaml`` (kept
        for back-compat; new installs should leave this blank).
 
@@ -1615,8 +1613,7 @@ def _load_artifact_mirror_dir(config_path: str | Path | None = None) -> Path | N
 
     root = _read_env_or_local(MARKET_HELPER_GDRIVE_ROOT_ENV_VAR)
     if root:
-        subdir = _read_env_or_local(MARKET_HELPER_REPORT_SUBDIR_ENV_VAR) or DEFAULT_REPORT_SUBDIR
-        return (Path(root).expanduser() / subdir)
+        return Path(root).expanduser() / REPORT_SUBDIR
 
     resolved_config_path = Path(config_path) if config_path is not None else _default_report_config_path()
     if not resolved_config_path.exists():
