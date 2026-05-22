@@ -173,6 +173,70 @@ def test_load_artifact_mirror_dir_falls_back_to_local_env_then_yaml(
     assert pipeline._load_artifact_mirror_dir(config_path) == yaml_dir
 
 
+def test_load_artifact_mirror_dir_joins_gdrive_root_and_report_subdir(
+    monkeypatch, tmp_path: Path
+) -> None:
+    """ROOT + SUBDIR pattern: shared local.env can declare a GDrive root,
+    each machine's shell profile sets ROOT to its platform-specific path."""
+    monkeypatch.delenv(pipeline.MARKET_HELPER_GOOGLE_DRIVE_DIR_ENV_VAR, raising=False)
+    monkeypatch.delenv(pipeline.MARKET_HELPER_GDRIVE_ROOT_ENV_VAR, raising=False)
+    monkeypatch.delenv(pipeline.MARKET_HELPER_REPORT_SUBDIR_ENV_VAR, raising=False)
+    monkeypatch.setattr(pipeline, "read_local_config_value", lambda key: "")
+    root = tmp_path / "005 Portfolio"
+    monkeypatch.setenv(pipeline.MARKET_HELPER_GDRIVE_ROOT_ENV_VAR, str(root))
+    monkeypatch.setenv(pipeline.MARKET_HELPER_REPORT_SUBDIR_ENV_VAR, "Custom_Reports")
+
+    resolved = pipeline._load_artifact_mirror_dir(tmp_path / "no-yaml.yaml")
+    assert resolved == root / "Custom_Reports"
+
+
+def test_load_artifact_mirror_dir_uses_default_subdir_when_subdir_unset(
+    monkeypatch, tmp_path: Path
+) -> None:
+    """ROOT alone defaults SUBDIR to Portfolio_Report."""
+    monkeypatch.delenv(pipeline.MARKET_HELPER_GOOGLE_DRIVE_DIR_ENV_VAR, raising=False)
+    monkeypatch.delenv(pipeline.MARKET_HELPER_REPORT_SUBDIR_ENV_VAR, raising=False)
+    monkeypatch.setattr(pipeline, "read_local_config_value", lambda key: "")
+    root = tmp_path / "005 Portfolio"
+    monkeypatch.setenv(pipeline.MARKET_HELPER_GDRIVE_ROOT_ENV_VAR, str(root))
+
+    resolved = pipeline._load_artifact_mirror_dir(tmp_path / "no-yaml.yaml")
+    assert resolved == root / pipeline.DEFAULT_REPORT_SUBDIR
+
+
+def test_load_artifact_mirror_dir_back_compat_single_var_wins_over_root_pair(
+    monkeypatch, tmp_path: Path
+) -> None:
+    """If both the legacy single-var and ROOT+SUBDIR are set, the single-var
+    wins so existing setups don't change behavior."""
+    monkeypatch.setattr(pipeline, "read_local_config_value", lambda key: "")
+    full = tmp_path / "legacy" / "leaf"
+    root = tmp_path / "root"
+    monkeypatch.setenv(pipeline.MARKET_HELPER_GOOGLE_DRIVE_DIR_ENV_VAR, str(full))
+    monkeypatch.setenv(pipeline.MARKET_HELPER_GDRIVE_ROOT_ENV_VAR, str(root))
+
+    resolved = pipeline._load_artifact_mirror_dir(tmp_path / "no-yaml.yaml")
+    assert resolved == full
+
+
+def test_load_artifact_mirror_dir_root_pair_falls_back_to_local_env(
+    monkeypatch, tmp_path: Path
+) -> None:
+    """ROOT + SUBDIR can come from local.env (not just process env)."""
+    monkeypatch.delenv(pipeline.MARKET_HELPER_GOOGLE_DRIVE_DIR_ENV_VAR, raising=False)
+    monkeypatch.delenv(pipeline.MARKET_HELPER_GDRIVE_ROOT_ENV_VAR, raising=False)
+    monkeypatch.delenv(pipeline.MARKET_HELPER_REPORT_SUBDIR_ENV_VAR, raising=False)
+    root = tmp_path / "005 Portfolio"
+    monkeypatch.setattr(
+        pipeline,
+        "read_local_config_value",
+        lambda key: str(root) if key == pipeline.MARKET_HELPER_GDRIVE_ROOT_ENV_VAR else "",
+    )
+
+    resolved = pipeline._load_artifact_mirror_dir(tmp_path / "no-yaml.yaml")
+    assert resolved == root / pipeline.DEFAULT_REPORT_SUBDIR
+
+
 def test_mirror_artifact_swallows_permission_error_when_path_unreachable(
     monkeypatch, tmp_path: Path, caplog
 ) -> None:

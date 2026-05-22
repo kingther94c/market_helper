@@ -93,6 +93,9 @@ DEFAULT_PREVIOUS_FULL_YEAR_MAX_ATTEMPTS_MULTIPLIER = 2
 DEFAULT_GOOGLE_DRIVE_POSITIONS_FILENAME = "live_ibkr_position_report.csv"
 DEFAULT_GOOGLE_DRIVE_COMBINED_REPORT_FILENAME = "portfolio_combined_report.html"
 MARKET_HELPER_GOOGLE_DRIVE_DIR_ENV_VAR = "MARKET_HELPER_GOOGLE_DRIVE_DIR"
+MARKET_HELPER_GDRIVE_ROOT_ENV_VAR = "MARKET_HELPER_GDRIVE_ROOT"
+MARKET_HELPER_REPORT_SUBDIR_ENV_VAR = "MARKET_HELPER_REPORT_SUBDIR"
+DEFAULT_REPORT_SUBDIR = "Portfolio_Report"
 
 _logger = logging.getLogger(__name__)
 
@@ -1577,26 +1580,43 @@ def _mirror_artifact_if_configured(
     return target_path
 
 
+def _read_env_or_local(key: str) -> str:
+    """Look up ``key`` in the process env first, then the local.env file."""
+    value = os.environ.get(key, "").strip()
+    if value:
+        return value
+    return read_local_config_value(key).strip()
+
+
 def _load_artifact_mirror_dir(config_path: str | Path | None = None) -> Path | None:
     """Resolve the artifact-mirror directory.
 
-    Priority order (per-machine overrides come first because the mirror path
-    is inherently machine-specific):
+    The mirror path is inherently machine-specific (GDrive sync roots differ
+    between macOS and Windows), so per-machine overrides come first.
 
-    1. Process env var ``MARKET_HELPER_GOOGLE_DRIVE_DIR``.
-    2. ``MARKET_HELPER_GOOGLE_DRIVE_DIR`` key in the local.env file resolved
-       through :func:`market_helper.config.local_env.read_local_config_value`.
+    Priority order:
+
+    1. ``MARKET_HELPER_GOOGLE_DRIVE_DIR`` (env, then local.env) — single full
+       path to the leaf destination. Kept for back-compat with the previous
+       single-var design.
+    2. ``MARKET_HELPER_GDRIVE_ROOT`` (env, then local.env) joined with
+       ``MARKET_HELPER_REPORT_SUBDIR`` (default ``Portfolio_Report``). Lets
+       a shared local.env (e.g. one synced via GDrive itself) declare only
+       the GDrive root, while each machine sets ROOT independently in its
+       shell profile.
     3. ``artifact_mirror.google_drive_dir`` in ``report_config.yaml`` (kept
-       for back-compat; new installs should leave this blank and use the
-       env / local.env override instead).
+       for back-compat; new installs should leave this blank).
 
     Returns ``None`` when no source produces a non-empty value.
     """
-    env_value = os.environ.get(MARKET_HELPER_GOOGLE_DRIVE_DIR_ENV_VAR, "").strip()
-    if not env_value:
-        env_value = read_local_config_value(MARKET_HELPER_GOOGLE_DRIVE_DIR_ENV_VAR).strip()
-    if env_value:
-        return Path(env_value).expanduser()
+    full_path = _read_env_or_local(MARKET_HELPER_GOOGLE_DRIVE_DIR_ENV_VAR)
+    if full_path:
+        return Path(full_path).expanduser()
+
+    root = _read_env_or_local(MARKET_HELPER_GDRIVE_ROOT_ENV_VAR)
+    if root:
+        subdir = _read_env_or_local(MARKET_HELPER_REPORT_SUBDIR_ENV_VAR) or DEFAULT_REPORT_SUBDIR
+        return (Path(root).expanduser() / subdir)
 
     resolved_config_path = Path(config_path) if config_path is not None else _default_report_config_path()
     if not resolved_config_path.exists():
