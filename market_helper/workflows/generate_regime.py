@@ -77,7 +77,9 @@ def run_regime_engine_v2_detection(
                 logger.warning(
                     "Macro panel unavailable and FRED_API_KEY not configured — "
                     "disabling macro_nowcast layer for this run. Export "
-                    "FRED_API_KEY (or add it to local.env) and re-run to enable. "
+                    "FRED_API_KEY in the process env, or add it to "
+                    "<MARKET_HELPER_GDRIVE_ROOT>/local.env (preferred for "
+                    "multi-machine sync) or configs/portfolio_monitor/local.env. "
                     "Activation runbook: DEV_DOCS/docs/devplans/"
                     "regime_engine_devplan.md"
                 )

@@ -119,9 +119,11 @@ Landed:
   `etf_sector_lookthrough`, `sync_fred_macro_panel`, and dashboard
   `_resolve_local_env_value`). User-facing wording across `generate_regime.py`
   warning, `run_fred_sync.sh` error, `regime_engine_devplan.md` runbook, and
-  `perf_report.ipynb` raises reordered to lead with the env-var path and
-  treat local.env as the fallback. `local.example.env` now lists
-  `FRED_API_KEY` with a header note that the process env always wins.
+  `perf_report.ipynb` raises reordered to lead with the env-var path, then
+  `<MARKET_HELPER_GDRIVE_ROOT>/local.env` (canonical per-machine
+  shell-profile setup), and the checked-in `configs/portfolio_monitor/local.env`
+  as final fallback. `local.example.env` now lists `FRED_API_KEY` with a
+  header note that the process env always wins.
 
 Near-term work:
 - (none open) Portfolio-monitor stack is at a stable shape. Further work
