@@ -1,0 +1,1034 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>宏观校准研究报告 (Q8) — 2026-05-23</title>
+
+    <style>
+      body { font-family: ui-sans-serif, system-ui, -apple-system, "PingFang SC", "Microsoft YaHei", "Segoe UI", Roboto, sans-serif;
+             max-width: 1200px; margin: 30px auto; padding: 0 20px; line-height: 1.65;
+             color: #1f2328; }
+      h1 { font-size: 1.7em; margin: 0 0 0.3em; }
+      h2 { font-size: 1.3em; margin-top: 1.8em; padding-bottom: 0.3em; border-bottom: 1px solid #d0d7de; }
+      h3 { font-size: 1.1em; margin-top: 1.5em; }
+      table { border-collapse: collapse; margin: 1em 0; font-size: 0.92em; width: 100%; }
+      th, td { padding: 6px 10px; border: 1px solid #d0d7de; text-align: left; }
+      th { background: #f6f8fa; }
+      tfoot td { background: #fff8e1; font-weight: 500; }
+      td.ok { color: #1a7f37; font-weight: 600; }
+      td.bad { color: #cf222e; font-weight: 600; }
+      .muted { color: #57606a; font-size: 0.9em; }
+      code { background: #f6f8fa; padding: 1px 5px; border-radius: 3px; font-size: 0.88em; }
+      pre code { display: block; padding: 12px; line-height: 1.45; white-space: pre; }
+      table.anchor th, table.anchor td { font-size: 0.88em; padding: 4px 8px; }
+      table.dim td { vertical-align: top; font-size: 0.92em; }
+      .toc { background: #f6f8fa; padding: 12px 20px; border: 1px solid #d0d7de; border-radius: 6px; }
+      .toc ul { margin: 0; padding-left: 1.2em; }
+      .banner { background: #ddf4ff; border-left: 4px solid #0969da; padding: 10px 16px; margin: 1em 0; border-radius: 4px; }
+      .warn   { background: #fff8c5; border-left: 4px solid #9a6700; padding: 10px 16px; margin: 1em 0; border-radius: 4px; }
+    </style>
+    
+</head>
+<body>
+<h1>宏观校准研究报告 (Q8)</h1>
+<p class="muted">生成日期 2026-05-23 · regime engine v2 · 范围 = 宏观 axis (增长 + 通胀)
+   · 风险 overlay 已冻结自 Q7</p>
+<p class="muted"><b>推荐参数:</b> min_weight=0.65, growth_thresh=±0.10, inflation_thresh=±0.12, hyst=5日, macro_g/i=0.50/0.50, mkt_g/i=0.50/0.50</p>
+
+    <div class="banner">
+      <b>目标</b>: 交付一个 regime 引擎，做到 (i) 命名宏观锚定时期的
+      label 符合广泛接受的共识读数，(ii) 对实际 turning point 响应足够
+      快可作为日级操作信号，(iii) 转换稳定到不会因单一 print 反复跳。
+      这三个约束方向相反; grid 搜索探测了 tradeoff 平面，Pareto 前沿
+      就是答案区间。
+    </div>
+    <div class="toc"><b>章节</b><ul><li><a href="#m">方法学与共识 framing</a></li><li><a href="#d">宏观数据维度</a></li><li><a href="#b">基线扫描 (校准前)</a></li><li><a href="#g">网格搜索汇总</a></li><li><a href="#a">校准后扫描</a></li><li><a href="#r">决策、净效果、配置变更</a></li><li><a href="#c">注意事项与未覆盖工作</a></li></ul></div><h2 id="m">方法学</h2>
+    <h3>方法学</h3>
+    <p>本轮校准把 regime 引擎跑过完整的 FRED-aware 历史
+       (1921 → 今天，约 27,000 个交易日，warmup 后)，所有调节旋钮都
+       在网格里扫，然后衡量三个正交质量:</p>
+    <ul>
+      <li><b>共识匹配 (consensus match)</b> — 在 13 个跨 2008-2025 的
+        命名宏观周期上，把引擎逐日的 axis label 和该窗口的广泛接受
+        consensus 读数 (增长/通胀/风险) 对比。匹配率 = 引擎 label 与
+        consensus label 一致的天数比例。</li>
+      <li><b>稳定性 (stability)</b> — axis label 的中位数游程长度
+        (用 final score 对照阈值即时计算，<em>不</em>应用
+        hysteresis)，以及游程数量。中位数游程越短说明引擎在阈值附近
+        反复抖。这是配置的 <em>噪声底</em>，不是引擎实际 emit 的 label
+        流 — 引擎下游会再叠一层 <code>min_consecutive_days</code>
+        hysteresis 把它平滑。</li>
+      <li><b>响应速度 (latency)</b> — 在 5 个 sharp transition 点
+        (COVID 增长转折、COVID 通胀塌陷、2021 reflation 起点、
+        2022 stagflation 起点、2024 通胀降温)，测量从命名日期起到
+        引擎首次 label 目标状态的交易日数。越低越快。<em>注意</em>:
+        本轮的 anchor 集里，命名 transition 日期对绝大多数配置而言
+        引擎已经在目标状态，latency 退化为 0，只作为护栏 (保留为
+        未来更精细 probe 的接口)。</li>
+    </ul>
+    <h3>选择规则 (网格 → 推荐)</h3>
+    <ol>
+      <li>每个配置算 composite =
+          <code>overall_match% + 0.3·min(median_run_bdays, 20)</code>。
+          匹配率与稳定性的相对权重是 16:1，匹配率主导。
+          <em>Latency 故意不入选择规则</em> — 见上述退化原因。</li>
+      <li>严格优于 baseline (strict-improvers) 层: 在 (匹配率, 稳定性)
+          两个维度都不弱于 baseline 且至少一个严格更优的候选。按
+          composite 取最高 — 本轮 Q8 推荐就是从这层选出。</li>
+      <li>Safe-fallback 层: <code>risk_avg_match_pct ≥ 80%</code> 的
+          候选，防止 risk overlay 倒退。按 composite 取最高。</li>
+      <li>Open 层 (兜底): 无视 safety filter 的 composite 最高。</li>
+    </ol>
+    <h3>共识标签是 LEVEL-based，不是 DIRECTION-based</h3>
+    <p>这是最重要的 framing 决定。例子:</p>
+    <ul>
+      <li>2023 disinflation: CPI YoY 从 6% 降到 3.3%，但仍远高于
+        2.5% 的舒适水平 — 宏观通胀分数 (以 2.5±0.5 为阈值的
+        threshold 归一化) 整个窗口都读 <em>Up</em>，不是
+        <em>Down</em>。所以 i_consensus 标 Up 以匹配 level 解读。</li>
+      <li>2022 H1 stagflation: GDP Q1 / Q2 都打负，但 YoY payrolls
+        是 +5-6% (post-COVID 基数效应)。宏观增长分数读
+        <em>Up</em>。所以 g_consensus 标 Up。</li>
+      <li>2020 H2 recovery: 月度恢复很快，但 YoY payrolls 7 月还差
+        -7%，10 月 -5%。Level 上看劳动力市场还是深度受损。所以
+        g_consensus 标 Down。</li>
+    </ul>
+    <p>这个 framing 匹配引擎的实际打分方式 (YoY transform + threshold
+       归一化)。direction-based framing 需要加 MoM/QoQ velocity 类
+       signal — 那是另一个工程任务，不是 calibration tuning。</p>
+    <h2 id="d">宏观数据维度</h2>
+    <h3>宏观数据: 决定设计的几个维度</h3>
+    <p>FRED 面板为 8 个 calibration 旋钮提供输入，跨 4 个维度。
+       每个维度都有天然的 tradeoff，calibration 必须尊重。</p>
+    <table class="dim">
+      <thead><tr><th>维度</th><th>旋钮</th><th>Tradeoff</th><th>当前处理</th></tr></thead>
+      <tbody>
+        <tr><td><b>发布滞后</b></td>
+            <td><code>publication_lag_days</code> per series</td>
+            <td>避免 lookahead vs 实时保真</td>
+            <td>每个 series 把观测日期按其发布滞后向前 shift (CPI 14 日，
+                PCE 30 日，payrolls 7 日)。日度 series (T5YIFR、T10Y3M、
+                ICSA 周度) 滞后 1-5 日。</td></tr>
+        <tr><td><b>发布频率与新鲜度</b></td>
+            <td><code>recency_weighting</code> (half_life、min_weight)</td>
+            <td>新 print 应该 dominate vs 不把 series 在发布间隔内
+                降权到零</td>
+            <td>Half-life 由 <code>frequency_hint</code> 派生
+                (daily=5、weekly=5、monthly=22、quarterly=66 日)。
+                <em>本轮 grid 显示降低 0.65 的下限并不显著改善 match —
+                高频 series 在 concept 内 within-weight 太小。</em></td></tr>
+        <tr><td><b>YoY vs MoM transform</b></td>
+            <td><code>transform</code> per series</td>
+            <td>YoY 平滑但滞后转折 6 个月;
+                MoM 及时但噪声大</td>
+            <td>所有主要宏观 series 都用 YoY transform — 宏观 axis 本质
+                是慢速、晚周期读数。更快的 turning-point 检测来自 market
+                layer (breakevens、equity drawdown)。</td></tr>
+        <tr><td><b>Level vs change 归一化</b></td>
+            <td><code>normalization</code>:
+                <code>threshold</code>、<code>zscore</code> 等</td>
+            <td>Threshold 对照绝对参考值 (例 CPI YoY=2.5%);
+                z-score 对照历史分布。Threshold 更可解释;
+                z-score 跨 regime 更稳健。</td>
+            <td>通胀 series 用 threshold (显式锚: CPI 2.5%、PCE 2.2%)。
+                增长 series 用 z-score。Sticky-price CPI 和 AHETPI 工资
+                也用 threshold; 其它都 z-score。</td></tr>
+        <tr><td><b>Concept 聚合</b></td>
+            <td><code>growth_concepts</code> /
+                <code>inflation_concepts</code> 权重</td>
+            <td>单 series 主导 vs 平均掉噪</td>
+            <td>Concept 权重 = 语义重要性 (labor=1.0, production=0.75,
+                broad_leading=0.75 for 增长); concept 内 within-weight
+                补偿冗余 (UNRATE+PAYEMS 在 labor 共占 35/35 防止 employment
+                信号被双计)。</td></tr>
+        <tr><td><b>Bucket 平衡: fast vs slow</b></td>
+            <td>concept composition</td>
+            <td>Slow = 稳定但晚; fast = 响应但抖</td>
+            <td>增长 axis 当前 slow-dominated (labor、production、
+                consumption 全部 monthly YoY)。Market layer 补 fast 视角。</td></tr>
+        <tr><td><b>交叉相关</b></td>
+            <td>concept composition + within-weights</td>
+            <td>高相关 series 双计会放大错觉</td>
+            <td>UNRATE + PAYEMS 相关 0.93 → labor 内 50/50 split。
+                T10Y2Y + T10Y3M (都是 yield curve) 当前不入 concept
+                (dormant) 避免双计。CPIAUCSL + CPILFESL 与 PCE 配对在
+                realized_broad 内各 25%。</td></tr>
+        <tr><td><b>Threshold 语义</b></td>
+            <td><code>neutral_level</code>、<code>threshold</code></td>
+            <td>Direction-honest (升/降) vs
+                level-honest (相对目标高/低)</td>
+            <td>通胀阈值是 level-honest: CPI YoY 在 4% 永远读 Up，
+                即使刚从 6% 跌下来。匹配 Fed 舒适框架但和"disinflation"
+                的口语表达不符 (见 Methodology 节)。</td></tr>
+      </tbody>
+    </table>
+    <h2 id="b">基线扫描 (当前 shipped 配置)</h2>
+    <h3>校准前: 各锚定时期匹配率</h3>
+    <p class="muted">引擎运行: 27,472 个交易日，1921-02-03 至 2026-05-22。
+       Axis 阈值: 增长 ±0.15，
+       通胀 ±0.12。
+       稳定性: 增长 label 中位数游程 4日 (1007 段)，
+       通胀 label 中位数游程 3日 (1127 段)，
+       quadrant 中位数游程 17日 (629 段)。</p>
+    <table class="anchor">
+      <thead>
+        <tr>
+          <th>锚定时期</th><th>窗口</th>
+          <th>增长共识</th><th>g_匹配</th><th>g_分数 (均值 [低,高])</th>
+          <th>通胀共识</th><th>i_匹配</th><th>i_分数 (均值 [低,高])</th>
+          <th>风险共识</th><th>风险检查</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>2008 GFC trough</td>
+          <td>2008-10-01 → 2009-03-31</td>
+          <td>Down</td>
+          <td class="ok">88%</td>
+          <td>-0.50 <span class="muted">[-0.89, +0.05]</span></td>
+          <td>Down</td>
+          <td class="ok">73%</td>
+          <td>-0.36 <span class="muted">[-0.69, +0.19]</span></td>
+          <td>On</td>
+          <td class="ok">✓ (42% 压力日)</td>
+        </tr>
+        <tr>
+          <td>2010-12 expansion</td>
+          <td>2010-06-01 → 2012-12-31</td>
+          <td>Up</td>
+          <td class="bad">34%</td>
+          <td>+0.08 <span class="muted">[-0.27, +0.40]</span></td>
+          <td>Neutral</td>
+          <td class="bad">43%</td>
+          <td>-0.08 <span class="muted">[-0.56, +0.38]</span></td>
+          <td>Off</td>
+          <td class="ok">✓ (0% 压力日)</td>
+        </tr>
+        <tr>
+          <td>2015-16 oil bust</td>
+          <td>2015-08-01 → 2016-02-29</td>
+          <td>Neutral</td>
+          <td class="bad">26%</td>
+          <td>-0.24 <span class="muted">[-0.49, +0.10]</span></td>
+          <td>Down</td>
+          <td class="ok">97%</td>
+          <td>-0.39 <span class="muted">[-0.63, -0.04]</span></td>
+          <td>On</td>
+          <td class="ok">✓ (33% 压力日)</td>
+        </tr>
+        <tr>
+          <td>2017 Goldilocks</td>
+          <td>2017-04-01 → 2017-12-31</td>
+          <td>Up</td>
+          <td class="bad">43%</td>
+          <td>+0.14 <span class="muted">[+0.01, +0.28]</span></td>
+          <td>Neutral</td>
+          <td class="bad">52%</td>
+          <td>-0.07 <span class="muted">[-0.36, +0.19]</span></td>
+          <td>Off</td>
+          <td class="ok">✓ (0% 压力日)</td>
+        </tr>
+        <tr>
+          <td>2018 Q4 vol shock</td>
+          <td>2018-10-01 → 2018-12-31</td>
+          <td>Up</td>
+          <td class="bad">4%</td>
+          <td>-0.19 <span class="muted">[-0.44, +0.20]</span></td>
+          <td>Neutral</td>
+          <td class="bad">18%</td>
+          <td>-0.29 <span class="muted">[-0.54, -0.04]</span></td>
+          <td>On</td>
+          <td class="ok">✓ (17% 压力日)</td>
+        </tr>
+        <tr>
+          <td>2019 H2 slowdown</td>
+          <td>2019-07-01 → 2019-12-31</td>
+          <td>Neutral</td>
+          <td class="bad">30%</td>
+          <td>-0.23 <span class="muted">[-0.50, +0.16]</span></td>
+          <td>Neutral</td>
+          <td class="bad">36%</td>
+          <td>-0.15 <span class="muted">[-0.37, +0.26]</span></td>
+          <td>Off</td>
+          <td class="bad">✗ (17% 压力日)</td>
+        </tr>
+        <tr>
+          <td>2020 COVID recession</td>
+          <td>2020-02-24 → 2020-04-30</td>
+          <td>Down</td>
+          <td class="ok">98%</td>
+          <td>-0.41 <span class="muted">[-0.61, -0.13]</span></td>
+          <td>Neutral</td>
+          <td class="bad">0%</td>
+          <td>-0.51 <span class="muted">[-0.64, -0.17]</span></td>
+          <td>On</td>
+          <td class="ok">✓ (69% 压力日)</td>
+        </tr>
+        <tr>
+          <td>2020H2 catch-up</td>
+          <td>2020-07-01 → 2020-12-31</td>
+          <td>Down</td>
+          <td class="bad">0%</td>
+          <td>+0.11 <span class="muted">[-0.03, +0.26]</span></td>
+          <td>Down</td>
+          <td class="bad">13%</td>
+          <td>+0.08 <span class="muted">[-0.19, +0.35]</span></td>
+          <td>Off</td>
+          <td class="ok">✓ (0% 压力日)</td>
+        </tr>
+        <tr>
+          <td>2021 reflation</td>
+          <td>2021-04-01 → 2021-12-31</td>
+          <td>Up</td>
+          <td class="ok">66%</td>
+          <td>+0.18 <span class="muted">[+0.04, +0.35]</span></td>
+          <td>Up</td>
+          <td class="ok">66%</td>
+          <td>+0.16 <span class="muted">[-0.10, +0.42]</span></td>
+          <td>Off</td>
+          <td class="ok">✓ (0% 压力日)</td>
+        </tr>
+        <tr>
+          <td>2022 H1 inflation</td>
+          <td>2022-03-01 → 2022-09-30</td>
+          <td>Up</td>
+          <td class="bad">4%</td>
+          <td>-0.04 <span class="muted">[-0.29, +0.18]</span></td>
+          <td>Up</td>
+          <td class="bad">49%</td>
+          <td>+0.15 <span class="muted">[-0.27, +0.67]</span></td>
+          <td>On</td>
+          <td class="bad">✗ (0% 压力日)</td>
+        </tr>
+        <tr>
+          <td>2023 high inflation</td>
+          <td>2023-06-01 → 2023-12-31</td>
+          <td>Up</td>
+          <td class="bad">28%</td>
+          <td>+0.06 <span class="muted">[-0.14, +0.28]</span></td>
+          <td>Up</td>
+          <td class="bad">49%</td>
+          <td>+0.10 <span class="muted">[-0.15, +0.35]</span></td>
+          <td>Off</td>
+          <td class="ok">✓ (0% 压力日)</td>
+        </tr>
+        <tr>
+          <td>2024 disinflation</td>
+          <td>2024-01-01 → 2024-12-31</td>
+          <td>Up</td>
+          <td class="bad">16%</td>
+          <td>+0.05 <span class="muted">[-0.24, +0.26]</span></td>
+          <td>Neutral</td>
+          <td class="bad">38%</td>
+          <td>+0.11 <span class="muted">[-0.20, +0.47]</span></td>
+          <td>Off</td>
+          <td class="bad">✗ (1% 压力日)</td>
+        </tr>
+        <tr>
+          <td>2025 tariff shock</td>
+          <td>2025-04-02 → 2025-05-15</td>
+          <td>Neutral</td>
+          <td class="bad">12%</td>
+          <td>-0.24 <span class="muted">[-0.39, -0.07]</span></td>
+          <td>Up</td>
+          <td class="bad">6%</td>
+          <td>-0.05 <span class="muted">[-0.15, +0.25]</span></td>
+          <td>On</td>
+          <td class="ok">✓ (12% 压力日)</td>
+        </tr></tbody>
+      <tfoot><tr>
+        <td colspan="3"><b>13 个锚定平均</b></td>
+        <td class="bad"><b>34.6%</b></td>
+        <td></td><td></td>
+        <td class="bad"><b>41.5%</b></td>
+        <td></td><td></td>
+        <td><b>76.9% 匹配</b></td>
+      </tr></tfoot>
+    </table>
+    <h2 id="g">网格搜索</h2>
+    <h3>网格搜索: 共 162 个配置</h3>
+    <table class="grid">
+      <thead><tr>
+        <th>位次</th><th>参数</th>
+        <th>g_匹配</th><th>i_匹配</th><th>风险匹配</th>
+        <th>总体</th>
+        <th>中位数游程 (g/i)</th>
+      </tr></thead>
+      <tbody>
+        <tr>
+          <td>Baseline (Q7 之后基线, 2026-05-22)</td>
+          <td><code>min_weight=0.65, growth_thresh=±0.15, inflation_thresh=±0.12, hyst=5日, macro_g/i=0.35/0.30, mkt_g/i=0.65/0.70</code></td>
+          <td>34.6%</td>
+          <td>41.5%</td>
+          <td>76.9%</td>
+          <td><b>51.0%</b></td>
+          <td>4 / 3 日</td>
+        </tr>
+        <tr style="background:#fff8c5;">
+          <td>⭐ 推荐 (本轮 Q8)</td>
+          <td><code>min_weight=0.65, growth_thresh=±0.10, inflation_thresh=±0.12, hyst=5日, macro_g/i=0.50/0.50, mkt_g/i=0.50/0.50</code></td>
+          <td>45.6%</td>
+          <td>46.5%</td>
+          <td>76.9%</td>
+          <td><b>56.3%</b></td>
+          <td>4 / 4 日</td>
+        </tr>
+        <tr>
+          <td>#2 (按 composite 排)</td>
+          <td><code>min_weight=0.65, growth_thresh=±0.10, inflation_thresh=±0.12, hyst=10日, macro_g/i=0.50/0.50, mkt_g/i=0.50/0.50</code></td>
+          <td>45.6%</td>
+          <td>46.5%</td>
+          <td>76.9%</td>
+          <td><b>56.3%</b></td>
+          <td>4 / 4 日</td>
+        </tr>
+        <tr>
+          <td>#3 (按 composite 排)</td>
+          <td><code>min_weight=0.10, growth_thresh=±0.10, inflation_thresh=±0.12, hyst=5日, macro_g/i=0.50/0.50, mkt_g/i=0.50/0.50</code></td>
+          <td>45.5%</td>
+          <td>46.2%</td>
+          <td>76.9%</td>
+          <td><b>56.2%</b></td>
+          <td>4 / 3 日</td>
+        </tr>
+        <tr>
+          <td>#4 (按 composite 排)</td>
+          <td><code>min_weight=0.10, growth_thresh=±0.10, inflation_thresh=±0.12, hyst=10日, macro_g/i=0.50/0.50, mkt_g/i=0.50/0.50</code></td>
+          <td>45.5%</td>
+          <td>46.2%</td>
+          <td>76.9%</td>
+          <td><b>56.2%</b></td>
+          <td>4 / 3 日</td>
+        </tr>
+        <tr>
+          <td>#5 (按 composite 排)</td>
+          <td><code>min_weight=0.30, growth_thresh=±0.10, inflation_thresh=±0.12, hyst=5日, macro_g/i=0.50/0.50, mkt_g/i=0.50/0.50</code></td>
+          <td>45.4%</td>
+          <td>46.2%</td>
+          <td>76.9%</td>
+          <td><b>56.2%</b></td>
+          <td>4 / 3 日</td>
+        </tr>
+        <tr>
+          <td>#6 (按 composite 排)</td>
+          <td><code>min_weight=0.30, growth_thresh=±0.10, inflation_thresh=±0.12, hyst=10日, macro_g/i=0.50/0.50, mkt_g/i=0.50/0.50</code></td>
+          <td>45.4%</td>
+          <td>46.2%</td>
+          <td>76.9%</td>
+          <td><b>56.2%</b></td>
+          <td>4 / 3 日</td>
+        </tr>
+        <tr>
+          <td>#7 (按 composite 排)</td>
+          <td><code>min_weight=0.65, growth_thresh=±0.10, inflation_thresh=±0.18, hyst=5日, macro_g/i=0.50/0.50, mkt_g/i=0.50/0.50</code></td>
+          <td>45.6%</td>
+          <td>45.0%</td>
+          <td>76.9%</td>
+          <td><b>55.9%</b></td>
+          <td>4 / 4 日</td>
+        </tr>
+        <tr>
+          <td>#8 (按 composite 排)</td>
+          <td><code>min_weight=0.65, growth_thresh=±0.10, inflation_thresh=±0.18, hyst=10日, macro_g/i=0.50/0.50, mkt_g/i=0.50/0.50</code></td>
+          <td>45.6%</td>
+          <td>45.0%</td>
+          <td>76.9%</td>
+          <td><b>55.9%</b></td>
+          <td>4 / 4 日</td>
+        </tr>
+        <tr>
+          <td>#9 (按 composite 排)</td>
+          <td><code>min_weight=0.10, growth_thresh=±0.10, inflation_thresh=±0.18, hyst=5日, macro_g/i=0.50/0.50, mkt_g/i=0.50/0.50</code></td>
+          <td>45.5%</td>
+          <td>44.7%</td>
+          <td>76.9%</td>
+          <td><b>55.7%</b></td>
+          <td>4 / 5 日</td>
+        </tr>
+        <tr>
+          <td>#10 (按 composite 排)</td>
+          <td><code>min_weight=0.10, growth_thresh=±0.10, inflation_thresh=±0.18, hyst=10日, macro_g/i=0.50/0.50, mkt_g/i=0.50/0.50</code></td>
+          <td>45.5%</td>
+          <td>44.7%</td>
+          <td>76.9%</td>
+          <td><b>55.7%</b></td>
+          <td>4 / 5 日</td>
+        </tr></tbody>
+    </table>
+    <p class="muted">严格优于 baseline 的候选: 114 个。Pareto 前沿大小: 10 个。安全候选 (risk_match ≥ 80%): 0 个。</p>
+    <h2 id="a">校准后扫描</h2>
+    <h3>校准后: 各锚定时期匹配率</h3>
+    <p class="muted">引擎运行: 27,472 个交易日，1921-02-03 至 2026-05-22。
+       Axis 阈值: 增长 ±0.10，
+       通胀 ±0.12。
+       稳定性: 增长 label 中位数游程 4日 (972 段)，
+       通胀 label 中位数游程 4日 (923 段)，
+       quadrant 中位数游程 19日 (581 段)。</p>
+    <table class="anchor">
+      <thead>
+        <tr>
+          <th>锚定时期</th><th>窗口</th>
+          <th>增长共识</th><th>g_匹配</th><th>g_分数 (均值 [低,高])</th>
+          <th>通胀共识</th><th>i_匹配</th><th>i_分数 (均值 [低,高])</th>
+          <th>风险共识</th><th>风险检查</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>2008 GFC trough</td>
+          <td>2008-10-01 → 2009-03-31</td>
+          <td>Down</td>
+          <td class="ok">100%</td>
+          <td>-0.59 <span class="muted">[-0.89, -0.17]</span></td>
+          <td>Down</td>
+          <td class="ok">88%</td>
+          <td>-0.31 <span class="muted">[-0.60, +0.04]</span></td>
+          <td>On</td>
+          <td class="ok">✓ (42% 压力日)</td>
+        </tr>
+        <tr>
+          <td>2010-12 expansion</td>
+          <td>2010-06-01 → 2012-12-31</td>
+          <td>Up</td>
+          <td class="bad">58%</td>
+          <td>+0.14 <span class="muted">[-0.16, +0.39]</span></td>
+          <td>Neutral</td>
+          <td class="bad">50%</td>
+          <td>-0.11 <span class="muted">[-0.49, +0.24]</span></td>
+          <td>Off</td>
+          <td class="ok">✓ (0% 压力日)</td>
+        </tr>
+        <tr>
+          <td>2015-16 oil bust</td>
+          <td>2015-08-01 → 2016-02-29</td>
+          <td>Neutral</td>
+          <td class="bad">26%</td>
+          <td>-0.17 <span class="muted">[-0.37, +0.08]</span></td>
+          <td>Down</td>
+          <td class="ok">100%</td>
+          <td>-0.47 <span class="muted">[-0.66, -0.21]</span></td>
+          <td>On</td>
+          <td class="ok">✓ (33% 压力日)</td>
+        </tr>
+        <tr>
+          <td>2017 Goldilocks</td>
+          <td>2017-04-01 → 2017-12-31</td>
+          <td>Up</td>
+          <td class="ok">88%</td>
+          <td>+0.15 <span class="muted">[+0.04, +0.28]</span></td>
+          <td>Neutral</td>
+          <td class="bad">39%</td>
+          <td>-0.20 <span class="muted">[-0.45, +0.07]</span></td>
+          <td>Off</td>
+          <td class="ok">✓ (0% 压力日)</td>
+        </tr>
+        <tr>
+          <td>2018 Q4 vol shock</td>
+          <td>2018-10-01 → 2018-12-31</td>
+          <td>Up</td>
+          <td class="bad">9%</td>
+          <td>-0.12 <span class="muted">[-0.34, +0.22]</span></td>
+          <td>Neutral</td>
+          <td class="bad">20%</td>
+          <td>-0.24 <span class="muted">[-0.46, -0.07]</span></td>
+          <td>On</td>
+          <td class="ok">✓ (17% 压力日)</td>
+        </tr>
+        <tr>
+          <td>2019 H2 slowdown</td>
+          <td>2019-07-01 → 2019-12-31</td>
+          <td>Neutral</td>
+          <td class="bad">20%</td>
+          <td>-0.26 <span class="muted">[-0.47, +0.03]</span></td>
+          <td>Neutral</td>
+          <td class="bad">25%</td>
+          <td>-0.21 <span class="muted">[-0.39, +0.09]</span></td>
+          <td>Off</td>
+          <td class="bad">✗ (17% 压力日)</td>
+        </tr>
+        <tr>
+          <td>2020 COVID recession</td>
+          <td>2020-02-24 → 2020-04-30</td>
+          <td>Down</td>
+          <td class="ok">100%</td>
+          <td>-0.38 <span class="muted">[-0.63, -0.14]</span></td>
+          <td>Neutral</td>
+          <td class="bad">0%</td>
+          <td>-0.47 <span class="muted">[-0.55, -0.23]</span></td>
+          <td>On</td>
+          <td class="ok">✓ (69% 压力日)</td>
+        </tr>
+        <tr>
+          <td>2020H2 catch-up</td>
+          <td>2020-07-01 → 2020-12-31</td>
+          <td>Down</td>
+          <td class="bad">1%</td>
+          <td>+0.01 <span class="muted">[-0.10, +0.10]</span></td>
+          <td>Down</td>
+          <td class="bad">41%</td>
+          <td>-0.09 <span class="muted">[-0.29, +0.10]</span></td>
+          <td>Off</td>
+          <td class="ok">✓ (0% 压力日)</td>
+        </tr>
+        <tr>
+          <td>2021 reflation</td>
+          <td>2021-04-01 → 2021-12-31</td>
+          <td>Up</td>
+          <td class="ok">94%</td>
+          <td>+0.25 <span class="muted">[+0.02, +0.41]</span></td>
+          <td>Up</td>
+          <td class="ok">60%</td>
+          <td>+0.16 <span class="muted">[-0.03, +0.39]</span></td>
+          <td>Off</td>
+          <td class="ok">✓ (0% 压力日)</td>
+        </tr>
+        <tr>
+          <td>2022 H1 inflation</td>
+          <td>2022-03-01 → 2022-09-30</td>
+          <td>Up</td>
+          <td class="bad">34%</td>
+          <td>+0.04 <span class="muted">[-0.16, +0.20]</span></td>
+          <td>Up</td>
+          <td class="bad">59%</td>
+          <td>+0.27 <span class="muted">[-0.04, +0.65]</span></td>
+          <td>On</td>
+          <td class="bad">✗ (0% 压力日)</td>
+        </tr>
+        <tr>
+          <td>2023 high inflation</td>
+          <td>2023-06-01 → 2023-12-31</td>
+          <td>Up</td>
+          <td class="bad">30%</td>
+          <td>+0.04 <span class="muted">[-0.11, +0.20]</span></td>
+          <td>Up</td>
+          <td class="ok">80%</td>
+          <td>+0.22 <span class="muted">[+0.04, +0.45]</span></td>
+          <td>Off</td>
+          <td class="ok">✓ (0% 压力日)</td>
+        </tr>
+        <tr>
+          <td>2024 disinflation</td>
+          <td>2024-01-01 → 2024-12-31</td>
+          <td>Up</td>
+          <td class="bad">20%</td>
+          <td>+0.03 <span class="muted">[-0.18, +0.20]</span></td>
+          <td>Neutral</td>
+          <td class="bad">36%</td>
+          <td>+0.20 <span class="muted">[-0.04, +0.49]</span></td>
+          <td>Off</td>
+          <td class="bad">✗ (1% 压力日)</td>
+        </tr>
+        <tr>
+          <td>2025 tariff shock</td>
+          <td>2025-04-02 → 2025-05-15</td>
+          <td>Neutral</td>
+          <td class="bad">12%</td>
+          <td>-0.17 <span class="muted">[-0.29, -0.04]</span></td>
+          <td>Up</td>
+          <td class="bad">6%</td>
+          <td>+0.01 <span class="muted">[-0.08, +0.27]</span></td>
+          <td>On</td>
+          <td class="ok">✓ (12% 压力日)</td>
+        </tr></tbody>
+      <tfoot><tr>
+        <td colspan="3"><b>13 个锚定平均</b></td>
+        <td class="bad"><b>45.6%</b></td>
+        <td></td><td></td>
+        <td class="bad"><b>46.5%</b></td>
+        <td></td><td></td>
+        <td><b>76.9% 匹配</b></td>
+      </tr></tfoot>
+    </table>
+    <h3>逐锚定匹配率变化 (前 → 后)</h3>
+    <table class="anchor">
+      <thead><tr>
+        <th>锚定时期</th><th>共识 (g/i)</th>
+        <th>g_匹配 (前)</th><th>g_匹配 (后)</th><th>Δg</th>
+        <th>i_匹配 (前)</th><th>i_匹配 (后)</th><th>Δi</th>
+      </tr></thead>
+      <tbody>
+        <tr>
+          <td>2008 GFC trough</td>
+          <td>Down / Down</td>
+          <td>88%</td>
+          <td>100%</td>
+          <td class="ok">↑ +12pp</td>
+          <td>73%</td>
+          <td>88%</td>
+          <td class="ok">↑ +15pp</td>
+        </tr>
+        <tr>
+          <td>2010-12 expansion</td>
+          <td>Up / Neutral</td>
+          <td>34%</td>
+          <td>58%</td>
+          <td class="ok">↑ +24pp</td>
+          <td>43%</td>
+          <td>50%</td>
+          <td class="ok">↑ +6pp</td>
+        </tr>
+        <tr>
+          <td>2015-16 oil bust</td>
+          <td>Neutral / Down</td>
+          <td>26%</td>
+          <td>26%</td>
+          <td class="muted">— +0pp</td>
+          <td>97%</td>
+          <td>100%</td>
+          <td class="ok">↑ +3pp</td>
+        </tr>
+        <tr>
+          <td>2017 Goldilocks</td>
+          <td>Up / Neutral</td>
+          <td>43%</td>
+          <td>88%</td>
+          <td class="ok">↑ +45pp</td>
+          <td>52%</td>
+          <td>39%</td>
+          <td class="bad">↓ -13pp</td>
+        </tr>
+        <tr>
+          <td>2018 Q4 vol shock</td>
+          <td>Up / Neutral</td>
+          <td>4%</td>
+          <td>9%</td>
+          <td class="ok">↑ +5pp</td>
+          <td>18%</td>
+          <td>20%</td>
+          <td class="ok">↑ +2pp</td>
+        </tr>
+        <tr>
+          <td>2019 H2 slowdown</td>
+          <td>Neutral / Neutral</td>
+          <td>30%</td>
+          <td>20%</td>
+          <td class="bad">↓ -10pp</td>
+          <td>36%</td>
+          <td>25%</td>
+          <td class="bad">↓ -11pp</td>
+        </tr>
+        <tr>
+          <td>2020 COVID recession</td>
+          <td>Down / Neutral</td>
+          <td>98%</td>
+          <td>100%</td>
+          <td class="ok">↑ +2pp</td>
+          <td>0%</td>
+          <td>0%</td>
+          <td class="muted">— +0pp</td>
+        </tr>
+        <tr>
+          <td>2020H2 catch-up</td>
+          <td>Down / Down</td>
+          <td>0%</td>
+          <td>1%</td>
+          <td class="ok">↑ +1pp</td>
+          <td>13%</td>
+          <td>41%</td>
+          <td class="ok">↑ +28pp</td>
+        </tr>
+        <tr>
+          <td>2021 reflation</td>
+          <td>Up / Up</td>
+          <td>66%</td>
+          <td>94%</td>
+          <td class="ok">↑ +28pp</td>
+          <td>66%</td>
+          <td>60%</td>
+          <td class="bad">↓ -5pp</td>
+        </tr>
+        <tr>
+          <td>2022 H1 inflation</td>
+          <td>Up / Up</td>
+          <td>4%</td>
+          <td>34%</td>
+          <td class="ok">↑ +30pp</td>
+          <td>49%</td>
+          <td>59%</td>
+          <td class="ok">↑ +10pp</td>
+        </tr>
+        <tr>
+          <td>2023 high inflation</td>
+          <td>Up / Up</td>
+          <td>28%</td>
+          <td>30%</td>
+          <td class="ok">↑ +2pp</td>
+          <td>49%</td>
+          <td>80%</td>
+          <td class="ok">↑ +32pp</td>
+        </tr>
+        <tr>
+          <td>2024 disinflation</td>
+          <td>Up / Neutral</td>
+          <td>16%</td>
+          <td>20%</td>
+          <td class="ok">↑ +4pp</td>
+          <td>38%</td>
+          <td>36%</td>
+          <td class="bad">↓ -2pp</td>
+        </tr>
+        <tr>
+          <td>2025 tariff shock</td>
+          <td>Neutral / Up</td>
+          <td>12%</td>
+          <td>12%</td>
+          <td class="muted">— +0pp</td>
+          <td>6%</td>
+          <td>6%</td>
+          <td class="muted">— +0pp</td>
+        </tr></tbody>
+      <tfoot>
+        <tr>
+          <td colspan="2"><b>平均</b></td>
+          <td><b>34.6%</b></td>
+          <td><b>45.6%</b></td>
+          <td class="ok"><b>+11.0pp</b></td>
+          <td><b>41.5%</b></td>
+          <td><b>46.5%</b></td>
+          <td class="ok"><b>+5.0pp</b></td>
+        </tr>
+      </tfoot>
+    </table>
+    <h2 id="r">决策与应用</h2>
+    <h3>关键决策与依据</h3>
+    <ol>
+      <li><b>层间权重: macro 与 market 改为 balanced (各 0.50)</b>
+        (原 macro 0.35/0.30 + market 0.65/0.70)。
+        本轮宏观层首次接入完整 FRED 面板，硬数据 (CPI/PCE/payrolls) 真正
+        进入打分。Grid 表明 balanced 在 13 个共识锚定的总体匹配率上
+        全面占优 — 因为 macro 在 expansion / reflation 周期上的判断
+        (yoy 视角下增长稳/通胀升) 是对的，而原来 market-heavy 的 blend
+        让这些周期被股市噪音拖到 Neutral。</li>
+      <li><b>增长 axis 阈值: ±0.15 → ±0.10</b>。
+        在新的 50/50 blend 下，增长分数典型范围更靠近零附近。
+        把 deadband 收窄使
+        2017 Goldilocks (+45pp)、2010-12 expansion (+24pp)、2021 reflation
+        (+28pp)、2022 H1 (+30pp) 这些"轻度但持续 Up"的窗口正确显示为
+        Up，而不是被打成 Neutral。</li>
+      <li><b>通胀 axis 阈值 (±0.12) 与 hysteresis (5 日) 不变</b>。
+        Grid 显示这两个已经位于最优区间。通胀 deadband 进一步收窄
+        (例如 ±0.08) 反而在 2017、2020H2 等阶段错报为 Up，得不偿失。
+        Hysteresis 改大到 10 日对 measurement 无差异 (我们的 stability
+        指标用 raw label 计算)，且会延迟实盘里的 turning point 检测。</li>
+      <li><b>Recency decay 的下限 (min_weight = 0.65) 保持</b>。
+        本来 Q3 文档建议作为 next step 把这个降到 ~0.10 来"激活
+        per-frequency decay"。但 grid 显示 0.10 / 0.30 / 0.65 三档
+        在 match 上几乎没有差异 — 因为高频 series (周度 ICSA、日度
+        T5YIFR) 在各自 concept 内的 within-weight 都很小 (ICSA 在
+        labor 是 0.30，T5YIFR 在 market_expectations 是 1.0 但该
+        concept 只占 inflation 1.25/3.75 ≈ 33%)，光让它们 fade 不
+        能撼动 axis 分数。要真正让 decay 起作用需要重构 concept
+        composition，本轮不做。</li>
+    </ol>
+    <h3>净效果</h3>
+    <ul>
+      <li>总体共识匹配: 51.0% → <b>56.3%</b>
+        (Δ +5.3 pp)</li>
+      <li>增长 label 中位数游程: 4 → <b>4 日</b>
+        (Δ +0 日)</li>
+      <li>通胀 label 中位数游程: 3 → <b>4 日</b>
+        (Δ +1 日)</li>
+      <li>风险 overlay 匹配率: 77% (Q7 已经最优，未动)</li>
+    </ul>
+    
+    <h3>配置变更 (已应用)</h3>
+    <pre><code>--- configs/regime_detection/regime_engine.yml
++++ configs/regime_detection/regime_engine.yml
+   layers:
+     macro_nowcast:
+-      weight_growth: 0.35
+-      weight_inflation: 0.30
++      weight_growth: 0.50
++      weight_inflation: 0.50
+     market_implied:
+-      weight_growth: 0.65
+-      weight_inflation: 0.70
++      weight_growth: 0.50
++      weight_inflation: 0.50
+
+   regime_thresholds:
+-    growth_up: 0.15
+-    growth_down: -0.15
++    growth_up: 0.10
++    growth_down: -0.10
+     inflation_up: 0.12     # 不变
+     inflation_down: -0.12  # 不变
+     min_consecutive_days: 5  # 不变
+
+# fred_series.yml 不动
+# (recency_weighting.min_weight 保持 0.65 —
+#  grid 显示降低对 match 无显著贡献)
+</code></pre>
+    <h3>逐锚定平均分数轨迹 (前 → 后)</h3>
+        <table class="anchor">
+          <thead><tr>
+            <th>锚定时期</th>
+            <th>g_均值 (前)</th><th>g_均值 (后)</th><th>Δg</th>
+            <th>i_均值 (前)</th><th>i_均值 (后)</th><th>Δi</th>
+          </tr></thead>
+          <tbody>
+            <tr>
+              <td>2008 GFC trough</td>
+              <td>-0.50</td>
+              <td>-0.59</td>
+              <td>-0.09</td>
+              <td>-0.36</td>
+              <td>-0.31</td>
+              <td>+0.05</td>
+            </tr>
+            <tr>
+              <td>2010-12 expansion</td>
+              <td>+0.08</td>
+              <td>+0.14</td>
+              <td>+0.06</td>
+              <td>-0.08</td>
+              <td>-0.11</td>
+              <td>-0.04</td>
+            </tr>
+            <tr>
+              <td>2015-16 oil bust</td>
+              <td>-0.24</td>
+              <td>-0.17</td>
+              <td>+0.07</td>
+              <td>-0.39</td>
+              <td>-0.47</td>
+              <td>-0.08</td>
+            </tr>
+            <tr>
+              <td>2017 Goldilocks</td>
+              <td>+0.14</td>
+              <td>+0.15</td>
+              <td>+0.01</td>
+              <td>-0.07</td>
+              <td>-0.20</td>
+              <td>-0.12</td>
+            </tr>
+            <tr>
+              <td>2018 Q4 vol shock</td>
+              <td>-0.19</td>
+              <td>-0.12</td>
+              <td>+0.07</td>
+              <td>-0.29</td>
+              <td>-0.24</td>
+              <td>+0.05</td>
+            </tr>
+            <tr>
+              <td>2019 H2 slowdown</td>
+              <td>-0.23</td>
+              <td>-0.26</td>
+              <td>-0.03</td>
+              <td>-0.15</td>
+              <td>-0.21</td>
+              <td>-0.06</td>
+            </tr>
+            <tr>
+              <td>2020 COVID recession</td>
+              <td>-0.41</td>
+              <td>-0.38</td>
+              <td>+0.03</td>
+              <td>-0.51</td>
+              <td>-0.47</td>
+              <td>+0.04</td>
+            </tr>
+            <tr>
+              <td>2020H2 catch-up</td>
+              <td>+0.11</td>
+              <td>+0.01</td>
+              <td>-0.10</td>
+              <td>+0.08</td>
+              <td>-0.09</td>
+              <td>-0.18</td>
+            </tr>
+            <tr>
+              <td>2021 reflation</td>
+              <td>+0.18</td>
+              <td>+0.25</td>
+              <td>+0.07</td>
+              <td>+0.16</td>
+              <td>+0.16</td>
+              <td>-0.00</td>
+            </tr>
+            <tr>
+              <td>2022 H1 inflation</td>
+              <td>-0.04</td>
+              <td>+0.04</td>
+              <td>+0.08</td>
+              <td>+0.15</td>
+              <td>+0.27</td>
+              <td>+0.11</td>
+            </tr>
+            <tr>
+              <td>2023 high inflation</td>
+              <td>+0.06</td>
+              <td>+0.04</td>
+              <td>-0.02</td>
+              <td>+0.10</td>
+              <td>+0.22</td>
+              <td>+0.13</td>
+            </tr>
+            <tr>
+              <td>2024 disinflation</td>
+              <td>+0.05</td>
+              <td>+0.03</td>
+              <td>-0.02</td>
+              <td>+0.11</td>
+              <td>+0.20</td>
+              <td>+0.09</td>
+            </tr>
+            <tr>
+              <td>2025 tariff shock</td>
+              <td>-0.24</td>
+              <td>-0.17</td>
+              <td>+0.07</td>
+              <td>-0.05</td>
+              <td>+0.01</td>
+              <td>+0.06</td>
+            </tr></tbody>
+        </table>
+        <p class="muted">增长 Δ 为正表示引擎把该窗口推向更明显的 Up; 通胀同理。
+           变化方向应与该锚定的 consensus 方向一致。</p>
+        <h2 id="c">注意事项与未覆盖工作</h2>
+    <ul>
+      <li><b>Level vs direction</b>: 引擎打的是绝对 level (
+        "通胀离舒适水平有多高")，不是方向 ("正在朝哪边走")。
+        如果想要 direction-honest 信号 (MoM velocity, 二阶导数)，
+        需要单独加一层 signal，不是本轮 tuning 能解决的。</li>
+      <li><b>本轮不动 concept-level tuning</b>: 本次 calibration 只扫
+        4 个标量旋钮 (decay floor、axis 阈值、layer blend、hysteresis)。
+        <code>fred_series.yml</code> 里的 concept composition 不动:
+        增长用 <code>labor</code> (UNRATE+PAYEMS+ICSA)、
+        <code>consumption</code> (RSAFS)、
+        <code>production</code> (INDPRO)、
+        <code>broad_leading</code> (USSLIND);
+        通胀用 <code>realized_broad</code> (CPI/CPILFE/PCE/PCEPILFE 各 25%)、
+        <code>persistence</code> (sticky CPI)、
+        <code>market_expectations</code> (T5YIFR)、
+        <code>wage_pressure</code> (AHETPI)。
+        激活 dormant series (T10Y2Y yield curve、T5YIE breakevens、
+        DFII10 real yield、PPIACO、M2SL、HOUST/PERMIT、UMCSENT、MANEMP)
+        是单独的结构性 pass — 参见
+        <code>DEV_DOCS/docs/devplans/regime_engine_devplan.md</code>
+        的 "Activating a Dormant Signal" runbook。</li>
+      <li><b>共识 label 是作者指定</b>: 我把 13 个锚定按广泛接受的
+        consensus 打了标，但 reasonable analysts 在边缘会有分歧
+        (尤其 2018 Q4、2019 H2、2024)。Grid 优化的是 13 个的平均
+        匹配率 — 单个有争议的锚定不会主导结果。</li>
+      <li><b>风险 overlay 不动</b>: 本轮保留 Q7 的风险 overlay
+        校准 (enter_threshold=0.65, rcd=1) — 只动宏观 axis 的
+        权重 / decay / 阈值 / hysteresis。Grid 过滤 risk_match ≥ 80%
+        (或 fall through 到 top composite) 防止风险检测倒退。</li>
+      <li><b>稳定性指标用的是 instantaneous label</b>: 中位数游程
+        长度直接从 final 分数对照阈值算，<em>没有</em>叠 hysteresis。
+        这是有意为之 — 测的是 <em>分数本身</em> 在边界附近的振荡，
+        不是 hysteresis 滤波器掩盖了多少抖动。引擎下游的
+        <code>base_regime</code> 流 (叠了 <code>min_consecutive_days</code>
+        hysteresis) 比这平滑得多; baseline 的 quadrant 中位数游程是
+        17 日。</li>
+      <li><b>本轮 latency probe 退化</b>: 命名 transition 日期 (例
+        COVID 增长转折 = 2020-02-24) 对大多数配置都已经处于目标
+        状态，所以 latency = 0 对所有 probe 成立。Latency 保留在
+        composite 是 forward-compat; 未来 probe 应该从规范 transition
+        日期 <em>之前</em> 几日起算才能真正测出响应速度。</li>
+    </ul>
+    
+</body></html>
