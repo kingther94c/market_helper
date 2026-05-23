@@ -9,7 +9,9 @@ from market_helper.config import local_env
 from market_helper.config.local_env import (
     LOCAL_ENV_FILENAME,
     MARKET_HELPER_GDRIVE_ROOT_ENV_VAR,
+    _probe_gdrive_root,
     read_env_file_value,
+    read_gdrive_root,
     read_local_config_value,
     read_windows_user_env,
     resolve_local_config_path,
@@ -131,6 +133,103 @@ def test_read_windows_user_env_returns_empty_string_on_non_windows(monkeypatch) 
     """Helper short-circuits to '' on POSIX without importing winreg."""
     monkeypatch.setattr(local_env.os, "name", "posix")
     assert read_windows_user_env("ANY_KEY") == ""
+
+
+def test_probe_gdrive_root_finds_windows_path(monkeypatch) -> None:
+    """Pattern B: on Windows the probe returns ``G:/My Drive/005 Portfolio``
+    when that candidate's ``local.env`` exists."""
+    from pathlib import Path
+
+    monkeypatch.setattr(local_env.platform, "system", lambda: "Windows")
+    expected_root = Path("G:/My Drive/005 Portfolio")
+
+    # Pretend only the canonical Windows local.env exists. We don't touch the
+    # real filesystem — the probe just needs is_file() to return True for the
+    # right path.
+    def fake_is_file(self: Path) -> bool:
+        return str(self) == str(expected_root / LOCAL_ENV_FILENAME)
+
+    monkeypatch.setattr(local_env.Path, "is_file", fake_is_file)
+
+    assert _probe_gdrive_root() == str(expected_root)
+
+
+def test_probe_gdrive_root_finds_mac_path(tmp_path, monkeypatch) -> None:
+    """Pattern B: on macOS the probe finds the
+    ``~/Library/CloudStorage/GoogleDrive-<account>/My Drive/005 Portfolio``
+    layout via Path.home()."""
+    monkeypatch.setattr(local_env.platform, "system", lambda: "Darwin")
+    fake_home = tmp_path / "home" / "kelvin"
+    mac_root = fake_home / "Library" / "CloudStorage" / "GoogleDrive-<account>" / "My Drive" / "005 Portfolio"
+    mac_root.mkdir(parents=True)
+    (mac_root / LOCAL_ENV_FILENAME).write_text("DEMO=1\n", encoding="utf-8")
+    monkeypatch.setattr(local_env.Path, "home", classmethod(lambda cls: fake_home))
+
+    assert _probe_gdrive_root() == str(mac_root)
+
+
+def test_probe_gdrive_root_returns_empty_on_linux(monkeypatch) -> None:
+    """Pattern B: no Linux candidates by design — probe returns ``""``."""
+    monkeypatch.setattr(local_env.platform, "system", lambda: "Linux")
+    assert _probe_gdrive_root() == ""
+
+
+def test_probe_gdrive_root_returns_empty_when_no_candidate_has_env_file(tmp_path, monkeypatch) -> None:
+    """The probe is a best-effort — without a local.env in any candidate it returns ``""``."""
+    monkeypatch.setattr(local_env.platform, "system", lambda: "Darwin")
+    fake_home = tmp_path / "empty_home"
+    fake_home.mkdir()
+    monkeypatch.setattr(local_env.Path, "home", classmethod(lambda cls: fake_home))
+    assert _probe_gdrive_root() == ""
+
+
+def test_read_gdrive_root_prefers_process_env_over_registry_and_probe(monkeypatch) -> None:
+    """Resolution order: process env wins, registry + probe are not consulted."""
+
+    def explode_probe() -> str:
+        raise AssertionError("_probe_gdrive_root called despite process env set")
+
+    def explode_reg(key: str) -> str:
+        raise AssertionError(f"read_windows_user_env({key!r}) called despite process env set")
+
+    monkeypatch.setattr(local_env, "_probe_gdrive_root", explode_probe)
+    monkeypatch.setattr(local_env, "read_windows_user_env", explode_reg)
+    monkeypatch.setenv(MARKET_HELPER_GDRIVE_ROOT_ENV_VAR, "/from/process/env")
+
+    assert read_gdrive_root() == "/from/process/env"
+
+
+def test_read_gdrive_root_falls_back_to_probe_when_env_and_registry_empty(monkeypatch) -> None:
+    """When process env and registry are empty, the probe value wins."""
+    monkeypatch.delenv(MARKET_HELPER_GDRIVE_ROOT_ENV_VAR, raising=False)
+    monkeypatch.setattr(local_env, "read_windows_user_env", lambda key: "")
+    monkeypatch.setattr(local_env, "_probe_gdrive_root", lambda: "/from/probe")
+
+    assert read_gdrive_root() == "/from/probe"
+
+
+def test_read_gdrive_root_returns_empty_when_all_sources_empty(monkeypatch) -> None:
+    monkeypatch.delenv(MARKET_HELPER_GDRIVE_ROOT_ENV_VAR, raising=False)
+    monkeypatch.setattr(local_env, "read_windows_user_env", lambda key: "")
+    monkeypatch.setattr(local_env, "_probe_gdrive_root", lambda: "")
+
+    assert read_gdrive_root() == ""
+
+
+def test_read_gdrive_root_explicit_environ_skips_registry_and_probe(monkeypatch) -> None:
+    """Hermetic tests pass ``environ=`` — must not touch registry or probe."""
+
+    def explode_probe() -> str:
+        raise AssertionError("_probe_gdrive_root called despite explicit environ")
+
+    def explode_reg(key: str) -> str:
+        raise AssertionError(f"read_windows_user_env({key!r}) called despite explicit environ")
+
+    monkeypatch.setattr(local_env, "_probe_gdrive_root", explode_probe)
+    monkeypatch.setattr(local_env, "read_windows_user_env", explode_reg)
+
+    assert read_gdrive_root(environ={}) == ""
+    assert read_gdrive_root(environ={MARKET_HELPER_GDRIVE_ROOT_ENV_VAR: "/explicit"}) == "/explicit"
 
 
 def test_read_env_file_value_supports_export_and_quotes(tmp_path) -> None:

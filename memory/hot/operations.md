@@ -11,18 +11,39 @@ Always use the Conda env `py313` (Python 3.13). **Never `conda base`.**
 conda activate py313
 ```
 
-## Per-machine env vars (Windows gotcha)
+## Per-machine env vars
 
 `MARKET_HELPER_GDRIVE_ROOT` drives report mirroring + `local.env` discovery
 (FRED / Alpha Vantage / IBKR Flex secrets live in `<ROOT>/local.env`).
-Typically set as a **User-level** Windows env var via `setx`.
 
-**Agent-shell gotcha**: a child process only inherits User env vars that
-existed when its *parent* started. Agents launched before `setx` ran will see
+### Zero-config on standard layouts
+
+`market_helper.config.local_env.read_gdrive_root()` resolves the path
+automatically by trying, in order:
+
+1. Process env `MARKET_HELPER_GDRIVE_ROOT`.
+2. Windows User registry hive (`HKCU\Environment`) — Win-only, handles the
+   agent-shell gotcha below.
+3. **OS-aware probe** of well-known Google Drive mount paths:
+   - Windows: `G:/My Drive/005 Portfolio`
+   - macOS: `~/Library/CloudStorage/GoogleDrive-<account>/My Drive/005 Portfolio`
+     (also globs `GoogleDrive-*` if the email changes; legacy
+     `~/Google Drive/My Drive/005 Portfolio` last).
+
+Result: on a fresh Win or Mac machine with Google Drive mounted at the
+canonical path, **no env var setup is required** — Python tools find
+`local.env` and the Google Drive report mirror dir automatically. Set the
+env var explicitly only to override or use a non-standard location.
+
+### Windows agent-shell gotcha
+
+A child process only inherits User env vars that existed when its *parent*
+started. Agents launched before `setx` ran will see
 `$env:MARKET_HELPER_GDRIVE_ROOT` empty.
 
-**Recovery** — read the registry first, inject before any tool call that
-resolves `local.env`:
+**Recovery for the agent-process itself** (matters when the agent is a
+parent-of-parent of `python` and needs the var earlier than `read_gdrive_root`
+runs):
 
 ```powershell
 if (-not $env:MARKET_HELPER_GDRIVE_ROOT) {
@@ -30,16 +51,14 @@ if (-not $env:MARKET_HELPER_GDRIVE_ROOT) {
 }
 ```
 
-Apply before `fred-macro-sync`, `etf-sector-sync`, `regime-detect`,
-`run_report.sh`, dashboard launch. Same pattern for `FRED_API_KEY` /
-`IBKR_FLEX_TOKEN` / etc. One injection propagates to subsequent
-`python -m ...` calls — `market_helper.config.local_env` reads `os.environ`.
+Same pattern works for any other User-only env var (`FRED_API_KEY`,
+`IBKR_FLEX_TOKEN`, etc.). For Claude Code specifically, the project's
+`.claude/settings.local.json` `env` block does this once per session.
 
-The Python config layer also auto-falls back to the `HKCU\Environment`
-registry hive if `os.environ` is empty (Windows only; no-op elsewhere).
+### Secret resolution order
 
-Secret resolution order: process env → `<MARKET_HELPER_GDRIVE_ROOT>/local.env`
-→ `configs/portfolio_monitor/local.env` (gitignored fallback).
+process env → `<MARKET_HELPER_GDRIVE_ROOT>/local.env` →
+`configs/portfolio_monitor/local.env` (gitignored fallback).
 
 ## Common commands
 

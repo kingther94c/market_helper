@@ -21,6 +21,16 @@ Recent landed work (one-liners; full detail in
   "Run Flex Refresh" / "Refresh Benchmark Cache" buttons.
 - Env-first secret resolution end-to-end + Windows agent-shell ROOT
   inheritance auto-recovery in `market_helper.config.local_env`.
+- **OS-aware GDRIVE_ROOT probe (zero-config Mac+Win)** —
+  `market_helper.config.local_env.read_gdrive_root()` now resolves
+  `MARKET_HELPER_GDRIVE_ROOT` via process env → Windows registry → OS-aware
+  default probe of well-known Google Drive mount paths
+  (`G:/My Drive/005 Portfolio` on Win;
+  `~/Library/CloudStorage/GoogleDrive-<account>/My Drive/005 Portfolio`
+  on Mac, with `GoogleDrive-*` glob + legacy-layout fallbacks). No
+  per-machine env var setup needed for canonical layouts; env var still
+  takes precedence as an override. Conftest neutralizes the probe for
+  hermetic tests.
 - Architectural route confirmed (no separate snapshot/Playwright pipeline —
   see ADR 0002).
 

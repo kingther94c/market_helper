@@ -75,7 +75,7 @@ from market_helper.presentation.tables.portfolio_report import (
     PositionReportRow,
     build_position_report_rows,
 )
-from market_helper.config.local_env import read_local_config_value
+from market_helper.config.local_env import read_gdrive_root
 from market_helper.portfolio.ibkr import enrich_security_from_contract_details
 from market_helper.reporting.portfolio_html import write_portfolio_report
 from market_helper.reporting.risk_html import (
@@ -1577,31 +1577,23 @@ def _mirror_artifact_if_configured(
     return target_path
 
 
-def _read_env_or_local(key: str) -> str:
-    """Look up ``key`` in the process env first, then the local.env file."""
-    value = os.environ.get(key, "").strip()
-    if value:
-        return value
-    return read_local_config_value(key).strip()
-
-
 def _load_artifact_mirror_dir(config_path: str | Path | None = None) -> Path | None:
     """Resolve the artifact-mirror directory.
 
-    Reads ``MARKET_HELPER_GDRIVE_ROOT`` from the process env (then local.env)
-    and joins it with the fixed subdir ``Portfolio_Report``. One per-machine
-    env var drives both report mirror placement and local.env discovery
-    (see :func:`market_helper.config.local_env.resolve_local_config_path`).
+    Resolves ``MARKET_HELPER_GDRIVE_ROOT`` via
+    :func:`market_helper.config.local_env.read_gdrive_root` (process env →
+    Windows User registry → OS-aware probe of well-known Google Drive mount
+    paths) and joins it with the fixed subdir ``Portfolio_Report``.
 
-    Returns ``None`` when ROOT is unset, so mirroring is silently skipped on
-    hosts that don't opt in.
+    Returns ``None`` when no source yields a value, so mirroring is silently
+    skipped on hosts where Google Drive isn't mounted at a known path.
 
     ``config_path`` is unused and kept only for the existing call signature
     in the report pipeline; the YAML fallback was removed in favor of the
     single-env-var model.
     """
     del config_path  # legacy parameter retained for caller compatibility
-    root = _read_env_or_local(MARKET_HELPER_GDRIVE_ROOT_ENV_VAR)
+    root = read_gdrive_root()
     if not root:
         return None
     return Path(root).expanduser() / REPORT_SUBDIR

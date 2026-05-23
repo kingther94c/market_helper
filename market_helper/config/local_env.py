@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+import glob
 import os
+import platform
 from pathlib import Path
 from typing import Mapping
 
@@ -41,6 +43,81 @@ def read_windows_user_env(key: str) -> str:
     return str(value).strip()
 
 
+def _probe_gdrive_root() -> str:
+    """Best-effort default for ``MARKET_HELPER_GDRIVE_ROOT`` when env + registry
+    are both empty.
+
+    Tries well-known Google Drive mount paths for the current OS and returns
+    the first one whose ``local.env`` actually exists. Returns ``""`` if no
+    candidate matches.
+
+    This makes typical Mac + Windows installs **zero-config** — no
+    per-machine env var or registry entry needed in the canonical layout.
+    Override with an explicit env var to point at a non-standard location.
+
+    Known candidates:
+        Windows: ``G:/My Drive/005 Portfolio``
+        macOS:   ``~/Library/CloudStorage/GoogleDrive-<account>/My Drive/005 Portfolio``
+                 + any ``~/Library/CloudStorage/GoogleDrive-*/My Drive/005 Portfolio``
+                 + legacy ``~/Google Drive/My Drive/005 Portfolio``
+    """
+    sys_name = platform.system()
+    if sys_name == "Windows":
+        candidates: list[Path] = [Path("G:/My Drive/005 Portfolio")]
+    elif sys_name == "Darwin":
+        home = Path.home()
+        candidates = [
+            home / "Library/CloudStorage/GoogleDrive-<account>/My Drive/005 Portfolio",
+            *(
+                Path(match)
+                for match in glob.glob(
+                    str(home / "Library/CloudStorage/GoogleDrive-*/My Drive/005 Portfolio")
+                )
+            ),
+            home / "Google Drive/My Drive/005 Portfolio",
+        ]
+    else:
+        return ""
+    seen: set[str] = set()
+    for candidate in candidates:
+        key = str(candidate)
+        if key in seen:
+            continue
+        seen.add(key)
+        if (candidate / LOCAL_ENV_FILENAME).is_file():
+            return key
+    return ""
+
+
+def read_gdrive_root(*, environ: Mapping[str, str] | None = None) -> str:
+    """Canonical resolver for ``MARKET_HELPER_GDRIVE_ROOT``.
+
+    Tries, in order:
+
+    1. Process env (or the explicit ``environ`` arg for hermetic tests).
+    2. Windows User registry hive (``HKCU\\Environment``) — Win-only, no-op
+       elsewhere; lets long-lived parents recover after ``setx`` ran.
+    3. OS-aware default-probe (:func:`_probe_gdrive_root`) — picks the first
+       well-known Google Drive mount path whose ``local.env`` exists.
+
+    Steps 2 and 3 are skipped when the caller passes an explicit ``environ=``
+    (hermetic tests should never touch the host registry or filesystem
+    probes for the live user's GDrive mount).
+
+    Returns ``""`` when no source yields a value.
+    """
+    env = environ if environ is not None else os.environ
+    value = str(env.get(MARKET_HELPER_GDRIVE_ROOT_ENV_VAR, "")).strip()
+    if value:
+        return value
+    if environ is not None:
+        return ""
+    value = read_windows_user_env(MARKET_HELPER_GDRIVE_ROOT_ENV_VAR)
+    if value:
+        return value
+    return _probe_gdrive_root()
+
+
 def resolve_local_config_path(
     default_path: str | Path | None = None,
     *,
@@ -50,29 +127,17 @@ def resolve_local_config_path(
 
     Priority order:
 
-    1. ``<MARKET_HELPER_GDRIVE_ROOT>/local.env``, if ROOT is set and the
-       derived file exists. A single per-machine env var drives both
-       report-mirror placement and local.env discovery. On Windows, if
-       ROOT is absent from ``os.environ`` we also try the User registry
-       hive directly (see :func:`read_windows_user_env`) so processes
-       launched before ``setx`` ran still find the value.
+    1. ``<MARKET_HELPER_GDRIVE_ROOT>/local.env``, where ROOT is resolved by
+       :func:`read_gdrive_root` (process env → Windows registry → OS-aware
+       probe of well-known Google Drive mount paths).
     2. ``default_path`` argument, or the repo-checked-in
        ``configs/portfolio_monitor/local.env`` as a final fallback.
     """
-    env = environ if environ is not None else os.environ
-
-    gdrive_root = str(env.get(MARKET_HELPER_GDRIVE_ROOT_ENV_VAR, "")).strip()
-    # Skip the Windows registry fallback when the caller passed an explicit
-    # `environ` (typically a test fixture) — tests should be hermetic from
-    # the real host registry. Production callers pass no `environ`, so they
-    # still benefit from the fallback.
-    if not gdrive_root and environ is None:
-        gdrive_root = read_windows_user_env(MARKET_HELPER_GDRIVE_ROOT_ENV_VAR)
+    gdrive_root = read_gdrive_root(environ=environ)
     if gdrive_root:
         derived_path = Path(gdrive_root).expanduser() / LOCAL_ENV_FILENAME
         if derived_path.is_file():
             return derived_path
-
     return Path(default_path or DEFAULT_LOCAL_CONFIG_PATH)
 
 
