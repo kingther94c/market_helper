@@ -1,0 +1,366 @@
+<!doctype html>
+<html lang="zh-CN"><head><meta charset="utf-8">
+<title>Q9 邻域稳定性附录 (2026-05-23)</title>
+
+    <style>
+      body { font-family: ui-sans-serif, system-ui, -apple-system, "PingFang SC", "Microsoft YaHei", "Segoe UI", Roboto, sans-serif;
+             max-width: 1200px; margin: 30px auto; padding: 0 20px; line-height: 1.6;
+             color: #1f2328; }
+      h1 { font-size: 1.7em; margin: 0 0 0.3em; }
+      h2 { font-size: 1.3em; margin-top: 1.8em; padding-bottom: 0.3em; border-bottom: 1px solid #d0d7de; }
+      h3 { font-size: 1.05em; margin-top: 1.3em; }
+      table { border-collapse: collapse; margin: 1em 0; font-size: 0.92em; width: 100%; }
+      th, td { padding: 6px 10px; border: 1px solid #d0d7de; text-align: left; vertical-align: top; }
+      th { background: #f6f8fa; }
+      td.ok { color: #1a7f37; font-weight: 600; }
+      td.bad { color: #cf222e; font-weight: 600; }
+      td.q9 { background: #fff8c5; }
+      .muted { color: #57606a; font-size: 0.9em; }
+      code { background: #f6f8fa; padding: 1px 5px; border-radius: 3px; font-size: 0.88em; }
+      pre code { display: block; padding: 12px; line-height: 1.45; white-space: pre; }
+      .banner { background: #ddf4ff; border-left: 4px solid #0969da; padding: 10px 16px; margin: 1em 0; border-radius: 4px; }
+      .pass-banner { background: #dafbe1; border-left: 4px solid #1a7f37; padding: 10px 16px; margin: 1em 0; border-radius: 4px; }
+      .warn { background: #fff8c5; border-left: 4px solid #9a6700; padding: 10px 16px; margin: 1em 0; border-radius: 4px; }
+      .toc { background: #f6f8fa; padding: 12px 20px; border: 1px solid #d0d7de; border-radius: 6px; }
+    </style>
+    
+</head><body>
+<h1>Q9 宏观校准 — 邻域稳定性附录 (Phase 1 + 2)</h1>
+<p class="muted">2026-05-23 · 检查 Q9 winner 是否站在参数尖刺上还是稳定盆地里。
+   源自用户对 grid-argmax 选择规则的方法学批评。</p>
+
+    <div class="banner">
+      <b>动机</b>: Q9 winner 是在 holdout 不 regression 的前提下, 按
+      <code>train_overall + 0.3·stability</code> 取 argmax 选出的。
+      但 argmax 在带噪面上可能停在单格尖刺。鲁棒最优应该是
+      <em>邻域</em> 也 top-tier 且没有特别差邻居的点。本附录两阶段验证:
+      <ol>
+        <li><b>Phase 1</b>: 在现有 360 配置上重做 L1 邻域统计 (零额外计算)。</li>
+        <li><b>Phase 2</b>: 在 contender 周围半步细化 (162 新 config,
+          扩展网格 = 522 config), 重做邻域分析。</li>
+      </ol>
+    </div>
+
+    <div class="toc"><b>章节</b><ul>
+      <li><a href="#rules">选择规则 (用户预先确认)</a></li>
+      <li><a href="#p1">Phase 1 — 原始网格邻域分析</a></li>
+      <li><a href="#p2">Phase 2 — 扩展网格 + 再分析</a></li>
+      <li><a href="#cmp">Q9 winner vs 鲁棒 top (并排)</a></li>
+      <li><a href="#decision">决策</a></li>
+      <li><a href="#caveats">注意事项</a></li>
+    </ul></div>
+
+    <h2 id="rules">选择规则 (执行前已和用户确认)</h2>
+    <ul>
+      <li><b>邻域</b>: L1 网格索引, 同 <code>layer_blend</code> (分类变量,
+        不跨), 在 4 个连续维 (ivw, gvw, gt, it) 中只动 1 个 ±1 步。
+        每个 config 最多 8 个邻居。</li>
+      <li><b>Top 指标</b>: <code>median(邻居 train_overall)</code> —
+        对单个异常邻居稳健。</li>
+      <li><b>无差点规则</b>:
+        <code>min(邻居 train) ≥ max(baseline_train, 自身 − 5pp)</code>
+        — 最差邻居必须高于 baseline 且距自身不超过 5pp。</li>
+      <li><b>资格过滤器</b>: <code>n_neighbors ≥ 4</code> AND
+        <code>holdout ≥ baseline_holdout</code> AND
+        <code>self_train > baseline_train</code> AND no_bad_neighbor。</li>
+      <li><b>排序</b>:
+        <code>robust_train = mean(self_train, 邻居中位数 train)</code>;
+        次序: <code>self_train</code>。</li>
+      <li><b>Train/holdout 纪律保持</b>: 所有统计分别在 train 和 holdout
+        上算; holdout 永不进入优化目标。</li>
+    </ul>
+
+    <h2 id="p1">Phase 1 — 原始网格邻域分析 (360 configs)</h2>
+    <table><thead><tr><th>过滤器</th><th>通过 / 总数</th></tr></thead><tbody><tr><td>n_neighbors_ge_4</td><td>360/360</td></tr><tr><td>holdout_non_regress</td><td>133/360</td></tr><tr><td>self_train_gt_baseline</td><td>204/360</td></tr><tr><td>no_bad_neighbor</td><td>181/360</td></tr><tr><td>all_combined</td><td>44/360</td></tr></tbody></table>
+    <p class="muted">资格级联 360 → 44 候选。Q9 winner 在合格者中按 robust_train 排名: <b>9</b>。</p>
+
+    <h3>Phase-1 robust_train 前 10</h3>
+    <table>
+      <thead><tr><th>#</th><th>参数</th><th>self_T</th><th>nbr_med_T</th><th>nbr_min_T</th><th>self_H</th><th>nbr_min_H</th><th>robust_T</th><th>标记</th></tr></thead>
+      <tbody>
+        <tr>
+          <td>1</td>
+          <td><code style="font-size:0.85em">ivw=0.7, gvw=0.0, gt=±0.1, it=±0.1, macro/market=0.6/0.4</code></td>
+          <td>60.2%</td>
+          <td>60.1%</td>
+          <td>59.3%</td>
+          <td>57.5%</td>
+          <td>56.3%</td>
+          <td><b>60.1</b></td>
+          <td></td>
+        </tr>
+        <tr>
+          <td>2</td>
+          <td><code style="font-size:0.85em">ivw=1.0, gvw=0.0, gt=±0.1, it=±0.1, macro/market=0.6/0.4</code></td>
+          <td>60.1%</td>
+          <td>59.9%</td>
+          <td>59.3%</td>
+          <td>58.1%</td>
+          <td>57.5%</td>
+          <td><b>60.0</b></td>
+          <td></td>
+        </tr>
+        <tr>
+          <td>3</td>
+          <td><code style="font-size:0.85em">ivw=0.7, gvw=0.0, gt=±0.1, it=±0.12, macro/market=0.6/0.4</code></td>
+          <td>60.1%</td>
+          <td>59.9%</td>
+          <td>59.3%</td>
+          <td>57.6%</td>
+          <td>56.8%</td>
+          <td><b>60.0</b></td>
+          <td></td>
+        </tr>
+        <tr>
+          <td>4</td>
+          <td><code style="font-size:0.85em">ivw=1.0, gvw=0.0, gt=±0.1, it=±0.12, macro/market=0.6/0.4</code></td>
+          <td>60.1%</td>
+          <td>59.7%</td>
+          <td>59.3%</td>
+          <td>58.7%</td>
+          <td>57.6%</td>
+          <td><b>59.9</b></td>
+          <td></td>
+        </tr>
+        <tr>
+          <td>5</td>
+          <td><code style="font-size:0.85em">ivw=1.0, gvw=0.3, gt=±0.1, it=±0.1, macro/market=0.6/0.4</code></td>
+          <td>59.7%</td>
+          <td>59.6%</td>
+          <td>59.0%</td>
+          <td>57.8%</td>
+          <td>57.2%</td>
+          <td><b>59.6</b></td>
+          <td></td>
+        </tr>
+        <tr>
+          <td>6</td>
+          <td><code style="font-size:0.85em">ivw=1.0, gvw=0.3, gt=±0.1, it=±0.12, macro/market=0.6/0.4</code></td>
+          <td>59.6%</td>
+          <td>59.6%</td>
+          <td>59.0%</td>
+          <td>58.4%</td>
+          <td>57.2%</td>
+          <td><b>59.6</b></td>
+          <td></td>
+        </tr>
+        <tr>
+          <td>7</td>
+          <td><code style="font-size:0.85em">ivw=1.0, gvw=0.5, gt=±0.1, it=±0.1, macro/market=0.6/0.4</code></td>
+          <td>59.6%</td>
+          <td>59.6%</td>
+          <td>59.0%</td>
+          <td>57.5%</td>
+          <td>56.9%</td>
+          <td><b>59.6</b></td>
+          <td></td>
+        </tr>
+        <tr>
+          <td>8</td>
+          <td><code style="font-size:0.85em">ivw=1.0, gvw=0.5, gt=±0.1, it=±0.12, macro/market=0.6/0.4</code></td>
+          <td>59.6%</td>
+          <td>59.5%</td>
+          <td>58.9%</td>
+          <td>58.1%</td>
+          <td>57.0%</td>
+          <td><b>59.6</b></td>
+          <td></td>
+        </tr>
+        <tr class="q9">
+          <td>9</td>
+          <td><code style="font-size:0.85em">ivw=1.0, gvw=0.0, gt=±0.1, it=±0.15, macro/market=0.6/0.4</code></td>
+          <td>59.7%</td>
+          <td>59.4%</td>
+          <td>58.9%</td>
+          <td>59.4%</td>
+          <td>58.6%</td>
+          <td><b>59.5</b></td>
+          <td>Q9*</td>
+        </tr>
+        <tr>
+          <td>10</td>
+          <td><code style="font-size:0.85em">ivw=1.0, gvw=0.7, gt=±0.1, it=±0.12, macro/market=0.6/0.4</code></td>
+          <td>59.5%</td>
+          <td>59.5%</td>
+          <td>58.8%</td>
+          <td>57.5%</td>
+          <td>56.4%</td>
+          <td><b>59.5</b></td>
+          <td></td>
+        </tr></tbody>
+    </table>
+
+    <h2 id="p2">Phase 2 — 扩展网格 (522 configs)</h2>
+    <p>细化区在主导前 15 的维度上加半步: <code>ivw</code> ∈
+       {0.5, 0.6, 0.7, 0.85, 1.0}, <code>gvw</code> ∈ {0.0, 0.15, 0.3},
+       <code>it</code> ∈ {0.10, 0.11, 0.12, 0.13, 0.14, 0.15},
+       layer-blend ∈ {0.55/0.45, 0.60/0.40}。加上原粗格, 去重: 162 个
+       新 config。</p>
+
+    <table><thead><tr><th>过滤器</th><th>通过 / 总数</th></tr></thead><tbody><tr><td>n_neighbors_ge_4</td><td>304/522</td></tr><tr><td>holdout_non_regress</td><td>255/522</td></tr><tr><td>self_train_gt_baseline</td><td>366/522</td></tr><tr><td>no_bad_neighbor</td><td>344/522</td></tr><tr><td>all_combined</td><td>136/522</td></tr></tbody></table>
+    <p class="muted">Q9 winner 在扩展网格上按 robust_train 排名: <b>35</b> (原始网格上是 9)。</p>
+
+    <h3>Phase-2 robust_train 前 10</h3>
+    <table>
+      <thead><tr><th>#</th><th>参数</th><th>self_T</th><th>nbr_med_T</th><th>nbr_min_T</th><th>self_H</th><th>nbr_min_H</th><th>robust_T</th><th>标记</th></tr></thead>
+      <tbody>
+        <tr>
+          <td>1</td>
+          <td><code style="font-size:0.85em">ivw=0.7, gvw=0.0, gt=±0.1, it=±0.1, macro/market=0.6/0.4</code></td>
+          <td>60.2%</td>
+          <td>60.1%</td>
+          <td>59.3%</td>
+          <td>57.5%</td>
+          <td>56.9%</td>
+          <td><b>60.1</b></td>
+          <td></td>
+        </tr>
+        <tr>
+          <td>2</td>
+          <td><code style="font-size:0.85em">ivw=0.85, gvw=0.0, gt=±0.1, it=±0.1, macro/market=0.6/0.4</code></td>
+          <td>60.1%</td>
+          <td>60.0%</td>
+          <td>59.7%</td>
+          <td>57.9%</td>
+          <td>57.5%</td>
+          <td><b>60.1</b></td>
+          <td></td>
+        </tr>
+        <tr>
+          <td>3</td>
+          <td><code style="font-size:0.85em">ivw=1.0, gvw=0.0, gt=±0.1, it=±0.11, macro/market=0.6/0.4</code></td>
+          <td>60.1%</td>
+          <td>60.0%</td>
+          <td>59.8%</td>
+          <td>58.2%</td>
+          <td>57.8%</td>
+          <td><b>60.1</b></td>
+          <td></td>
+        </tr>
+        <tr>
+          <td>4</td>
+          <td><code style="font-size:0.85em">ivw=0.7, gvw=0.0, gt=±0.1, it=±0.12, macro/market=0.6/0.4</code></td>
+          <td>60.1%</td>
+          <td>60.0%</td>
+          <td>59.3%</td>
+          <td>57.6%</td>
+          <td>57.2%</td>
+          <td><b>60.0</b></td>
+          <td></td>
+        </tr>
+        <tr>
+          <td>5</td>
+          <td><code style="font-size:0.85em">ivw=1.0, gvw=0.0, gt=±0.1, it=±0.12, macro/market=0.6/0.4</code></td>
+          <td>60.1%</td>
+          <td>60.0%</td>
+          <td>59.3%</td>
+          <td>58.7%</td>
+          <td>58.1%</td>
+          <td><b>60.0</b></td>
+          <td></td>
+        </tr>
+        <tr>
+          <td>6</td>
+          <td><code style="font-size:0.85em">ivw=0.85, gvw=0.0, gt=±0.1, it=±0.12, macro/market=0.6/0.4</code></td>
+          <td>60.1%</td>
+          <td>60.0%</td>
+          <td>59.7%</td>
+          <td>58.1%</td>
+          <td>57.6%</td>
+          <td><b>60.0</b></td>
+          <td></td>
+        </tr>
+        <tr>
+          <td>7</td>
+          <td><code style="font-size:0.85em">ivw=0.85, gvw=0.0, gt=±0.1, it=±0.11, macro/market=0.6/0.4</code></td>
+          <td>60.0%</td>
+          <td>60.1%</td>
+          <td>59.7%</td>
+          <td>57.9%</td>
+          <td>57.2%</td>
+          <td><b>60.0</b></td>
+          <td></td>
+        </tr>
+        <tr>
+          <td>8</td>
+          <td><code style="font-size:0.85em">ivw=1.0, gvw=0.0, gt=±0.1, it=±0.1, macro/market=0.6/0.4</code></td>
+          <td>60.1%</td>
+          <td>60.0%</td>
+          <td>59.3%</td>
+          <td>58.1%</td>
+          <td>57.8%</td>
+          <td><b>60.0</b></td>
+          <td></td>
+        </tr>
+        <tr>
+          <td>9</td>
+          <td><code style="font-size:0.85em">ivw=1.0, gvw=0.0, gt=±0.1, it=±0.13, macro/market=0.6/0.4</code></td>
+          <td>60.0%</td>
+          <td>60.0%</td>
+          <td>59.7%</td>
+          <td>58.8%</td>
+          <td>58.4%</td>
+          <td><b>60.0</b></td>
+          <td></td>
+        </tr>
+        <tr>
+          <td>10</td>
+          <td><code style="font-size:0.85em">ivw=0.85, gvw=0.0, gt=±0.1, it=±0.13, macro/market=0.6/0.4</code></td>
+          <td>60.0%</td>
+          <td>59.9%</td>
+          <td>59.7%</td>
+          <td>58.4%</td>
+          <td>58.0%</td>
+          <td><b>60.0</b></td>
+          <td></td>
+        </tr></tbody>
+    </table>
+
+    <h2 id="cmp">Q9 winner vs Phase-2 鲁棒 top (并排)</h2>
+    <table>
+      <thead><tr><th></th><th>Q9 winner</th><th>Phase-2 鲁棒 top</th><th>Δ</th></tr></thead>
+      <tbody>
+        <tr><td>参数</td><td><code style="font-size:0.85em">ivw=1.0, gvw=0.0, gt=±0.1, it=±0.15, macro/market=0.6/0.4</code></td>
+            <td><code style="font-size:0.85em">ivw=0.7, gvw=0.0, gt=±0.1, it=±0.1, macro/market=0.6/0.4</code></td><td></td></tr>
+        <tr><td>self_train</td><td>59.7%</td><td>60.2%</td>
+            <td>+0.5pp</td></tr>
+        <tr><td>self_holdout</td><td>59.4%</td><td>57.5%</td>
+            <td>-1.9pp</td></tr>
+        <tr><td>nbr_train_median</td><td>59.5%</td><td>60.1%</td>
+            <td>+0.6pp</td></tr>
+        <tr><td>nbr_train_min</td><td>58.9%</td><td>59.3%</td>
+            <td>+0.4pp</td></tr>
+        <tr><td>nbr_holdout_min</td><td>59.0%</td><td>56.9%</td>
+            <td>-2.1pp</td></tr>
+        <tr><td>robust_train</td><td>59.6</td><td>60.1</td>
+            <td>+0.6</td></tr>
+        <tr><td>n_neighbors</td><td>4</td><td>5</td><td></td></tr>
+      </tbody>
+    </table>
+
+    <h2 id="decision">决策</h2>
+    <div class="pass-banner">
+      <b>保留 Q9 winner</b><br>
+      Top robust gains train-robustness (+0.6pp) but loses holdout (-1.9pp). Q9 winner sits at a different point on the train/holdout curve.
+    </div>
+
+    <h3>推荐参数 (应用)</h3><pre><code>ivw=1.0, gvw=0.0, gt=±0.1, it=±0.15, macro/market=0.6/0.4</code></pre>
+
+    <h2 id="caveats">注意事项</h2>
+    <ul>
+      <li><b>网格仍是离散的</b>: 即使半步, 响应面也是采样的不是解析的。
+        真正连续的最优可能落在 Phase-2 网格点之间。</li>
+      <li><b>Holdout 样本小 (4 anchor)</b>: holdout delta ±1-2pp 在采样
+        噪音内。不要把小于 ~2pp 的 holdout 回退当成强证据。</li>
+      <li><b>邻域定义是 L1, 不是 L2</b>: 在 2 个以上维度同时变化的 config
+        不视为邻居。这是有意为之 (每个维度尺度和含义不同), 但意味着
+        多维同时漂移的稳定性没被测试。</li>
+      <li><b>Layer blend 当成分类变量处理</b>: 我们从不跨 blend 比较邻居。
+        某个 m/m=0.6/0.4 内的鲁棒最优, 如果操作员因其他原因换 blend,
+        可能不再鲁棒。</li>
+      <li><b>"5pp drop" 下限是人定的</b>: 阈值更严或更松会改变哪些
+        config 通过 "无差点" 规则。选 5pp 是因为它大致是 Q8→Q9 train
+        提升的尺度。</li>
+    </ul>
+    
+</body></html>

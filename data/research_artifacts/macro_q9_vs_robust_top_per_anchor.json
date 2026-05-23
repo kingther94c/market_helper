@@ -1,0 +1,150 @@
+{
+  "q9_params": {
+    "inflation_velocity_weight": 1.0,
+    "growth_velocity_weight": 0.0,
+    "growth_thresh": 0.1,
+    "inflation_thresh": 0.15,
+    "macro_w": 0.6,
+    "market_w": 0.4
+  },
+  "top_params": {
+    "inflation_velocity_weight": 0.7,
+    "growth_velocity_weight": 0.0,
+    "growth_thresh": 0.1,
+    "inflation_thresh": 0.1,
+    "macro_w": 0.6,
+    "market_w": 0.4
+  },
+  "per_anchor": [
+    {
+      "anchor": "2010-12 expansion",
+      "set": "train",
+      "q9_g": 74.8,
+      "q9_i": 61.3,
+      "top_g": 74.8,
+      "top_i": 47.6,
+      "delta_g": 0.0,
+      "delta_i": -13.7
+    },
+    {
+      "anchor": "2015-16 oil bust",
+      "set": "train",
+      "q9_g": 37.7,
+      "q9_i": 100.0,
+      "top_g": 37.7,
+      "top_i": 100.0,
+      "delta_g": 0.0,
+      "delta_i": 0.0
+    },
+    {
+      "anchor": "2018 Q4 vol shock",
+      "set": "train",
+      "q9_g": 10.6,
+      "q9_i": 24.2,
+      "top_g": 10.6,
+      "top_i": 10.6,
+      "delta_g": 0.0,
+      "delta_i": -13.6
+    },
+    {
+      "anchor": "2019 H2 slowdown",
+      "set": "train",
+      "q9_g": 6.1,
+      "q9_i": 33.3,
+      "top_g": 6.1,
+      "top_i": 18.2,
+      "delta_g": 0.0,
+      "delta_i": -15.1
+    },
+    {
+      "anchor": "2020 COVID recession",
+      "set": "train",
+      "q9_g": 100.0,
+      "q9_i": 0.0,
+      "top_g": 100.0,
+      "top_i": 0.0,
+      "delta_g": 0.0,
+      "delta_i": 0.0
+    },
+    {
+      "anchor": "2020H2 catch-up",
+      "set": "train",
+      "q9_g": 18.9,
+      "q9_i": 28.0,
+      "top_g": 18.9,
+      "top_i": 52.3,
+      "delta_g": 0.0,
+      "delta_i": 24.3
+    },
+    {
+      "anchor": "2021 reflation",
+      "set": "train",
+      "q9_g": 94.4,
+      "q9_i": 77.7,
+      "top_g": 94.4,
+      "top_i": 82.7,
+      "delta_g": 0.0,
+      "delta_i": 5.0
+    },
+    {
+      "anchor": "2022 H1 inflation",
+      "set": "train",
+      "q9_g": 52.6,
+      "q9_i": 90.9,
+      "top_g": 52.6,
+      "top_i": 98.7,
+      "delta_g": 0.0,
+      "delta_i": 7.8
+    },
+    {
+      "anchor": "2023 high inflation",
+      "set": "train",
+      "q9_g": 19.1,
+      "q9_i": 82.2,
+      "top_g": 19.1,
+      "top_i": 100.0,
+      "delta_g": 0.0,
+      "delta_i": 17.8
+    },
+    {
+      "anchor": "2008 GFC trough",
+      "set": "holdout",
+      "q9_g": 100.0,
+      "q9_i": 82.3,
+      "top_g": 100.0,
+      "top_i": 86.2,
+      "delta_g": 0.0,
+      "delta_i": 3.9
+    },
+    {
+      "anchor": "2017 Goldilocks",
+      "set": "holdout",
+      "q9_g": 90.3,
+      "q9_i": 45.1,
+      "top_g": 90.3,
+      "top_i": 24.6,
+      "delta_g": 0.0,
+      "delta_i": -20.5
+    },
+    {
+      "anchor": "2024 disinflation",
+      "set": "holdout",
+      "q9_g": 10.7,
+      "q9_i": 40.5,
+      "top_g": 10.7,
+      "top_i": 28.2,
+      "delta_g": 0.0,
+      "delta_i": -12.3
+    },
+    {
+      "anchor": "2025 tariff shock",
+      "set": "holdout",
+      "q9_g": 37.5,
+      "q9_i": 6.2,
+      "top_g": 37.5,
+      "top_i": 12.5,
+      "delta_g": 0.0,
+      "delta_i": 6.3
+    }
+  ]
+}

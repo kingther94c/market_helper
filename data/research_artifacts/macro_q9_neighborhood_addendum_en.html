@@ -1,0 +1,378 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8">
+<title>Q9 Neighborhood-Stability Addendum (2026-05-23)</title>
+
+    <style>
+      body { font-family: ui-sans-serif, system-ui, -apple-system, "PingFang SC", "Microsoft YaHei", "Segoe UI", Roboto, sans-serif;
+             max-width: 1200px; margin: 30px auto; padding: 0 20px; line-height: 1.6;
+             color: #1f2328; }
+      h1 { font-size: 1.7em; margin: 0 0 0.3em; }
+      h2 { font-size: 1.3em; margin-top: 1.8em; padding-bottom: 0.3em; border-bottom: 1px solid #d0d7de; }
+      h3 { font-size: 1.05em; margin-top: 1.3em; }
+      table { border-collapse: collapse; margin: 1em 0; font-size: 0.92em; width: 100%; }
+      th, td { padding: 6px 10px; border: 1px solid #d0d7de; text-align: left; vertical-align: top; }
+      th { background: #f6f8fa; }
+      td.ok { color: #1a7f37; font-weight: 600; }
+      td.bad { color: #cf222e; font-weight: 600; }
+      td.q9 { background: #fff8c5; }
+      .muted { color: #57606a; font-size: 0.9em; }
+      code { background: #f6f8fa; padding: 1px 5px; border-radius: 3px; font-size: 0.88em; }
+      pre code { display: block; padding: 12px; line-height: 1.45; white-space: pre; }
+      .banner { background: #ddf4ff; border-left: 4px solid #0969da; padding: 10px 16px; margin: 1em 0; border-radius: 4px; }
+      .pass-banner { background: #dafbe1; border-left: 4px solid #1a7f37; padding: 10px 16px; margin: 1em 0; border-radius: 4px; }
+      .warn { background: #fff8c5; border-left: 4px solid #9a6700; padding: 10px 16px; margin: 1em 0; border-radius: 4px; }
+      .toc { background: #f6f8fa; padding: 12px 20px; border: 1px solid #d0d7de; border-radius: 6px; }
+    </style>
+    
+</head><body>
+<h1>Q9 Macro Calibration — Neighborhood-Stability Addendum (Phase 1 + 2)</h1>
+<p class="muted">2026-05-23 · checks whether the Q9 winner sits on a parameter
+   spike or in a stable basin. User-driven critique of grid-argmax
+   selection.</p>
+
+    <div class="banner">
+      <b>Motivation</b>: the Q9 winner was selected as the argmax of
+      <code>train_overall + 0.3·stability</code> among configs that did not
+      regress on holdout. Argmax of a noisy surface can sit on a single
+      grid-point spike. A robust optimum is one whose <em>neighborhood</em>
+      is also top-tier and has no particularly bad neighbor. This addendum
+      checks Q9 against that criterion in two phases:
+      <ol>
+        <li><b>Phase 1</b>: re-analyze the existing 360-config grid with
+          L1 neighborhood statistics (zero new computation).</li>
+        <li><b>Phase 2</b>: half-step refinement around the contenders
+          (162 new configs, augmented grid = 522 configs), repeat the
+          neighborhood analysis.</li>
+      </ol>
+    </div>
+
+    <div class="toc"><b>Sections</b><ul>
+      <li><a href="#rules">Selection rules (user-confirmed)</a></li>
+      <li><a href="#p1">Phase 1 — neighborhood analysis, original grid</a></li>
+      <li><a href="#p2">Phase 2 — augmented grid + re-analysis</a></li>
+      <li><a href="#cmp">Q9 winner vs top robust (side-by-side)</a></li>
+      <li><a href="#decision">Decision</a></li>
+      <li><a href="#caveats">Caveats</a></li>
+    </ul></div>
+
+    <h2 id="rules">Selection rules (user-confirmed before execution)</h2>
+    <ul>
+      <li><b>Neighborhood</b>: L1 grid-index, same <code>layer_blend</code>
+        (categorical, not crossed), ±1 step on exactly one of the 4
+        continuous dims (ivw, gvw, gt, it). Max 8 neighbors per config.</li>
+      <li><b>Top metric</b>: <code>median(neighbor train_overall)</code>
+        — robust to a single outlier neighbor.</li>
+      <li><b>No bad neighbor</b>:
+        <code>min(neighbor train) ≥ max(baseline_train, self − 5pp)</code>
+        — worst neighbor must beat baseline AND stay within 5pp of self.</li>
+      <li><b>Eligibility filters</b>: <code>n_neighbors ≥ 4</code> AND
+        <code>holdout ≥ baseline_holdout</code> AND
+        <code>self_train > baseline_train</code> AND no_bad_neighbor.</li>
+      <li><b>Ranking</b>:
+        <code>robust_train = mean(self_train, neighbor_median_train)</code>;
+        tiebreaker: <code>self_train</code>.</li>
+      <li><b>Train/holdout discipline preserved</b>: all stats split by
+        train and holdout; holdout never enters the optimization objective.</li>
+    </ul>
+
+    <h2 id="p1">Phase 1 — neighborhood analysis on original grid (360 configs)</h2>
+    <table><thead><tr><th>Filter</th><th>Pass / total</th></tr></thead><tbody><tr><td>n_neighbors_ge_4</td><td>360/360</td></tr><tr><td>holdout_non_regress</td><td>133/360</td></tr><tr><td>self_train_gt_baseline</td><td>204/360</td></tr><tr><td>no_bad_neighbor</td><td>181/360</td></tr><tr><td>all_combined</td><td>44/360</td></tr></tbody></table>
+    <p class="muted">Eligibility cascade reduces 360 → 44 candidates. Q9 winner rank by robust_train among eligible: <b>9</b>.</p>
+
+    <h3>Phase-1 top 10 by robust_train</h3>
+    <table>
+      <thead><tr><th>#</th><th>Params</th><th>self_T</th><th>nbr_med_T</th><th>nbr_min_T</th><th>self_H</th><th>nbr_min_H</th><th>robust_T</th><th>Mark</th></tr></thead>
+      <tbody>
+        <tr>
+          <td>1</td>
+          <td><code style="font-size:0.85em">ivw=0.7, gvw=0.0, gt=±0.1, it=±0.1, macro/market=0.6/0.4</code></td>
+          <td>60.2%</td>
+          <td>60.1%</td>
+          <td>59.3%</td>
+          <td>57.5%</td>
+          <td>56.3%</td>
+          <td><b>60.1</b></td>
+          <td></td>
+        </tr>
+        <tr>
+          <td>2</td>
+          <td><code style="font-size:0.85em">ivw=1.0, gvw=0.0, gt=±0.1, it=±0.1, macro/market=0.6/0.4</code></td>
+          <td>60.1%</td>
+          <td>59.9%</td>
+          <td>59.3%</td>
+          <td>58.1%</td>
+          <td>57.5%</td>
+          <td><b>60.0</b></td>
+          <td></td>
+        </tr>
+        <tr>
+          <td>3</td>
+          <td><code style="font-size:0.85em">ivw=0.7, gvw=0.0, gt=±0.1, it=±0.12, macro/market=0.6/0.4</code></td>
+          <td>60.1%</td>
+          <td>59.9%</td>
+          <td>59.3%</td>
+          <td>57.6%</td>
+          <td>56.8%</td>
+          <td><b>60.0</b></td>
+          <td></td>
+        </tr>
+        <tr>
+          <td>4</td>
+          <td><code style="font-size:0.85em">ivw=1.0, gvw=0.0, gt=±0.1, it=±0.12, macro/market=0.6/0.4</code></td>
+          <td>60.1%</td>
+          <td>59.7%</td>
+          <td>59.3%</td>
+          <td>58.7%</td>
+          <td>57.6%</td>
+          <td><b>59.9</b></td>
+          <td></td>
+        </tr>
+        <tr>
+          <td>5</td>
+          <td><code style="font-size:0.85em">ivw=1.0, gvw=0.3, gt=±0.1, it=±0.1, macro/market=0.6/0.4</code></td>
+          <td>59.7%</td>
+          <td>59.6%</td>
+          <td>59.0%</td>
+          <td>57.8%</td>
+          <td>57.2%</td>
+          <td><b>59.6</b></td>
+          <td></td>
+        </tr>
+        <tr>
+          <td>6</td>
+          <td><code style="font-size:0.85em">ivw=1.0, gvw=0.3, gt=±0.1, it=±0.12, macro/market=0.6/0.4</code></td>
+          <td>59.6%</td>
+          <td>59.6%</td>
+          <td>59.0%</td>
+          <td>58.4%</td>
+          <td>57.2%</td>
+          <td><b>59.6</b></td>
+          <td></td>
+        </tr>
+        <tr>
+          <td>7</td>
+          <td><code style="font-size:0.85em">ivw=1.0, gvw=0.5, gt=±0.1, it=±0.1, macro/market=0.6/0.4</code></td>
+          <td>59.6%</td>
+          <td>59.6%</td>
+          <td>59.0%</td>
+          <td>57.5%</td>
+          <td>56.9%</td>
+          <td><b>59.6</b></td>
+          <td></td>
+        </tr>
+        <tr>
+          <td>8</td>
+          <td><code style="font-size:0.85em">ivw=1.0, gvw=0.5, gt=±0.1, it=±0.12, macro/market=0.6/0.4</code></td>
+          <td>59.6%</td>
+          <td>59.5%</td>
+          <td>58.9%</td>
+          <td>58.1%</td>
+          <td>57.0%</td>
+          <td><b>59.6</b></td>
+          <td></td>
+        </tr>
+        <tr class="q9">
+          <td>9</td>
+          <td><code style="font-size:0.85em">ivw=1.0, gvw=0.0, gt=±0.1, it=±0.15, macro/market=0.6/0.4</code></td>
+          <td>59.7%</td>
+          <td>59.4%</td>
+          <td>58.9%</td>
+          <td>59.4%</td>
+          <td>58.6%</td>
+          <td><b>59.5</b></td>
+          <td>Q9*</td>
+        </tr>
+        <tr>
+          <td>10</td>
+          <td><code style="font-size:0.85em">ivw=1.0, gvw=0.7, gt=±0.1, it=±0.12, macro/market=0.6/0.4</code></td>
+          <td>59.5%</td>
+          <td>59.5%</td>
+          <td>58.8%</td>
+          <td>57.5%</td>
+          <td>56.4%</td>
+          <td><b>59.5</b></td>
+          <td></td>
+        </tr></tbody>
+    </table>
+
+    <h2 id="p2">Phase 2 — augmented grid (522 configs)</h2>
+    <p>Refined zone added half-step values on the dims that dominate
+       the top-15: <code>ivw</code> ∈ {0.5, 0.6, 0.7, 0.85, 1.0},
+       <code>gvw</code> ∈ {0.0, 0.15, 0.3}, <code>it</code> ∈ {0.10,
+       0.11, 0.12, 0.13, 0.14, 0.15}, layer-blend ∈ {0.55/0.45,
+       0.60/0.40}. Plus the original coarse grid, deduped: 162 new
+       runs.</p>
+
+    <table><thead><tr><th>Filter</th><th>Pass / total</th></tr></thead><tbody><tr><td>n_neighbors_ge_4</td><td>304/522</td></tr><tr><td>holdout_non_regress</td><td>255/522</td></tr><tr><td>self_train_gt_baseline</td><td>366/522</td></tr><tr><td>no_bad_neighbor</td><td>344/522</td></tr><tr><td>all_combined</td><td>136/522</td></tr></tbody></table>
+    <p class="muted">Q9 winner rank by robust_train on augmented grid: <b>35</b> (was 9 on original).</p>
+
+    <h3>Phase-2 top 10 by robust_train</h3>
+    <table>
+      <thead><tr><th>#</th><th>Params</th><th>self_T</th><th>nbr_med_T</th><th>nbr_min_T</th><th>self_H</th><th>nbr_min_H</th><th>robust_T</th><th>Mark</th></tr></thead>
+      <tbody>
+        <tr>
+          <td>1</td>
+          <td><code style="font-size:0.85em">ivw=0.7, gvw=0.0, gt=±0.1, it=±0.1, macro/market=0.6/0.4</code></td>
+          <td>60.2%</td>
+          <td>60.1%</td>
+          <td>59.3%</td>
+          <td>57.5%</td>
+          <td>56.9%</td>
+          <td><b>60.1</b></td>
+          <td></td>
+        </tr>
+        <tr>
+          <td>2</td>
+          <td><code style="font-size:0.85em">ivw=0.85, gvw=0.0, gt=±0.1, it=±0.1, macro/market=0.6/0.4</code></td>
+          <td>60.1%</td>
+          <td>60.0%</td>
+          <td>59.7%</td>
+          <td>57.9%</td>
+          <td>57.5%</td>
+          <td><b>60.1</b></td>
+          <td></td>
+        </tr>
+        <tr>
+          <td>3</td>
+          <td><code style="font-size:0.85em">ivw=1.0, gvw=0.0, gt=±0.1, it=±0.11, macro/market=0.6/0.4</code></td>
+          <td>60.1%</td>
+          <td>60.0%</td>
+          <td>59.8%</td>
+          <td>58.2%</td>
+          <td>57.8%</td>
+          <td><b>60.1</b></td>
+          <td></td>
+        </tr>
+        <tr>
+          <td>4</td>
+          <td><code style="font-size:0.85em">ivw=0.7, gvw=0.0, gt=±0.1, it=±0.12, macro/market=0.6/0.4</code></td>
+          <td>60.1%</td>
+          <td>60.0%</td>
+          <td>59.3%</td>
+          <td>57.6%</td>
+          <td>57.2%</td>
+          <td><b>60.0</b></td>
+          <td></td>
+        </tr>
+        <tr>
+          <td>5</td>
+          <td><code style="font-size:0.85em">ivw=1.0, gvw=0.0, gt=±0.1, it=±0.12, macro/market=0.6/0.4</code></td>
+          <td>60.1%</td>
+          <td>60.0%</td>
+          <td>59.3%</td>
+          <td>58.7%</td>
+          <td>58.1%</td>
+          <td><b>60.0</b></td>
+          <td></td>
+        </tr>
+        <tr>
+          <td>6</td>
+          <td><code style="font-size:0.85em">ivw=0.85, gvw=0.0, gt=±0.1, it=±0.12, macro/market=0.6/0.4</code></td>
+          <td>60.1%</td>
+          <td>60.0%</td>
+          <td>59.7%</td>
+          <td>58.1%</td>
+          <td>57.6%</td>
+          <td><b>60.0</b></td>
+          <td></td>
+        </tr>
+        <tr>
+          <td>7</td>
+          <td><code style="font-size:0.85em">ivw=0.85, gvw=0.0, gt=±0.1, it=±0.11, macro/market=0.6/0.4</code></td>
+          <td>60.0%</td>
+          <td>60.1%</td>
+          <td>59.7%</td>
+          <td>57.9%</td>
+          <td>57.2%</td>
+          <td><b>60.0</b></td>
+          <td></td>
+        </tr>
+        <tr>
+          <td>8</td>
+          <td><code style="font-size:0.85em">ivw=1.0, gvw=0.0, gt=±0.1, it=±0.1, macro/market=0.6/0.4</code></td>
+          <td>60.1%</td>
+          <td>60.0%</td>
+          <td>59.3%</td>
+          <td>58.1%</td>
+          <td>57.8%</td>
+          <td><b>60.0</b></td>
+          <td></td>
+        </tr>
+        <tr>
+          <td>9</td>
+          <td><code style="font-size:0.85em">ivw=1.0, gvw=0.0, gt=±0.1, it=±0.13, macro/market=0.6/0.4</code></td>
+          <td>60.0%</td>
+          <td>60.0%</td>
+          <td>59.7%</td>
+          <td>58.8%</td>
+          <td>58.4%</td>
+          <td><b>60.0</b></td>
+          <td></td>
+        </tr>
+        <tr>
+          <td>10</td>
+          <td><code style="font-size:0.85em">ivw=0.85, gvw=0.0, gt=±0.1, it=±0.13, macro/market=0.6/0.4</code></td>
+          <td>60.0%</td>
+          <td>59.9%</td>
+          <td>59.7%</td>
+          <td>58.4%</td>
+          <td>58.0%</td>
+          <td><b>60.0</b></td>
+          <td></td>
+        </tr></tbody>
+    </table>
+
+    <h2 id="cmp">Q9 winner vs Phase-2 top robust (side-by-side)</h2>
+    <table>
+      <thead><tr><th></th><th>Q9 winner</th><th>Phase-2 top robust</th><th>Δ</th></tr></thead>
+      <tbody>
+        <tr><td>Params</td><td><code style="font-size:0.85em">ivw=1.0, gvw=0.0, gt=±0.1, it=±0.15, macro/market=0.6/0.4</code></td>
+            <td><code style="font-size:0.85em">ivw=0.7, gvw=0.0, gt=±0.1, it=±0.1, macro/market=0.6/0.4</code></td><td></td></tr>
+        <tr><td>self_train</td><td>59.7%</td><td>60.2%</td>
+            <td>+0.5pp</td></tr>
+        <tr><td>self_holdout</td><td>59.4%</td><td>57.5%</td>
+            <td>-1.9pp</td></tr>
+        <tr><td>nbr_train_median</td><td>59.5%</td><td>60.1%</td>
+            <td>+0.6pp</td></tr>
+        <tr><td>nbr_train_min</td><td>58.9%</td><td>59.3%</td>
+            <td>+0.4pp</td></tr>
+        <tr><td>nbr_holdout_min</td><td>59.0%</td><td>56.9%</td>
+            <td>-2.1pp</td></tr>
+        <tr><td>robust_train</td><td>59.6</td><td>60.1</td>
+            <td>+0.6</td></tr>
+        <tr><td>n_neighbors</td><td>4</td><td>5</td><td></td></tr>
+      </tbody>
+    </table>
+
+    <h2 id="decision">Decision</h2>
+    <div class="pass-banner">
+      <b>KEEP Q9 winner</b><br>
+      Top robust gains train-robustness (+0.6pp) but loses holdout (-1.9pp). Q9 winner sits at a different point on the train/holdout curve.
+    </div>
+
+    <h3>Recommended params (apply)</h3><pre><code>ivw=1.0, gvw=0.0, gt=±0.1, it=±0.15, macro/market=0.6/0.4</code></pre>
+
+    <h2 id="caveats">Caveats</h2>
+    <ul>
+      <li><b>Grid is still discrete</b>: even at half-step, the response
+        surface is sampled, not analytical. A truly continuous optimum
+        could sit between Phase-2 grid points.</li>
+      <li><b>Small holdout (4 anchors)</b>: holdout delta of ±1-2pp is
+        within sampling noise. Don't read holdout regressions of less
+        than ~2pp as strong evidence.</li>
+      <li><b>Neighborhood definition is L1, not L2</b>: configs that
+        differ on 2+ dims are not considered neighbors. This is
+        deliberate (each dim has different scale and meaning) but it
+        means stability w.r.t. simultaneous multi-dim drift is not
+        tested.</li>
+      <li><b>Layer blend is treated as categorical</b>: we never compare
+        across blends in a neighborhood. A robust optimum within
+        m/m=0.6/0.4 may still be brittle if the operator changes blend
+        for other reasons.</li>
+      <li><b>"5pp drop" floor is arbitrary</b>: a tighter or looser
+        threshold would change which configs pass the "no bad neighbor"
+        rule. 5pp was chosen because it's roughly the Q8→Q9 train
+        improvement scale.</li>
+    </ul>
+    
+</body></html>

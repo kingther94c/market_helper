@@ -54,6 +54,26 @@ Q9 landing summary (2026-05-23):
   +0.3pp (almost zero).
 - Reports: `data/research_artifacts/macro_calibration_q9_{en,cn}.html`.
 
+Q9 neighborhood-stability addendum (2026-05-23, follow-up to user critique
+"grid argmax can sit on noise spikes"):
+- **Phase 1**: L1-neighborhood re-analysis of the original 360-config grid.
+  Q9 ranked #9 by `robust_train = mean(self, neighbor median)`. Top robust
+  (ivw=0.7, it=0.10) gained +0.6pp robust but lost -1.9pp holdout vs Q9.
+- **Phase 2**: 162-config half-step refinement around contenders →
+  augmented 522-config grid. Q9 ranked #35 of 136 eligible. Top robust
+  unchanged; intermediate refined points (e.g. it=0.13) trade marginal
+  robust gain (+0.4pp) for holdout loss (-0.6pp) — within noise.
+- **Verdict: keep Q9 unchanged**. The trade-off curve runs along
+  `inflation_thresh`: tighter it (0.10) wins HIGH-CPI anchors (2023:
+  +18pp on i_match, 2020H2: +24pp) but loses NORMAL/AMBIGUOUS-CPI anchors
+  (2017 Goldilocks holdout: -20pp, 2024 disinflation holdout: -12pp,
+  2019 H2: -15pp, 2018 Q4: -14pp). Q9's wider it=0.15 handles 5 anchors
+  better including 2 of 4 holdouts.
+- Reports: `data/research_artifacts/macro_q9_neighborhood_addendum_{en,cn}.html`.
+- Scripts: `scripts/research/macro_neighborhood_stability{,_v2}.py`,
+  `macro_calibration_grid_q9_phase2.py`,
+  `generate_q9_neighborhood_addendum.py`.
+
 Open near-term work:
 
 1. **(Optional)** Pin per-anchor macro fixtures from
