@@ -157,6 +157,20 @@ Landed (one-liner summaries; full detail in
   overlay unchanged (Q7 still optimal). Report:
   `data/research_artifacts/macro_calibration_report.html`. Full grid +
   reproducer scripts under `data/research_artifacts/` and `scripts/research/`.
+- **Q8 audit addendum (provisional → ship)** — Four-question audit on the
+  shipped Q8: robustness sweep (21/21 perturbations win baseline, top-1 in
+  16/21), label-ambiguity taxonomy (clear / defensible / definition-dependent;
+  2 genuine "FAIL (clear)" cases isolated: 2022 H1 inflation growth + 2025
+  tariff), real-latency probes (Q8 +3bd mean vs baseline; worst 2021 reflation
+  +11bd — disclosed trade-off), concept attribution (2022 H1 inflation
+  flip is the flagship blend win; 2024 disinflation Up is a CPI threshold-
+  semantics artifact). Q8 ships unchanged with explicit "what would make Q8
+  final" checklist (Q9 velocity layer, CPI neutral_level revisit,
+  train/holdout split, concept-level tuning). Reports:
+  `data/research_artifacts/macro_calibration_audit_en.html` +
+  `macro_calibration_audit_cn.html`. Reproducer scripts:
+  `scripts/research/macro_{robustness,label_ambiguity,latency_probes,concept_attribution}.py`
+  + shared `anchors.py`.
 
 Near-term work:
 1. **Direction-honest velocity layer (Q9 candidate)** — Engine's YoY +

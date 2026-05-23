@@ -1,0 +1,473 @@
+{
+  "n_probes": 7,
+  "n_contenders": 5,
+  "by_config": {
+    "Q7 baseline (Q6 + Q7 risk overlay)": {
+      "n_probes": 7,
+      "n_detected": 7,
+      "mean_latency_bdays": 16.4,
+      "median_latency_bdays": 0,
+      "max_latency_bdays": 61,
+      "all_latencies": [
+        0,
+        0,
+        0,
+        2,
+        0,
+        61,
+        52
+      ]
+    },
+    "Q8 winner (balanced + gt=0.10)": {
+      "n_probes": 7,
+      "n_detected": 7,
+      "mean_latency_bdays": 19.3,
+      "median_latency_bdays": 0,
+      "max_latency_bdays": 70,
+      "all_latencies": [
+        0,
+        0,
+        0,
+        13,
+        0,
+        70,
+        52
+      ]
+    },
+    "Runner-up: balanced + gt=0.10 + it=0.08": {
+      "n_probes": 7,
+      "n_detected": 7,
+      "mean_latency_bdays": 19.3,
+      "median_latency_bdays": 0,
+      "max_latency_bdays": 79,
+      "all_latencies": [
+        0,
+        0,
+        0,
+        10,
+        0,
+        79,
+        46
+      ]
+    },
+    "Runner-up: inflation_macro_heavy + gt=0.10": {
+      "n_probes": 7,
+      "n_detected": 7,
+      "mean_latency_bdays": 23.3,
+      "median_latency_bdays": 0,
+      "max_latency_bdays": 88,
+      "all_latencies": [
+        0,
+        0,
+        0,
+        23,
+        0,
+        88,
+        52
+      ]
+    },
+    "Runner-up: balanced + gt=0.10 + decay engaged (mw=0.10)": {
+      "n_probes": 7,
+      "n_detected": 7,
+      "mean_latency_bdays": 18.7,
+      "median_latency_bdays": 0,
+      "max_latency_bdays": 70,
+      "all_latencies": [
+        0,
+        0,
+        0,
+        13,
+        0,
+        70,
+        48
+      ]
+    }
+  },
+  "all_rows": [
+    {
+      "probe": "GFC inflation collapse",
+      "axis": "inflation",
+      "target": "Down",
+      "transition_date": "2008-10-15",
+      "prior_state_bdays_in_leadin": 27,
+      "label_at_transition": "Down",
+      "latency_bdays": 0,
+      "earliest_match_date": "2008-10-15",
+      "config_name": "Q7 baseline (Q6 + Q7 risk overlay)"
+    },
+    {
+      "probe": "GFC inflation collapse",
+      "axis": "inflation",
+      "target": "Down",
+      "transition_date": "2008-10-15",
+      "prior_state_bdays_in_leadin": 29,
+      "label_at_transition": "Down",
+      "latency_bdays": 0,
+      "earliest_match_date": "2008-10-15",
+      "config_name": "Q8 winner (balanced + gt=0.10)"
+    },
+    {
+      "probe": "GFC inflation collapse",
+      "axis": "inflation",
+      "target": "Down",
+      "transition_date": "2008-10-15",
+      "prior_state_bdays_in_leadin": 28,
+      "label_at_transition": "Down",
+      "latency_bdays": 0,
+      "earliest_match_date": "2008-10-15",
+      "config_name": "Runner-up: balanced + gt=0.10 + it=0.08"
+    },
+    {
+      "probe": "GFC inflation collapse",
+      "axis": "inflation",
+      "target": "Down",
+      "transition_date": "2008-10-15",
+      "prior_state_bdays_in_leadin": 39,
+      "label_at_transition": "Down",
+      "latency_bdays": 0,
+      "earliest_match_date": "2008-10-15",
+      "config_name": "Runner-up: inflation_macro_heavy + gt=0.10"
+    },
+    {
+      "probe": "GFC inflation collapse",
+      "axis": "inflation",
+      "target": "Down",
+      "transition_date": "2008-10-15",
+      "prior_state_bdays_in_leadin": 29,
+      "label_at_transition": "Down",
+      "latency_bdays": 0,
+      "earliest_match_date": "2008-10-15",
+      "config_name": "Runner-up: balanced + gt=0.10 + decay engaged (mw=0.10)"
+    },
+    {
+      "probe": "COVID growth turn",
+      "axis": "growth",
+      "target": "Down",
+      "transition_date": "2020-03-10",
+      "prior_state_bdays_in_leadin": 37,
+      "label_at_transition": "Down",
+      "latency_bdays": 0,
+      "earliest_match_date": "2020-03-10",
+      "config_name": "Q7 baseline (Q6 + Q7 risk overlay)"
+    },
+    {
+      "probe": "COVID growth turn",
+      "axis": "growth",
+      "target": "Down",
+      "transition_date": "2020-03-10",
+      "prior_state_bdays_in_leadin": 33,
+      "label_at_transition": "Down",
+      "latency_bdays": 0,
+      "earliest_match_date": "2020-03-10",
+      "config_name": "Q8 winner (balanced + gt=0.10)"
+    },
+    {
+      "probe": "COVID growth turn",
+      "axis": "growth",
+      "target": "Down",
+      "transition_date": "2020-03-10",
+      "prior_state_bdays_in_leadin": 33,
+      "label_at_transition": "Down",
+      "latency_bdays": 0,
+      "earliest_match_date": "2020-03-10",
+      "config_name": "Runner-up: balanced + gt=0.10 + it=0.08"
+    },
+    {
+      "probe": "COVID growth turn",
+      "axis": "growth",
+      "target": "Down",
+      "transition_date": "2020-03-10",
+      "prior_state_bdays_in_leadin": 35,
+      "label_at_transition": "Down",
+      "latency_bdays": 0,
+      "earliest_match_date": "2020-03-10",
+      "config_name": "Runner-up: inflation_macro_heavy + gt=0.10"
+    },
+    {
+      "probe": "COVID growth turn",
+      "axis": "growth",
+      "target": "Down",
+      "transition_date": "2020-03-10",
+      "prior_state_bdays_in_leadin": 34,
+      "label_at_transition": "Down",
+      "latency_bdays": 0,
+      "earliest_match_date": "2020-03-10",
+      "config_name": "Runner-up: balanced + gt=0.10 + decay engaged (mw=0.10)"
+    },
+    {
+      "probe": "COVID inflation collapse",
+      "axis": "inflation",
+      "target": "Down",
+      "transition_date": "2020-03-15",
+      "prior_state_bdays_in_leadin": 27,
+      "label_at_transition": null,
+      "latency_bdays": 0,
+      "earliest_match_date": "2020-03-16",
+      "config_name": "Q7 baseline (Q6 + Q7 risk overlay)"
+    },
+    {
+      "probe": "COVID inflation collapse",
+      "axis": "inflation",
+      "target": "Down",
+      "transition_date": "2020-03-15",
+      "prior_state_bdays_in_leadin": 17,
+      "label_at_transition": null,
+      "latency_bdays": 0,
+      "earliest_match_date": "2020-03-16",
+      "config_name": "Q8 winner (balanced + gt=0.10)"
+    },
+    {
+      "probe": "COVID inflation collapse",
+      "axis": "inflation",
+      "target": "Down",
+      "transition_date": "2020-03-15",
+      "prior_state_bdays_in_leadin": 14,
+      "label_at_transition": null,
+      "latency_bdays": 0,
+      "earliest_match_date": "2020-03-16",
+      "config_name": "Runner-up: balanced + gt=0.10 + it=0.08"
+    },
+    {
+      "probe": "COVID inflation collapse",
+      "axis": "inflation",
+      "target": "Down",
+      "transition_date": "2020-03-15",
+      "prior_state_bdays_in_leadin": 14,
+      "label_at_transition": null,
+      "latency_bdays": 0,
+      "earliest_match_date": "2020-03-16",
+      "config_name": "Runner-up: inflation_macro_heavy + gt=0.10"
+    },
+    {
+      "probe": "COVID inflation collapse",
+      "axis": "inflation",
+      "target": "Down",
+      "transition_date": "2020-03-15",
+      "prior_state_bdays_in_leadin": 17,
+      "label_at_transition": null,
+      "latency_bdays": 0,
+      "earliest_match_date": "2020-03-16",
+      "config_name": "Runner-up: balanced + gt=0.10 + decay engaged (mw=0.10)"
+    },
+    {
+      "probe": "2021 reflation start",
+      "axis": "inflation",
+      "target": "Up",
+      "transition_date": "2021-05-12",
+      "prior_state_bdays_in_leadin": 16,
+      "label_at_transition": "Up",
+      "latency_bdays": 2,
+      "earliest_match_date": "2021-05-14",
+      "config_name": "Q7 baseline (Q6 + Q7 risk overlay)"
+    },
+    {
+      "probe": "2021 reflation start",
+      "axis": "inflation",
+      "target": "Up",
+      "transition_date": "2021-05-12",
+      "prior_state_bdays_in_leadin": 91,
+      "label_at_transition": "Neutral",
+      "latency_bdays": 13,
+      "earliest_match_date": "2021-05-31",
+      "config_name": "Q8 winner (balanced + gt=0.10)"
+    },
+    {
+      "probe": "2021 reflation start",
+      "axis": "inflation",
+      "target": "Up",
+      "transition_date": "2021-05-12",
+      "prior_state_bdays_in_leadin": 74,
+      "label_at_transition": "Neutral",
+      "latency_bdays": 10,
+      "earliest_match_date": "2021-05-26",
+      "config_name": "Runner-up: balanced + gt=0.10 + it=0.08"
+    },
+    {
+      "probe": "2021 reflation start",
+      "axis": "inflation",
+      "target": "Up",
+      "transition_date": "2021-05-12",
+      "prior_state_bdays_in_leadin": 92,
+      "label_at_transition": "Neutral",
+      "latency_bdays": 23,
+      "earliest_match_date": "2021-06-14",
+      "config_name": "Runner-up: inflation_macro_heavy + gt=0.10"
+    },
+    {
+      "probe": "2021 reflation start",
+      "axis": "inflation",
+      "target": "Up",
+      "transition_date": "2021-05-12",
+      "prior_state_bdays_in_leadin": 87,
+      "label_at_transition": "Neutral",
+      "latency_bdays": 13,
+      "earliest_match_date": "2021-05-31",
+      "config_name": "Runner-up: balanced + gt=0.10 + decay engaged (mw=0.10)"
+    },
+    {
+      "probe": "2022 inflation surge",
+      "axis": "inflation",
+      "target": "Up",
+      "transition_date": "2022-04-12",
+      "prior_state_bdays_in_leadin": 44,
+      "label_at_transition": "Up",
+      "latency_bdays": 0,
+      "earliest_match_date": "2022-04-12",
+      "config_name": "Q7 baseline (Q6 + Q7 risk overlay)"
+    },
+    {
+      "probe": "2022 inflation surge",
+      "axis": "inflation",
+      "target": "Up",
+      "transition_date": "2022-04-12",
+      "prior_state_bdays_in_leadin": 10,
+      "label_at_transition": "Up",
+      "latency_bdays": 0,
+      "earliest_match_date": "2022-04-12",
+      "config_name": "Q8 winner (balanced + gt=0.10)"
+    },
+    {
+      "probe": "2022 inflation surge",
+      "axis": "inflation",
+      "target": "Up",
+      "transition_date": "2022-04-12",
+      "prior_state_bdays_in_leadin": 3,
+      "label_at_transition": "Up",
+      "latency_bdays": 0,
+      "earliest_match_date": "2022-04-12",
+      "config_name": "Runner-up: balanced + gt=0.10 + it=0.08"
+    },
+    {
+      "probe": "2022 inflation surge",
+      "axis": "inflation",
+      "target": "Up",
+      "transition_date": "2022-04-12",
+      "prior_state_bdays_in_leadin": 3,
+      "label_at_transition": "Up",
+      "latency_bdays": 0,
+      "earliest_match_date": "2022-04-12",
+      "config_name": "Runner-up: inflation_macro_heavy + gt=0.10"
+    },
+    {
+      "probe": "2022 inflation surge",
+      "axis": "inflation",
+      "target": "Up",
+      "transition_date": "2022-04-12",
+      "prior_state_bdays_in_leadin": 10,
+      "label_at_transition": "Up",
+      "latency_bdays": 0,
+      "earliest_match_date": "2022-04-12",
+      "config_name": "Runner-up: balanced + gt=0.10 + decay engaged (mw=0.10)"
+    },
+    {
+      "probe": "2023\u219224 inflation cooling to Neutral",
+      "axis": "inflation",
+      "target": "Neutral",
+      "transition_date": "2024-04-01",
+      "prior_state_bdays_in_leadin": 110,
+      "label_at_transition": "Up",
+      "latency_bdays": 61,
+      "earliest_match_date": "2024-06-25",
+      "config_name": "Q7 baseline (Q6 + Q7 risk overlay)"
+    },
+    {
+      "probe": "2023\u219224 inflation cooling to Neutral",
+      "axis": "inflation",
+      "target": "Neutral",
+      "transition_date": "2024-04-01",
+      "prior_state_bdays_in_leadin": 159,
+      "label_at_transition": "Up",
+      "latency_bdays": 70,
+      "earliest_match_date": "2024-07-08",
+      "config_name": "Q8 winner (balanced + gt=0.10)"
+    },
+    {
+      "probe": "2023\u219224 inflation cooling to Neutral",
+      "axis": "inflation",
+      "target": "Neutral",
+      "transition_date": "2024-04-01",
+      "prior_state_bdays_in_leadin": 182,
+      "label_at_transition": "Up",
+      "latency_bdays": 79,
+      "earliest_match_date": "2024-07-19",
+      "config_name": "Runner-up: balanced + gt=0.10 + it=0.08"
+    },
+    {
+      "probe": "2023\u219224 inflation cooling to Neutral",
+      "axis": "inflation",
+      "target": "Neutral",
+      "transition_date": "2024-04-01",
+      "prior_state_bdays_in_leadin": 215,
+      "label_at_transition": "Up",
+      "latency_bdays": 88,
+      "earliest_match_date": "2024-08-01",
+      "config_name": "Runner-up: inflation_macro_heavy + gt=0.10"
+    },
+    {
+      "probe": "2023\u219224 inflation cooling to Neutral",
+      "axis": "inflation",
+      "target": "Neutral",
+      "transition_date": "2024-04-01",
+      "prior_state_bdays_in_leadin": 155,
+      "label_at_transition": "Up",
+      "latency_bdays": 70,
+      "earliest_match_date": "2024-07-08",
+      "config_name": "Runner-up: balanced + gt=0.10 + decay engaged (mw=0.10)"
+    },
+    {
+      "probe": "2025 tariff inflation spike",
+      "axis": "inflation",
+      "target": "Up",
+      "transition_date": "2025-04-02",
+      "prior_state_bdays_in_leadin": 1,
+      "label_at_transition": "Up",
+      "latency_bdays": 52,
+      "earliest_match_date": "2025-06-13",
+      "config_name": "Q7 baseline (Q6 + Q7 risk overlay)"
+    },
+    {
+      "probe": "2025 tariff inflation spike",
+      "axis": "inflation",
+      "target": "Up",
+      "transition_date": "2025-04-02",
+      "prior_state_bdays_in_leadin": 0,
+      "label_at_transition": "Up",
+      "latency_bdays": 52,
+      "earliest_match_date": "2025-06-13",
+      "config_name": "Q8 winner (balanced + gt=0.10)"
+    },
+    {
+      "probe": "2025 tariff inflation spike",
+      "axis": "inflation",
+      "target": "Up",
+      "transition_date": "2025-04-02",
+      "prior_state_bdays_in_leadin": 0,
+      "label_at_transition": "Up",
+      "latency_bdays": 46,
+      "earliest_match_date": "2025-06-05",
+      "config_name": "Runner-up: balanced + gt=0.10 + it=0.08"
+    },
+    {
+      "probe": "2025 tariff inflation spike",
+      "axis": "inflation",
+      "target": "Up",
+      "transition_date": "2025-04-02",
+      "prior_state_bdays_in_leadin": 0,
+      "label_at_transition": "Up",
+      "latency_bdays": 52,
+      "earliest_match_date": "2025-06-13",
+      "config_name": "Runner-up: inflation_macro_heavy + gt=0.10"
+    },
+    {
+      "probe": "2025 tariff inflation spike",
+      "axis": "inflation",
+      "target": "Up",
+      "transition_date": "2025-04-02",
+      "prior_state_bdays_in_leadin": 0,
+      "label_at_transition": "Up",
+      "latency_bdays": 48,
+      "earliest_match_date": "2025-06-09",
+      "config_name": "Runner-up: balanced + gt=0.10 + decay engaged (mw=0.10)"
+    }
+  ]
+}

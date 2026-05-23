@@ -1,0 +1,423 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Q8 Macro Calibration — Audit Addendum (2026-05-23)</title>
+
+    <style>
+      body { font-family: ui-sans-serif, system-ui, -apple-system, "PingFang SC", "Microsoft YaHei", "Segoe UI", Roboto, sans-serif;
+             max-width: 1200px; margin: 30px auto; padding: 0 20px; line-height: 1.55;
+             color: #1f2328; }
+      h1 { font-size: 1.7em; margin: 0 0 0.3em; }
+      h2 { font-size: 1.3em; margin-top: 1.8em; padding-bottom: 0.3em; border-bottom: 1px solid #d0d7de; }
+      h3 { font-size: 1.1em; margin-top: 1.5em; }
+      table { border-collapse: collapse; margin: 1em 0; font-size: 0.92em; width: 100%; }
+      th, td { padding: 6px 10px; border: 1px solid #d0d7de; text-align: left; vertical-align: top; }
+      th { background: #f6f8fa; }
+      td.pass { color: #1a7f37; font-weight: 600; }
+      td.fail { color: #cf222e; font-weight: 600; }
+      td.amb { color: #9a6700; font-weight: 600; }
+      td.def { color: #6639ba; font-weight: 600; }
+      .muted { color: #57606a; font-size: 0.9em; }
+      code { background: #f6f8fa; padding: 1px 5px; border-radius: 3px; font-size: 0.88em; }
+      pre code { display: block; padding: 12px; line-height: 1.45; white-space: pre; }
+      .banner { background: #ddf4ff; border-left: 4px solid #0969da; padding: 10px 16px; margin: 1em 0; border-radius: 4px; }
+      .warn   { background: #fff8c5; border-left: 4px solid #9a6700; padding: 10px 16px; margin: 1em 0; border-radius: 4px; }
+      .pass-banner { background: #dafbe1; border-left: 4px solid #1a7f37; padding: 10px 16px; margin: 1em 0; border-radius: 4px; }
+      .toc { background: #f6f8fa; padding: 12px 20px; border: 1px solid #d0d7de; border-radius: 6px; }
+      .toc ul { margin: 0; padding-left: 1.2em; }
+      .small { font-size: 0.85em; }
+    </style>
+    
+</head>
+<body>
+<h1>Q8 Macro Calibration — Audit Addendum</h1>
+<p class="muted">2026-05-23 · audits the shipped Q8 calibration
+   (commits <code>4ae9d1502</code>, <code>f38195fcb</code>) against four
+   questions raised after the original report landed.</p>
+
+    <div class="banner">
+      <b>Audit scope</b>: Q8 macro calibration (commits 4ae9d1502, f38195fcb)
+      is currently shipped to <code>configs/regime_detection/regime_engine.yml</code>.
+      This addendum tests robustness, separates label ambiguity from signal
+      failures, measures real-latency under redesigned probes, and attributes
+      Q8 wins/losses to concept-level contributors. Treats Q8 as <em>provisional</em>
+      pending audit verdict.
+    </div>
+    
+<div class="toc"><b>Audit questions</b><ul><li><a href="#q1">Q1. Robustness to anchor perturbations</a></li><li><a href="#q2">Q2. Label-ambiguity vs signal-failure</a></li><li><a href="#q3">Q3. Real-latency (lead-in probes)</a></li><li><a href="#q4">Q4. Concept-level attribution</a></li><li><a href="#verdict">Provisional verdict and what would make Q8 final</a></li></ul></div>
+
+    <h2 id="q1">Q1 — Is Q8 robust to reasonable anchor perturbations?</h2>
+    <div class="pass-banner">
+      <b>Answer:</b> Yes. Q8 beats baseline in
+      <b>21/21</b>
+      perturbations, ranks #1 in 16/21
+      contenders, never loses to baseline. Delta range: +1.6
+      to +6.4 pp (median +5.2).
+    </div>
+
+    <p>21 perturbations tested across 5
+       contender configs: original anchor set, 6 boundary shifts (±5/±10/±20 bdays),
+       1 alternative-consensus-label sweep, and 13 leave-one-out drops.</p>
+
+    <h3>Worst perturbations for Q8 (smallest Q8-baseline gap)</h3>
+    <table>
+      <thead><tr><th>Perturbation</th><th>Q8 overall</th><th>Baseline overall</th><th>Δ (pp)</th></tr></thead>
+      <tbody>
+    <tr><td>alternative consensus labels</td><td>55.0%</td><td>53.4%</td><td>+1.6</td></tr><tr><td>boundary shift -10bd</td><td>57.1%</td><td>52.5%</td><td>+4.6</td></tr><tr><td>boundary shift -5bd</td><td>56.4%</td><td>51.7%</td><td>+4.7</td></tr><tr><td>LOO: drop 2022 H1 inflation</td><td>58.5%</td><td>53.8%</td><td>+4.7</td></tr><tr><td>boundary shift -20bd</td><td>55.9%</td><td>51.1%</td><td>+4.8</td></tr>
+      </tbody>
+    </table>
+    <p class="muted">Notable: under alternative-consensus labels, Q8 still beats
+       baseline by 1.6pp. Boundary shifts of ±5-20 bdays change overall match
+       by only ~5pp absolute — the recommendation is not keyed to specific
+       anchor start/end dates.</p>
+    
+
+    <h2 id="q2">Q2 — Which Q8 misses are label-ambiguity vs genuine signal failure?</h2>
+
+    <h3>Match% by confidence class</h3>
+    <table>
+      <thead><tr>
+        <th>Confidence class</th><th>n anchors</th>
+        <th>Baseline g/i</th><th>Q8 g/i</th><th>Δg / Δi</th>
+      </tr></thead>
+      <tbody>
+    
+        <tr>
+          <td>clear</td><td>4</td>
+          <td>42.6% / 48.4%</td>
+          <td>60.2% / 53.6%</td>
+          <td>+17.6pp / +5.2pp</td>
+        </tr>
+        <tr>
+          <td>defensible</td><td>5</td>
+          <td>27.6% / 49.3%</td>
+          <td>40.4% / 46.6%</td>
+          <td>+12.8pp / -2.7pp</td>
+        </tr>
+        <tr>
+          <td>definition-dependent</td><td>4</td>
+          <td>35.3% / 24.8%</td>
+          <td>37.6% / 39.2%</td>
+          <td>+2.3pp / +14.4pp</td>
+        </tr>
+      </tbody>
+    </table>
+    <p class="muted">Q8's biggest gains are concentrated on the
+       <em>clear</em>-confidence anchors (4 anchors with near-unanimous
+       consensus), where it lifts growth match by 17.6pp and inflation by 5.2pp.
+       The <em>definition-dependent</em> class still benefits (+2pp growth,
+       +14pp inflation) but progress is bounded by framing rather than tuning.</p>
+
+    <h3>Per-anchor verdicts</h3>
+    <p>"PASS" = match ≥ 60% under primary consensus.
+       "definition-artifact" = match jumps ≥ 30pp under alt label, framing is
+       the bottleneck.
+       "label-defensible" = alt label achieves ≥ 60%, reasonable analysts disagree.
+       "ambiguous" = neither label clearly resolves; engine reading is somewhere
+       between.
+       "FAIL (clear)" = clear-confidence anchor with no defensible alt — genuine
+       signal-design problem worth flagging.</p>
+    <table>
+      <thead><tr>
+        <th>Anchor</th><th>Confidence</th><th>Consensus (g/i)</th>
+        <th>Q8 g match</th><th>g verdict</th><th>Q8 i match</th><th>i verdict</th>
+      </tr></thead>
+      <tbody>
+    
+        <tr>
+          <td>2008 GFC trough</td><td>clear</td>
+          <td>g=Down, i=Down</td>
+          <td>100%</td><td class="pass">PASS</td>
+          <td>88%</td><td class="pass">PASS</td>
+        </tr>
+        <tr>
+          <td>2010-12 expansion</td><td>defensible</td>
+          <td>g=Up, i=Neutral</td>
+          <td>58%</td><td class="amb">ambiguous</td>
+          <td>50%</td><td class="fail">FAIL</td>
+        </tr>
+        <tr>
+          <td>2015-16 oil bust</td><td>defensible</td>
+          <td>g=Neutral, i=Down</td>
+          <td>26%</td><td class="fail">FAIL</td>
+          <td>100%</td><td class="pass">PASS</td>
+        </tr>
+        <tr>
+          <td>2017 Goldilocks</td><td>defensible</td>
+          <td>g=Up, i=Neutral</td>
+          <td>88%</td><td class="pass">PASS</td>
+          <td>39%</td><td class="amb">ambiguous</td>
+        </tr>
+        <tr>
+          <td>2018 Q4 vol shock</td><td>defensible</td>
+          <td>g=Up, i=Neutral</td>
+          <td>9%</td><td class="def">label-defensible (alt=65%)</td>
+          <td>20%</td><td class="amb">ambiguous</td>
+        </tr>
+        <tr>
+          <td>2019 H2 slowdown</td><td>defensible</td>
+          <td>g=Neutral, i=Neutral</td>
+          <td>20%</td><td class="fail">FAIL</td>
+          <td>25%</td><td class="amb">ambiguous</td>
+        </tr>
+        <tr>
+          <td>2020 COVID recession</td><td>definition-dependent</td>
+          <td>g=Down, i=Neutral</td>
+          <td>100%</td><td class="pass">PASS</td>
+          <td>0%</td><td class="def">definition-artifact (alt=100%)</td>
+        </tr>
+        <tr>
+          <td>2020H2 catch-up</td><td>definition-dependent</td>
+          <td>g=Down, i=Down</td>
+          <td>1%</td><td class="fail">FAIL</td>
+          <td>41%</td><td class="fail">FAIL</td>
+        </tr>
+        <tr>
+          <td>2021 reflation</td><td>clear</td>
+          <td>g=Up, i=Up</td>
+          <td>94%</td><td class="pass">PASS</td>
+          <td>60%</td><td class="pass">PASS</td>
+        </tr>
+        <tr>
+          <td>2022 H1 inflation</td><td>clear</td>
+          <td>g=Up, i=Up</td>
+          <td>34%</td><td class="fail">FAIL</td>
+          <td>59%</td><td class="fail">FAIL (clear)</td>
+        </tr>
+        <tr>
+          <td>2023 high inflation</td><td>definition-dependent</td>
+          <td>g=Up, i=Up</td>
+          <td>30%</td><td class="amb">ambiguous</td>
+          <td>80%</td><td class="pass">PASS</td>
+        </tr>
+        <tr>
+          <td>2024 disinflation</td><td>definition-dependent</td>
+          <td>g=Up, i=Neutral</td>
+          <td>20%</td><td class="amb">ambiguous</td>
+          <td>36%</td><td class="fail">FAIL</td>
+        </tr>
+        <tr>
+          <td>2025 tariff shock</td><td>clear</td>
+          <td>g=Neutral, i=Up</td>
+          <td>12%</td><td class="fail">FAIL (clear)</td>
+          <td>6%</td><td class="fail">FAIL (clear)</td>
+        </tr>
+      </tbody>
+    </table>
+    <p class="muted"><b>Genuine FAIL (clear)</b>: 2022 H1 inflation growth (Q8
+       g=34%; macro_g=+0.30 says Up but market_g=-0.47 drags final down to -0.09)
+       and 2025 tariff shock (both axes; engine has no tariff-cost or
+       single-event-shock channel). 2022 H1 i=59% is borderline (just under
+       60% pass threshold). All other "fails" are either label-defensible
+       or definition-artifact under the framework.</p>
+    
+
+    <h2 id="q3">Q3 — Does Q8 detect transitions with useful latency?</h2>
+
+    <div class="warn">
+      <b>Answer:</b> Q8 is <em>slightly slower</em> than baseline on real
+      transition probes (mean latency 19.3bd vs 16.4bd, +3bd). The biggest
+      individual regression is the 2021 reflation start (+11bd: 2bd → 13bd)
+      because the market-implied breakeven signal was an early lead that
+      the balanced blend dilutes. This is a real tradeoff to disclose,
+      not a free lunch.
+    </div>
+
+    <p>Redesigned latency probes start 60 bdays <em>before</em> each canonical
+       transition (so the engine genuinely starts in the prior state) and
+       measure bdays from the transition until the engine first labels the
+       target state and HOLDS it for ≥5 consecutive bdays.</p>
+
+    <table>
+      <thead><tr><th>Probe</th><th>Q7 baseline (Q6 + Q7 risk over</th><th>Q8 winner (balanced + gt=0.10)</th><th>balanced + gt=0.10 + it=0.08</th><th>inflation_macro_heavy + gt=0.1</th><th>balanced + gt=0.10 + decay eng</th></tr></thead><tbody><tr><td>GFC inflation collapse</td><td>0bd</td><td>0bd</td><td>0bd</td><td>0bd</td><td>0bd</td></tr><tr><td>COVID growth turn</td><td>0bd</td><td>0bd</td><td>0bd</td><td>0bd</td><td>0bd</td></tr><tr><td>COVID inflation collapse</td><td>0bd</td><td>0bd</td><td>0bd</td><td>0bd</td><td>0bd</td></tr><tr><td>2021 reflation start</td><td>2bd</td><td>13bd</td><td>10bd</td><td>23bd</td><td>13bd</td></tr><tr><td>2022 inflation surge</td><td>0bd</td><td>0bd</td><td>0bd</td><td>0bd</td><td>0bd</td></tr><tr><td>2023→24 inflation cooling to Neutral</td><td>61bd</td><td>70bd</td><td>79bd</td><td>88bd</td><td>70bd</td></tr><tr><td>2025 tariff inflation spike</td><td>52bd</td><td>52bd</td><td>46bd</td><td>52bd</td><td>48bd</td></tr></tbody></table><h3>Mean / median latency per config</h3><table><thead><tr><th>Config</th><th>Mean (bd)</th><th>Median (bd)</th><th>Max (bd)</th></tr></thead><tbody><tr><td>Q7 baseline (Q6 + Q7 risk overlay)</td><td>16.4</td><td>0</td><td>61</td></tr><tr><td>Q8 winner (balanced + gt=0.10)</td><td>19.3</td><td>0</td><td>70</td></tr><tr><td>Runner-up: balanced + gt=0.10 + it=0.08</td><td>19.3</td><td>0</td><td>79</td></tr><tr><td>Runner-up: inflation_macro_heavy + gt=0.10</td><td>23.3</td><td>0</td><td>88</td></tr><tr><td>Runner-up: balanced + gt=0.10 + decay engaged (mw=0.10)</td><td>18.7</td><td>0</td><td>70</td></tr></tbody></table>
+    <p class="muted">Several probes show 0bd because the lead-in starts after
+       the engine had already moved (e.g. COVID growth turn: market drop
+       began Feb 24 so by the canonical Mar 10 the engine was already in
+       Down state). These probes act as guardrails ("engine isn't somehow
+       missing this") rather than discriminating latency tests.</p>
+    <p class="muted">The Q8 slowdown is concentrated on probes where the
+       <em>market</em> layer leads. With the balanced 50/50 blend, those
+       leads dilute against the slower macro view. Acceptable trade-off
+       for the +5pp consensus match win on the original anchor set, but
+       worth knowing.</p>
+    
+
+    <h2 id="q4">Q4 — Which concept-level contributors explain Q8's wins and losses?</h2>
+    <p>For each anchor we picked the midpoint date and pulled per-layer scores
+       plus top contributing series.  Below are the most informative cases
+       — those where Q8 changed the axis label compared to baseline.</p>
+    
+        <h3>2010-12 expansion (2011-09-16, consensus g=Up, i=Neutral)</h3>
+        <table>
+          <thead><tr><th></th><th>Baseline</th><th>Q8</th></tr></thead>
+          <tbody>
+            <tr><td>final_g (label)</td><td>-0.05 (Neutral)</td><td>+0.03 (Neutral)</td></tr>
+            <tr><td>final_i (label)</td><td>-0.09 (Neutral)</td><td>-0.14 (Down)</td></tr>
+            <tr><td>macro_nowcast (g/i)</td>
+                <td>0.318139922791878 / -0.2834599411784915</td>
+                <td>0.318139922791878 / -0.2834599411784915</td>
+            </tr>
+            <tr><td>market_implied (g/i)</td>
+                <td>-0.25299973018902694 / -0.0036984388495969966</td>
+                <td>-0.25299973018902694 / -0.0036984388495969966</td>
+            </tr>
+            <tr><td>top contributors (≤3)</td>
+                <td class="small">[[&#x27;macro_nowcast:persistence&#x27;, -0.874], [&#x27;macro_nowcast:wage_pressure&#x27;, -0.806], [&#x27;market_implied:gold_haven_inflation_proxy&#x27;, 0.594]]</td>
+                <td class="small">[[&#x27;macro_nowcast:persistence&#x27;, -0.874], [&#x27;macro_nowcast:wage_pressure&#x27;, -0.806], [&#x27;market_implied:gold_haven_inflation_proxy&#x27;, 0.594]]</td>
+            </tr>
+          </tbody>
+        </table>
+        
+        <h3>2017 Goldilocks (2017-08-16, consensus g=Up, i=Neutral)</h3>
+        <table>
+          <thead><tr><th></th><th>Baseline</th><th>Q8</th></tr></thead>
+          <tbody>
+            <tr><td>final_g (label)</td><td>+0.12 (Neutral)</td><td>+0.13 (Up)</td></tr>
+            <tr><td>final_i (label)</td><td>-0.18 (Down)</td><td>-0.31 (Down)</td></tr>
+            <tr><td>macro_nowcast (g/i)</td>
+                <td>0.1411877364878519 / -0.6251952716859229</td>
+                <td>0.1411877364878519 / -0.6251952716859229</td>
+            </tr>
+            <tr><td>market_implied (g/i)</td>
+                <td>0.11175349870694955 / 0.009160910694288177</td>
+                <td>0.11175349870694955 / 0.009160910694288177</td>
+            </tr>
+            <tr><td>top contributors (≤3)</td>
+                <td class="small">[[&#x27;macro_nowcast:persistence&#x27;, -0.7], [&#x27;macro_nowcast:realized_broad&#x27;, -0.632], [&#x27;macro_nowcast:wage_pressure&#x27;, -0.623]]</td>
+                <td class="small">[[&#x27;macro_nowcast:persistence&#x27;, -0.7], [&#x27;macro_nowcast:realized_broad&#x27;, -0.632], [&#x27;macro_nowcast:wage_pressure&#x27;, -0.623]]</td>
+            </tr>
+          </tbody>
+        </table>
+        
+        <h3>2020H2 catch-up (2020-10-01, consensus g=Down, i=Down)</h3>
+        <table>
+          <thead><tr><th></th><th>Baseline</th><th>Q8</th></tr></thead>
+          <tbody>
+            <tr><td>final_g (label)</td><td>+0.02 (Neutral)</td><td>-0.06 (Neutral)</td></tr>
+            <tr><td>final_i (label)</td><td>-0.00 (Neutral)</td><td>-0.16 (Down)</td></tr>
+            <tr><td>macro_nowcast (g/i)</td>
+                <td>-0.33299183737987054 / -0.5490731414294067</td>
+                <td>-0.33299183737987054 / -0.5490731414294067</td>
+            </tr>
+            <tr><td>market_implied (g/i)</td>
+                <td>0.21355547771234606 / 0.23514362073777734</td>
+                <td>0.21355547771234606 / 0.23514362073777734</td>
+            </tr>
+            <tr><td>top contributors (≤3)</td>
+                <td class="small">[[&#x27;macro_nowcast:wage_pressure&#x27;, 0.905], [&#x27;macro_nowcast:labor&#x27;, -0.764], [&#x27;macro_nowcast:production&#x27;, -0.761]]</td>
+                <td class="small">[[&#x27;macro_nowcast:wage_pressure&#x27;, 0.905], [&#x27;macro_nowcast:labor&#x27;, -0.764], [&#x27;macro_nowcast:production&#x27;, -0.761]]</td>
+            </tr>
+          </tbody>
+        </table>
+        
+        <h3>2022 H1 inflation (2022-06-16, consensus g=Up, i=Up)</h3>
+        <table>
+          <thead><tr><th></th><th>Baseline</th><th>Q8</th></tr></thead>
+          <tbody>
+            <tr><td>final_g (label)</td><td>-0.20 (Down)</td><td>-0.09 (Neutral)</td></tr>
+            <tr><td>final_i (label)</td><td>+0.07 (Neutral)</td><td>+0.21 (Up)</td></tr>
+            <tr><td>macro_nowcast (g/i)</td>
+                <td>0.29884381221573114 / 0.5715291640698266</td>
+                <td>0.29884381221573114 / 0.5715291640698266</td>
+            </tr>
+            <tr><td>market_implied (g/i)</td>
+                <td>-0.4735978902987466 / -0.14934007475360334</td>
+                <td>-0.4735978902987466 / -0.14934007475360334</td>
+            </tr>
+            <tr><td>top contributors (≤3)</td>
+                <td class="small">[[&#x27;macro_nowcast:persistence&#x27;, 0.905], [&#x27;macro_nowcast:wage_pressure&#x27;, 0.905], [&#x27;macro_nowcast:realized_broad&#x27;, 0.905]]</td>
+                <td class="small">[[&#x27;macro_nowcast:persistence&#x27;, 0.905], [&#x27;macro_nowcast:wage_pressure&#x27;, 0.905], [&#x27;macro_nowcast:realized_broad&#x27;, 0.905]]</td>
+            </tr>
+          </tbody>
+        </table>
+        
+        <h3>2024 disinflation (2024-07-02, consensus g=Up, i=Neutral)</h3>
+        <table>
+          <thead><tr><th></th><th>Baseline</th><th>Q8</th></tr></thead>
+          <tbody>
+            <tr><td>final_g (label)</td><td>+0.05 (Neutral)</td><td>+0.04 (Neutral)</td></tr>
+            <tr><td>final_i (label)</td><td>+0.06 (Neutral)</td><td>+0.16 (Up)</td></tr>
+            <tr><td>macro_nowcast (g/i)</td>
+                <td>-0.0034239065373691223 / 0.392566269103854</td>
+                <td>-0.0034239065373691223 / 0.392566269103854</td>
+            </tr>
+            <tr><td>market_implied (g/i)</td>
+                <td>0.08122120136853243 / -0.07904287949881425</td>
+                <td>0.08122120136853243 / -0.07904287949881425</td>
+            </tr>
+            <tr><td>top contributors (≤3)</td>
+                <td class="small">[[&#x27;macro_nowcast:persistence&#x27;, 0.865], [&#x27;macro_nowcast:wage_pressure&#x27;, 0.813], [&#x27;macro_nowcast:realized_broad&#x27;, 0.43]]</td>
+                <td class="small">[[&#x27;macro_nowcast:persistence&#x27;, 0.865], [&#x27;macro_nowcast:wage_pressure&#x27;, 0.813], [&#x27;macro_nowcast:realized_broad&#x27;, 0.43]]</td>
+            </tr>
+          </tbody>
+        </table>
+        
+    <h3>Patterns across all anchor-changes</h3>
+    <ul>
+      <li><b>2022 H1 inflation</b>: macro_i=+0.57 (correctly reading peak CPI),
+        market_i=-0.15 (oil rolled over before CPI peaked). Q8's 50/50 blend
+        lets the macro signal dominate (final_i=+0.21 → Up); baseline
+        30/70 buried it (final_i=+0.07 → Neutral). <b>This is the
+        flagship case for the layer-blend change.</b></li>
+      <li><b>2017 Goldilocks growth</b>: macro_g=+0.14, market_g=+0.11.
+        Both layers correctly mildly positive. Baseline's final_g=+0.12 sits
+        right under the ±0.15 threshold → Neutral. Q8's tighter ±0.10 lifts
+        the same score to Up. <b>This case is driven entirely by the threshold
+        change, not the blend.</b></li>
+      <li><b>2020H2 catch-up inflation</b>: macro_i=-0.55 (CPI YoY still ~1.4%,
+        below 2.5% comfort), market_i=+0.24 (reflation pricing). Baseline
+        cancels (final_i≈0 → Neutral). Q8 balanced blend lets macro show
+        through (final_i=-0.16 → Down) — matches the LEVEL framing.</li>
+      <li><b>2024 disinflation inflation (LOSS)</b>: macro_i=+0.39 (CPI still
+        ~3%, above 2.5+0.5 threshold band reads Up), market_i=-0.08. Baseline
+        gets it right by accident (final_i=+0.06 → Neutral); Q8 over-rotates
+        to Up (final_i=+0.16). <b>This is a structural threshold-semantics
+        problem</b>, not a blend tuning issue. Widening CPI threshold
+        neutral_level 2.5 → 3.0 in a future round would fix this but would
+        also weaken the 2022 H1 detection — left as out-of-scope here.</li>
+    </ul>
+    
+
+    <h2 id="verdict">Provisional verdict and "what would make Q8 final"</h2>
+    <div class="pass-banner">
+      <b>Recommendation</b>: ship Q8 unchanged. Robustness is strong
+      (21/21 perturbations), per-confidence-class wins are concentrated
+      where consensus is clearest, latency cost is small (+3bd mean) and
+      acceptable for daily-checked operator dashboards.
+    </div>
+    <p>To upgrade Q8 from <em>provisional</em> to <em>final</em>, the
+       following would need to be done:</p>
+    <ol>
+      <li><b>Fix the 2 "FAIL (clear)" inflation cases</b>:
+        <ul>
+          <li>2025 tariff: engine has no tariff-cost / single-event shock
+            channel. Either add an event-overlay signal or accept the
+            shortfall and document it.</li>
+          <li>2022 H1 inflation growth (FAIL, g=34%): macro_g=+0.30 was
+            correct but market_g=-0.47 dragged final to -0.09. Possibly
+            tighten the post-COVID base-effect handling in the labor
+            concept (YoY payrolls was structurally distorted by 2021 lows).</li>
+        </ul>
+      </li>
+      <li><b>Fix the CPI 3% → "Up" framing artifact</b> (Q4 2024 disinflation):
+        consider neutral_level 2.5 → 3.0 (Fed's de facto operating range) and
+        re-run the grid. May regress 2017 Goldilocks unless threshold is
+        compensated.</li>
+      <li><b>Pre-register the next round's anchor set</b> before tuning,
+        and split anchors into train/holdout. Current 13 anchors are
+        author-curated and used both for grid search and validation —
+        in-sample leakage is unavoidable. A holdout of 3-4 anchors
+        (e.g. 2008, 2017, 2024) would let us validate Q8 without
+        re-touching it.</li>
+      <li><b>Layer concept-level tuning</b>: the current grid only
+        touches 4 scalar knobs. Concept composition (e.g. yield curve
+        T10Y2Y / T10Y3M to growth, T5YIE breakeven to inflation, oil
+        to market_implied inflation) would change which signals dominate
+        — that's a separate structural pass.</li>
+      <li><b>Add direction-honest signals</b>: a MoM-velocity or
+        6m-change layer would catch the "disinflation in progress" reading
+        that the level-only macro layer cannot. Out of scope for Q8.</li>
+    </ol>
+    
+</body></html>

@@ -1,0 +1,7121 @@
+{
+  "n_anchors": 13,
+  "baseline_config": {
+    "name": "Q7 baseline (Q6 + Q7 risk overlay)",
+    "min_weight": 0.65,
+    "growth_thresh": 0.15,
+    "inflation_thresh": 0.12,
+    "axis_min_consecutive": 5,
+    "macro_g_w": 0.35,
+    "macro_i_w": 0.3,
+    "market_g_w": 0.65,
+    "market_i_w": 0.7
+  },
+  "q8_config": {
+    "name": "Q8 winner (balanced + gt=0.10)",
+    "min_weight": 0.65,
+    "growth_thresh": 0.1,
+    "inflation_thresh": 0.12,
+    "axis_min_consecutive": 5,
+    "macro_g_w": 0.5,
+    "macro_i_w": 0.5,
+    "market_g_w": 0.5,
+    "market_i_w": 0.5
+  },
+  "anchors": [
+    {
+      "name": "2008 GFC trough",
+      "window": [
+        "2008-10-01",
+        "2009-03-31"
+      ],
+      "confidence": "clear",
+      "g_consensus": "Down",
+      "i_consensus": "Down",
+      "brief": "Lehman+ deep recession; oil bust drives YoY CPI to ~-2%",
+      "per_date": [
+        {
+          "date": "2008-10-01",
+          "baseline": {
+            "date": "2008-10-01",
+            "final_g": -0.292,
+            "final_i": -0.521,
+            "g_label": "Down",
+            "i_label": "Down",
+            "risk_score": 0.374,
+            "risk_on": false,
+            "layer_outputs": {
+              "macro_nowcast": {
+                "growth": -0.8042231706976417,
+                "inflation": 0.19591119381790714,
+                "top_pos": [
+                  [
+                    "wage_pressure",
+                    0.709
+                  ],
+                  [
+                    "realized_broad",
+                    0.453
+                  ]
+                ],
+                "top_neg": [
+                  [
+                    "broad_leading",
+                    -0.905
+                  ],
+                  [
+                    "production",
+                    -0.81
+                  ],
+                  [
+                    "labor",
+                    -0.758
+                  ]
+                ]
+              },
+              "market_implied": {
+                "growth": -0.015564318817404768,
+                "inflation": -0.8288694897892117,
+                "top_pos": [
+                  [
+                    "risk_appetite",
+                    0.452
+                  ]
+                ],
+                "top_neg": [
+                  [
+                    "inflation_pricing_proxy",
+                    -0.905
+                  ],
+                  [
+                    "commodity_inflation",
+                    -0.869
+                  ],
+                  [
+                    "gold_haven_inflation_proxy",
+                    -0.597
+                  ]
+                ]
+              }
+            },
+            "top_contributors": [
+              [
+                "macro_nowcast:broad_leading",
+                -0.905
+              ],
+              [
+                "market_implied:inflation_pricing_proxy",
+                -0.905
+              ],
+              [
+                "market_implied:commodity_inflation",
+                -0.869
+              ],
+              [
+                "macro_nowcast:production",
+                -0.81
+              ],
+              [
+                "macro_nowcast:labor",
+                -0.758
+              ]
+            ]
+          },
+          "q8": {
+            "date": "2008-10-01",
+            "final_g": -0.41,
+            "final_i": -0.316,
+            "g_label": "Down",
+            "i_label": "Down",
+            "risk_score": 0.374,
+            "risk_on": false,
+            "layer_outputs": {
+              "macro_nowcast": {
+                "growth": -0.8042231706976417,
+                "inflation": 0.19591119381790714,
+                "top_pos": [
+                  [
+                    "wage_pressure",
+                    0.709
+                  ],
+                  [
+                    "realized_broad",
+                    0.453
+                  ]
+                ],
+                "top_neg": [
+                  [
+                    "broad_leading",
+                    -0.905
+                  ],
+                  [
+                    "production",
+                    -0.81
+                  ],
+                  [
+                    "labor",
+                    -0.758
+                  ]
+                ]
+              },
+              "market_implied": {
+                "growth": -0.015564318817404768,
+                "inflation": -0.8288694897892117,
+                "top_pos": [
+                  [
+                    "risk_appetite",
+                    0.452
+                  ]
+                ],
+                "top_neg": [
+                  [
+                    "inflation_pricing_proxy",
+                    -0.905
+                  ],
+                  [
+                    "commodity_inflation",
+                    -0.869
+                  ],
+                  [
+                    "gold_haven_inflation_proxy",
+                    -0.597
+                  ]
+                ]
+              }
+            },
+            "top_contributors": [
+              [
+                "macro_nowcast:broad_leading",
+                -0.905
+              ],
+              [
+                "market_implied:inflation_pricing_proxy",
+                -0.905
+              ],
+              [
+                "market_implied:commodity_inflation",
+                -0.869
+              ],
+              [
+                "macro_nowcast:production",
+                -0.81
+              ],
+              [
+                "macro_nowcast:labor",
+                -0.758
+              ]
+            ]
+          }
+        },
+        {
+          "date": "2008-12-31",
+          "baseline": {
+            "date": "2008-12-31",
+            "final_g": -0.593,
+            "final_i": -0.614,
+            "g_label": "Down",
+            "i_label": "Down",
+            "risk_score": 0.535,
+            "risk_on": false,
+            "layer_outputs": {
+              "macro_nowcast": {
+                "growth": -0.8977572361343142,
+                "inflation": -0.4621020843511462,
+                "top_pos": [
+                  [
+                    "wage_pressure",
+                    0.695
+                  ]
+                ],
+                "top_neg": [
+                  [
+                    "consumption",
+                    -0.905
+                  ],
+                  [
+                    "production",
+                    -0.905
+                  ],
+                  [
+                    "broad_leading",
+                    -0.905
+                  ]
+                ]
+              },
+              "market_implied": {
+                "growth": -0.4283440810332049,
+                "inflation": -0.6787772230001391,
+                "top_pos": [
+                  [
+                    "gold_haven_inflation_proxy",
+                    0.046
+                  ]
+                ],
+                "top_neg": [
+                  [
+                    "inflation_pricing_proxy",
+                    -0.905
+                  ],
+                  [
+                    "risk_appetite",
+                    -0.865
+                  ],
+                  [
+                    "commodity_inflation",
+                    -0.815
+                  ]
+                ]
+              }
+            },
+            "top_contributors": [
+              [
+                "macro_nowcast:consumption",
+                -0.905
+              ],
+              [
+                "macro_nowcast:production",
+                -0.905
+              ],
+              [
+                "macro_nowcast:broad_leading",
+                -0.905
+              ],
+              [
+                "macro_nowcast:market_expectations",
+                -0.905
+              ],
+              [
+                "market_implied:inflation_pricing_proxy",
+                -0.905
+              ]
+            ]
+          },
+          "q8": {
+            "date": "2008-12-31",
+            "final_g": -0.663,
+            "final_i": -0.57,
+            "g_label": "Down",
+            "i_label": "Down",
+            "risk_score": 0.535,
+            "risk_on": false,
+            "layer_outputs": {
+              "macro_nowcast": {
+                "growth": -0.8977572361343142,
+                "inflation": -0.4621020843511462,
+                "top_pos": [
+                  [
+                    "wage_pressure",
+                    0.695
+                  ]
+                ],
+                "top_neg": [
+                  [
+                    "consumption",
+                    -0.905
+                  ],
+                  [
+                    "production",
+                    -0.905
+                  ],
+                  [
+                    "broad_leading",
+                    -0.905
+                  ]
+                ]
+              },
+              "market_implied": {
+                "growth": -0.4283440810332049,
+                "inflation": -0.6787772230001391,
+                "top_pos": [
+                  [
+                    "gold_haven_inflation_proxy",
+                    0.046
+                  ]
+                ],
+                "top_neg": [
+                  [
+                    "inflation_pricing_proxy",
+                    -0.905
+                  ],
+                  [
+                    "risk_appetite",
+                    -0.865
+                  ],
+                  [
+                    "commodity_inflation",
+                    -0.815
+                  ]
+                ]
+              }
+            },
+            "top_contributors": [
+              [
+                "macro_nowcast:consumption",
+                -0.905
+              ],
+              [
+                "macro_nowcast:production",
+                -0.905
+              ],
+              [
+                "macro_nowcast:broad_leading",
+                -0.905
+              ],
+              [
+                "macro_nowcast:market_expectations",
+                -0.905
+              ],
+              [
+                "market_implied:inflation_pricing_proxy",
+                -0.905
+              ]
+            ]
+          }
+        },
+        {
+          "date": "2009-03-31",
+          "baseline": {
+            "date": "2009-03-31",
+            "final_g": -0.214,
+            "final_i": 0.044,
+            "g_label": "Down",
+            "i_label": "Neutral",
+            "risk_score": -0.053,
+            "risk_on": false,
+            "layer_outputs": {
+              "macro_nowcast": {
+                "growth": -0.9051482536448665,
+                "inflation": -0.40942419989882267,
+                "top_pos": [
+                  [
+                    "wage_pressure",
+                    0.534
+                  ]
+                ],
+                "top_neg": [
+                  [
+                    "consumption",
+                    -0.905
+                  ],
+                  [
+                    "production",
+                    -0.905
+                  ],
+                  [
+                    "broad_leading",
+                    -0.905
+                  ]
+                ]
+              },
+              "market_implied": {
+                "growth": 0.1578164166986625,
+                "inflation": 0.2383731208962864,
+                "top_pos": [
+                  [
+                    "inflation_pricing_proxy",
+                    0.641
+                  ],
+                  [
+                    "cyclical_rotation",
+                    0.366
+                  ],
+                  [
+                    "risk_appetite",
+                    0.049
+                  ]
+                ],
+                "top_neg": [
+                  [
+                    "commodity_inflation",
+                    -0.05
+                  ]
+                ]
+              }
+            },
+            "top_contributors": [
+              [
+                "macro_nowcast:consumption",
+                -0.905
+              ],
+              [
+                "macro_nowcast:production",
+                -0.905
+              ],
+              [
+                "macro_nowcast:broad_leading",
+                -0.905
+              ],
+              [
+                "macro_nowcast:labor",
+                -0.905
+              ],
+              [
+                "macro_nowcast:realized_broad",
+                -0.83
+              ]
+            ]
+          },
+          "q8": {
+            "date": "2009-03-31",
+            "final_g": -0.374,
+            "final_i": -0.086,
+            "g_label": "Down",
+            "i_label": "Neutral",
+            "risk_score": -0.053,
+            "risk_on": false,
+            "layer_outputs": {
+              "macro_nowcast": {
+                "growth": -0.9051482536448665,
+                "inflation": -0.40942419989882267,
+                "top_pos": [
+                  [
+                    "wage_pressure",
+                    0.534
+                  ]
+                ],
+                "top_neg": [
+                  [
+                    "consumption",
+                    -0.905
+                  ],
+                  [
+                    "production",
+                    -0.905
+                  ],
+                  [
+                    "broad_leading",
+                    -0.905
+                  ]
+                ]
+              },
+              "market_implied": {
+                "growth": 0.1578164166986625,
+                "inflation": 0.2383731208962864,
+                "top_pos": [
+                  [
+                    "inflation_pricing_proxy",
+                    0.641
+                  ],
+                  [
+                    "cyclical_rotation",
+                    0.366
+                  ],
+                  [
+                    "risk_appetite",
+                    0.049
+                  ]
+                ],
+                "top_neg": [
+                  [
+                    "commodity_inflation",
+                    -0.05
+                  ]
+                ]
+              }
+            },
+            "top_contributors": [
+              [
+                "macro_nowcast:consumption",
+                -0.905
+              ],
+              [
+                "macro_nowcast:production",
+                -0.905
+              ],
+              [
+                "macro_nowcast:broad_leading",
+                -0.905
+              ],
+              [
+                "macro_nowcast:labor",
+                -0.905
+              ],
+              [
+                "macro_nowcast:realized_broad",
+                -0.83
+              ]
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "2010-12 expansion",
+      "window": [
+        "2010-06-01",
+        "2012-12-31"
+      ],
+      "confidence": "defensible",
+      "g_consensus": "Up",
+      "i_consensus": "Neutral",
+      "brief": "Slow but steady job growth (PAYEMS YoY +1.5-2%), CPI ~2-3%",
+      "per_date": [
+        {
+          "date": "2010-06-01",
+          "baseline": {
+            "date": "2010-06-01",
+            "final_g": 0.178,
+            "final_i": -0.195,
+            "g_label": "Up",
+            "i_label": "Down",
+            "risk_score": 0.279,
+            "risk_on": false,
+            "layer_outputs": {
+              "macro_nowcast": {
+                "growth": 0.32243618314263545,
+                "inflation": -0.37084251799177387,
+                "top_pos": [
+                  [
+                    "production",
+                    0.532
+                  ],
+                  [
+                    "consumption",
+                    0.495
+                  ],
+                  [
+                    "broad_leading",
+                    0.256
+                  ]
+                ],
+                "top_neg": [
+                  [
+                    "persistence",
+                    -0.905
+                  ],
+                  [
+                    "wage_pressure",
+                    -0.554
+                  ],
+                  [
+                    "realized_broad",
+                    -0.344
+                  ]
+                ]
+              },
+              "market_implied": {
+                "growth": 0.10035554167444201,
+                "inflation": -0.11929819358771536,
+                "top_pos": [
+                  [
+                    "cyclical_rotation",
+                    0.342
+                  ],
+                  [
+                    "gold_haven_inflation_proxy",
+                    0.159
+                  ],
+                  [
+                    "broad_equity_momentum",
+                    0.068
+                  ]
+                ],
+                "top_neg": [
+                  [
+                    "commodity_inflation",
+                    -0.287
+                  ],
+                  [
+                    "risk_appetite",
+                    -0.169
+                  ],
+                  [
+                    "inflation_pricing_proxy",
+                    -0.091
+                  ]
+                ]
+              }
+            },
+            "top_contributors": [
+              [
+                "macro_nowcast:persistence",
+                -0.905
+              ],
+              [
+                "macro_nowcast:wage_pressure",
+                -0.554
+              ],
+              [
+                "macro_nowcast:production",
+                0.532
+              ],
+              [
+                "macro_nowcast:consumption",
+                0.495
+              ],
+              [
+                "macro_nowcast:realized_broad",
+                -0.344
+              ]
+            ]
+          },
+          "q8": {
+            "date": "2010-06-01",
+            "final_g": 0.211,
+            "final_i": -0.245,
+            "g_label": "Up",
+            "i_label": "Down",
+            "risk_score": 0.279,
+            "risk_on": false,
+            "layer_outputs": {
+              "macro_nowcast": {
+                "growth": 0.32243618314263545,
+                "inflation": -0.37084251799177387,
+                "top_pos": [
+                  [
+                    "production",
+                    0.532
+                  ],
+                  [
+                    "consumption",
+                    0.495
+                  ],
+                  [
+                    "broad_leading",
+                    0.256
+                  ]
+                ],
+                "top_neg": [
+                  [
+                    "persistence",
+                    -0.905
+                  ],
+                  [
+                    "wage_pressure",
+                    -0.554
+                  ],
+                  [
+                    "realized_broad",
+                    -0.344
+                  ]
+                ]
+              },
+              "market_implied": {
+                "growth": 0.10035554167444201,
+                "inflation": -0.11929819358771536,
+                "top_pos": [
+                  [
+                    "cyclical_rotation",
+                    0.342
+                  ],
+                  [
+                    "gold_haven_inflation_proxy",
+                    0.159
+                  ],
+                  [
+                    "broad_equity_momentum",
+                    0.068
+                  ]
+                ],
+                "top_neg": [
+                  [
+                    "commodity_inflation",
+                    -0.287
+                  ],
+                  [
+                    "risk_appetite",
+                    -0.169
+                  ],
+                  [
+                    "inflation_pricing_proxy",
+                    -0.091
+                  ]
+                ]
+              }
+            },
+            "top_contributors": [
+              [
+                "macro_nowcast:persistence",
+                -0.905
+              ],
+              [
+                "macro_nowcast:wage_pressure",
+                -0.554
+              ],
+              [
+                "macro_nowcast:production",
+                0.532
+              ],
+              [
+                "macro_nowcast:consumption",
+                0.495
+              ],
+              [
+                "macro_nowcast:realized_broad",
+                -0.344
+              ]
+            ]
+          }
+        },
+        {
+          "date": "2011-09-16",
+          "baseline": {
+            "date": "2011-09-16",
+            "final_g": -0.053,
+            "final_i": -0.088,
+            "g_label": "Neutral",
+            "i_label": "Neutral",
+            "risk_score": 0.055,
+            "risk_on": false,
+            "layer_outputs": {
+              "macro_nowcast": {
+                "growth": 0.318139922791878,
+                "inflation": -0.2834599411784915,
+                "top_pos": [
+                  [
+                    "consumption",
+                    0.431
+                  ],
+                  [
+                    "broad_leading",
+                    0.287
+                  ],
+                  [
+                    "labor",
+                    0.279
+                  ]
+                ],
+                "top_neg": [
+                  [
+                    "persistence",
+                    -0.874
+                  ],
+                  [
+                    "wage_pressure",
+                    -0.806
+                  ]
+                ]
+              },
+              "market_implied": {
+                "growth": -0.25299973018902694,
+                "inflation": -0.0036984388495969966,
+                "top_pos": [
+                  [
+                    "gold_haven_inflation_proxy",
+                    0.594
+                  ]
+                ],
+                "top_neg": [
+                  [
+                    "cyclical_rotation",
+                    -0.36
+                  ],
+                  [
+                    "risk_appetite",
+                    -0.309
+                  ],
+                  [
+                    "inflation_pricing_proxy",
+                    -0.215
+                  ]
+                ]
+              }
+            },
+            "top_contributors": [
+              [
+                "macro_nowcast:persistence",
+                -0.874
+              ],
+              [
+                "macro_nowcast:wage_pressure",
+                -0.806
+              ],
+              [
+                "market_implied:gold_haven_inflation_proxy",
+                0.594
+              ],
+              [
+                "macro_nowcast:consumption",
+                0.431
+              ],
+              [
+                "market_implied:cyclical_rotation",
+                -0.36
+              ]
+            ]
+          },
+          "q8": {
+            "date": "2011-09-16",
+            "final_g": 0.033,
+            "final_i": -0.144,
+            "g_label": "Neutral",
+            "i_label": "Down",
+            "risk_score": 0.055,
+            "risk_on": false,
+            "layer_outputs": {
+              "macro_nowcast": {
+                "growth": 0.318139922791878,
+                "inflation": -0.2834599411784915,
+                "top_pos": [
+                  [
+                    "consumption",
+                    0.431
+                  ],
+                  [
+                    "broad_leading",
+                    0.287
+                  ],
+                  [
+                    "labor",
+                    0.279
+                  ]
+                ],
+                "top_neg": [
+                  [
+                    "persistence",
+                    -0.874
+                  ],
+                  [
+                    "wage_pressure",
+                    -0.806
+                  ]
+                ]
+              },
+              "market_implied": {
+                "growth": -0.25299973018902694,
+                "inflation": -0.0036984388495969966,
+                "top_pos": [
+                  [
+                    "gold_haven_inflation_proxy",
+                    0.594
+                  ]
+                ],
+                "top_neg": [
+                  [
+                    "cyclical_rotation",
+                    -0.36
+                  ],
+                  [
+                    "risk_appetite",
+                    -0.309
+                  ],
+                  [
+                    "inflation_pricing_proxy",
+                    -0.215
+                  ]
+                ]
+              }
+            },
+            "top_contributors": [
+              [
+                "macro_nowcast:persistence",
+                -0.874
+              ],
+              [
+                "macro_nowcast:wage_pressure",
+                -0.806
+              ],
+              [
+                "market_implied:gold_haven_inflation_proxy",
+                0.594
+              ],
+              [
+                "macro_nowcast:consumption",
+                0.431
+              ],
+              [
+                "market_implied:cyclical_rotation",
+                -0.36
+              ]
+            ]
+          }
+        },
+        {
+          "date": "2012-12-31",
+          "baseline": {
+            "date": "2012-12-31",
+            "final_g": 0.085,
+            "final_i": -0.083,
+            "g_label": "Neutral",
+            "i_label": "Neutral",
+            "risk_score": -0.334,
+            "risk_on": false,
+            "layer_outputs": {
+              "macro_nowcast": {
+                "growth": 0.18941836633287484,
+                "inflation": -0.008595378015352413,
+                "top_pos": [
+                  [
+                    "market_expectations",
+                    0.84
+                  ],
+                  [
+                    "labor",
+                    0.296
+                  ],
+                  [
+                    "broad_leading",
+                    0.241
+                  ]
+                ],
+                "top_neg": [
+                  [
+                    "wage_pressure",
+                    -0.905
+                  ],
+                  [
+                    "persistence",
+                    -0.666
+                  ],
+                  [
+                    "realized_broad",
+                    -0.364
+                  ]
+                ]
+              },
+              "market_implied": {
+                "growth": 0.02884617769292679,
+                "inflation": -0.11470342183042843,
+                "top_pos": [
+                  [
+                    "risk_appetite",
+                    0.347
+                  ],
+                  [
+                    "cyclical_rotation",
+                    0.109
+                  ],
+                  [
+                    "inflation_pricing_proxy",
+                    0.086
+                  ]
+                ],
+                "top_neg": [
+                  [
+                    "gold_haven_inflation_proxy",
+                    -0.613
+                  ],
+                  [
+                    "broad_equity_momentum",
+                    -0.246
+                  ],
+                  [
+                    "commodity_demand",
+                    -0.202
+                  ]
+                ]
+              }
+            },
+            "top_contributors": [
+              [
+                "macro_nowcast:wage_pressure",
+                -0.905
+              ],
+              [
+                "macro_nowcast:market_expectations",
+                0.84
+              ],
+              [
+                "macro_nowcast:persistence",
+                -0.666
+              ],
+              [
+                "market_implied:gold_haven_inflation_proxy",
+                -0.613
+              ],
+              [
+                "macro_nowcast:realized_broad",
+                -0.364
+              ]
+            ]
+          },
+          "q8": {
+            "date": "2012-12-31",
+            "final_g": 0.109,
+            "final_i": -0.062,
+            "g_label": "Up",
+            "i_label": "Neutral",
+            "risk_score": -0.334,
+            "risk_on": false,
+            "layer_outputs": {
+              "macro_nowcast": {
+                "growth": 0.18941836633287484,
+                "inflation": -0.008595378015352413,
+                "top_pos": [
+                  [
+                    "market_expectations",
+                    0.84
+                  ],
+                  [
+                    "labor",
+                    0.296
+                  ],
+                  [
+                    "broad_leading",
+                    0.241
+                  ]
+                ],
+                "top_neg": [
+                  [
+                    "wage_pressure",
+                    -0.905
+                  ],
+                  [
+                    "persistence",
+                    -0.666
+                  ],
+                  [
+                    "realized_broad",
+                    -0.364
+                  ]
+                ]
+              },
+              "market_implied": {
+                "growth": 0.02884617769292679,
+                "inflation": -0.11470342183042843,
+                "top_pos": [
+                  [
+                    "risk_appetite",
+                    0.347
+                  ],
+                  [
+                    "cyclical_rotation",
+                    0.109
+                  ],
+                  [
+                    "inflation_pricing_proxy",
+                    0.086
+                  ]
+                ],
+                "top_neg": [
+                  [
+                    "gold_haven_inflation_proxy",
+                    -0.613
+                  ],
+                  [
+                    "broad_equity_momentum",
+                    -0.246
+                  ],
+                  [
+                    "commodity_demand",
+                    -0.202
+                  ]
+                ]
+              }
+            },
+            "top_contributors": [
+              [
+                "macro_nowcast:wage_pressure",
+                -0.905
+              ],
+              [
+                "macro_nowcast:market_expectations",
+                0.84
+              ],
+              [
+                "macro_nowcast:persistence",
+                -0.666
+              ],
+              [
+                "market_implied:gold_haven_inflation_proxy",
+                -0.613
+              ],
+              [
+                "macro_nowcast:realized_broad",
+                -0.364
+              ]
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "2015-16 oil bust",
+      "window": [
+        "2015-08-01",
+        "2016-02-29"
+      ],
+      "confidence": "defensible",
+      "g_consensus": "Neutral",
+      "i_consensus": "Down",
+      "brief": "Mfg recession, CPI YoY near zero, oil bust deflation",
+      "per_date": [
+        {
+          "date": "2015-08-03",
+          "baseline": {
+            "date": "2015-08-03",
+            "final_g": -0.165,
+            "final_i": -0.442,
+            "g_label": "Down",
+            "i_label": "Down",
+            "risk_score": 0.281,
+            "risk_on": false,
+            "layer_outputs": {
+              "macro_nowcast": {
+                "growth": 0.09507693016545296,
+                "inflation": -0.4480321709018651,
+                "top_pos": [
+                  [
+                    "broad_leading",
+                    0.327
+                  ],
+                  [
+                    "labor",
+                    0.302
+                  ]
+                ],
+                "top_neg": [
+                  [
+                    "realized_broad",
+                    -0.797
+                  ],
+                  [
+                    "wage_pressure",
+                    -0.785
+                  ],
+                  [
+                    "persistence",
+                    -0.714
+                  ]
+                ]
+              },
+              "market_implied": {
+                "growth": -0.3052765342621732,
+                "inflation": -0.43890112129867037,
+                "top_pos": [],
+                "top_neg": [
+                  [
+                    "commodity_demand",
+                    -0.812
+                  ],
+                  [
+                    "commodity_inflation",
+                    -0.686
+                  ],
+                  [
+                    "gold_haven_inflation_proxy",
+                    -0.44
+                  ]
+                ]
+              }
+            },
+            "top_contributors": [
+              [
+                "market_implied:commodity_demand",
+                -0.812
+              ],
+              [
+                "macro_nowcast:realized_broad",
+                -0.797
+              ],
+              [
+                "macro_nowcast:wage_pressure",
+                -0.785
+              ],
+              [
+                "macro_nowcast:persistence",
+                -0.714
+              ],
+              [
+                "market_implied:commodity_inflation",
+                -0.686
+              ]
+            ]
+          },
+          "q8": {
+            "date": "2015-08-03",
+            "final_g": -0.105,
+            "final_i": -0.443,
+            "g_label": "Down",
+            "i_label": "Down",
+            "risk_score": 0.281,
+            "risk_on": false,
+            "layer_outputs": {
+              "macro_nowcast": {
+                "growth": 0.09507693016545296,
+                "inflation": -0.4480321709018651,
+                "top_pos": [
+                  [
+                    "broad_leading",
+                    0.327
+                  ],
+                  [
+                    "labor",
+                    0.302
+                  ]
+                ],
+                "top_neg": [
+                  [
+                    "realized_broad",
+                    -0.797
+                  ],
+                  [
+                    "wage_pressure",
+                    -0.785
+                  ],
+                  [
+                    "persistence",
+                    -0.714
+                  ]
+                ]
+              },
+              "market_implied": {
+                "growth": -0.3052765342621732,
+                "inflation": -0.43890112129867037,
+                "top_pos": [],
+                "top_neg": [
+                  [
+                    "commodity_demand",
+                    -0.812
+                  ],
+                  [
+                    "commodity_inflation",
+                    -0.686
+                  ],
+                  [
+                    "gold_haven_inflation_proxy",
+                    -0.44
+                  ]
+                ]
+              }
+            },
+            "top_contributors": [
+              [
+                "market_implied:commodity_demand",
+                -0.812
+              ],
+              [
+                "macro_nowcast:realized_broad",
+                -0.797
+              ],
+              [
+                "macro_nowcast:wage_pressure",
+                -0.785
+              ],
+              [
+                "macro_nowcast:persistence",
+                -0.714
+              ],
+              [
+                "market_implied:commodity_inflation",
+                -0.686
+              ]
+            ]
+          }
+        },
+        {
+          "date": "2015-11-16",
+          "baseline": {
+            "date": "2015-11-16",
+            "final_g": -0.121,
+            "final_i": -0.209,
+            "g_label": "Neutral",
+            "i_label": "Down",
+            "risk_score": 0.145,
+            "risk_on": false,
+            "layer_outputs": {
+              "macro_nowcast": {
+                "growth": 0.04515865757619371,
+                "inflation": -0.6594012545181459,
+                "top_pos": [
+                  [
+                    "broad_leading",
+                    0.367
+                  ],
+                  [
+                    "labor",
+                    0.25
+                  ]
+                ],
+                "top_neg": [
+                  [
+                    "realized_broad",
+                    -0.762
+                  ],
+                  [
+                    "market_expectations",
+                    -0.686
+                  ],
+                  [
+                    "persistence",
+                    -0.581
+                  ]
+                ]
+              },
+              "market_implied": {
+                "growth": -0.21087667853171108,
+                "inflation": -0.01606763111121273,
+                "top_pos": [
+                  [
+                    "commodity_inflation",
+                    0.049
+                  ]
+                ],
+                "top_neg": [
+                  [
+                    "risk_appetite",
+                    -0.434
+                  ],
+                  [
+                    "commodity_demand",
+                    -0.255
+                  ],
+                  [
+                    "broad_equity_momentum",
+                    -0.194
+                  ]
+                ]
+              }
+            },
+            "top_contributors": [
+              [
+                "macro_nowcast:realized_broad",
+                -0.762
+              ],
+              [
+                "macro_nowcast:market_expectations",
+                -0.686
+              ],
+              [
+                "macro_nowcast:persistence",
+                -0.581
+              ],
+              [
+                "macro_nowcast:wage_pressure",
+                -0.56
+              ],
+              [
+                "market_implied:risk_appetite",
+                -0.434
+              ]
+            ]
+          },
+          "q8": {
+            "date": "2015-11-16",
+            "final_g": -0.083,
+            "final_i": -0.338,
+            "g_label": "Neutral",
+            "i_label": "Down",
+            "risk_score": 0.145,
+            "risk_on": false,
+            "layer_outputs": {
+              "macro_nowcast": {
+                "growth": 0.04515865757619371,
+                "inflation": -0.6594012545181459,
+                "top_pos": [
+                  [
+                    "broad_leading",
+                    0.367
+                  ],
+                  [
+                    "labor",
+                    0.25
+                  ]
+                ],
+                "top_neg": [
+                  [
+                    "realized_broad",
+                    -0.762
+                  ],
+                  [
+                    "market_expectations",
+                    -0.686
+                  ],
+                  [
+                    "persistence",
+                    -0.581
+                  ]
+                ]
+              },
+              "market_implied": {
+                "growth": -0.21087667853171108,
+                "inflation": -0.01606763111121273,
+                "top_pos": [
+                  [
+                    "commodity_inflation",
+                    0.049
+                  ]
+                ],
+                "top_neg": [
+                  [
+                    "risk_appetite",
+                    -0.434
+                  ],
+                  [
+                    "commodity_demand",
+                    -0.255
+                  ],
+                  [
+                    "broad_equity_momentum",
+                    -0.194
+                  ]
+                ]
+              }
+            },
+            "top_contributors": [
+              [
+                "macro_nowcast:realized_broad",
+                -0.762
+              ],
+              [
+                "macro_nowcast:market_expectations",
+                -0.686
+              ],
+              [
+                "macro_nowcast:persistence",
+                -0.581
+              ],
+              [
+                "macro_nowcast:wage_pressure",
+                -0.56
+              ],
+              [
+                "market_implied:risk_appetite",
+                -0.434
+              ]
+            ]
+          }
+        },
+        {
+          "date": "2016-02-29",
+          "baseline": {
+            "date": "2016-02-29",
+            "final_g": -0.285,
+            "final_i": -0.259,
+            "g_label": "Down",
+            "i_label": "Down",
+            "risk_score": 0.378,
+            "risk_on": false,
+            "layer_outputs": {
+              "macro_nowcast": {
+                "growth": 0.0522308446131337,
+                "inflation": -0.6719056193164769,
+                "top_pos": [
+                  [
+                    "labor",
+                    0.299
+                  ],
+                  [
+                    "broad_leading",
+                    0.197
+                  ]
+                ],
+                "top_neg": [
+                  [
+                    "market_expectations",
+                    -0.851
+                  ],
+                  [
+                    "realized_broad",
+                    -0.619
+                  ],
+                  [
+                    "wage_pressure",
+                    -0.499
+                  ]
+                ]
+              },
+              "market_implied": {
+                "growth": -0.4672570045617132,
+                "inflation": -0.08274664941825294,
+                "top_pos": [
+                  [
+                    "gold_haven_inflation_proxy",
+                    0.905
+                  ],
+                  [
+                    "commodity_demand",
+                    0.459
+                  ]
+                ],
+                "top_neg": [
+                  [
+                    "cyclical_rotation",
+                    -0.844
+                  ],
+                  [
+                    "broad_equity_momentum",
+                    -0.736
+                  ],
+                  [
+                    "inflation_pricing_proxy",
+                    -0.413
+                  ]
+                ]
+              }
+            },
+            "top_contributors": [
+              [
+                "market_implied:gold_haven_inflation_proxy",
+                0.905
+              ],
+              [
+                "macro_nowcast:market_expectations",
+                -0.851
+              ],
+              [
+                "market_implied:cyclical_rotation",
+                -0.844
+              ],
+              [
+                "market_implied:broad_equity_momentum",
+                -0.736
+              ],
+              [
+                "macro_nowcast:realized_broad",
+                -0.619
+              ]
+            ]
+          },
+          "q8": {
+            "date": "2016-02-29",
+            "final_g": -0.208,
+            "final_i": -0.377,
+            "g_label": "Down",
+            "i_label": "Down",
+            "risk_score": 0.378,
+            "risk_on": false,
+            "layer_outputs": {
+              "macro_nowcast": {
+                "growth": 0.0522308446131337,
+                "inflation": -0.6719056193164769,
+                "top_pos": [
+                  [
+                    "labor",
+                    0.299
+                  ],
+                  [
+                    "broad_leading",
+                    0.197
+                  ]
+                ],
+                "top_neg": [
+                  [
+                    "market_expectations",
+                    -0.851
+                  ],
+                  [
+                    "realized_broad",
+                    -0.619
+                  ],
+                  [
+                    "wage_pressure",
+                    -0.499
+                  ]
+                ]
+              },
+              "market_implied": {
+                "growth": -0.4672570045617132,
+                "inflation": -0.08274664941825294,
+                "top_pos": [
+                  [
+                    "gold_haven_inflation_proxy",
+                    0.905
+                  ],
+                  [
+                    "commodity_demand",
+                    0.459
+                  ]
+                ],
+                "top_neg": [
+                  [
+                    "cyclical_rotation",
+                    -0.844
+                  ],
+                  [
+                    "broad_equity_momentum",
+                    -0.736
+                  ],
+                  [
+                    "inflation_pricing_proxy",
+                    -0.413
+                  ]
+                ]
+              }
+            },
+            "top_contributors": [
+              [
+                "market_implied:gold_haven_inflation_proxy",
+                0.905
+              ],
+              [
+                "macro_nowcast:market_expectations",
+                -0.851
+              ],
+              [
+                "market_implied:cyclical_rotation",
+                -0.844
+              ],
+              [
+                "market_implied:broad_equity_momentum",
+                -0.736
+              ],
+              [
+                "macro_nowcast:realized_broad",
+                -0.619
+              ]
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "2017 Goldilocks",
+      "window": [
+        "2017-04-01",
+        "2017-12-31"
+      ],
+      "confidence": "defensible",
+      "g_consensus": "Up",
+      "i_consensus": "Neutral",
+      "brief": "PAYEMS +1.5% YoY, CPI ~2.1%",
+      "per_date": [
+        {
+          "date": "2017-04-03",
+          "baseline": {
+            "date": "2017-04-03",
+            "final_g": 0.191,
+            "final_i": 0.065,
+            "g_label": "Up",
+            "i_label": "Neutral",
+            "risk_score": -0.083,
+            "risk_on": false,
+            "layer_outputs": {
+              "macro_nowcast": {
+                "growth": 0.17099184691479025,
+                "inflation": -0.05484517244571355,
+                "top_pos": [
+                  [
+                    "broad_leading",
+                    0.251
+                  ],
+                  [
+                    "consumption",
+                    0.228
+                  ],
+                  [
+                    "labor",
+                    0.223
+                  ]
+                ],
+                "top_neg": [
+                  [
+                    "wage_pressure",
+                    -0.51
+                  ],
+                  [
+                    "production",
+                    -0.065
+                  ]
+                ]
+              },
+              "market_implied": {
+                "growth": 0.20222209613302786,
+                "inflation": 0.11589002477868962,
+                "top_pos": [
+                  [
+                    "gold_haven_inflation_proxy",
+                    0.526
+                  ],
+                  [
+                    "cyclical_rotation",
+                    0.38
+                  ],
+                  [
+                    "broad_equity_momentum",
+                    0.179
+                  ]
+                ],
+                "top_neg": [
+                  [
+                    "commodity_inflation",
+                    -0.001
+                  ]
+                ]
+              }
+            },
+            "top_contributors": [
+              [
+                "market_implied:gold_haven_inflation_proxy",
+                0.526
+              ],
+              [
+                "macro_nowcast:wage_pressure",
+                -0.51
+              ],
+              [
+                "market_implied:cyclical_rotation",
+                0.38
+              ],
+              [
+                "macro_nowcast:broad_leading",
+                0.251
+              ],
+              [
+                "macro_nowcast:consumption",
+                0.228
+              ]
+            ]
+          },
+          "q8": {
+            "date": "2017-04-03",
+            "final_g": 0.187,
+            "final_i": 0.031,
+            "g_label": "Up",
+            "i_label": "Neutral",
+            "risk_score": -0.083,
+            "risk_on": false,
+            "layer_outputs": {
+              "macro_nowcast": {
+                "growth": 0.17099184691479025,
+                "inflation": -0.05484517244571355,
+                "top_pos": [
+                  [
+                    "broad_leading",
+                    0.251
+                  ],
+                  [
+                    "consumption",
+                    0.228
+                  ],
+                  [
+                    "labor",
+                    0.223
+                  ]
+                ],
+                "top_neg": [
+                  [
+                    "wage_pressure",
+                    -0.51
+                  ],
+                  [
+                    "production",
+                    -0.065
+                  ]
+                ]
+              },
+              "market_implied": {
+                "growth": 0.20222209613302786,
+                "inflation": 0.11589002477868962,
+                "top_pos": [
+                  [
+                    "gold_haven_inflation_proxy",
+                    0.526
+                  ],
+                  [
+                    "cyclical_rotation",
+                    0.38
+                  ],
+                  [
+                    "broad_equity_momentum",
+                    0.179
+                  ]
+                ],
+                "top_neg": [
+                  [
+                    "commodity_inflation",
+                    -0.001
+                  ]
+                ]
+              }
+            },
+            "top_contributors": [
+              [
+                "market_implied:gold_haven_inflation_proxy",
+                0.526
+              ],
+              [
+                "macro_nowcast:wage_pressure",
+                -0.51
+              ],
+              [
+                "market_implied:cyclical_rotation",
+                0.38
+              ],
+              [
+                "macro_nowcast:broad_leading",
+                0.251
+              ],
+              [
+                "macro_nowcast:consumption",
+                0.228
+              ]
+            ]
+          }
+        },
+        {
+          "date": "2017-08-16",
+          "baseline": {
+            "date": "2017-08-16",
+            "final_g": 0.122,
+            "final_i": -0.181,
+            "g_label": "Neutral",
+            "i_label": "Down",
+            "risk_score": -0.149,
+            "risk_on": false,
+            "layer_outputs": {
+              "macro_nowcast": {
+                "growth": 0.1411877364878519,
+                "inflation": -0.6251952716859229,
+                "top_pos": [
+                  [
+                    "broad_leading",
+                    0.205
+                  ],
+                  [
+                    "labor",
+                    0.173
+                  ],
+                  [
+                    "production",
+                    0.149
+                  ]
+                ],
+                "top_neg": [
+                  [
+                    "persistence",
+                    -0.7
+                  ],
+                  [
+                    "realized_broad",
+                    -0.632
+                  ],
+                  [
+                    "wage_pressure",
+                    -0.623
+                  ]
+                ]
+              },
+              "market_implied": {
+                "growth": 0.11175349870694955,
+                "inflation": 0.009160910694288177,
+                "top_pos": [
+                  [
+                    "commodity_demand",
+                    0.616
+                  ],
+                  [
+                    "gold_haven_inflation_proxy",
+                    0.153
+                  ],
+                  [
+                    "cyclical_rotation",
+                    0.136
+                  ]
+                ],
+                "top_neg": [
+                  [
+                    "risk_appetite",
+                    -0.062
+                  ],
+                  [
+                    "broad_equity_momentum",
+                    -0.06
+                  ],
+                  [
+                    "inflation_pricing_proxy",
+                    -0.037
+                  ]
+                ]
+              }
+            },
+            "top_contributors": [
+              [
+                "macro_nowcast:persistence",
+                -0.7
+              ],
+              [
+                "macro_nowcast:realized_broad",
+                -0.632
+              ],
+              [
+                "macro_nowcast:wage_pressure",
+                -0.623
+              ],
+              [
+                "market_implied:commodity_demand",
+                0.616
+              ],
+              [
+                "macro_nowcast:market_expectations",
+                -0.565
+              ]
+            ]
+          },
+          "q8": {
+            "date": "2017-08-16",
+            "final_g": 0.126,
+            "final_i": -0.308,
+            "g_label": "Up",
+            "i_label": "Down",
+            "risk_score": -0.149,
+            "risk_on": false,
+            "layer_outputs": {
+              "macro_nowcast": {
+                "growth": 0.1411877364878519,
+                "inflation": -0.6251952716859229,
+                "top_pos": [
+                  [
+                    "broad_leading",
+                    0.205
+                  ],
+                  [
+                    "labor",
+                    0.173
+                  ],
+                  [
+                    "production",
+                    0.149
+                  ]
+                ],
+                "top_neg": [
+                  [
+                    "persistence",
+                    -0.7
+                  ],
+                  [
+                    "realized_broad",
+                    -0.632
+                  ],
+                  [
+                    "wage_pressure",
+                    -0.623
+                  ]
+                ]
+              },
+              "market_implied": {
+                "growth": 0.11175349870694955,
+                "inflation": 0.009160910694288177,
+                "top_pos": [
+                  [
+                    "commodity_demand",
+                    0.616
+                  ],
+                  [
+                    "gold_haven_inflation_proxy",
+                    0.153
+                  ],
+                  [
+                    "cyclical_rotation",
+                    0.136
+                  ]
+                ],
+                "top_neg": [
+                  [
+                    "risk_appetite",
+                    -0.062
+                  ],
+                  [
+                    "broad_equity_momentum",
+                    -0.06
+                  ],
+                  [
+                    "inflation_pricing_proxy",
+                    -0.037
+                  ]
+                ]
+              }
+            },
+            "top_contributors": [
+              [
+                "macro_nowcast:persistence",
+                -0.7
+              ],
+              [
+                "macro_nowcast:realized_broad",
+                -0.632
+              ],
+              [
+                "macro_nowcast:wage_pressure",
+                -0.623
+              ],
+              [
+                "market_implied:commodity_demand",
+                0.616
+              ],
+              [
+                "macro_nowcast:market_expectations",
+                -0.565
+              ]
+            ]
+          }
+        },
+        {
+          "date": "2018-01-01",
+          "baseline": {
+            "date": "2018-01-01",
+            "final_g": 0.19,
+            "final_i": 0.191,
+            "g_label": "Up",
+            "i_label": "Up",
+            "risk_score": -0.1,
+            "risk_on": false,
+            "layer_outputs": {
+              "macro_nowcast": {
+                "growth": 0.2249152494026746,
+                "inflation": -0.2999203095181308,
+                "top_pos": [
+                  [
+                    "consumption",
+                    0.337
+                  ],
+                  [
+                    "production",
+                    0.288
+                  ],
+                  [
+                    "broad_leading",
+                    0.155
+                  ]
+                ],
+                "top_neg": [
+                  [
+                    "persistence",
+                    -0.716
+                  ],
+                  [
+                    "wage_pressure",
+                    -0.572
+                  ],
+                  [
+                    "realized_broad",
+                    -0.301
+                  ]
+                ]
+              },
+              "market_implied": {
+                "growth": 0.17185031316940333,
+                "inflation": 0.4012997908630549,
+                "top_pos": [
+                  [
+                    "cyclical_rotation",
+                    0.531
+                  ],
+                  [
+                    "commodity_inflation",
+                    0.523
+                  ],
+                  [
+                    "commodity_demand",
+                    0.431
+                  ]
+                ],
+                "top_neg": [
+                  [
+                    "risk_appetite",
+                    -0.233
+                  ],
+                  [
+                    "broad_equity_momentum",
+                    -0.034
+                  ]
+                ]
+              }
+            },
+            "top_contributors": [
+              [
+                "macro_nowcast:persistence",
+                -0.716
+              ],
+              [
+                "macro_nowcast:wage_pressure",
+                -0.572
+              ],
+              [
+                "market_implied:cyclical_rotation",
+                0.531
+              ],
+              [
+                "market_implied:commodity_inflation",
+                0.523
+              ],
+              [
+                "market_implied:commodity_demand",
+                0.431
+              ]
+            ]
+          },
+          "q8": {
+            "date": "2018-01-01",
+            "final_g": 0.198,
+            "final_i": 0.051,
+            "g_label": "Up",
+            "i_label": "Neutral",
+            "risk_score": -0.1,
+            "risk_on": false,
+            "layer_outputs": {
+              "macro_nowcast": {
+                "growth": 0.2249152494026746,
+                "inflation": -0.2999203095181308,
+                "top_pos": [
+                  [
+                    "consumption",
+                    0.337
+                  ],
+                  [
+                    "production",
+                    0.288
+                  ],
+                  [
+                    "broad_leading",
+                    0.155
+                  ]
+                ],
+                "top_neg": [
+                  [
+                    "persistence",
+                    -0.716
+                  ],
+                  [
+                    "wage_pressure",
+                    -0.572
+                  ],
+                  [
+                    "realized_broad",
+                    -0.301
+                  ]
+                ]
+              },
+              "market_implied": {
+                "growth": 0.17185031316940333,
+                "inflation": 0.4012997908630549,
+                "top_pos": [
+                  [
+                    "cyclical_rotation",
+                    0.531
+                  ],
+                  [
+                    "commodity_inflation",
+                    0.523
+                  ],
+                  [
+                    "commodity_demand",
+                    0.431
+                  ]
+                ],
+                "top_neg": [
+                  [
+                    "risk_appetite",
+                    -0.233
+                  ],
+                  [
+                    "broad_equity_momentum",
+                    -0.034
+                  ]
+                ]
+              }
+            },
+            "top_contributors": [
+              [
+                "macro_nowcast:persistence",
+                -0.716
+              ],
+              [
+                "macro_nowcast:wage_pressure",
+                -0.572
+              ],
+              [
+                "market_implied:cyclical_rotation",
+                0.531
+              ],
+              [
+                "market_implied:commodity_inflation",
+                0.523
+              ],
+              [
+                "market_implied:commodity_demand",
+                0.431
+              ]
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "2018 Q4 vol shock",
+      "window": [
+        "2018-10-01",
+        "2018-12-31"
+      ],
+      "confidence": "defensible",
+      "g_consensus": "Up",
+      "i_consensus": "Neutral",
+      "brief": "Growth still strong YoY (PAYEMS +1.7%); market stress",
+      "per_date": [
+        {
+          "date": "2018-10-01",
+          "baseline": {
+            "date": "2018-10-01",
+            "final_g": 0.205,
+            "final_i": -0.118,
+            "g_label": "Up",
+            "i_label": "Neutral",
+            "risk_score": -0.385,
+            "risk_on": false,
+            "layer_outputs": {
+              "macro_nowcast": {
+                "growth": 0.25142357092733014,
+                "inflation": -0.11581095120974756,
+                "top_pos": [
+                  [
+                    "production",
+                    0.371
+                  ],
+                  [
+                    "consumption",
+                    0.299
+                  ],
+                  [
+                    "labor",
+                    0.266
+                  ]
+                ],
+                "top_neg": [
+                  [
+                    "persistence",
+                    -0.514
+                  ]
+                ]
+              },
+              "market_implied": {
+                "growth": 0.17974279043311542,
+                "inflation": -0.11897321359091881,
+                "top_pos": [
+                  [
+                    "cyclical_rotation",
+                    0.407
+                  ],
+                  [
+                    "risk_appetite",
+                    0.355
+                  ],
+                  [
+                    "commodity_inflation",
+                    0.128
+                  ]
+                ],
+                "top_neg": [
+                  [
+                    "gold_haven_inflation_proxy",
+                    -0.404
+                  ],
+                  [
+                    "commodity_demand",
+                    -0.315
+                  ],
+                  [
+                    "inflation_pricing_proxy",
+                    -0.223
+                  ]
+                ]
+              }
+            },
+            "top_contributors": [
+              [
+                "macro_nowcast:persistence",
+                -0.514
+              ],
+              [
+                "market_implied:cyclical_rotation",
+                0.407
+              ],
+              [
+                "market_implied:gold_haven_inflation_proxy",
+                -0.404
+              ],
+              [
+                "macro_nowcast:production",
+                0.371
+              ],
+              [
+                "market_implied:risk_appetite",
+                0.355
+              ]
+            ]
+          },
+          "q8": {
+            "date": "2018-10-01",
+            "final_g": 0.216,
+            "final_i": -0.117,
+            "g_label": "Up",
+            "i_label": "Neutral",
+            "risk_score": -0.385,
+            "risk_on": false,
+            "layer_outputs": {
+              "macro_nowcast": {
+                "growth": 0.25142357092733014,
+                "inflation": -0.11581095120974756,
+                "top_pos": [
+                  [
+                    "production",
+                    0.371
+                  ],
+                  [
+                    "consumption",
+                    0.299
+                  ],
+                  [
+                    "labor",
+                    0.266
+                  ]
+                ],
+                "top_neg": [
+                  [
+                    "persistence",
+                    -0.514
+                  ]
+                ]
+              },
+              "market_implied": {
+                "growth": 0.17974279043311542,
+                "inflation": -0.11897321359091881,
+                "top_pos": [
+                  [
+                    "cyclical_rotation",
+                    0.407
+                  ],
+                  [
+                    "risk_appetite",
+                    0.355
+                  ],
+                  [
+                    "commodity_inflation",
+                    0.128
+                  ]
+                ],
+                "top_neg": [
+                  [
+                    "gold_haven_inflation_proxy",
+                    -0.404
+                  ],
+                  [
+                    "commodity_demand",
+                    -0.315
+                  ],
+                  [
+                    "inflation_pricing_proxy",
+                    -0.223
+                  ]
+                ]
+              }
+            },
+            "top_contributors": [
+              [
+                "macro_nowcast:persistence",
+                -0.514
+              ],
+              [
+                "market_implied:cyclical_rotation",
+                0.407
+              ],
+              [
+                "market_implied:gold_haven_inflation_proxy",
+                -0.404
+              ],
+              [
+                "macro_nowcast:production",
+                0.371
+              ],
+              [
+                "market_implied:risk_appetite",
+                0.355
+              ]
+            ]
+          }
+        },
+        {
+          "date": "2018-11-16",
+          "baseline": {
+            "date": "2018-11-16",
+            "final_g": -0.19,
+            "final_i": -0.273,
+            "g_label": "Down",
+            "i_label": "Down",
+            "risk_score": 0.228,
+            "risk_on": false,
+            "layer_outputs": {
+              "macro_nowcast": {
+                "growth": 0.13764512592855227,
+                "inflation": -0.14565959451199126,
+                "top_pos": [
+                  [
+                    "production",
+                    0.363
+                  ],
+                  [
+                    "labor",
+                    0.155
+                  ],
+                  [
+                    "consumption",
+                    0.105
+                  ]
+                ],
+                "top_neg": [
+                  [
+                    "persistence",
+                    -0.526
+                  ],
+                  [
+                    "broad_leading",
+                    -0.051
+                  ]
+                ]
+              },
+              "market_implied": {
+                "growth": -0.3668587789996101,
+                "inflation": -0.3280244998631386,
+                "top_pos": [
+                  [
+                    "gold_haven_inflation_proxy",
+                    0.108
+                  ],
+                  [
+                    "commodity_demand",
+                    0.086
+                  ]
+                ],
+                "top_neg": [
+                  [
+                    "cyclical_rotation",
+                    -0.7
+                  ],
+                  [
+                    "broad_equity_momentum",
+                    -0.567
+                  ],
+                  [
+                    "inflation_pricing_proxy",
+                    -0.458
+                  ]
+                ]
+              }
+            },
+            "top_contributors": [
+              [
+                "market_implied:cyclical_rotation",
+                -0.7
+              ],
+              [
+                "market_implied:broad_equity_momentum",
+                -0.567
+              ],
+              [
+                "macro_nowcast:persistence",
+                -0.526
+              ],
+              [
+                "market_implied:inflation_pricing_proxy",
+                -0.458
+              ],
+              [
+                "market_implied:commodity_inflation",
+                -0.416
+              ]
+            ]
+          },
+          "q8": {
+            "date": "2018-11-16",
+            "final_g": -0.115,
+            "final_i": -0.237,
+            "g_label": "Down",
+            "i_label": "Down",
+            "risk_score": 0.228,
+            "risk_on": false,
+            "layer_outputs": {
+              "macro_nowcast": {
+                "growth": 0.13764512592855227,
+                "inflation": -0.14565959451199126,
+                "top_pos": [
+                  [
+                    "production",
+                    0.363
+                  ],
+                  [
+                    "labor",
+                    0.155
+                  ],
+                  [
+                    "consumption",
+                    0.105
+                  ]
+                ],
+                "top_neg": [
+                  [
+                    "persistence",
+                    -0.526
+                  ],
+                  [
+                    "broad_leading",
+                    -0.051
+                  ]
+                ]
+              },
+              "market_implied": {
+                "growth": -0.3668587789996101,
+                "inflation": -0.3280244998631386,
+                "top_pos": [
+                  [
+                    "gold_haven_inflation_proxy",
+                    0.108
+                  ],
+                  [
+                    "commodity_demand",
+                    0.086
+                  ]
+                ],
+                "top_neg": [
+                  [
+                    "cyclical_rotation",
+                    -0.7
+                  ],
+                  [
+                    "broad_equity_momentum",
+                    -0.567
+                  ],
+                  [
+                    "inflation_pricing_proxy",
+                    -0.458
+                  ]
+                ]
+              }
+            },
+            "top_contributors": [
+              [
+                "market_implied:cyclical_rotation",
+                -0.7
+              ],
+              [
+                "market_implied:broad_equity_momentum",
+                -0.567
+              ],
+              [
+                "macro_nowcast:persistence",
+                -0.526
+              ],
+              [
+                "market_implied:inflation_pricing_proxy",
+                -0.458
+              ],
+              [
+                "market_implied:commodity_inflation",
+                -0.416
+              ]
+            ]
+          }
+        },
+        {
+          "date": "2018-12-31",
+          "baseline": {
+            "date": "2018-12-31",
+            "final_g": -0.443,
+            "final_i": -0.532,
+            "g_label": "Down",
+            "i_label": "Down",
+            "risk_score": 0.813,
+            "risk_on": true,
+            "layer_outputs": {
+              "macro_nowcast": {
+                "growth": 0.00085782009389731,
+                "inflation": -0.27931132773566,
+                "top_pos": [
+                  [
+                    "wage_pressure",
+                    0.47
+                  ],
+                  [
+                    "production",
+                    0.205
+                  ],
+                  [
+                    "labor",
+                    0.092
+                  ]
+                ],
+                "top_neg": [
+                  [
+                    "market_expectations",
+                    -0.551
+                  ],
+                  [
+                    "persistence",
+                    -0.48
+                  ],
+                  [
+                    "broad_leading",
+                    -0.262
+                  ]
+                ]
+              },
+              "market_implied": {
+                "growth": -0.6825489193750566,
+                "inflation": -0.6408032741928942,
+                "top_pos": [
+                  [
+                    "gold_haven_inflation_proxy",
+                    0.413
+                  ]
+                ],
+                "top_neg": [
+                  [
+                    "inflation_pricing_proxy",
+                    -0.905
+                  ],
+                  [
+                    "commodity_inflation",
+                    -0.903
+                  ],
+                  [
+                    "risk_appetite",
+                    -0.862
+                  ]
+                ]
+              }
+            },
+            "top_contributors": [
+              [
+                "market_implied:inflation_pricing_proxy",
+                -0.905
+              ],
+              [
+                "market_implied:commodity_inflation",
+                -0.903
+              ],
+              [
+                "market_implied:risk_appetite",
+                -0.862
+              ],
+              [
+                "market_implied:cyclical_rotation",
+                -0.834
+              ],
+              [
+                "macro_nowcast:market_expectations",
+                -0.551
+              ]
+            ]
+          },
+          "q8": {
+            "date": "2018-12-31",
+            "final_g": -0.341,
+            "final_i": -0.46,
+            "g_label": "Down",
+            "i_label": "Down",
+            "risk_score": 0.813,
+            "risk_on": true,
+            "layer_outputs": {
+              "macro_nowcast": {
+                "growth": 0.00085782009389731,
+                "inflation": -0.27931132773566,
+                "top_pos": [
+                  [
+                    "wage_pressure",
+                    0.47
+                  ],
+                  [
+                    "production",
+                    0.205
+                  ],
+                  [
+                    "labor",
+                    0.092
+                  ]
+                ],
+                "top_neg": [
+                  [
+                    "market_expectations",
+                    -0.551
+                  ],
+                  [
+                    "persistence",
+                    -0.48
+                  ],
+                  [
+                    "broad_leading",
+                    -0.262
+                  ]
+                ]
+              },
+              "market_implied": {
+                "growth": -0.6825489193750566,
+                "inflation": -0.6408032741928942,
+                "top_pos": [
+                  [
+                    "gold_haven_inflation_proxy",
+                    0.413
+                  ]
+                ],
+                "top_neg": [
+                  [
+                    "inflation_pricing_proxy",
+                    -0.905
+                  ],
+                  [
+                    "commodity_inflation",
+                    -0.903
+                  ],
+                  [
+                    "risk_appetite",
+                    -0.862
+                  ]
+                ]
+              }
+            },
+            "top_contributors": [
+              [
+                "market_implied:inflation_pricing_proxy",
+                -0.905
+              ],
+              [
+                "market_implied:commodity_inflation",
+                -0.903
+              ],
+              [
+                "market_implied:risk_appetite",
+                -0.862
+              ],
+              [
+                "market_implied:cyclical_rotation",
+                -0.834
+              ],
+              [
+                "macro_nowcast:market_expectations",
+                -0.551
+              ]
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "2019 H2 slowdown",
+      "window": [
+        "2019-07-01",
+        "2019-12-31"
+      ],
+      "confidence": "defensible",
+      "g_consensus": "Neutral",
+      "i_consensus": "Neutral",
+      "brief": "Mixed: services strong, mfg recession; CPI ~1.8%",
+      "per_date": [
+        {
+          "date": "2019-07-01",
+          "baseline": {
+            "date": "2019-07-01",
+            "final_g": -0.356,
+            "final_i": -0.28,
+            "g_label": "Down",
+            "i_label": "Down",
+            "risk_score": 0.177,
+            "risk_on": false,
+            "layer_outputs": {
+              "macro_nowcast": {
+                "growth": -0.2929342786373071,
+                "inflation": -0.4971128925568241,
+                "top_pos": [
+                  [
+                    "wage_pressure",
+                    0.493
+                  ]
+                ],
+                "top_neg": [
+                  [
+                    "market_expectations",
+                    -0.664
+                  ],
+                  [
+                    "realized_broad",
+                    -0.574
+                  ],
+                  [
+                    "persistence",
+                    -0.564
+                  ]
+                ]
+              },
+              "market_implied": {
+                "growth": -0.3903089268792777,
+                "inflation": -0.18670827676895932,
+                "top_pos": [
+                  [
+                    "gold_haven_inflation_proxy",
+                    0.582
+                  ]
+                ],
+                "top_neg": [
+                  [
+                    "risk_appetite",
+                    -0.809
+                  ],
+                  [
+                    "commodity_demand",
+                    -0.543
+                  ],
+                  [
+                    "inflation_pricing_proxy",
+                    -0.45
+                  ]
+                ]
+              }
+            },
+            "top_contributors": [
+              [
+                "market_implied:risk_appetite",
+                -0.809
+              ],
+              [
+                "macro_nowcast:market_expectations",
+                -0.664
+              ],
+              [
+                "market_implied:gold_haven_inflation_proxy",
+                0.582
+              ],
+              [
+                "macro_nowcast:realized_broad",
+                -0.574
+              ],
+              [
+                "macro_nowcast:persistence",
+                -0.564
+              ]
+            ]
+          },
+          "q8": {
+            "date": "2019-07-01",
+            "final_g": -0.342,
+            "final_i": -0.342,
+            "g_label": "Down",
+            "i_label": "Down",
+            "risk_score": 0.177,
+            "risk_on": false,
+            "layer_outputs": {
+              "macro_nowcast": {
+                "growth": -0.2929342786373071,
+                "inflation": -0.4971128925568241,
+                "top_pos": [
+                  [
+                    "wage_pressure",
+                    0.493
+                  ]
+                ],
+                "top_neg": [
+                  [
+                    "market_expectations",
+                    -0.664
+                  ],
+                  [
+                    "realized_broad",
+                    -0.574
+                  ],
+                  [
+                    "persistence",
+                    -0.564
+                  ]
+                ]
+              },
+              "market_implied": {
+                "growth": -0.3903089268792777,
+                "inflation": -0.18670827676895932,
+                "top_pos": [
+                  [
+                    "gold_haven_inflation_proxy",
+                    0.582
+                  ]
+                ],
+                "top_neg": [
+                  [
+                    "risk_appetite",
+                    -0.809
+                  ],
+                  [
+                    "commodity_demand",
+                    -0.543
+                  ],
+                  [
+                    "inflation_pricing_proxy",
+                    -0.45
+                  ]
+                ]
+              }
+            },
+            "top_contributors": [
+              [
+                "market_implied:risk_appetite",
+                -0.809
+              ],
+              [
+                "macro_nowcast:market_expectations",
+                -0.664
+              ],
+              [
+                "market_implied:gold_haven_inflation_proxy",
+                0.582
+              ],
+              [
+                "macro_nowcast:realized_broad",
+                -0.574
+              ],
+              [
+                "macro_nowcast:persistence",
+                -0.564
+              ]
+            ]
+          }
+        },
+        {
+          "date": "2019-10-01",
+          "baseline": {
+            "date": "2019-10-01",
+            "final_g": -0.401,
+            "final_i": -0.237,
+            "g_label": "Down",
+            "i_label": "Down",
+            "risk_score": 0.269,
+            "risk_on": false,
+            "layer_outputs": {
+              "macro_nowcast": {
+                "growth": -0.3300431823282698,
+                "inflation": -0.3452886990154667,
+                "top_pos": [
+                  [
+                    "wage_pressure",
+                    0.567
+                  ]
+                ],
+                "top_neg": [
+                  [
+                    "market_expectations",
+                    -0.793
+                  ],
+                  [
+                    "production",
+                    -0.545
+                  ],
+                  [
+                    "labor",
+                    -0.367
+                  ]
+                ]
+              },
+              "market_implied": {
+                "growth": -0.43846228026913725,
+                "inflation": -0.1902745015853537,
+                "top_pos": [
+                  [
+                    "gold_haven_inflation_proxy",
+                    0.263
+                  ]
+                ],
+                "top_neg": [
+                  [
+                    "cyclical_rotation",
+                    -0.6
+                  ],
+                  [
+                    "risk_appetite",
+                    -0.483
+                  ],
+                  [
+                    "commodity_inflation",
+                    -0.314
+                  ]
+                ]
+              }
+            },
+            "top_contributors": [
+              [
+                "macro_nowcast:market_expectations",
+                -0.793
+              ],
+              [
+                "market_implied:cyclical_rotation",
+                -0.6
+              ],
+              [
+                "macro_nowcast:wage_pressure",
+                0.567
+              ],
+              [
+                "macro_nowcast:production",
+                -0.545
+              ],
+              [
+                "market_implied:risk_appetite",
+                -0.483
+              ]
+            ]
+          },
+          "q8": {
+            "date": "2019-10-01",
+            "final_g": -0.384,
+            "final_i": -0.268,
+            "g_label": "Down",
+            "i_label": "Down",
+            "risk_score": 0.269,
+            "risk_on": false,
+            "layer_outputs": {
+              "macro_nowcast": {
+                "growth": -0.3300431823282698,
+                "inflation": -0.3452886990154667,
+                "top_pos": [
+                  [
+                    "wage_pressure",
+                    0.567
+                  ]
+                ],
+                "top_neg": [
+                  [
+                    "market_expectations",
+                    -0.793
+                  ],
+                  [
+                    "production",
+                    -0.545
+                  ],
+                  [
+                    "labor",
+                    -0.367
+                  ]
+                ]
+              },
+              "market_implied": {
+                "growth": -0.43846228026913725,
+                "inflation": -0.1902745015853537,
+                "top_pos": [
+                  [
+                    "gold_haven_inflation_proxy",
+                    0.263
+                  ]
+                ],
+                "top_neg": [
+                  [
+                    "cyclical_rotation",
+                    -0.6
+                  ],
+                  [
+                    "risk_appetite",
+                    -0.483
+                  ],
+                  [
+                    "commodity_inflation",
+                    -0.314
+                  ]
+                ]
+              }
+            },
+            "top_contributors": [
+              [
+                "macro_nowcast:market_expectations",
+                -0.793
+              ],
+              [
+                "market_implied:cyclical_rotation",
+                -0.6
+              ],
+              [
+                "macro_nowcast:wage_pressure",
+                0.567
+              ],
+              [
+                "macro_nowcast:production",
+                -0.545
+              ],
+              [
+                "market_implied:risk_appetite",
+                -0.483
+              ]
+            ]
+          }
+        },
+        {
+          "date": "2019-12-31",
+          "baseline": {
+            "date": "2019-12-31",
+            "final_g": 0.158,
+            "final_i": 0.257,
+            "g_label": "Up",
+            "i_label": "Up",
+            "risk_score": -0.375,
+            "risk_on": false,
+            "layer_outputs": {
+              "macro_nowcast": {
+                "growth": -0.4006232166122622,
+                "inflation": -0.31421737983243125,
+                "top_pos": [
+                  [
+                    "wage_pressure",
+                    0.543
+                  ]
+                ],
+                "top_neg": [
+                  [
+                    "market_expectations",
+                    -0.675
+                  ],
+                  [
+                    "production",
+                    -0.616
+                  ],
+                  [
+                    "labor",
+                    -0.4
+                  ]
+                ]
+              },
+              "market_implied": {
+                "growth": 0.4581307403613839,
+                "inflation": 0.5019004633759936,
+                "top_pos": [
+                  [
+                    "inflation_pricing_proxy",
+                    0.773
+                  ],
+                  [
+                    "risk_appetite",
+                    0.562
+                  ],
+                  [
+                    "commodity_demand",
+                    0.556
+                  ]
+                ],
+                "top_neg": [
+                  [
+                    "gold_haven_inflation_proxy",
+                    -0.114
+                  ]
+                ]
+              }
+            },
+            "top_contributors": [
+              [
+                "market_implied:inflation_pricing_proxy",
+                0.773
+              ],
+              [
+                "macro_nowcast:market_expectations",
+                -0.675
+              ],
+              [
+                "macro_nowcast:production",
+                -0.616
+              ],
+              [
+                "market_implied:risk_appetite",
+                0.562
+              ],
+              [
+                "market_implied:commodity_demand",
+                0.556
+              ]
+            ]
+          },
+          "q8": {
+            "date": "2019-12-31",
+            "final_g": 0.029,
+            "final_i": 0.094,
+            "g_label": "Neutral",
+            "i_label": "Neutral",
+            "risk_score": -0.375,
+            "risk_on": false,
+            "layer_outputs": {
+              "macro_nowcast": {
+                "growth": -0.4006232166122622,
+                "inflation": -0.31421737983243125,
+                "top_pos": [
+                  [
+                    "wage_pressure",
+                    0.543
+                  ]
+                ],
+                "top_neg": [
+                  [
+                    "market_expectations",
+                    -0.675
+                  ],
+                  [
+                    "production",
+                    -0.616
+                  ],
+                  [
+                    "labor",
+                    -0.4
+                  ]
+                ]
+              },
+              "market_implied": {
+                "growth": 0.4581307403613839,
+                "inflation": 0.5019004633759936,
+                "top_pos": [
+                  [
+                    "inflation_pricing_proxy",
+                    0.773
+                  ],
+                  [
+                    "risk_appetite",
+                    0.562
+                  ],
+                  [
+                    "commodity_demand",
+                    0.556
+                  ]
+                ],
+                "top_neg": [
+                  [
+                    "gold_haven_inflation_proxy",
+                    -0.114
+                  ]
+                ]
+              }
+            },
+            "top_contributors": [
+              [
+                "market_implied:inflation_pricing_proxy",
+                0.773
+              ],
+              [
+                "macro_nowcast:market_expectations",
+                -0.675
+              ],
+              [
+                "macro_nowcast:production",
+                -0.616
+              ],
+              [
+                "market_implied:risk_appetite",
+                0.562
+              ],
+              [
+                "market_implied:commodity_demand",
+                0.556
+              ]
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "2020 COVID recession",
+      "window": [
+        "2020-02-24",
+        "2020-04-30"
+      ],
+      "confidence": "definition-dependent",
+      "g_consensus": "Down",
+      "i_consensus": "Neutral",
+      "brief": "Catastrophic growth shock; CPI YoY collapse but not deflation",
+      "per_date": [
+        {
+          "date": "2020-02-24",
+          "baseline": {
+            "date": "2020-02-24",
+            "final_g": -0.154,
+            "final_i": -0.171,
+            "g_label": "Down",
+            "i_label": "Down",
+            "risk_score": 0.62,
+            "risk_on": false,
+            "layer_outputs": {
+              "macro_nowcast": {
+                "growth": -0.19928580282800432,
+                "inflation": -0.3938819389861279,
+                "top_pos": [
+                  [
+                    "consumption",
+                    0.224
+                  ]
+                ],
+                "top_neg": [
+                  [
+                    "market_expectations",
+                    -0.851
+                  ],
+                  [
+                    "production",
+                    -0.632
+                  ],
+                  [
+                    "labor",
+                    -0.353
+                  ]
+                ]
+              },
+              "market_implied": {
+                "growth": -0.12961928428983635,
+                "inflation": -0.07587707865226087,
+                "top_pos": [
+                  [
+                    "gold_haven_inflation_proxy",
+                    0.8
+                  ],
+                  [
+                    "broad_equity_momentum",
+                    0.137
+                  ]
+                ],
+                "top_neg": [
+                  [
+                    "commodity_inflation",
+                    -0.47
+                  ],
+                  [
+                    "risk_appetite",
+                    -0.432
+                  ],
+                  [
+                    "commodity_demand",
+                    -0.311
+                  ]
+                ]
+              }
+            },
+            "top_contributors": [
+              [
+                "macro_nowcast:market_expectations",
+                -0.851
+              ],
+              [
+                "market_implied:gold_haven_inflation_proxy",
+                0.8
+              ],
+              [
+                "macro_nowcast:production",
+                -0.632
+              ],
+              [
+                "market_implied:commodity_inflation",
+                -0.47
+              ],
+              [
+                "market_implied:risk_appetite",
+                -0.432
+              ]
+            ]
+          },
+          "q8": {
+            "date": "2020-02-24",
+            "final_g": -0.164,
+            "final_i": -0.235,
+            "g_label": "Down",
+            "i_label": "Down",
+            "risk_score": 0.62,
+            "risk_on": false,
+            "layer_outputs": {
+              "macro_nowcast": {
+                "growth": -0.19928580282800432,
+                "inflation": -0.3938819389861279,
+                "top_pos": [
+                  [
+                    "consumption",
+                    0.224
+                  ]
+                ],
+                "top_neg": [
+                  [
+                    "market_expectations",
+                    -0.851
+                  ],
+                  [
+                    "production",
+                    -0.632
+                  ],
+                  [
+                    "labor",
+                    -0.353
+                  ]
+                ]
+              },
+              "market_implied": {
+                "growth": -0.12961928428983635,
+                "inflation": -0.07587707865226087,
+                "top_pos": [
+                  [
+                    "gold_haven_inflation_proxy",
+                    0.8
+                  ],
+                  [
+                    "broad_equity_momentum",
+                    0.137
+                  ]
+                ],
+                "top_neg": [
+                  [
+                    "commodity_inflation",
+                    -0.47
+                  ],
+                  [
+                    "risk_appetite",
+                    -0.432
+                  ],
+                  [
+                    "commodity_demand",
+                    -0.311
+                  ]
+                ]
+              }
+            },
+            "top_contributors": [
+              [
+                "macro_nowcast:market_expectations",
+                -0.851
+              ],
+              [
+                "market_implied:gold_haven_inflation_proxy",
+                0.8
+              ],
+              [
+                "macro_nowcast:production",
+                -0.632
+              ],
+              [
+                "market_implied:commodity_inflation",
+                -0.47
+              ],
+              [
+                "market_implied:risk_appetite",
+                -0.432
+              ]
+            ]
+          }
+        },
+        {
+          "date": "2020-03-30",
+          "baseline": {
+            "date": "2020-03-30",
+            "final_g": -0.424,
+            "final_i": -0.56,
+            "g_label": "Down",
+            "i_label": "Down",
+            "risk_score": 0.88,
+            "risk_on": true,
+            "layer_outputs": {
+              "macro_nowcast": {
+                "growth": -0.10717829192354097,
+                "inflation": -0.3740061364075655,
+                "top_pos": [
+                  [
+                    "wage_pressure",
+                    0.553
+                  ],
+                  [
+                    "broad_leading",
+                    0.334
+                  ],
+                  [
+                    "consumption",
+                    0.157
+                  ]
+                ],
+                "top_neg": [
+                  [
+                    "market_expectations",
+                    -0.905
+                  ],
+                  [
+                    "production",
+                    -0.517
+                  ],
+                  [
+                    "labor",
+                    -0.505
+                  ]
+                ]
+              },
+              "market_implied": {
+                "growth": -0.593895033490387,
+                "inflation": -0.6401947871298349,
+                "top_pos": [
+                  [
+                    "gold_haven_inflation_proxy",
+                    0.42
+                  ]
+                ],
+                "top_neg": [
+                  [
+                    "risk_appetite",
+                    -0.905
+                  ],
+                  [
+                    "commodity_inflation",
+                    -0.905
+                  ],
+                  [
+                    "inflation_pricing_proxy",
+                    -0.905
+                  ]
+                ]
+              }
+            },
+            "top_contributors": [
+              [
+                "macro_nowcast:market_expectations",
+                -0.905
+              ],
+              [
+                "market_implied:risk_appetite",
+                -0.905
+              ],
+              [
+                "market_implied:commodity_inflation",
+                -0.905
+              ],
+              [
+                "market_implied:inflation_pricing_proxy",
+                -0.905
+              ],
+              [
+                "market_implied:commodity_demand",
+                -0.887
+              ]
+            ]
+          },
+          "q8": {
+            "date": "2020-03-30",
+            "final_g": -0.351,
+            "final_i": -0.507,
+            "g_label": "Down",
+            "i_label": "Down",
+            "risk_score": 0.88,
+            "risk_on": true,
+            "layer_outputs": {
+              "macro_nowcast": {
+                "growth": -0.10717829192354097,
+                "inflation": -0.3740061364075655,
+                "top_pos": [
+                  [
+                    "wage_pressure",
+                    0.553
+                  ],
+                  [
+                    "broad_leading",
+                    0.334
+                  ],
+                  [
+                    "consumption",
+                    0.157
+                  ]
+                ],
+                "top_neg": [
+                  [
+                    "market_expectations",
+                    -0.905
+                  ],
+                  [
+                    "production",
+                    -0.517
+                  ],
+                  [
+                    "labor",
+                    -0.505
+                  ]
+                ]
+              },
+              "market_implied": {
+                "growth": -0.593895033490387,
+                "inflation": -0.6401947871298349,
+                "top_pos": [
+                  [
+                    "gold_haven_inflation_proxy",
+                    0.42
+                  ]
+                ],
+                "top_neg": [
+                  [
+                    "risk_appetite",
+                    -0.905
+                  ],
+                  [
+                    "commodity_inflation",
+                    -0.905
+                  ],
+                  [
+                    "inflation_pricing_proxy",
+                    -0.905
+                  ]
+                ]
+              }
+            },
+            "top_contributors": [
+              [
+                "macro_nowcast:market_expectations",
+                -0.905
+              ],
+              [
+                "market_implied:risk_appetite",
+                -0.905
+              ],
+              [
+                "market_implied:commodity_inflation",
+                -0.905
+              ],
+              [
+                "market_implied:inflation_pricing_proxy",
+                -0.905
+              ],
+              [
+                "market_implied:commodity_demand",
+                -0.887
+              ]
+            ]
+          }
+        },
+        {
+          "date": "2020-04-30",
+          "baseline": {
+            "date": "2020-04-30",
+            "final_g": -0.385,
+            "final_i": -0.543,
+            "g_label": "Down",
+            "i_label": "Down",
+            "risk_score": 0.201,
+            "risk_on": false,
+            "layer_outputs": {
+              "macro_nowcast": {
+                "growth": -0.6506932412128404,
+                "inflation": -0.4630922997726611,
+                "top_pos": [
+                  [
+                    "wage_pressure",
+                    0.511
+                  ],
+                  [
+                    "broad_leading",
+                    0.329
+                  ]
+                ],
+                "top_neg": [
+                  [
+                    "consumption",
+                    -0.905
+                  ],
+                  [
+                    "market_expectations",
+                    -0.905
+                  ],
+                  [
+                    "labor",
+                    -0.903
+                  ]
+                ]
+              },
+              "market_implied": {
+                "growth": -0.24128744116804757,
+                "inflation": -0.5771750118305183,
+                "top_pos": [
+                  [
+                    "gold_haven_inflation_proxy",
+                    0.402
+                  ],
+                  [
+                    "cyclical_rotation",
+                    0.18
+                  ]
+                ],
+                "top_neg": [
+                  [
+                    "commodity_inflation",
+                    -0.885
+                  ],
+                  [
+                    "risk_appetite",
+                    -0.773
+                  ],
+                  [
+                    "inflation_pricing_proxy",
+                    -0.76
+                  ]
+                ]
+              }
+            },
+            "top_contributors": [
+              [
+                "macro_nowcast:consumption",
+                -0.905
+              ],
+              [
+                "macro_nowcast:market_expectations",
+                -0.905
+              ],
+              [
+                "macro_nowcast:labor",
+                -0.903
+              ],
+              [
+                "market_implied:commodity_inflation",
+                -0.885
+              ],
+              [
+                "macro_nowcast:production",
+                -0.87
+              ]
+            ]
+          },
+          "q8": {
+            "date": "2020-04-30",
+            "final_g": -0.446,
+            "final_i": -0.52,
+            "g_label": "Down",
+            "i_label": "Down",
+            "risk_score": 0.201,
+            "risk_on": false,
+            "layer_outputs": {
+              "macro_nowcast": {
+                "growth": -0.6506932412128404,
+                "inflation": -0.4630922997726611,
+                "top_pos": [
+                  [
+                    "wage_pressure",
+                    0.511
+                  ],
+                  [
+                    "broad_leading",
+                    0.329
+                  ]
+                ],
+                "top_neg": [
+                  [
+                    "consumption",
+                    -0.905
+                  ],
+                  [
+                    "market_expectations",
+                    -0.905
+                  ],
+                  [
+                    "labor",
+                    -0.903
+                  ]
+                ]
+              },
+              "market_implied": {
+                "growth": -0.24128744116804757,
+                "inflation": -0.5771750118305183,
+                "top_pos": [
+                  [
+                    "gold_haven_inflation_proxy",
+                    0.402
+                  ],
+                  [
+                    "cyclical_rotation",
+                    0.18
+                  ]
+                ],
+                "top_neg": [
+                  [
+                    "commodity_inflation",
+                    -0.885
+                  ],
+                  [
+                    "risk_appetite",
+                    -0.773
+                  ],
+                  [
+                    "inflation_pricing_proxy",
+                    -0.76
+                  ]
+                ]
+              }
+            },
+            "top_contributors": [
+              [
+                "macro_nowcast:consumption",
+                -0.905
+              ],
+              [
+                "macro_nowcast:market_expectations",
+                -0.905
+              ],
+              [
+                "macro_nowcast:labor",
+                -0.903
+              ],
+              [
+                "market_implied:commodity_inflation",
+                -0.885
+              ],
+              [
+                "macro_nowcast:production",
+                -0.87
+              ]
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "2020H2 catch-up",
+      "window": [
+        "2020-07-01",
+        "2020-12-31"
+      ],
+      "confidence": "definition-dependent",
+      "g_consensus": "Down",
+      "i_consensus": "Down",
+      "brief": "Recovering but YoY still deep negative; CPI YoY ~1.4%",
+      "per_date": [
+        {
+          "date": "2020-07-01",
+          "baseline": {
+            "date": "2020-07-01",
+            "final_g": 0.202,
+            "final_i": 0.059,
+            "g_label": "Up",
+            "i_label": "Neutral",
+            "risk_score": 0.019,
+            "risk_on": false,
+            "layer_outputs": {
+              "macro_nowcast": {
+                "growth": -0.6436786362530367,
+                "inflation": -0.6714539469756209,
+                "top_pos": [
+                  [
+                    "wage_pressure",
+                    0.905
+                  ],
+                  [
+                    "broad_leading",
+                    0.322
+                  ]
+                ],
+                "top_neg": [
+                  [
+                    "consumption",
+                    -0.905
+                  ],
+                  [
+                    "production",
+                    -0.905
+                  ],
+                  [
+                    "market_expectations",
+                    -0.898
+                  ]
+                ]
+              },
+              "market_implied": {
+                "growth": 0.6571903559555179,
+                "inflation": 0.3718708514711882,
+                "top_pos": [
+                  [
+                    "commodity_demand",
+                    0.895
+                  ],
+                  [
+                    "broad_equity_momentum",
+                    0.826
+                  ],
+                  [
+                    "cyclical_rotation",
+                    0.768
+                  ]
+                ],
+                "top_neg": []
+              }
+            },
+            "top_contributors": [
+              [
+                "macro_nowcast:consumption",
+                -0.905
+              ],
+              [
+                "macro_nowcast:wage_pressure",
+                0.905
+              ],
+              [
+                "macro_nowcast:production",
+                -0.905
+              ],
+              [
+                "macro_nowcast:market_expectations",
+                -0.898
+              ],
+              [
+                "market_implied:commodity_demand",
+                0.895
+              ]
+            ]
+          },
+          "q8": {
+            "date": "2020-07-01",
+            "final_g": 0.007,
+            "final_i": -0.15,
+            "g_label": "Neutral",
+            "i_label": "Down",
+            "risk_score": 0.019,
+            "risk_on": false,
+            "layer_outputs": {
+              "macro_nowcast": {
+                "growth": -0.6436786362530367,
+                "inflation": -0.6714539469756209,
+                "top_pos": [
+                  [
+                    "wage_pressure",
+                    0.905
+                  ],
+                  [
+                    "broad_leading",
+                    0.322
+                  ]
+                ],
+                "top_neg": [
+                  [
+                    "consumption",
+                    -0.905
+                  ],
+                  [
+                    "production",
+                    -0.905
+                  ],
+                  [
+                    "market_expectations",
+                    -0.898
+                  ]
+                ]
+              },
+              "market_implied": {
+                "growth": 0.6571903559555179,
+                "inflation": 0.3718708514711882,
+                "top_pos": [
+                  [
+                    "commodity_demand",
+                    0.895
+                  ],
+                  [
+                    "broad_equity_momentum",
+                    0.826
+                  ],
+                  [
+                    "cyclical_rotation",
+                    0.768
+                  ]
+                ],
+                "top_neg": []
+              }
+            },
+            "top_contributors": [
+              [
+                "macro_nowcast:consumption",
+                -0.905
+              ],
+              [
+                "macro_nowcast:wage_pressure",
+                0.905
+              ],
+              [
+                "macro_nowcast:production",
+                -0.905
+              ],
+              [
+                "macro_nowcast:market_expectations",
+                -0.898
+              ],
+              [
+                "market_implied:commodity_demand",
+                0.895
+              ]
+            ]
+          }
+        },
+        {
+          "date": "2020-10-01",
+          "baseline": {
+            "date": "2020-10-01",
+            "final_g": 0.022,
+            "final_i": -0.0,
+            "g_label": "Neutral",
+            "i_label": "Neutral",
+            "risk_score": -0.102,
+            "risk_on": false,
+            "layer_outputs": {
+              "macro_nowcast": {
+                "growth": -0.33299183737987054,
+                "inflation": -0.5490731414294067,
+                "top_pos": [
+                  [
+                    "wage_pressure",
+                    0.905
+                  ],
+                  [
+                    "broad_leading",
+                    0.318
+                  ]
+                ],
+                "top_neg": [
+                  [
+                    "labor",
+                    -0.764
+                  ],
+                  [
+                    "production",
+                    -0.761
+                  ],
+                  [
+                    "market_expectations",
+                    -0.753
+                  ]
+                ]
+              },
+              "market_implied": {
+                "growth": 0.21355547771234606,
+                "inflation": 0.23514362073777734,
+                "top_pos": [
+                  [
+                    "risk_appetite",
+                    0.517
+                  ],
+                  [
+                    "inflation_pricing_proxy",
+                    0.404
+                  ],
+                  [
+                    "gold_haven_inflation_proxy",
+                    0.229
+                  ]
+                ],
+                "top_neg": []
+              }
+            },
+            "top_contributors": [
+              [
+                "macro_nowcast:wage_pressure",
+                0.905
+              ],
+              [
+                "macro_nowcast:labor",
+                -0.764
+              ],
+              [
+                "macro_nowcast:production",
+                -0.761
+              ],
+              [
+                "macro_nowcast:market_expectations",
+                -0.753
+              ],
+              [
+                "macro_nowcast:realized_broad",
+                -0.732
+              ]
+            ]
+          },
+          "q8": {
+            "date": "2020-10-01",
+            "final_g": -0.06,
+            "final_i": -0.157,
+            "g_label": "Neutral",
+            "i_label": "Down",
+            "risk_score": -0.102,
+            "risk_on": false,
+            "layer_outputs": {
+              "macro_nowcast": {
+                "growth": -0.33299183737987054,
+                "inflation": -0.5490731414294067,
+                "top_pos": [
+                  [
+                    "wage_pressure",
+                    0.905
+                  ],
+                  [
+                    "broad_leading",
+                    0.318
+                  ]
+                ],
+                "top_neg": [
+                  [
+                    "labor",
+                    -0.764
+                  ],
+                  [
+                    "production",
+                    -0.761
+                  ],
+                  [
+                    "market_expectations",
+                    -0.753
+                  ]
+                ]
+              },
+              "market_implied": {
+                "growth": 0.21355547771234606,
+                "inflation": 0.23514362073777734,
+                "top_pos": [
+                  [
+                    "risk_appetite",
+                    0.517
+                  ],
+                  [
+                    "inflation_pricing_proxy",
+                    0.404
+                  ],
+                  [
+                    "gold_haven_inflation_proxy",
+                    0.229
+                  ]
+                ],
+                "top_neg": []
+              }
+            },
+            "top_contributors": [
+              [
+                "macro_nowcast:wage_pressure",
+                0.905
+              ],
+              [
+                "macro_nowcast:labor",
+                -0.764
+              ],
+              [
+                "macro_nowcast:production",
+                -0.761
+              ],
+              [
+                "macro_nowcast:market_expectations",
+                -0.753
+              ],
+              [
+                "macro_nowcast:realized_broad",
+                -0.732
+              ]
+            ]
+          }
+        },
+        {
+          "date": "2020-12-31",
+          "baseline": {
+            "date": "2020-12-31",
+            "final_g": 0.115,
+            "final_i": 0.106,
+            "g_label": "Neutral",
+            "i_label": "Neutral",
+            "risk_score": -0.175,
+            "risk_on": false,
+            "layer_outputs": {
+              "macro_nowcast": {
+                "growth": -0.25226579905087215,
+                "inflation": -0.47476856984938953,
+                "top_pos": [
+                  [
+                    "wage_pressure",
+                    0.905
+                  ],
+                  [
+                    "broad_leading",
+                    0.305
+                  ],
+                  [
+                    "consumption",
+                    0.015
+                  ]
+                ],
+                "top_neg": [
+                  [
+                    "persistence",
+                    -0.86
+                  ],
+                  [
+                    "realized_broad",
+                    -0.73
+                  ],
+                  [
+                    "labor",
+                    -0.653
+                  ]
+                ]
+              },
+              "market_implied": {
+                "growth": 0.3129536813891921,
+                "inflation": 0.35558680191654946,
+                "top_pos": [
+                  [
+                    "commodity_demand",
+                    0.719
+                  ],
+                  [
+                    "commodity_inflation",
+                    0.527
+                  ],
+                  [
+                    "inflation_pricing_proxy",
+                    0.504
+                  ]
+                ],
+                "top_neg": [
+                  [
+                    "gold_haven_inflation_proxy",
+                    -0.283
+                  ]
+                ]
+              }
+            },
+            "top_contributors": [
+              [
+                "macro_nowcast:wage_pressure",
+                0.905
+              ],
+              [
+                "macro_nowcast:persistence",
+                -0.86
+              ],
+              [
+                "macro_nowcast:realized_broad",
+                -0.73
+              ],
+              [
+                "market_implied:commodity_demand",
+                0.719
+              ],
+              [
+                "macro_nowcast:labor",
+                -0.653
+              ]
+            ]
+          },
+          "q8": {
+            "date": "2020-12-31",
+            "final_g": 0.03,
+            "final_i": -0.06,
+            "g_label": "Neutral",
+            "i_label": "Neutral",
+            "risk_score": -0.175,
+            "risk_on": false,
+            "layer_outputs": {
+              "macro_nowcast": {
+                "growth": -0.25226579905087215,
+                "inflation": -0.47476856984938953,
+                "top_pos": [
+                  [
+                    "wage_pressure",
+                    0.905
+                  ],
+                  [
+                    "broad_leading",
+                    0.305
+                  ],
+                  [
+                    "consumption",
+                    0.015
+                  ]
+                ],
+                "top_neg": [
+                  [
+                    "persistence",
+                    -0.86
+                  ],
+                  [
+                    "realized_broad",
+                    -0.73
+                  ],
+                  [
+                    "labor",
+                    -0.653
+                  ]
+                ]
+              },
+              "market_implied": {
+                "growth": 0.3129536813891921,
+                "inflation": 0.35558680191654946,
+                "top_pos": [
+                  [
+                    "commodity_demand",
+                    0.719
+                  ],
+                  [
+                    "commodity_inflation",
+                    0.527
+                  ],
+                  [
+                    "inflation_pricing_proxy",
+                    0.504
+                  ]
+                ],
+                "top_neg": [
+                  [
+                    "gold_haven_inflation_proxy",
+                    -0.283
+                  ]
+                ]
+              }
+            },
+            "top_contributors": [
+              [
+                "macro_nowcast:wage_pressure",
+                0.905
+              ],
+              [
+                "macro_nowcast:persistence",
+                -0.86
+              ],
+              [
+                "macro_nowcast:realized_broad",
+                -0.73
+              ],
+              [
+                "market_implied:commodity_demand",
+                0.719
+              ],
+              [
+                "macro_nowcast:labor",
+                -0.653
+              ]
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "2021 reflation",
+      "window": [
+        "2021-04-01",
+        "2021-12-31"
+      ],
+      "confidence": "clear",
+      "g_consensus": "Up",
+      "i_consensus": "Up",
+      "brief": "Strong recovery, CPI breaks above 5%",
+      "per_date": [
+        {
+          "date": "2021-04-01",
+          "baseline": {
+            "date": "2021-04-01",
+            "final_g": 0.155,
+            "final_i": 0.152,
+            "g_label": "Up",
+            "i_label": "Up",
+            "risk_score": -0.373,
+            "risk_on": false,
+            "layer_outputs": {
+              "macro_nowcast": {
+                "growth": -0.1142188046846594,
+                "inflation": -0.18389116719145646,
+                "top_pos": [
+                  [
+                    "wage_pressure",
+                    0.905
+                  ],
+                  [
+                    "consumption",
+                    0.333
+                  ],
+                  [
+                    "broad_leading",
+                    0.293
+                  ]
+                ],
+                "top_neg": [
+                  [
+                    "persistence",
+                    -0.905
+                  ],
+                  [
+                    "production",
+                    -0.663
+                  ],
+                  [
+                    "labor",
+                    -0.428
+                  ]
+                ]
+              },
+              "market_implied": {
+                "growth": 0.3002916627108773,
+                "inflation": 0.296661714887689,
+                "top_pos": [
+                  [
+                    "risk_appetite",
+                    0.713
+                  ],
+                  [
+                    "inflation_pricing_proxy",
+                    0.622
+                  ],
+                  [
+                    "commodity_inflation",
+                    0.501
+                  ]
+                ],
+                "top_neg": [
+                  [
+                    "gold_haven_inflation_proxy",
+                    -0.763
+                  ]
+                ]
+              }
+            },
+            "top_contributors": [
+              [
+                "macro_nowcast:wage_pressure",
+                0.905
+              ],
+              [
+                "macro_nowcast:persistence",
+                -0.905
+              ],
+              [
+                "market_implied:gold_haven_inflation_proxy",
+                -0.763
+              ],
+              [
+                "market_implied:risk_appetite",
+                0.713
+              ],
+              [
+                "macro_nowcast:production",
+                -0.663
+              ]
+            ]
+          },
+          "q8": {
+            "date": "2021-04-01",
+            "final_g": 0.093,
+            "final_i": 0.056,
+            "g_label": "Neutral",
+            "i_label": "Neutral",
+            "risk_score": -0.373,
+            "risk_on": false,
+            "layer_outputs": {
+              "macro_nowcast": {
+                "growth": -0.1142188046846594,
+                "inflation": -0.18389116719145646,
+                "top_pos": [
+                  [
+                    "wage_pressure",
+                    0.905
+                  ],
+                  [
+                    "consumption",
+                    0.333
+                  ],
+                  [
+                    "broad_leading",
+                    0.293
+                  ]
+                ],
+                "top_neg": [
+                  [
+                    "persistence",
+                    -0.905
+                  ],
+                  [
+                    "production",
+                    -0.663
+                  ],
+                  [
+                    "labor",
+                    -0.428
+                  ]
+                ]
+              },
+              "market_implied": {
+                "growth": 0.3002916627108773,
+                "inflation": 0.296661714887689,
+                "top_pos": [
+                  [
+                    "risk_appetite",
+                    0.713
+                  ],
+                  [
+                    "inflation_pricing_proxy",
+                    0.622
+                  ],
+                  [
+                    "commodity_inflation",
+                    0.501
+                  ]
+                ],
+                "top_neg": [
+                  [
+                    "gold_haven_inflation_proxy",
+                    -0.763
+                  ]
+                ]
+              }
+            },
+            "top_contributors": [
+              [
+                "macro_nowcast:wage_pressure",
+                0.905
+              ],
+              [
+                "macro_nowcast:persistence",
+                -0.905
+              ],
+              [
+                "market_implied:gold_haven_inflation_proxy",
+                -0.763
+              ],
+              [
+                "market_implied:risk_appetite",
+                0.713
+              ],
+              [
+                "macro_nowcast:production",
+                -0.663
+              ]
+            ]
+          }
+        },
+        {
+          "date": "2021-08-16",
+          "baseline": {
+            "date": "2021-08-16",
+            "final_g": 0.164,
+            "final_i": -0.0,
+            "g_label": "Up",
+            "i_label": "Neutral",
+            "risk_score": -0.02,
+            "risk_on": false,
+            "layer_outputs": {
+              "macro_nowcast": {
+                "growth": 0.5710735740998305,
+                "inflation": 0.1611912239067872,
+                "top_pos": [
+                  [
+                    "realized_broad",
+                    0.905
+                  ],
+                  [
+                    "wage_pressure",
+                    0.905
+                  ],
+                  [
+                    "production",
+                    0.757
+                  ]
+                ],
+                "top_neg": [
+                  [
+                    "persistence",
+                    -0.59
+                  ]
+                ]
+              },
+              "market_implied": {
+                "growth": -0.05568644215803082,
+                "inflation": -0.06973233116907912,
+                "top_pos": [
+                  [
+                    "cyclical_rotation",
+                    0.177
+                  ],
+                  [
+                    "commodity_inflation",
+                    0.083
+                  ],
+                  [
+                    "broad_equity_momentum",
+                    0.082
+                  ]
+                ],
+                "top_neg": [
+                  [
+                    "gold_haven_inflation_proxy",
+                    -0.559
+                  ],
+                  [
+                    "commodity_demand",
+                    -0.431
+                  ],
+                  [
+                    "risk_appetite",
+                    -0.25
+                  ]
+                ]
+              }
+            },
+            "top_contributors": [
+              [
+                "macro_nowcast:realized_broad",
+                0.905
+              ],
+              [
+                "macro_nowcast:wage_pressure",
+                0.905
+              ],
+              [
+                "macro_nowcast:production",
+                0.757
+              ],
+              [
+                "macro_nowcast:consumption",
+                0.656
+              ],
+              [
+                "macro_nowcast:persistence",
+                -0.59
+              ]
+            ]
+          },
+          "q8": {
+            "date": "2021-08-16",
+            "final_g": 0.258,
+            "final_i": 0.046,
+            "g_label": "Up",
+            "i_label": "Neutral",
+            "risk_score": -0.02,
+            "risk_on": false,
+            "layer_outputs": {
+              "macro_nowcast": {
+                "growth": 0.5710735740998305,
+                "inflation": 0.1611912239067872,
+                "top_pos": [
+                  [
+                    "realized_broad",
+                    0.905
+                  ],
+                  [
+                    "wage_pressure",
+                    0.905
+                  ],
+                  [
+                    "production",
+                    0.757
+                  ]
+                ],
+                "top_neg": [
+                  [
+                    "persistence",
+                    -0.59
+                  ]
+                ]
+              },
+              "market_implied": {
+                "growth": -0.05568644215803082,
+                "inflation": -0.06973233116907912,
+                "top_pos": [
+                  [
+                    "cyclical_rotation",
+                    0.177
+                  ],
+                  [
+                    "commodity_inflation",
+                    0.083
+                  ],
+                  [
+                    "broad_equity_momentum",
+                    0.082
+                  ]
+                ],
+                "top_neg": [
+                  [
+                    "gold_haven_inflation_proxy",
+                    -0.559
+                  ],
+                  [
+                    "commodity_demand",
+                    -0.431
+                  ],
+                  [
+                    "risk_appetite",
+                    -0.25
+                  ]
+                ]
+              }
+            },
+            "top_contributors": [
+              [
+                "macro_nowcast:realized_broad",
+                0.905
+              ],
+              [
+                "macro_nowcast:wage_pressure",
+                0.905
+              ],
+              [
+                "macro_nowcast:production",
+                0.757
+              ],
+              [
+                "macro_nowcast:consumption",
+                0.656
+              ],
+              [
+                "macro_nowcast:persistence",
+                -0.59
+              ]
+            ]
+          }
+        },
+        {
+          "date": "2021-12-31",
+          "baseline": {
+            "date": "2021-12-31",
+            "final_g": 0.228,
+            "final_i": 0.113,
+            "g_label": "Up",
+            "i_label": "Neutral",
+            "risk_score": -0.153,
+            "risk_on": false,
+            "layer_outputs": {
+              "macro_nowcast": {
+                "growth": 0.45756670826971485,
+                "inflation": 0.33815299005190597,
+                "top_pos": [
+                  [
+                    "wage_pressure",
+                    0.905
+                  ],
+                  [
+                    "realized_broad",
+                    0.905
+                  ],
+                  [
+                    "consumption",
+                    0.732
+                  ]
+                ],
+                "top_neg": []
+              },
+              "market_implied": {
+                "growth": 0.10437985307566867,
+                "inflation": 0.015956323102225823,
+                "top_pos": [
+                  [
+                    "inflation_pricing_proxy",
+                    0.191
+                  ],
+                  [
+                    "risk_appetite",
+                    0.181
+                  ],
+                  [
+                    "cyclical_rotation",
+                    0.142
+                  ]
+                ],
+                "top_neg": [
+                  [
+                    "commodity_inflation",
+                    -0.181
+                  ],
+                  [
+                    "broad_equity_momentum",
+                    -0.01
+                  ]
+                ]
+              }
+            },
+            "top_contributors": [
+              [
+                "macro_nowcast:wage_pressure",
+                0.905
+              ],
+              [
+                "macro_nowcast:realized_broad",
+                0.905
+              ],
+              [
+                "macro_nowcast:consumption",
+                0.732
+              ],
+              [
+                "macro_nowcast:production",
+                0.377
+              ],
+              [
+                "macro_nowcast:labor",
+                0.37
+              ]
+            ]
+          },
+          "q8": {
+            "date": "2021-12-31",
+            "final_g": 0.281,
+            "final_i": 0.177,
+            "g_label": "Up",
+            "i_label": "Up",
+            "risk_score": -0.153,
+            "risk_on": false,
+            "layer_outputs": {
+              "macro_nowcast": {
+                "growth": 0.45756670826971485,
+                "inflation": 0.33815299005190597,
+                "top_pos": [
+                  [
+                    "wage_pressure",
+                    0.905
+                  ],
+                  [
+                    "realized_broad",
+                    0.905
+                  ],
+                  [
+                    "consumption",
+                    0.732
+                  ]
+                ],
+                "top_neg": []
+              },
+              "market_implied": {
+                "growth": 0.10437985307566867,
+                "inflation": 0.015956323102225823,
+                "top_pos": [
+                  [
+                    "inflation_pricing_proxy",
+                    0.191
+                  ],
+                  [
+                    "risk_appetite",
+                    0.181
+                  ],
+                  [
+                    "cyclical_rotation",
+                    0.142
+                  ]
+                ],
+                "top_neg": [
+                  [
+                    "commodity_inflation",
+                    -0.181
+                  ],
+                  [
+                    "broad_equity_momentum",
+                    -0.01
+                  ]
+                ]
+              }
+            },
+            "top_contributors": [
+              [
+                "macro_nowcast:wage_pressure",
+                0.905
+              ],
+              [
+                "macro_nowcast:realized_broad",
+                0.905
+              ],
+              [
+                "macro_nowcast:consumption",
+                0.732
+              ],
+              [
+                "macro_nowcast:production",
+                0.377
+              ],
+              [
+                "macro_nowcast:labor",
+                0.37
+              ]
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "2022 H1 inflation",
+      "window": [
+        "2022-03-01",
+        "2022-09-30"
+      ],
+      "confidence": "clear",
+      "g_consensus": "Up",
+      "i_consensus": "Up",
+      "brief": "PAYEMS +5-6% YoY catch-up, CPI peaks at 9.1% in June",
+      "per_date": [
+        {
+          "date": "2022-03-01",
+          "baseline": {
+            "date": "2022-03-01",
+            "final_g": -0.028,
+            "final_i": 0.487,
+            "g_label": "Neutral",
+            "i_label": "Up",
+            "risk_score": 0.107,
+            "risk_on": false,
+            "layer_outputs": {
+              "macro_nowcast": {
+                "growth": 0.3435677832990245,
+                "inflation": 0.4844034716403749,
+                "top_pos": [
+                  [
+                    "realized_broad",
+                    0.905
+                  ],
+                  [
+                    "wage_pressure",
+                    0.905
+                  ],
+                  [
+                    "persistence",
+                    0.744
+                  ]
+                ],
+                "top_neg": []
+              },
+              "market_implied": {
+                "growth": -0.22836363255161796,
+                "inflation": 0.48819824533226297,
+                "top_pos": [
+                  [
+                    "commodity_inflation",
+                    0.766
+                  ],
+                  [
+                    "risk_appetite",
+                    0.493
+                  ],
+                  [
+                    "gold_haven_inflation_proxy",
+                    0.491
+                  ]
+                ],
+                "top_neg": [
+                  [
+                    "cyclical_rotation",
+                    -0.794
+                  ],
+                  [
+                    "broad_equity_momentum",
+                    -0.444
+                  ]
+                ]
+              }
+            },
+            "top_contributors": [
+              [
+                "macro_nowcast:realized_broad",
+                0.905
+              ],
+              [
+                "macro_nowcast:wage_pressure",
+                0.905
+              ],
+              [
+                "market_implied:cyclical_rotation",
+                -0.794
+              ],
+              [
+                "market_implied:commodity_inflation",
+                0.766
+              ],
+              [
+                "macro_nowcast:persistence",
+                0.744
+              ]
+            ]
+          },
+          "q8": {
+            "date": "2022-03-01",
+            "final_g": 0.058,
+            "final_i": 0.486,
+            "g_label": "Neutral",
+            "i_label": "Up",
+            "risk_score": 0.107,
+            "risk_on": false,
+            "layer_outputs": {
+              "macro_nowcast": {
+                "growth": 0.3435677832990245,
+                "inflation": 0.4844034716403749,
+                "top_pos": [
+                  [
+                    "realized_broad",
+                    0.905
+                  ],
+                  [
+                    "wage_pressure",
+                    0.905
+                  ],
+                  [
+                    "persistence",
+                    0.744
+                  ]
+                ],
+                "top_neg": []
+              },
+              "market_implied": {
+                "growth": -0.22836363255161796,
+                "inflation": 0.48819824533226297,
+                "top_pos": [
+                  [
+                    "commodity_inflation",
+                    0.766
+                  ],
+                  [
+                    "risk_appetite",
+                    0.493
+                  ],
+                  [
+                    "gold_haven_inflation_proxy",
+                    0.491
+                  ]
+                ],
+                "top_neg": [
+                  [
+                    "cyclical_rotation",
+                    -0.794
+                  ],
+                  [
+                    "broad_equity_momentum",
+                    -0.444
+                  ]
+                ]
+              }
+            },
+            "top_contributors": [
+              [
+                "macro_nowcast:realized_broad",
+                0.905
+              ],
+              [
+                "macro_nowcast:wage_pressure",
+                0.905
+              ],
+              [
+                "market_implied:cyclical_rotation",
+                -0.794
+              ],
+              [
+                "market_implied:commodity_inflation",
+                0.766
+              ],
+              [
+                "macro_nowcast:persistence",
+                0.744
+              ]
+            ]
+          }
+        },
+        {
+          "date": "2022-06-16",
+          "baseline": {
+            "date": "2022-06-16",
+            "final_g": -0.203,
+            "final_i": 0.067,
+            "g_label": "Down",
+            "i_label": "Neutral",
+            "risk_score": 0.275,
+            "risk_on": false,
+            "layer_outputs": {
+              "macro_nowcast": {
+                "growth": 0.29884381221573114,
+                "inflation": 0.5715291640698266,
+                "top_pos": [
+                  [
+                    "persistence",
+                    0.905
+                  ],
+                  [
+                    "wage_pressure",
+                    0.905
+                  ],
+                  [
+                    "realized_broad",
+                    0.905
+                  ]
+                ],
+                "top_neg": []
+              },
+              "market_implied": {
+                "growth": -0.4735978902987466,
+                "inflation": -0.14934007475360334,
+                "top_pos": [
+                  [
+                    "commodity_inflation",
+                    0.033
+                  ]
+                ],
+                "top_neg": [
+                  [
+                    "cyclical_rotation",
+                    -0.755
+                  ],
+                  [
+                    "commodity_demand",
+                    -0.676
+                  ],
+                  [
+                    "gold_haven_inflation_proxy",
+                    -0.511
+                  ]
+                ]
+              }
+            },
+            "top_contributors": [
+              [
+                "macro_nowcast:persistence",
+                0.905
+              ],
+              [
+                "macro_nowcast:wage_pressure",
+                0.905
+              ],
+              [
+                "macro_nowcast:realized_broad",
+                0.905
+              ],
+              [
+                "market_implied:cyclical_rotation",
+                -0.755
+              ],
+              [
+                "market_implied:commodity_demand",
+                -0.676
+              ]
+            ]
+          },
+          "q8": {
+            "date": "2022-06-16",
+            "final_g": -0.087,
+            "final_i": 0.211,
+            "g_label": "Neutral",
+            "i_label": "Up",
+            "risk_score": 0.275,
+            "risk_on": false,
+            "layer_outputs": {
+              "macro_nowcast": {
+                "growth": 0.29884381221573114,
+                "inflation": 0.5715291640698266,
+                "top_pos": [
+                  [
+                    "persistence",
+                    0.905
+                  ],
+                  [
+                    "wage_pressure",
+                    0.905
+                  ],
+                  [
+                    "realized_broad",
+                    0.905
+                  ]
+                ],
+                "top_neg": []
+              },
+              "market_implied": {
+                "growth": -0.4735978902987466,
+                "inflation": -0.14934007475360334,
+                "top_pos": [
+                  [
+                    "commodity_inflation",
+                    0.033
+                  ]
+                ],
+                "top_neg": [
+                  [
+                    "cyclical_rotation",
+                    -0.755
+                  ],
+                  [
+                    "commodity_demand",
+                    -0.676
+                  ],
+                  [
+                    "gold_haven_inflation_proxy",
+                    -0.511
+                  ]
+                ]
+              }
+            },
+            "top_contributors": [
+              [
+                "macro_nowcast:persistence",
+                0.905
+              ],
+              [
+                "macro_nowcast:wage_pressure",
+                0.905
+              ],
+              [
+                "macro_nowcast:realized_broad",
+                0.905
+              ],
+              [
+                "market_implied:cyclical_rotation",
+                -0.755
+              ],
+              [
+                "market_implied:commodity_demand",
+                -0.676
+              ]
+            ]
+          }
+        },
+        {
+          "date": "2022-09-30",
+          "baseline": {
+            "date": "2022-09-30",
+            "final_g": 0.149,
+            "final_i": -0.049,
+            "g_label": "Neutral",
+            "i_label": "Neutral",
+            "risk_score": 0.045,
+            "risk_on": false,
+            "layer_outputs": {
+              "macro_nowcast": {
+                "growth": 0.23048917295145158,
+                "inflation": 0.5404941598351035,
+                "top_pos": [
+                  [
+                    "realized_broad",
+                    0.905
+                  ],
+                  [
+                    "persistence",
+                    0.905
+                  ],
+                  [
+                    "wage_pressure",
+                    0.905
+                  ]
+                ],
+                "top_neg": []
+              },
+              "market_implied": {
+                "growth": 0.10535491256518274,
+                "inflation": -0.30139416167594246,
+                "top_pos": [
+                  [
+                    "risk_appetite",
+                    0.556
+                  ],
+                  [
+                    "cyclical_rotation",
+                    0.118
+                  ]
+                ],
+                "top_neg": [
+                  [
+                    "gold_haven_inflation_proxy",
+                    -0.507
+                  ],
+                  [
+                    "commodity_inflation",
+                    -0.372
+                  ],
+                  [
+                    "broad_equity_momentum",
+                    -0.191
+                  ]
+                ]
+              }
+            },
+            "top_contributors": [
+              [
+                "macro_nowcast:realized_broad",
+                0.905
+              ],
+              [
+                "macro_nowcast:persistence",
+                0.905
+              ],
+              [
+                "macro_nowcast:wage_pressure",
+                0.905
+              ],
+              [
+                "market_implied:risk_appetite",
+                0.556
+              ],
+              [
+                "market_implied:gold_haven_inflation_proxy",
+                -0.507
+              ]
+            ]
+          },
+          "q8": {
+            "date": "2022-09-30",
+            "final_g": 0.168,
+            "final_i": 0.12,
+            "g_label": "Up",
+            "i_label": "Neutral",
+            "risk_score": 0.045,
+            "risk_on": false,
+            "layer_outputs": {
+              "macro_nowcast": {
+                "growth": 0.23048917295145158,
+                "inflation": 0.5404941598351035,
+                "top_pos": [
+                  [
+                    "realized_broad",
+                    0.905
+                  ],
+                  [
+                    "persistence",
+                    0.905
+                  ],
+                  [
+                    "wage_pressure",
+                    0.905
+                  ]
+                ],
+                "top_neg": []
+              },
+              "market_implied": {
+                "growth": 0.10535491256518274,
+                "inflation": -0.30139416167594246,
+                "top_pos": [
+                  [
+                    "risk_appetite",
+                    0.556
+                  ],
+                  [
+                    "cyclical_rotation",
+                    0.118
+                  ]
+                ],
+                "top_neg": [
+                  [
+                    "gold_haven_inflation_proxy",
+                    -0.507
+                  ],
+                  [
+                    "commodity_inflation",
+                    -0.372
+                  ],
+                  [
+                    "broad_equity_momentum",
+                    -0.191
+                  ]
+                ]
+              }
+            },
+            "top_contributors": [
+              [
+                "macro_nowcast:realized_broad",
+                0.905
+              ],
+              [
+                "macro_nowcast:persistence",
+                0.905
+              ],
+              [
+                "macro_nowcast:wage_pressure",
+                0.905
+              ],
+              [
+                "market_implied:risk_appetite",
+                0.556
+              ],
+              [
+                "market_implied:gold_haven_inflation_proxy",
+                -0.507
+              ]
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "2023 high inflation",
+      "window": [
+        "2023-06-01",
+        "2023-12-31"
+      ],
+      "confidence": "definition-dependent",
+      "g_consensus": "Up",
+      "i_consensus": "Up",
+      "brief": "Soft landing but CPI still 3-4%, payrolls +2.5%",
+      "per_date": [
+        {
+          "date": "2023-06-01",
+          "baseline": {
+            "date": "2023-06-01",
+            "final_g": -0.093,
+            "final_i": -0.144,
+            "g_label": "Neutral",
+            "i_label": "Down",
+            "risk_score": 0.015,
+            "risk_on": false,
+            "layer_outputs": {
+              "macro_nowcast": {
+                "growth": -0.019232483737485245,
+                "inflation": 0.53300868274867,
+                "top_pos": [
+                  [
+                    "realized_broad",
+                    0.905
+                  ],
+                  [
+                    "wage_pressure",
+                    0.905
+                  ],
+                  [
+                    "persistence",
+                    0.905
+                  ]
+                ],
+                "top_neg": [
+                  [
+                    "consumption",
+                    -0.279
+                  ],
+                  [
+                    "production",
+                    -0.06
+                  ]
+                ]
+              },
+              "market_implied": {
+                "growth": -0.1330173850085184,
+                "inflation": -0.4345150973553585,
+                "top_pos": [
+                  [
+                    "gold_haven_inflation_proxy",
+                    0.408
+                  ],
+                  [
+                    "broad_equity_momentum",
+                    0.167
+                  ],
+                  [
+                    "cyclical_rotation",
+                    0.148
+                  ]
+                ],
+                "top_neg": [
+                  [
+                    "inflation_pricing_proxy",
+                    -0.733
+                  ],
+                  [
+                    "risk_appetite",
+                    -0.568
+                  ],
+                  [
+                    "commodity_inflation",
+                    -0.557
+                  ]
+                ]
+              }
+            },
+            "top_contributors": [
+              [
+                "macro_nowcast:realized_broad",
+                0.905
+              ],
+              [
+                "macro_nowcast:wage_pressure",
+                0.905
+              ],
+              [
+                "macro_nowcast:persistence",
+                0.905
+              ],
+              [
+                "market_implied:inflation_pricing_proxy",
+                -0.733
+              ],
+              [
+                "market_implied:risk_appetite",
+                -0.568
+              ]
+            ]
+          },
+          "q8": {
+            "date": "2023-06-01",
+            "final_g": -0.076,
+            "final_i": 0.049,
+            "g_label": "Neutral",
+            "i_label": "Neutral",
+            "risk_score": 0.015,
+            "risk_on": false,
+            "layer_outputs": {
+              "macro_nowcast": {
+                "growth": -0.019232483737485245,
+                "inflation": 0.53300868274867,
+                "top_pos": [
+                  [
+                    "realized_broad",
+                    0.905
+                  ],
+                  [
+                    "wage_pressure",
+                    0.905
+                  ],
+                  [
+                    "persistence",
+                    0.905
+                  ]
+                ],
+                "top_neg": [
+                  [
+                    "consumption",
+                    -0.279
+                  ],
+                  [
+                    "production",
+                    -0.06
+                  ]
+                ]
+              },
+              "market_implied": {
+                "growth": -0.1330173850085184,
+                "inflation": -0.4345150973553585,
+                "top_pos": [
+                  [
+                    "gold_haven_inflation_proxy",
+                    0.408
+                  ],
+                  [
+                    "broad_equity_momentum",
+                    0.167
+                  ],
+                  [
+                    "cyclical_rotation",
+                    0.148
+                  ]
+                ],
+                "top_neg": [
+                  [
+                    "inflation_pricing_proxy",
+                    -0.733
+                  ],
+                  [
+                    "risk_appetite",
+                    -0.568
+                  ],
+                  [
+                    "commodity_inflation",
+                    -0.557
+                  ]
+                ]
+              }
+            },
+            "top_contributors": [
+              [
+                "macro_nowcast:realized_broad",
+                0.905
+              ],
+              [
+                "macro_nowcast:wage_pressure",
+                0.905
+              ],
+              [
+                "macro_nowcast:persistence",
+                0.905
+              ],
+              [
+                "market_implied:inflation_pricing_proxy",
+                -0.733
+              ],
+              [
+                "market_implied:risk_appetite",
+                -0.568
+              ]
+            ]
+          }
+        },
+        {
+          "date": "2023-09-18",
+          "baseline": {
+            "date": "2023-09-18",
+            "final_g": 0.03,
+            "final_i": 0.29,
+            "g_label": "Neutral",
+            "i_label": "Up",
+            "risk_score": -0.287,
+            "risk_on": false,
+            "layer_outputs": {
+              "macro_nowcast": {
+                "growth": -0.02273750544224995,
+                "inflation": 0.5636820243666161,
+                "top_pos": [
+                  [
+                    "persistence",
+                    0.905
+                  ],
+                  [
+                    "wage_pressure",
+                    0.905
+                  ],
+                  [
+                    "realized_broad",
+                    0.872
+                  ]
+                ],
+                "top_neg": [
+                  [
+                    "consumption",
+                    -0.163
+                  ],
+                  [
+                    "production",
+                    -0.058
+                  ]
+                ]
+              },
+              "market_implied": {
+                "growth": 0.05895763683887461,
+                "inflation": 0.1733733806204249,
+                "top_pos": [
+                  [
+                    "risk_appetite",
+                    0.449
+                  ],
+                  [
+                    "commodity_inflation",
+                    0.276
+                  ],
+                  [
+                    "inflation_pricing_proxy",
+                    0.162
+                  ]
+                ],
+                "top_neg": [
+                  [
+                    "commodity_demand",
+                    -0.23
+                  ],
+                  [
+                    "broad_equity_momentum",
+                    -0.058
+                  ],
+                  [
+                    "cyclical_rotation",
+                    -0.014
+                  ]
+                ]
+              }
+            },
+            "top_contributors": [
+              [
+                "macro_nowcast:persistence",
+                0.905
+              ],
+              [
+                "macro_nowcast:wage_pressure",
+                0.905
+              ],
+              [
+                "macro_nowcast:realized_broad",
+                0.872
+              ],
+              [
+                "market_implied:risk_appetite",
+                0.449
+              ],
+              [
+                "market_implied:commodity_inflation",
+                0.276
+              ]
+            ]
+          },
+          "q8": {
+            "date": "2023-09-18",
+            "final_g": 0.018,
+            "final_i": 0.369,
+            "g_label": "Neutral",
+            "i_label": "Up",
+            "risk_score": -0.287,
+            "risk_on": false,
+            "layer_outputs": {
+              "macro_nowcast": {
+                "growth": -0.02273750544224995,
+                "inflation": 0.5636820243666161,
+                "top_pos": [
+                  [
+                    "persistence",
+                    0.905
+                  ],
+                  [
+                    "wage_pressure",
+                    0.905
+                  ],
+                  [
+                    "realized_broad",
+                    0.872
+                  ]
+                ],
+                "top_neg": [
+                  [
+                    "consumption",
+                    -0.163
+                  ],
+                  [
+                    "production",
+                    -0.058
+                  ]
+                ]
+              },
+              "market_implied": {
+                "growth": 0.05895763683887461,
+                "inflation": 0.1733733806204249,
+                "top_pos": [
+                  [
+                    "risk_appetite",
+                    0.449
+                  ],
+                  [
+                    "commodity_inflation",
+                    0.276
+                  ],
+                  [
+                    "inflation_pricing_proxy",
+                    0.162
+                  ]
+                ],
+                "top_neg": [
+                  [
+                    "commodity_demand",
+                    -0.23
+                  ],
+                  [
+                    "broad_equity_momentum",
+                    -0.058
+                  ],
+                  [
+                    "cyclical_rotation",
+                    -0.014
+                  ]
+                ]
+              }
+            },
+            "top_contributors": [
+              [
+                "macro_nowcast:persistence",
+                0.905
+              ],
+              [
+                "macro_nowcast:wage_pressure",
+                0.905
+              ],
+              [
+                "macro_nowcast:realized_broad",
+                0.872
+              ],
+              [
+                "market_implied:risk_appetite",
+                0.449
+              ],
+              [
+                "market_implied:commodity_inflation",
+                0.276
+              ]
+            ]
+          }
+        },
+        {
+          "date": "2024-01-01",
+          "baseline": {
+            "date": "2024-01-01",
+            "final_g": 0.074,
+            "final_i": -0.061,
+            "g_label": "Neutral",
+            "i_label": "Neutral",
+            "risk_score": 0.244,
+            "risk_on": false,
+            "layer_outputs": {
+              "macro_nowcast": {
+                "growth": 0.013463810872981315,
+                "inflation": 0.48072066459016566,
+                "top_pos": [
+                  [
+                    "persistence",
+                    0.905
+                  ],
+                  [
+                    "wage_pressure",
+                    0.902
+                  ],
+                  [
+                    "realized_broad",
+                    0.686
+                  ]
+                ],
+                "top_neg": [
+                  [
+                    "consumption",
+                    -0.113
+                  ],
+                  [
+                    "production",
+                    -0.03
+                  ]
+                ]
+              },
+              "market_implied": {
+                "growth": 0.10587837696772803,
+                "inflation": -0.2935981372929993,
+                "top_pos": [
+                  [
+                    "gold_haven_inflation_proxy",
+                    0.772
+                  ],
+                  [
+                    "cyclical_rotation",
+                    0.425
+                  ],
+                  [
+                    "broad_equity_momentum",
+                    0.368
+                  ]
+                ],
+                "top_neg": [
+                  [
+                    "risk_appetite",
+                    -0.705
+                  ],
+                  [
+                    "inflation_pricing_proxy",
+                    -0.662
+                  ],
+                  [
+                    "commodity_inflation",
+                    -0.458
+                  ]
+                ]
+              }
+            },
+            "top_contributors": [
+              [
+                "macro_nowcast:persistence",
+                0.905
+              ],
+              [
+                "macro_nowcast:wage_pressure",
+                0.902
+              ],
+              [
+                "market_implied:gold_haven_inflation_proxy",
+                0.772
+              ],
+              [
+                "market_implied:risk_appetite",
+                -0.705
+              ],
+              [
+                "macro_nowcast:realized_broad",
+                0.686
+              ]
+            ]
+          },
+          "q8": {
+            "date": "2024-01-01",
+            "final_g": 0.06,
+            "final_i": 0.094,
+            "g_label": "Neutral",
+            "i_label": "Neutral",
+            "risk_score": 0.244,
+            "risk_on": false,
+            "layer_outputs": {
+              "macro_nowcast": {
+                "growth": 0.013463810872981315,
+                "inflation": 0.48072066459016566,
+                "top_pos": [
+                  [
+                    "persistence",
+                    0.905
+                  ],
+                  [
+                    "wage_pressure",
+                    0.902
+                  ],
+                  [
+                    "realized_broad",
+                    0.686
+                  ]
+                ],
+                "top_neg": [
+                  [
+                    "consumption",
+                    -0.113
+                  ],
+                  [
+                    "production",
+                    -0.03
+                  ]
+                ]
+              },
+              "market_implied": {
+                "growth": 0.10587837696772803,
+                "inflation": -0.2935981372929993,
+                "top_pos": [
+                  [
+                    "gold_haven_inflation_proxy",
+                    0.772
+                  ],
+                  [
+                    "cyclical_rotation",
+                    0.425
+                  ],
+                  [
+                    "broad_equity_momentum",
+                    0.368
+                  ]
+                ],
+                "top_neg": [
+                  [
+                    "risk_appetite",
+                    -0.705
+                  ],
+                  [
+                    "inflation_pricing_proxy",
+                    -0.662
+                  ],
+                  [
+                    "commodity_inflation",
+                    -0.458
+                  ]
+                ]
+              }
+            },
+            "top_contributors": [
+              [
+                "macro_nowcast:persistence",
+                0.905
+              ],
+              [
+                "macro_nowcast:wage_pressure",
+                0.902
+              ],
+              [
+                "market_implied:gold_haven_inflation_proxy",
+                0.772
+              ],
+              [
+                "market_implied:risk_appetite",
+                -0.705
+              ],
+              [
+                "macro_nowcast:realized_broad",
+                0.686
+              ]
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "2024 disinflation",
+      "window": [
+        "2024-01-01",
+        "2024-12-31"
+      ],
+      "confidence": "definition-dependent",
+      "g_consensus": "Up",
+      "i_consensus": "Neutral",
+      "brief": "PAYEMS +1.5%, CPI fading to ~2.5-3% range",
+      "per_date": [
+        {
+          "date": "2024-01-01",
+          "baseline": {
+            "date": "2024-01-01",
+            "final_g": 0.074,
+            "final_i": -0.061,
+            "g_label": "Neutral",
+            "i_label": "Neutral",
+            "risk_score": 0.244,
+            "risk_on": false,
+            "layer_outputs": {
+              "macro_nowcast": {
+                "growth": 0.013463810872981315,
+                "inflation": 0.48072066459016566,
+                "top_pos": [
+                  [
+                    "persistence",
+                    0.905
+                  ],
+                  [
+                    "wage_pressure",
+                    0.902
+                  ],
+                  [
+                    "realized_broad",
+                    0.686
+                  ]
+                ],
+                "top_neg": [
+                  [
+                    "consumption",
+                    -0.113
+                  ],
+                  [
+                    "production",
+                    -0.03
+                  ]
+                ]
+              },
+              "market_implied": {
+                "growth": 0.10587837696772803,
+                "inflation": -0.2935981372929993,
+                "top_pos": [
+                  [
+                    "gold_haven_inflation_proxy",
+                    0.772
+                  ],
+                  [
+                    "cyclical_rotation",
+                    0.425
+                  ],
+                  [
+                    "broad_equity_momentum",
+                    0.368
+                  ]
+                ],
+                "top_neg": [
+                  [
+                    "risk_appetite",
+                    -0.705
+                  ],
+                  [
+                    "inflation_pricing_proxy",
+                    -0.662
+                  ],
+                  [
+                    "commodity_inflation",
+                    -0.458
+                  ]
+                ]
+              }
+            },
+            "top_contributors": [
+              [
+                "macro_nowcast:persistence",
+                0.905
+              ],
+              [
+                "macro_nowcast:wage_pressure",
+                0.902
+              ],
+              [
+                "market_implied:gold_haven_inflation_proxy",
+                0.772
+              ],
+              [
+                "market_implied:risk_appetite",
+                -0.705
+              ],
+              [
+                "macro_nowcast:realized_broad",
+                0.686
+              ]
+            ]
+          },
+          "q8": {
+            "date": "2024-01-01",
+            "final_g": 0.06,
+            "final_i": 0.094,
+            "g_label": "Neutral",
+            "i_label": "Neutral",
+            "risk_score": 0.244,
+            "risk_on": false,
+            "layer_outputs": {
+              "macro_nowcast": {
+                "growth": 0.013463810872981315,
+                "inflation": 0.48072066459016566,
+                "top_pos": [
+                  [
+                    "persistence",
+                    0.905
+                  ],
+                  [
+                    "wage_pressure",
+                    0.902
+                  ],
+                  [
+                    "realized_broad",
+                    0.686
+                  ]
+                ],
+                "top_neg": [
+                  [
+                    "consumption",
+                    -0.113
+                  ],
+                  [
+                    "production",
+                    -0.03
+                  ]
+                ]
+              },
+              "market_implied": {
+                "growth": 0.10587837696772803,
+                "inflation": -0.2935981372929993,
+                "top_pos": [
+                  [
+                    "gold_haven_inflation_proxy",
+                    0.772
+                  ],
+                  [
+                    "cyclical_rotation",
+                    0.425
+                  ],
+                  [
+                    "broad_equity_momentum",
+                    0.368
+                  ]
+                ],
+                "top_neg": [
+                  [
+                    "risk_appetite",
+                    -0.705
+                  ],
+                  [
+                    "inflation_pricing_proxy",
+                    -0.662
+                  ],
+                  [
+                    "commodity_inflation",
+                    -0.458
+                  ]
+                ]
+              }
+            },
+            "top_contributors": [
+              [
+                "macro_nowcast:persistence",
+                0.905
+              ],
+              [
+                "macro_nowcast:wage_pressure",
+                0.902
+              ],
+              [
+                "market_implied:gold_haven_inflation_proxy",
+                0.772
+              ],
+              [
+                "market_implied:risk_appetite",
+                -0.705
+              ],
+              [
+                "macro_nowcast:realized_broad",
+                0.686
+              ]
+            ]
+          }
+        },
+        {
+          "date": "2024-07-02",
+          "baseline": {
+            "date": "2024-07-02",
+            "final_g": 0.052,
+            "final_i": 0.062,
+            "g_label": "Neutral",
+            "i_label": "Neutral",
+            "risk_score": -0.249,
+            "risk_on": false,
+            "layer_outputs": {
+              "macro_nowcast": {
+                "growth": -0.0034239065373691223,
+                "inflation": 0.392566269103854,
+                "top_pos": [
+                  [
+                    "persistence",
+                    0.865
+                  ],
+                  [
+                    "wage_pressure",
+                    0.813
+                  ],
+                  [
+                    "realized_broad",
+                    0.43
+                  ]
+                ],
+                "top_neg": [
+                  [
+                    "consumption",
+                    -0.185
+                  ],
+                  [
+                    "labor",
+                    -0.016
+                  ],
+                  [
+                    "production",
+                    -0.005
+                  ]
+                ]
+              },
+              "market_implied": {
+                "growth": 0.08122120136853243,
+                "inflation": -0.07904287949881425,
+                "top_pos": [
+                  [
+                    "commodity_demand",
+                    0.188
+                  ],
+                  [
+                    "broad_equity_momentum",
+                    0.129
+                  ],
+                  [
+                    "cyclical_rotation",
+                    0.063
+                  ]
+                ],
+                "top_neg": [
+                  [
+                    "commodity_inflation",
+                    -0.183
+                  ],
+                  [
+                    "gold_haven_inflation_proxy",
+                    -0.022
+                  ],
+                  [
+                    "risk_appetite",
+                    -0.011
+                  ]
+                ]
+              }
+            },
+            "top_contributors": [
+              [
+                "macro_nowcast:persistence",
+                0.865
+              ],
+              [
+                "macro_nowcast:wage_pressure",
+                0.813
+              ],
+              [
+                "macro_nowcast:realized_broad",
+                0.43
+              ],
+              [
+                "macro_nowcast:broad_leading",
+                0.279
+              ],
+              [
+                "market_implied:commodity_demand",
+                0.188
+              ]
+            ]
+          },
+          "q8": {
+            "date": "2024-07-02",
+            "final_g": 0.039,
+            "final_i": 0.157,
+            "g_label": "Neutral",
+            "i_label": "Up",
+            "risk_score": -0.249,
+            "risk_on": false,
+            "layer_outputs": {
+              "macro_nowcast": {
+                "growth": -0.0034239065373691223,
+                "inflation": 0.392566269103854,
+                "top_pos": [
+                  [
+                    "persistence",
+                    0.865
+                  ],
+                  [
+                    "wage_pressure",
+                    0.813
+                  ],
+                  [
+                    "realized_broad",
+                    0.43
+                  ]
+                ],
+                "top_neg": [
+                  [
+                    "consumption",
+                    -0.185
+                  ],
+                  [
+                    "labor",
+                    -0.016
+                  ],
+                  [
+                    "production",
+                    -0.005
+                  ]
+                ]
+              },
+              "market_implied": {
+                "growth": 0.08122120136853243,
+                "inflation": -0.07904287949881425,
+                "top_pos": [
+                  [
+                    "commodity_demand",
+                    0.188
+                  ],
+                  [
+                    "broad_equity_momentum",
+                    0.129
+                  ],
+                  [
+                    "cyclical_rotation",
+                    0.063
+                  ]
+                ],
+                "top_neg": [
+                  [
+                    "commodity_inflation",
+                    -0.183
+                  ],
+                  [
+                    "gold_haven_inflation_proxy",
+                    -0.022
+                  ],
+                  [
+                    "risk_appetite",
+                    -0.011
+                  ]
+                ]
+              }
+            },
+            "top_contributors": [
+              [
+                "macro_nowcast:persistence",
+                0.865
+              ],
+              [
+                "macro_nowcast:wage_pressure",
+                0.813
+              ],
+              [
+                "macro_nowcast:realized_broad",
+                0.43
+              ],
+              [
+                "macro_nowcast:broad_leading",
+                0.279
+              ],
+              [
+                "market_implied:commodity_demand",
+                0.188
+              ]
+            ]
+          }
+        },
+        {
+          "date": "2024-12-31",
+          "baseline": {
+            "date": "2024-12-31",
+            "final_g": 0.081,
+            "final_i": 0.083,
+            "g_label": "Neutral",
+            "i_label": "Neutral",
+            "risk_score": -0.33,
+            "risk_on": false,
+            "layer_outputs": {
+              "macro_nowcast": {
+                "growth": -0.017605079187189978,
+                "inflation": 0.33069680843034466,
+                "top_pos": [
+                  [
+                    "wage_pressure",
+                    0.782
+                  ],
+                  [
+                    "persistence",
+                    0.712
+                  ],
+                  [
+                    "realized_broad",
+                    0.327
+                  ]
+                ],
+                "top_neg": [
+                  [
+                    "production",
+                    -0.164
+                  ],
+                  [
+                    "consumption",
+                    -0.103
+                  ],
+                  [
+                    "labor",
+                    -0.042
+                  ]
+                ]
+              },
+              "market_implied": {
+                "growth": 0.13359434997931227,
+                "inflation": -0.022442049326152784,
+                "top_pos": [
+                  [
+                    "risk_appetite",
+                    0.499
+                  ],
+                  [
+                    "inflation_pricing_proxy",
+                    0.217
+                  ],
+                  [
+                    "cyclical_rotation",
+                    0.191
+                  ]
+                ],
+                "top_neg": [
+                  [
+                    "commodity_demand",
+                    -0.515
+                  ],
+                  [
+                    "gold_haven_inflation_proxy",
+                    -0.336
+                  ],
+                  [
+                    "commodity_inflation",
+                    -0.105
+                  ]
+                ]
+              }
+            },
+            "top_contributors": [
+              [
+                "macro_nowcast:wage_pressure",
+                0.782
+              ],
+              [
+                "macro_nowcast:persistence",
+                0.712
+              ],
+              [
+                "market_implied:commodity_demand",
+                -0.515
+              ],
+              [
+                "market_implied:risk_appetite",
+                0.499
+              ],
+              [
+                "market_implied:gold_haven_inflation_proxy",
+                -0.336
+              ]
+            ]
+          },
+          "q8": {
+            "date": "2024-12-31",
+            "final_g": 0.058,
+            "final_i": 0.154,
+            "g_label": "Neutral",
+            "i_label": "Up",
+            "risk_score": -0.33,
+            "risk_on": false,
+            "layer_outputs": {
+              "macro_nowcast": {
+                "growth": -0.017605079187189978,
+                "inflation": 0.33069680843034466,
+                "top_pos": [
+                  [
+                    "wage_pressure",
+                    0.782
+                  ],
+                  [
+                    "persistence",
+                    0.712
+                  ],
+                  [
+                    "realized_broad",
+                    0.327
+                  ]
+                ],
+                "top_neg": [
+                  [
+                    "production",
+                    -0.164
+                  ],
+                  [
+                    "consumption",
+                    -0.103
+                  ],
+                  [
+                    "labor",
+                    -0.042
+                  ]
+                ]
+              },
+              "market_implied": {
+                "growth": 0.13359434997931227,
+                "inflation": -0.022442049326152784,
+                "top_pos": [
+                  [
+                    "risk_appetite",
+                    0.499
+                  ],
+                  [
+                    "inflation_pricing_proxy",
+                    0.217
+                  ],
+                  [
+                    "cyclical_rotation",
+                    0.191
+                  ]
+                ],
+                "top_neg": [
+                  [
+                    "commodity_demand",
+                    -0.515
+                  ],
+                  [
+                    "gold_haven_inflation_proxy",
+                    -0.336
+                  ],
+                  [
+                    "commodity_inflation",
+                    -0.105
+                  ]
+                ]
+              }
+            },
+            "top_contributors": [
+              [
+                "macro_nowcast:wage_pressure",
+                0.782
+              ],
+              [
+                "macro_nowcast:persistence",
+                0.712
+              ],
+              [
+                "market_implied:commodity_demand",
+                -0.515
+              ],
+              [
+                "market_implied:risk_appetite",
+                0.499
+              ],
+              [
+                "market_implied:gold_haven_inflation_proxy",
+                -0.336
+              ]
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "2025 tariff shock",
+      "window": [
+        "2025-04-02",
+        "2025-05-15"
+      ],
+      "confidence": "clear",
+      "g_consensus": "Neutral",
+      "i_consensus": "Up",
+      "brief": "Breakevens spike; equity drawdown; growth signals mixed",
+      "per_date": [
+        {
+          "date": "2025-04-02",
+          "baseline": {
+            "date": "2025-04-02",
+            "final_g": -0.178,
+            "final_i": 0.254,
+            "g_label": "Down",
+            "i_label": "Up",
+            "risk_score": 0.361,
+            "risk_on": false,
+            "layer_outputs": {
+              "macro_nowcast": {
+                "growth": 0.048031426261434806,
+                "inflation": 0.3087238675265388,
+                "top_pos": [
+                  [
+                    "wage_pressure",
+                    0.817
+                  ],
+                  [
+                    "persistence",
+                    0.478
+                  ],
+                  [
+                    "realized_broad",
+                    0.444
+                  ]
+                ],
+                "top_neg": [
+                  [
+                    "consumption",
+                    -0.109
+                  ],
+                  [
+                    "labor",
+                    -0.04
+                  ]
+                ]
+              },
+              "market_implied": {
+                "growth": -0.29924735230764044,
+                "inflation": 0.23116932670633794,
+                "top_pos": [
+                  [
+                    "gold_haven_inflation_proxy",
+                    0.782
+                  ],
+                  [
+                    "commodity_demand",
+                    0.764
+                  ],
+                  [
+                    "commodity_inflation",
+                    0.231
+                  ]
+                ],
+                "top_neg": [
+                  [
+                    "risk_appetite",
+                    -0.578
+                  ],
+                  [
+                    "cyclical_rotation",
+                    -0.527
+                  ],
+                  [
+                    "broad_equity_momentum",
+                    -0.4
+                  ]
+                ]
+              }
+            },
+            "top_contributors": [
+              [
+                "macro_nowcast:wage_pressure",
+                0.817
+              ],
+              [
+                "market_implied:gold_haven_inflation_proxy",
+                0.782
+              ],
+              [
+                "market_implied:commodity_demand",
+                0.764
+              ],
+              [
+                "market_implied:risk_appetite",
+                -0.578
+              ],
+              [
+                "market_implied:cyclical_rotation",
+                -0.527
+              ]
+            ]
+          },
+          "q8": {
+            "date": "2025-04-02",
+            "final_g": -0.126,
+            "final_i": 0.27,
+            "g_label": "Down",
+            "i_label": "Up",
+            "risk_score": 0.361,
+            "risk_on": false,
+            "layer_outputs": {
+              "macro_nowcast": {
+                "growth": 0.048031426261434806,
+                "inflation": 0.3087238675265388,
+                "top_pos": [
+                  [
+                    "wage_pressure",
+                    0.817
+                  ],
+                  [
+                    "persistence",
+                    0.478
+                  ],
+                  [
+                    "realized_broad",
+                    0.444
+                  ]
+                ],
+                "top_neg": [
+                  [
+                    "consumption",
+                    -0.109
+                  ],
+                  [
+                    "labor",
+                    -0.04
+                  ]
+                ]
+              },
+              "market_implied": {
+                "growth": -0.29924735230764044,
+                "inflation": 0.23116932670633794,
+                "top_pos": [
+                  [
+                    "gold_haven_inflation_proxy",
+                    0.782
+                  ],
+                  [
+                    "commodity_demand",
+                    0.764
+                  ],
+                  [
+                    "commodity_inflation",
+                    0.231
+                  ]
+                ],
+                "top_neg": [
+                  [
+                    "risk_appetite",
+                    -0.578
+                  ],
+                  [
+                    "cyclical_rotation",
+                    -0.527
+                  ],
+                  [
+                    "broad_equity_momentum",
+                    -0.4
+                  ]
+                ]
+              }
+            },
+            "top_contributors": [
+              [
+                "macro_nowcast:wage_pressure",
+                0.817
+              ],
+              [
+                "market_implied:gold_haven_inflation_proxy",
+                0.782
+              ],
+              [
+                "market_implied:commodity_demand",
+                0.764
+              ],
+              [
+                "market_implied:risk_appetite",
+                -0.578
+              ],
+              [
+                "market_implied:cyclical_rotation",
+                -0.527
+              ]
+            ]
+          }
+        },
+        {
+          "date": "2025-04-24",
+          "baseline": {
+            "date": "2025-04-24",
+            "final_g": -0.183,
+            "final_i": 0.034,
+            "g_label": "Down",
+            "i_label": "Neutral",
+            "risk_score": 0.401,
+            "risk_on": false,
+            "layer_outputs": {
+              "macro_nowcast": {
+                "growth": 0.06450594711357889,
+                "inflation": 0.14787862733138807,
+                "top_pos": [
+                  [
+                    "wage_pressure",
+                    0.822
+                  ],
+                  [
+                    "broad_leading",
+                    0.314
+                  ],
+                  [
+                    "realized_broad",
+                    0.254
+                  ]
+                ],
+                "top_neg": [
+                  [
+                    "labor",
+                    -0.044
+                  ],
+                  [
+                    "consumption",
+                    -0.012
+                  ]
+                ]
+              },
+              "market_implied": {
+                "growth": -0.31692970202135445,
+                "inflation": -0.014954911817774641,
+                "top_pos": [
+                  [
+                    "gold_haven_inflation_proxy",
+                    0.837
+                  ],
+                  [
+                    "commodity_demand",
+                    0.547
+                  ]
+                ],
+                "top_neg": [
+                  [
+                    "cyclical_rotation",
+                    -0.756
+                  ],
+                  [
+                    "risk_appetite",
+                    -0.33
+                  ],
+                  [
+                    "broad_equity_momentum",
+                    -0.296
+                  ]
+                ]
+              }
+            },
+            "top_contributors": [
+              [
+                "market_implied:gold_haven_inflation_proxy",
+                0.837
+              ],
+              [
+                "macro_nowcast:wage_pressure",
+                0.822
+              ],
+              [
+                "market_implied:cyclical_rotation",
+                -0.756
+              ],
+              [
+                "market_implied:commodity_demand",
+                0.547
+              ],
+              [
+                "market_implied:risk_appetite",
+                -0.33
+              ]
+            ]
+          },
+          "q8": {
+            "date": "2025-04-24",
+            "final_g": -0.126,
+            "final_i": 0.066,
+            "g_label": "Down",
+            "i_label": "Neutral",
+            "risk_score": 0.401,
+            "risk_on": false,
+            "layer_outputs": {
+              "macro_nowcast": {
+                "growth": 0.06450594711357889,
+                "inflation": 0.14787862733138807,
+                "top_pos": [
+                  [
+                    "wage_pressure",
+                    0.822
+                  ],
+                  [
+                    "broad_leading",
+                    0.314
+                  ],
+                  [
+                    "realized_broad",
+                    0.254
+                  ]
+                ],
+                "top_neg": [
+                  [
+                    "labor",
+                    -0.044
+                  ],
+                  [
+                    "consumption",
+                    -0.012
+                  ]
+                ]
+              },
+              "market_implied": {
+                "growth": -0.31692970202135445,
+                "inflation": -0.014954911817774641,
+                "top_pos": [
+                  [
+                    "gold_haven_inflation_proxy",
+                    0.837
+                  ],
+                  [
+                    "commodity_demand",
+                    0.547
+                  ]
+                ],
+                "top_neg": [
+                  [
+                    "cyclical_rotation",
+                    -0.756
+                  ],
+                  [
+                    "risk_appetite",
+                    -0.33
+                  ],
+                  [
+                    "broad_equity_momentum",
+                    -0.296
+                  ]
+                ]
+              }
+            },
+            "top_contributors": [
+              [
+                "market_implied:gold_haven_inflation_proxy",
+                0.837
+              ],
+              [
+                "macro_nowcast:wage_pressure",
+                0.822
+              ],
+              [
+                "market_implied:cyclical_rotation",
+                -0.756
+              ],
+              [
+                "market_implied:commodity_demand",
+                0.547
+              ],
+              [
+                "market_implied:risk_appetite",
+                -0.33
+              ]
+            ]
+          }
+        },
+        {
+          "date": "2025-05-15",
+          "baseline": {
+            "date": "2025-05-15",
+            "final_g": -0.097,
+            "final_i": -0.046,
+            "g_label": "Neutral",
+            "i_label": "Neutral",
+            "risk_score": -0.267,
+            "risk_on": false,
+            "layer_outputs": {
+              "macro_nowcast": {
+                "growth": 0.062288455984460554,
+                "inflation": 0.09767191187584545,
+                "top_pos": [
+                  [
+                    "wage_pressure",
+                    0.819
+                  ],
+                  [
+                    "broad_leading",
+                    0.316
+                  ],
+                  [
+                    "production",
+                    0.083
+                  ]
+                ],
+                "top_neg": [
+                  [
+                    "labor",
+                    -0.048
+                  ],
+                  [
+                    "consumption",
+                    -0.013
+                  ]
+                ]
+              },
+              "market_implied": {
+                "growth": -0.18338740731969713,
+                "inflation": -0.1075840437264179,
+                "top_pos": [
+                  [
+                    "gold_haven_inflation_proxy",
+                    0.465
+                  ]
+                ],
+                "top_neg": [
+                  [
+                    "cyclical_rotation",
+                    -0.419
+                  ],
+                  [
+                    "commodity_inflation",
+                    -0.348
+                  ],
+                  [
+                    "inflation_pricing_proxy",
+                    -0.153
+                  ]
+                ]
+              }
+            },
+            "top_contributors": [
+              [
+                "macro_nowcast:wage_pressure",
+                0.819
+              ],
+              [
+                "market_implied:gold_haven_inflation_proxy",
+                0.465
+              ],
+              [
+                "market_implied:cyclical_rotation",
+                -0.419
+              ],
+              [
+                "market_implied:commodity_inflation",
+                -0.348
+              ],
+              [
+                "macro_nowcast:broad_leading",
+                0.316
+              ]
+            ]
+          },
+          "q8": {
+            "date": "2025-05-15",
+            "final_g": -0.061,
+            "final_i": -0.005,
+            "g_label": "Neutral",
+            "i_label": "Neutral",
+            "risk_score": -0.267,
+            "risk_on": false,
+            "layer_outputs": {
+              "macro_nowcast": {
+                "growth": 0.062288455984460554,
+                "inflation": 0.09767191187584545,
+                "top_pos": [
+                  [
+                    "wage_pressure",
+                    0.819
+                  ],
+                  [
+                    "broad_leading",
+                    0.316
+                  ],
+                  [
+                    "production",
+                    0.083
+                  ]
+                ],
+                "top_neg": [
+                  [
+                    "labor",
+                    -0.048
+                  ],
+                  [
+                    "consumption",
+                    -0.013
+                  ]
+                ]
+              },
+              "market_implied": {
+                "growth": -0.18338740731969713,
+                "inflation": -0.1075840437264179,
+                "top_pos": [
+                  [
+                    "gold_haven_inflation_proxy",
+                    0.465
+                  ]
+                ],
+                "top_neg": [
+                  [
+                    "cyclical_rotation",
+                    -0.419
+                  ],
+                  [
+                    "commodity_inflation",
+                    -0.348
+                  ],
+                  [
+                    "inflation_pricing_proxy",
+                    -0.153
+                  ]
+                ]
+              }
+            },
+            "top_contributors": [
+              [
+                "macro_nowcast:wage_pressure",
+                0.819
+              ],
+              [
+                "market_implied:gold_haven_inflation_proxy",
+                0.465
+              ],
+              [
+                "market_implied:cyclical_rotation",
+                -0.419
+              ],
+              [
+                "market_implied:commodity_inflation",
+                -0.348
+              ],
+              [
+                "macro_nowcast:broad_leading",
+                0.316
+              ]
+            ]
+          }
+        }
+      ]
+    }
+  ]
+}
