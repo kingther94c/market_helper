@@ -77,3 +77,27 @@ disclaimer in any layout/refactor work.**
 - Preserve macro/market disagreement as a first-class output.
 - Ex-post macro data may be **labels only**, never features.
 - Disabled or unavailable ML layers must not affect final scores.
+
+## Regime calibration discipline
+
+Before touching `configs/regime_detection/*.yml` or the calibration
+scripts, read [ADR 0004](../../docs/decisions/0004-regime-calibration-discipline.md).
+Three standing rules apply to every round:
+
+- **LEVEL-honest anchor labels** — `i_consensus = Up` when CPI YoY > 2.5%
+  comfort, regardless of direction. Direction signals are a separate
+  signal layer (Q9 velocity), not a re-framing of the level anchors.
+- **Train / holdout discipline** — anchors tagged `is_holdout=True` in
+  `scripts/research/anchors.py` never enter grid selection. Holdout is
+  a hard non-regression constraint post-hoc, never an optimization
+  objective. Current holdout: 2008 GFC, 2017 Goldilocks, 2024
+  disinflation, 2025 tariff.
+- **Neighborhood-stability check** — a grid argmax must also have a
+  strong L1 neighborhood (no regress-baseline neighbor; worst neighbor
+  within 5pp). Use `scripts/research/macro_neighborhood_stability_v2.py`
+  on any new grid output. If argmax ≠ neighborhood-robust top, either
+  run Phase-2 local refinement or pick whichever has better holdout.
+
+The calibration round catalog (Q7 → Q9 + Phase 1+2 audit) lives in
+[`data/research_artifacts/README.md`](../../data/research_artifacts/README.md);
+reports there are the durable record, HTML reports are summaries.

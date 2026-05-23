@@ -89,39 +89,56 @@ in `fred_series.yml`.
 
 ## Current State
 
-Calibrated through **Q8** (macro-axis grid). Engine + CLI baseline, concept
-aggregation on both layers, symmetric tanh compression, beta-adjusted
-relative returns, label-level hysteresis, anchor-period sanity harness (4
-episodes pinned), auto-sync + historical baseline (1984-2024 panel), and the
-per-frequency decay structural change have all landed. Q7 lowered the risk
-overlay threshold to fire same-day on Lehman; Q8 rebalanced the macro layer
-blend to 50/50 and tightened growth_thresh to ±0.10. See
-`plan/current.md` "Regime Engine" section + `memory/archive/landed/regime_engine_landed.md`
-+ the calibration reports under `data/research_artifacts/` for the full record.
+Calibrated through **Q9** (inflation velocity layer + train/holdout
+discipline) and stress-tested with a Q9 Phase 1+2 neighborhood-stability
+audit. Engine + CLI baseline, concept aggregation on both layers, symmetric
+tanh compression, beta-adjusted relative returns, label-level hysteresis,
+anchor-period sanity harness (4 episodes pinned), auto-sync + historical
+baseline (1984-2024 panel), per-frequency decay, multi-transform support
+(same FRED series under YoY + qoq_annualized) all landed.
+
+Round-by-round summary:
+- **Q7** — risk overlay threshold 0.75 → 0.65, rcd 3 → 1 (same-day Lehman).
+- **Q8** — macro blend 0.35/0.30 + 0.65/0.70 → balanced 0.50/0.50; growth
+  deadband ±0.15 → ±0.10. Train (no holdout yet): +5pp overall.
+- **Q9** — added `inflation_velocity` concept (CPI/CoreCPI/PCE 3m
+  annualized) at weight 1.0; macro blend lifted to 0.6/0.4;
+  `inflation_thresh` widened ±0.12 → ±0.15. **Train/holdout discipline
+  introduced** (4 anchors held out: 2008 GFC, 2017 Goldilocks, 2024
+  disinflation, 2025 tariff). Train +3.8pp, holdout +2.0pp, gap +0.3pp.
+- **Q9 Phase 1+2** — neighborhood-stability audit on 522-config grid
+  (original 360 + 162 half-step refinements). Q9 winner ranks #9 by
+  robust-score; gap to top is +0.6pp but top-robust costs -1.9pp on
+  holdout. **Verdict: keep Q9.** No config change.
+
+Round catalog + reports: [`data/research_artifacts/README.md`](../../../data/research_artifacts/README.md).
+Methodology rules (LEVEL framing, train/holdout, neighborhood check) are
+canonicalized in [ADR 0004](../../decisions/0004-regime-calibration-discipline.md).
 
 ## Near-Term Next Steps
 
-1. **Direction-honest velocity layer (Q9 candidate)**
-   The engine's YoY + threshold scoring is structurally level-based: it
-   cannot read "inflation is falling toward target" as Down while CPI YoY is
-   still above 2.5%. The proposed remedy is a MoM-velocity or 6m-change
-   transform / concept that captures the **direction** axis alongside the
-   existing **level** axis. Concrete shape:
-   - Pick the transform: probably a new `mom_zscore_*` or `change_6m`
-     normalization spec on inflation-side series.
-   - Add a "velocity" concept to `inflation_concepts:` with a modest blend
-     weight against the existing level concepts.
-   - Calibration question: does it help the 2022-H2 → 2023 disinflation
-     anchor without breaking 2022-H1 (where YoY is still rising)?
-   - Run as a Q9 grid against the existing macro anchors and the new ones
-     from `macro_scout_after.json`.
+Open candidates parked in [`plan/current.md`](../../../plan/current.md):
 
-2. **(Optional)** Pin per-anchor macro fixtures from `macro_scout_after.json`
-   into the anchor-period harness if a CI guardrail for the macro layer is
-   desired. The full-history macro scout already serves as an offline
-   measurement harness so this is not blocking.
-
-3. **Standing guardrail** — Keep ML layers (`macro_truth_ml`,
+1. **2025 tariff shock channel** — engine has no single-event /
+   policy-shock signal; both axes failed clear-confidence on this anchor
+   in Q8 and Q9.
+2. **2022 H1 growth misread** — layer-disagreement case where macro_g
+   says Up (correctly, payrolls YoY +5-6%) but market_g (-0.47, equity
+   drawdown) drags the final to Neutral. Q9 60/40 blend lifted train
+   g_match 11 → 53% but holdout misses persist; investigate
+   concept-level rebalancing for the post-COVID base effect.
+3. **Velocity layer 2nd-derivative** — current 3m annualized captures
+   *rate*, not *acceleration*. A "deceleration" signal (velocity vs YoY
+   divergence) could improve 2024 disinflation further.
+4. **2020H2 catch-up anchor relabeling** — recurring LEVEL/DIRECTION
+   tension. Q9 trade-off makes this anchor worse on inflation (-13pp);
+   the level-honest framing may simply be wrong here. Re-label or move
+   to holdout-only. See ADR 0004 open question.
+5. **(Optional)** Pin per-anchor macro fixtures from
+   `macro_scout_q9_after.json` into the anchor-period harness if a CI
+   guardrail is desired. The full-history macro scout already serves as
+   an offline measurement harness so this is not blocking.
+6. **Standing guardrail** — Keep ML layers (`macro_truth_ml`,
    `return_truth_ml`) unavailable/zero-weight until model artifacts and
    feature schemas are explicit. Do not emit fake ML outputs.
 
