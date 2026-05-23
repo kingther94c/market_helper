@@ -539,7 +539,7 @@ def main() -> int:
         激活 dormant series (T10Y2Y yield curve、T5YIE breakevens、
         DFII10 real yield、PPIACO、M2SL、HOUST/PERMIT、UMCSENT、MANEMP)
         是单独的结构性 pass — 参见
-        <code>DEV_DOCS/docs/devplans/regime_engine_devplan.md</code>
+        <code>docs/architecture/devplans/regime_engine.md</code>
         的 "Activating a Dormant Signal" runbook。</li>
       <li><b>共识 label 是作者指定</b>: 我把 13 个锚定按广泛接受的
         consensus 打了标，但 reasonable analysts 在边缘会有分歧

@@ -9,7 +9,7 @@ honest about the limits of a market-only view.
 
 Why market-only: the FRED macro panel is not checked into the repo
 (regenerating it requires ``FRED_API_KEY`` + ``fred-macro-sync``;
-see ``DEV_DOCS/docs/devplans/regime_engine_devplan.md`` for the activation
+see ``docs/architecture/devplans/regime_engine.md`` for the activation
 runbook). The market layer alone catches the regressions this harness is
 designed to surface (signal weights, normalization windows, hysteresis
 thresholds, risk-overlay enter/exit, beta-adjustment math).

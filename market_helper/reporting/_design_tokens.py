@@ -1,6 +1,6 @@
 """Shared design tokens and component primitive CSS for the HTML reports + dashboard.
 
-Phase P1 of the UI / Reports redesign track (see ``DEV_DOCS/PLAN.md``). This module is
+Phase P1 of the UI / Reports redesign track (see ``docs/architecture/devplans/portfolio_monitor.md``). This module is
 the single source of truth for ``:root`` custom properties and for component CSS that
 was previously redeclared verbatim across :mod:`market_helper.reporting.report_document`,
 :mod:`market_helper.reporting.performance_html`, and :mod:`market_helper.reporting.risk_html`.

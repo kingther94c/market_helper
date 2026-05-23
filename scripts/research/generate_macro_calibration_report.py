@@ -574,7 +574,7 @@ def main() -> int:
         breakevens, DFII10 real yields, PPIACO, M2SL, HOUST/PERMIT,
         UMCSENT, MANEMP) is a separate structural pass — see the
         "Activating a Dormant Signal" runbook in
-        <code>DEV_DOCS/docs/devplans/regime_engine_devplan.md</code>.</li>
+        <code>docs/architecture/devplans/regime_engine.md</code>.</li>
       <li><b>YoY base-effect distortions</b>: the 2022 H1 macro growth
         reading is +0.30 (Up) because PAYEMS YoY was still ramping from
         COVID lows — even though headline GDP printed negative Q1/Q2.

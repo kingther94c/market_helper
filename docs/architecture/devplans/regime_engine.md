@@ -96,8 +96,8 @@ episodes pinned), auto-sync + historical baseline (1984-2024 panel), and the
 per-frequency decay structural change have all landed. Q7 lowered the risk
 overlay threshold to fire same-day on Lehman; Q8 rebalanced the macro layer
 blend to 50/50 and tightened growth_thresh to ±0.10. See
-`DEV_DOCS/PLAN.md` "Regime Engine" landed list + the calibration reports
-under `data/research_artifacts/` for the full record.
+`plan/current.md` "Regime Engine" section + `memory/archive/landed/regime_engine_landed.md`
++ the calibration reports under `data/research_artifacts/` for the full record.
 
 ## Near-Term Next Steps
 

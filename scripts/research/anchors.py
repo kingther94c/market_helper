@@ -13,7 +13,7 @@ Anchor schema:
     alt_g, alt_i  optional alternative consensus labels for sensitivity
     brief         one-line description
 
-LEVEL-based framing: see DEV_DOCS/docs/devplans/regime_engine_devplan.md
+LEVEL-based framing: see docs/architecture/devplans/regime_engine.md
 or the HTML report Methodology section. Inflation labels reflect "CPI YoY
 relative to 2.5% comfort", not "direction of change".
 
@@ -49,6 +49,10 @@ class Anchor:
     brief: str
     alt_g: str | None = None  # alternative consensus if confidence != clear
     alt_i: str | None = None
+    # Q9: train/holdout split. Holdout anchors are excluded from grid search
+    # and used only for post-tuning validation. Mark 3-4 clear-confidence
+    # anchors that span both crisis and normal regimes as holdout.
+    is_holdout: bool = False
 
 
 @dataclass(frozen=True)
@@ -71,6 +75,7 @@ ANCHORS_LEVEL: Sequence[Anchor] = (
         g_consensus="Down", i_consensus="Down", risk_consensus="On",
         confidence="clear",
         brief="Lehman+ deep recession; oil bust drives YoY CPI to ~-2%",
+        is_holdout=True,  # crisis anchor — holdout for credit cycle
     ),
     Anchor(
         name="2010-12 expansion",
@@ -96,6 +101,7 @@ ANCHORS_LEVEL: Sequence[Anchor] = (
         g_consensus="Up", i_consensus="Neutral", risk_consensus="Off",
         confidence="defensible",
         brief="PAYEMS +1.5% YoY, CPI ~2.1%",
+        is_holdout=True,  # textbook normal-cycle holdout
     ),
     Anchor(
         name="2018 Q4 vol shock",
@@ -166,6 +172,7 @@ ANCHORS_LEVEL: Sequence[Anchor] = (
         brief="PAYEMS +1.5%, CPI fading to ~2.5-3% range",
         # Direction view says Down
         alt_i="Down",
+        is_holdout=True,  # the velocity layer's target case — holdout to avoid fitting
     ),
     Anchor(
         name="2025 tariff shock",
@@ -173,8 +180,18 @@ ANCHORS_LEVEL: Sequence[Anchor] = (
         g_consensus="Neutral", i_consensus="Up", risk_consensus="On",
         confidence="clear",
         brief="Breakevens spike; equity drawdown; growth signals mixed",
+        is_holdout=True,  # newest anchor — holdout to test generalization
     ),
 )
+
+
+# Convenience selectors for Q9+ train/holdout discipline.
+def train_anchors() -> tuple["Anchor", ...]:
+    return tuple(a for a in ANCHORS_LEVEL if not a.is_holdout)
+
+
+def holdout_anchors() -> tuple["Anchor", ...]:
+    return tuple(a for a in ANCHORS_LEVEL if a.is_holdout)
 
 
 # ---------------------------------------------------------------------------

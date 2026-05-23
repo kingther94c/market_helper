@@ -8,10 +8,12 @@ Before starting implementation, review:
 
 - [`AGENTS.md`](AGENTS.md) — canonical agent rules and governance
 - [`memory/hot/`](memory/hot/) — compact operational knowledge (commands, env, architecture, gotchas)
-- [`DEV_DOCS/PLAN.md`](DEV_DOCS/PLAN.md) — living delivery plan
+- [`plan/current.md`](plan/current.md) — active initiatives
+- [`docs/architecture/`](docs/architecture/) — deeper system structure + track devplans
+- [`docs/decisions/`](docs/decisions/) — major design tradeoffs (ADRs)
 
 `AGENTS.md` is the always-check governance file (single source for every
-agent — Claude Code, Codex, future agents). `DEV_DOCS/PLAN.md` is the living
+agent — Claude Code, Codex, future agents). `plan/current.md` is the living
 delivery plan and must be updated in every commit / PR that changes completed
 work, current status, or next steps.
 ## Environment
@@ -54,7 +56,7 @@ This repository follows a domain-first layout:
 - `market_helper/{data_sources,domain,presentation,cli,common,app}/` for package code
 - `scripts/` for executable workflow entrypoints
 - `tests/` for unit, integration, and e2e coverage
-- `DEV_DOCS/` for the compact development rules, living project plan, architecture notes, and devplans
+- `AGENTS.md` for agent rules + governance; `memory/hot/` for compact operational knowledge; `docs/{architecture,decisions,operations}/` for deeper system structure, ADRs, and runbooks; `plan/{current,backlog}.md` for active and future work
 
 
 ### Package organization direction
@@ -130,7 +132,7 @@ This file is a future scaffold for a planned Web API flow. Current CLI reporting
 - Keep the password in an env var such as `IBKR_CP_PASSWORD`, referenced by `provider.password_env_var`.
 - For most individual-account setups, start with username/password plus the local gateway session rather than looking for an API key first.
 
-More detail is in [`DEV_DOCS/docs/ibkr_web_api_auth.md`](DEV_DOCS/docs/ibkr_web_api_auth.md).
+More detail is in [`docs/operations/ibkr_web_api_auth.md`](docs/operations/ibkr_web_api_auth.md).
 
 ## Position report
 
@@ -381,5 +383,5 @@ conda run -n py313 python -m market_helper.cli.main regime-html-report \
 
 V2 keeps growth and inflation as the main regime axes and reports risk/stress as
 an independent overlay. It does not produce trading signals, allocation changes,
-or brokerage actions. See `DEV_DOCS/docs/regime_engine_v2.md` for the design
+or brokerage actions. See `docs/architecture/regime_engine_v2.md` for the design
 contract.

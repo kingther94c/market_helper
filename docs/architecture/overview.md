@@ -1,6 +1,29 @@
-# Architecture
+# Architecture overview
 
-Current package layout and ownership for `market_helper`.
+Canonical system structure for `market_helper`. Compact retrieval-oriented
+notes live in [`memory/hot/architecture.md`](../../memory/hot/architecture.md);
+this file is the deeper reference.
+
+## Objective
+
+Build a broker-agnostic, **read-only** market monitoring stack around IBKR
+data: live positions, Flex performance, portfolio risk, regime engine
+context, static HTML reports, and the NiceGUI dashboard.
+
+## Boundaries
+
+**In scope**
+- Read-only provider adapters: IBKR Client Portal, TWS / IB Gateway via
+  `ib_async`, Flex Web Service, Yahoo/FRED/FMP data pulls.
+- Artifact-driven portfolio monitor: position CSV, NAV/cashflow history,
+  security reference cache, risk/performance/regime reports.
+- NiceGUI dashboard as the operator surface.
+
+**Out of scope**
+- Order placement, cancel, modify, brokerage write actions (see ADR 0001).
+- Trading signal generation or allocation execution from regime output.
+- Multi-user SaaS frontend work.
+- Rebuilding old workbook reports before the artifact/reporting model is stable.
 
 ## Current shape
 
@@ -80,13 +103,10 @@ This layer should stay renderer-agnostic and UI-agnostic wherever possible.
 - `market_helper/reporting/`
   - Shared risk/performance view-model builders and remaining legacy HTML glue.
 
-Important current reality: the repo still has two rendering paths in play.
-
-1. The NiceGUI dashboard plus Playwright snapshot path.
-2. Remaining legacy HTML builder code under `reporting/`.
-
-The project direction is clearly toward the dashboard-driven snapshot path, but
-the legacy HTML helpers still exist for compatibility and parity gaps.
+**Rendering ownership** (see ADR 0002): the static HTML renderer in
+`market_helper/reporting/` is the canonical render path. The dashboard
+embeds that HTML in an iframe — there is no separate snapshot/Playwright
+pipeline planned. New report sections land in the renderer first.
 
 ## Provider boundaries
 
@@ -117,22 +137,21 @@ rules.
 
 ## Current architectural debt
 
-- Documentation still understates the application layer and snapshot pipeline.
-- Legacy workflow/reporting shims remain broad, which keeps migration safe but
-  leaves duplicate execution paths in the codebase.
-- Artifact/config handling is still path-string heavy across CLI, workflows, and
-  dashboard forms.
-- Rendering ownership is split between dashboard snapshot code and older HTML
-  builders, which increases parity and maintenance costs.
+- Legacy `workflows` shims remain broad, which keeps migration safe but
+  leaves duplicate facade paths.
+- Artifact/config handling shares one contract layer
+  (`application/portfolio_monitor/contracts.py`) but still passes path
+  strings through legacy entrypoints.
 
 ## Direction
 
-The next architecture tightening should focus on:
+Tightening focus:
 
-1. Making the dashboard snapshot path the single report-rendering path.
-2. Shrinking legacy `workflows`/HTML compatibility surfaces once parity is
-   proven.
-3. Replacing ad hoc path-string plumbing with explicit artifact/config
-   contracts.
-4. Keeping business logic in `domain/` and orchestration in `application/`,
-   rather than letting either drift back into page components or provider code.
+1. Keep business logic in `domain/` and orchestration in `application/`.
+   Avoid drift back into page components or provider code.
+2. Shrink legacy `workflows` compatibility surfaces only as concrete asks
+   land — no speculative cleanup (the snapshot/Playwright rewire that
+   motivated earlier cleanup is retired; see ADR 0002).
+3. Treat `application/portfolio_monitor/contracts.py` as the canonical
+   input contract for CLI / workflow / dashboard call-sites; new entry
+   points should reuse the existing `*Inputs` dataclasses.

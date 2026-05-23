@@ -1,6 +1,6 @@
 ---
 name: repo-onboarding-skill
-description: 新开线程时自动做：读 README / DEV_DOCS / AGENTS.md / pyproject.toml / 目录树，输出：项目目标 当前模块边界 常用命令 已知约束 下一步建议
+description: 新开线程时自动做：读 AGENTS.md / memory/hot/ / plan/current.md / pyproject.toml / 目录树，输出：项目目标 当前模块边界 常用命令 已知约束 下一步建议
 ---
 
 # Repo Onboarding Skill
@@ -14,12 +14,14 @@ Automatically activates when starting a new thread/session in the repository con
 ## Functionality
 The skill performs the following actions:
 
-1. **Reads Key Files**:
-   - README.md
-   - DEV_DOCS/ directory contents
-   - AGENTS.md
-   - pyproject.toml
-   - Project directory tree
+1. **Reads Key Files** (canonical reading order, per `AGENTS.md`):
+   - `AGENTS.md` — agent governance + memory model
+   - `memory/hot/{operations,architecture,gotchas}.md` — compact ops knowledge
+   - `plan/current.md` — active initiatives
+   - `plan/backlog.md` — concise future work
+   - `docs/architecture/overview.md` — system structure (if deeper context needed)
+   - `pyproject.toml` — Python project metadata
+   - Project directory tree (top two levels only — do not recurse archives)
 
 2. **Generates Structured Output**:
    - **项目目标 (Project Goals)**: Extracts and summarizes the project's objectives and purpose

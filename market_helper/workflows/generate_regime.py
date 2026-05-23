@@ -80,8 +80,8 @@ def run_regime_engine_v2_detection(
                     "FRED_API_KEY in the process env, or add it to "
                     "<MARKET_HELPER_GDRIVE_ROOT>/local.env (preferred for "
                     "multi-machine sync) or configs/portfolio_monitor/local.env. "
-                    "Activation runbook: DEV_DOCS/docs/devplans/"
-                    "regime_engine_devplan.md"
+                    "Activation runbook: docs/architecture/devplans/"
+                    "regime_engine.md"
                 )
 
     market_panel = None

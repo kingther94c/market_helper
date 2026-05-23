@@ -26,5 +26,5 @@ data/interim/market_regime/**
 data/processed/*.json
 notebooks/dev_lab/**
 !notebooks/dev_lab/.gitkeep
-DEV_DOCS/archive/
+memory/archive/
 notebooks/regime_detection/.cal/__pycache__/

@@ -12,9 +12,10 @@ Reading order (per `AGENTS.md`):
 
 1. `AGENTS.md` — agent rules and governance
 2. `memory/hot/` — this folder
-3. `DEV_DOCS/docs/` — deeper architecture / decisions / operations
-4. `DEV_DOCS/PLAN.md` — active initiatives + backlog
-5. Code
+3. `docs/architecture/`, `docs/decisions/`, `docs/operations/` — deeper
+   architecture / ADRs / runbooks
+4. `plan/current.md` — active initiatives
+5. `plan/backlog.md` — concise future work
+6. Code
 
-Cold material lives under `DEV_DOCS/archive/` (gitignored) and
-`memory/archive/`. Not read by default.
+Cold material lives under `memory/archive/` (gitignored). Not read by default.
