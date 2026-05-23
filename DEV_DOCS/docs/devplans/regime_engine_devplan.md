@@ -33,6 +33,8 @@ should never require a code change.
     (`none` | `centered` | `threshold` | `zscore` | `minmax` | `percentile`),
     `weight`, plus optional per-series overrides for the z-score window/clip,
     minmax bounds/window, percentile window, neutral level, and threshold.
+  - Optional `decay_half_life_bdays:` per series; otherwise resolved from
+    `frequency_hint` (daily/weekly=5, monthly=22, quarterly=66, annual=252).
 - `configs/regime_detection/market_regime.yml`
   - `data_sources.symbols` enumerates the Yahoo aliases the panel needs.
   - `normalization:` block sets defaults for window sizes and clip.
@@ -57,18 +59,18 @@ The fetcher (`sync_fred_macro_panel`) already pulls every series declared in
 `fred_series.yml`, but `data/interim/fred/` is created on first sync, so a
 dormant series has no cached observations until you run it. To activate:
 
-1. **Hydrate the FRED cache** (one-shot; ~10s cold for the full 23-series
-   set — FRED's API serves these low-cadence monthly/quarterly series fast):
+1. **Hydrate the FRED cache** (one-shot; ~10s cold for the full 23-series set):
    ```bash
    export FRED_API_KEY=...        # or put it in local.env (see below)
    python -m market_helper.cli.main fred-macro-sync
    ```
    Requires `FRED_API_KEY` from the process env (preferred), or from
-   `<MARKET_HELPER_GDRIVE_ROOT>/local.env` (canonical multi-machine setup
-   — set ROOT once in your shell profile), or from
-   `configs/portfolio_monitor/local.env`. Subsequent runs are incremental
-   from the last cached date. Market signals (Yahoo) are lazy-loaded per
-   call and need no separate sync step.
+   `<MARKET_HELPER_GDRIVE_ROOT>/local.env` (canonical multi-machine setup —
+   set ROOT once in your shell profile; on Windows the resolver auto-reads
+   from the User registry hive if the parent process didn't inherit it), or
+   from `configs/portfolio_monitor/local.env`. Subsequent runs are incremental
+   from the last cached date. Market signals (Yahoo) are lazy-loaded per call
+   and need no separate sync step.
 
 2. **Wire the series into a concept** in `fred_series.yml`
    (`growth_concepts:` / `inflation_concepts:`) or set `weight > 0` for a
@@ -87,37 +89,41 @@ in `fred_series.yml`.
 
 ## Current State
 
-Landed:
-- Engine contracts, coordinator, `regime-detect`, `regime-calibrate`,
-  `regime-run-report`, `regime-refresh-report` CLI.
-- Standalone HTML report and calibration HTML + question-driven notebook.
-- GUI operate-drawer actions for cached run and refresh run.
-- Combined portfolio report includes the regime section when the artifact
-  exists.
-- All previous v1 (7-regime rulebook, multi-method service, JSON proxy/returns
-  pipeline, `regime_config.yml`/`regime_policy.yml`) deleted.
+Calibrated through **Q8** (macro-axis grid). Engine + CLI baseline, concept
+aggregation on both layers, symmetric tanh compression, beta-adjusted
+relative returns, label-level hysteresis, anchor-period sanity harness (4
+episodes pinned), auto-sync + historical baseline (1984-2024 panel), and the
+per-frequency decay structural change have all landed. Q7 lowered the risk
+overlay threshold to fire same-day on Lehman; Q8 rebalanced the macro layer
+blend to 50/50 and tightened growth_thresh to ±0.10. See
+`DEV_DOCS/PLAN.md` "Regime Engine" landed list + the calibration reports
+under `data/research_artifacts/` for the full record.
 
 ## Near-Term Next Steps
 
-1. **Calibration decision pass**
-   Review the calibration HTML and notebook observations. Decide whether each
-   anchor-period mismatch is acceptable macro lag, market noise, or a config
-   problem. Do not tune before this pass.
+1. **Direction-honest velocity layer (Q9 candidate)**
+   The engine's YoY + threshold scoring is structurally level-based: it
+   cannot read "inflation is falling toward target" as Down while CPI YoY is
+   still above 2.5%. The proposed remedy is a MoM-velocity or 6m-change
+   transform / concept that captures the **direction** axis alongside the
+   existing **level** axis. Concrete shape:
+   - Pick the transform: probably a new `mom_zscore_*` or `change_6m`
+     normalization spec on inflation-side series.
+   - Add a "velocity" concept to `inflation_concepts:` with a modest blend
+     weight against the existing level concepts.
+   - Calibration question: does it help the 2022-H2 → 2023 disinflation
+     anchor without breaking 2022-H1 (where YoY is still rising)?
+   - Run as a Q9 grid against the existing macro anchors and the new ones
+     from `macro_scout_after.json`.
 
-2. **Narrow config tuning**
-   If the calibration review is clear, adjust only config-owned behavior:
-   thresholds, confidence/disagreement settings, layer weights, normalization,
-   market signal weights/lookbacks, or macro bucket weights.
+2. **(Optional)** Pin per-anchor macro fixtures from `macro_scout_after.json`
+   into the anchor-period harness if a CI guardrail for the macro layer is
+   desired. The full-history macro scout already serves as an offline
+   measurement harness so this is not blocking.
 
-3. **Backtest sanity harness**
-   Add a small pinned-fixture harness for anchor periods such as GFC, COVID,
-   2017 Goldilocks, 2022 inflation shock, 2023-24 soft landing, and April 2025
-   tariff shock. This is a sanity harness, not a trading backtest.
-
-4. **ML artifact lifecycle**
-   Keep ML layers disabled/zero-weight until feature schemas, model selector
-   inputs, model artifacts, and unavailable reasons are explicit. Do not emit
-   fake ML outputs.
+3. **Standing guardrail** — Keep ML layers (`macro_truth_ml`,
+   `return_truth_ml`) unavailable/zero-weight until model artifacts and
+   feature schemas are explicit. Do not emit fake ML outputs.
 
 ## Deferred
 

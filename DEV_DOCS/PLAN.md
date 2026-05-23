@@ -50,102 +50,55 @@ Important seams:
 
 Goal: keep the GUI/report workflow reliable while shrinking old rendering paths.
 
-Landed:
-- Combined report restructured: KPI strip slimmed to NAV USD/SGD, MTD/YTD
-  return (SGD), Target Vol (Fast), and a regime summary cell; Regime Snapshot
-  removed from the Risk tab (the dedicated Regime section is canonical); Risk
-  Assumptions merged into the Portfolio Vol Matrix card.
-- Performance Overview (USD + SGD) now shows Total Return MTD/YTD/1Y plus 1Y
-  Excess Return, Vol, and Sharpe — all excess-over-BIL-cash, with Vol and Sharpe
-  sharing the same daily excess-return series. Missing BIL observations inside a
-  window are treated as a 0% daily cash return rather than dropped.
-- Performance section adds a Benchmark Comparison table (MTD/YTD/1Y) — portfolio
-  TWR/MWR vs Cash (BIL) and SPY, in returns and $ PnL.
-- **FX history coverage fix**: `DEFAULT_YAHOO_FX_PERIOD` was `2y`, so
-  `_lookup_fx_rate` froze USD/SGD constant for all NAV dates older than ~2 years
-  and collapsed SGD returns onto USD returns for the bulk of history. Now `max`.
-  Requires a `nav_cashflow_history.feather` rebuild to take effect.
-- **EQ lookthrough redesigned**: dropped the single `eq_country` field on
-  `security_universe.csv` / `SecurityReference`. Country exposure now resolves
-  per-symbol through `configs/portfolio_monitor/country_lookthrough_manual.csv`
-  (rows may name leaf buckets or aggregate `DM`/`EM`/`ACWI`, which re-expand
-  through the taxonomy CSV). Sector exposure still prefers the Alpha Vantage
-  cache and falls back to `sector_lookthrough_manual.csv` with the existing
-  `eq_sector_proxy` chain. New DM/EM bucket structure: DM = US/EUME/JP/CA/AUNZ/
-  Other DM; EM = CN/TW/KR/IN/ASEAN/LATAM/EMEA EM. Project-local
-  `lookthrough-researcher` skill (mirrored at `.claude/skills/` and
-  `.agents/skills/` so both Claude and Codex agents pick it up) handles
-  best-effort population from issuer fact sheets.
-- **Sector benchmark switched from SPY to ACWI**. Sector policy mix YAML key
-  renamed `us_equity_sector_policy_mix` → `equity_sector_policy_mix` (old key
-  still accepted). Sector report card retitled "Sector Breakdown" / "Policy
-  Drift - Sector". ACWI sector mix lives in `sector_lookthrough_manual.csv`
-  for now; `etf-sector-sync --symbols ACWI` will overwrite with Alpha Vantage
-  data when API budget allows.
-- **Country × Sector heatmap** added to the EQ panel — outer-product joint over
-  the country and sector lookthrough lists per position, colour-shaded HTML
-  pivot table with marginals matching the existing 1D breakdowns. Approximation
-  (independence per position) where issuers do not publish joint country×sector
-  data; exact for single-axis ETFs.
-- **Pytest workspace temp stability**: pytest now uses project-local
-  `.pytest_tmp` via `pyproject.toml`, avoiding locked or unreadable OS temp
-  roots in sandboxed Windows runs. Commodity spread cache tests now write
-  deterministic `generated_at` timestamps from the caller-provided clock, and
-  unit tests isolate local-env lookup from machine-specific synced config paths.
-- **Actionable missing-history surfacing**: dashboard `_render_feedback` now
-  classifies the three flex-related warnings ("Performance history file not
-  found / is empty", "Dated performance report CSV is missing") and promotes
-  them from muted `pm-warning` labels to `pm-error` banners with an inline
-  "Run Flex Refresh" button that triggers the same `_run_action("flex")` path
-  as the operate-drawer Flex button. First-run CLI setup is covered by
-  `scripts/dev/bootstrap_flex_history.py` (reads Flex creds from the resolved
-  local env and runs the same refresh).
-- **Actionable benchmark-cache warning**: the "SPY/BIL benchmark return cache
-  is missing or empty" warning now promotes to a `pm-error` banner with a
-  "Refresh Benchmark Cache" button wired to a new `yahoo` action
-  (`PortfolioMonitorActionService.refresh_benchmark_cache` →
-  `refresh_benchmark_returns_in_history_feather`). Closes the last actionable
-  warning surface — remaining warnings (history-path-not-configured, regime-
-  artifact-missing) are informational because no single button can remediate
-  them.
-- **Architectural route confirmed**: dashboard is the interactive entry, HTML
-  is the deliverable. CLI / workflows / dashboard already share one input-
-  contract layer (`application/portfolio_monitor/contracts.py` — 9 `*Inputs`
-  dataclasses including the new `BenchmarkRefreshInputs`); no separate
-  snapshot pipeline or ViewModel rewire is planned for combined-html-report.
-- **Env-var path made first-class for secrets**: `scripts/dev/bootstrap_flex_history.py`
-  now resolves `IBKR_FLEX_QUERY_ID` / `IBKR_FLEX_TOKEN` env-first (was
-  local.env-only — a real gap; matches the existing env-first resolution in
-  `etf_sector_lookthrough`, `sync_fred_macro_panel`, and dashboard
-  `_resolve_local_env_value`). User-facing wording across `generate_regime.py`
-  warning, `run_fred_sync.sh` error, `regime_engine_devplan.md` runbook, and
-  `perf_report.ipynb` raises reordered to lead with the env-var path, then
-  `<MARKET_HELPER_GDRIVE_ROOT>/local.env` (canonical per-machine
-  shell-profile setup), and the checked-in `configs/portfolio_monitor/local.env`
-  as final fallback. `local.example.env` now lists `FRED_API_KEY` with a
-  header note that the process env always wins.
-- **Agent-shell ROOT inheritance gotcha documented + fixed at code level**:
-  - **Docs** — CLAUDE.md and AGENTS.md now carry a "Per-machine env vars
-    (Windows gotcha)" section explaining that agent shells may not inherit
-    User-level env vars set after the parent process started, and
-    prescribing the registry-read recovery pattern
-    (`[Environment]::GetEnvironmentVariable("MARKET_HELPER_GDRIVE_ROOT", "User")`
-    → inject into `$env:` before any child command that needs `local.env`).
-  - **Code** — `market_helper.config.local_env.resolve_local_config_path`
-    now transparently falls back to reading `MARKET_HELPER_GDRIVE_ROOT`
-    from the Windows User registry hive (`HKCU\Environment`) via a new
-    `read_windows_user_env(key)` helper when `os.environ` is empty.
-    Production tools (`fred-macro-sync`, `etf-sector-sync`, `regime-detect`,
-    dashboard launch) now resolve `<ROOT>/local.env` correctly without
-    requiring shell-level injection, no matter when the parent process
-    started. Fallback is no-op on non-Windows and on call-sites that pass
-    explicit `environ=` (tests stay hermetic — `conftest.py` autouse
-    fixture additionally neutralizes the helper to guard tests that
-    monkeypatch `os.environ` without passing `environ=`).
+Landed (one-liner summaries; full detail in
+`DEV_DOCS/archive/landed/portfolio_monitor_landed.md`):
+- Combined report restructured — slim KPI strip, single regime section, vol
+  matrix absorbs risk assumptions.
+- Performance Overview + Benchmark Comparison — TWR/MWR/Vol/Sharpe excess
+  over BIL-cash across USD/SGD; cash-vs-SPY benchmark table in returns + $ PnL.
+- FX history coverage fix — `DEFAULT_YAHOO_FX_PERIOD` `2y` → `max` (requires
+  `nav_cashflow_history.feather` rebuild).
+- EQ lookthrough redesign — per-symbol country mix via
+  `country_lookthrough_manual.csv`, leaf-bucket taxonomy
+  (`eq_country_lookthrough.csv`), DM/EM aggregates re-expand;
+  `lookthrough-researcher` skill mirrored at `.claude/skills/` and
+  `.agents/skills/`.
+- Sector benchmark switched SPY → ACWI — policy key renamed
+  `us_equity_sector_policy_mix` → `equity_sector_policy_mix` (old key still
+  accepted).
+- Country × Sector heatmap added to EQ panel — outer-product joint with
+  marginals matching the 1D breakdowns; amber "approximate" disclaimer.
+- Pytest workspace temp stability — project-local `.pytest_tmp`, deterministic
+  commodity-cache timestamps, machine-independent local-env lookup in tests.
+- **Actionable warning surface complete** — dashboard `_render_feedback`
+  promotes the three flex warnings ("history not found / empty", "dated CSV
+  missing") to `pm-error` banners with inline "Run Flex Refresh", and the
+  benchmark-cache warning gets a "Refresh Benchmark Cache" button (new `yahoo`
+  action backed by `BenchmarkRefreshInputs`). Remaining warnings
+  (history-path-not-configured, regime-artifact-missing) stay informational —
+  no single button can remediate them.
+- First-run CLI helper `scripts/dev/bootstrap_flex_history.py` resolves Flex
+  creds env-first (matches `etf_sector_lookthrough`, `sync_fred_macro_panel`,
+  and dashboard `_resolve_local_env_value`). User-facing wording across
+  `generate_regime.py`, `run_fred_sync.sh`, regime devplan runbook, and
+  `perf_report.ipynb` reordered: env-var → `<MARKET_HELPER_GDRIVE_ROOT>/local.env`
+  → checked-in fallback.
+- **Architectural route confirmed** — dashboard is the interactive entry, HTML
+  is the deliverable. CLI / workflows / dashboard already share one
+  input-contract layer (`application/portfolio_monitor/contracts.py` — 9
+  `*Inputs` dataclasses); no separate snapshot pipeline or ViewModel rewire is
+  planned.
+- **Agent-shell ROOT inheritance gotcha — docs + code fix** —
+  CLAUDE.md/AGENTS.md carry a "Per-machine env vars (Windows gotcha)" section;
+  `market_helper.config.local_env.resolve_local_config_path` transparently
+  falls back to reading `MARKET_HELPER_GDRIVE_ROOT` from the `HKCU\Environment`
+  registry hive when `os.environ` is empty. Fallback is no-op on non-Windows
+  and on explicit `environ=` call-sites; tests stay hermetic via a `conftest.py`
+  autouse fixture.
 
 Near-term work:
-- (none open) Portfolio-monitor stack is at a stable shape. Further work
-  moves through the Backlog as discrete asks land.
+- (none open) Portfolio-monitor stack is at a stable shape. Further work moves
+  through the Backlog as discrete asks land.
 
 Keep for later, not active:
 - Covariance-consistent marginal/component risk attribution.
@@ -162,159 +115,62 @@ Goal: keep regime as market context: growth and inflation axes plus independent
 risk/stress overlay. The legacy 7-regime rulebook has been removed; the engine
 is the only path.
 
-Landed:
-- Engine coordinator, CLI (`regime-detect`, `regime-calibrate`), HTML report.
-- GUI actions for cached run and input-refresh run.
-- Combined report includes regime context when the artifact exists.
-- **Concept-level aggregation on both layers** — macro
-  (`growth_concepts:` / `inflation_concepts:` in `fred_series.yml`) and market
-  (`growth_concepts:` / `inflation_concepts:` / `risk_concepts:` in
-  `market_regime.yml`). Signals → concept (within-concept weights compensate
-  for redundancy) → axis (concept weight expresses semantic importance).
-- **Symmetric tanh compression** on macro and market layers so both occupy the
-  same (-1, 1) latent space — weights now express semantic importance, not
-  magnitude compensation.
-- **Beta-adjusted relative returns** for equity-style and sector-rotation
-  market signals (`r_num - β·r_den`, β = 60-day EWMA rolling regression slope,
-  clipped ±3). Strips out market-beta exposure so signals measure genuine
-  regime preference rather than volatility ride.
-- **Label-level hysteresis** on axis-state transitions
-  (`regime_thresholds.min_consecutive_days` in `regime_engine.yml`); cut
-  median regime run length from 3 bdays to 18.
-- Per-series normalization options: none/centered/threshold/zscore/minmax/
-  percentile, with per-spec window/clip overrides and post-normalization
-  smooth bound (`compression: tanh`).
-- New macro and market signals shipped dormant (declared but absent from any
-  concept block, or `weight: 0.0` for market signals): curve / breakeven /
-  DXY / ISM proxy / housing / consumer sentiment / growth-vs-value / extra
-  sector pairs. Flip a series into a concept (or set weight > 0) to activate.
-- **Concept panel propagation**: the per-concept contribution table, macro-
-  vs-market disagreement breakdown, and confidence-reasoning blurb (Q5) are
-  rendered in BOTH the standalone regime HTML report and the combined
-  portfolio report's regime section via the shared
-  `render_regime_section_body()` renderer. The combined report's top sticky
-  regime ribbon stays minimal by design.
-- **Dormant-signal activation runbook**: `regime_engine_devplan.md` now
-  documents the four-step activation flow (hydrate FRED cache via
-  `fred-macro-sync`, wire into a concept block, rebuild the panel, re-
-  calibrate). The fetcher already pulls every declared series, so activation
-  is a config flip + sync, not a code change.
-- **Anchor-period sanity harness**: `tests/unit/regimes/test_anchor_periods.py`
-  pins regime engine output across four episodes — COVID 2020, GFC 2008-09,
-  2022 inflation surge, 2025 tariff shock — via checked-in market-panel
-  slices under `tests/unit/regimes/fixtures/` (~400 KB total). 11 pinned
-  assertions cover crisis stress-overlay firing, deep-negative growth at
-  the bottoms, and reflation on the recoveries. Macro layer is disabled
-  (FRED panel not in repo); the test docstring documents the two known
-  market-only limitations surfaced during consensus verification: (a) risk
-  overlay lags 1-3 sessions on sudden shocks like Lehman day, (b) the
-  market-implied inflation axis cannot match headline-CPI consensus when
-  commodities decouple from CPI (2022 mid-year is the canonical case).
-  Both are structural properties, not regressions; raising sensitivity to
-  fix (a) creates false positives during normal vol spikes, and (b) needs
-  the macro layer (FRED) to read CPI directly. Fixture regeneration:
-  `scripts/dev/regenerate_anchor_period_fixtures.py`.
-- **Auto-sync + historical baseline**: `regime-detect` now auto-syncs the
-  Yahoo market panel if the live cache is missing (`--no-auto-sync` opt-out
-  for hermetic test runs), and the pre-2025 market panel (1984-01-03 to
-  2024-12-31, ~1 MB) is checked into
-  `data/external/regime_detection/historical/market_panel_to_2024.feather`
-  as a reference snapshot. The loader merges historical baseline + live
-  cache (live wins on overlap), so a fresh checkout produces sensible
-  regime output from the first `regime-detect` invocation and incremental
-  syncs only fetch the last ~2 months of bars. FRED auto-sync follows the
-  same pattern but requires `FRED_API_KEY`; missing key gracefully disables
-  the macro layer with a warning rather than failing the whole run.
-  Cold-sync runtime measured at ~10s for the full 23-series set (runbook
-  previously claimed ~1.5h — corrected).
-- **Per-frequency macro decay (structural)**: `SeriesSpec` gains an optional
-  `decay_half_life_bdays:` field, and the macro engine resolves the
-  freshness half-life as: explicit override → derived from `frequency_hint`
-  (daily/weekly=5 bdays, monthly=22, quarterly=66, annual=252) → engine
-  default. So a weekly claims print decays much faster than a quarterly
-  GDP print, which previously shared the same 42-bday global half-life.
-  The structural change ships behind the existing `recency_weighting`
-  enable flag; calibration to actually engage it requires loosening the
-  `min_weight: 0.65` floor (would clip a weekly-cadence series before its
-  decay matters) and end-to-end verification against an FRED-hydrated
-  anchor — left as the next-step item.
-- **Risk-overlay calibration (Q7 grid-search)**: lowered
-  `risk_overlay.enter_threshold` 0.75 → 0.65 and `min_consecutive_days`
-  3 → 1 based on a 192-run grid (4×4×3 parameter space × 4 anchors). The
-  prior config tripped the overlay an average of 26 bdays late at the
-  critical day of each crisis (Lehman, COVID waterfall, Liberation Day)
-  and never fired same-day on any of them. New config fires same-day on
-  Lehman, within 1-3 bdays on COVID and Tariff. Cost: benign-window FP
-  rate rises 3.0% → 6.4% (~3 extra muted-stress days per benign year),
-  judged acceptable for a daily-checked operator dashboard. No strict
-  Pareto improver exists; this is the lowest-FP point that achieves
-  Lehman-day detection. Report:
-  `data/research_artifacts/calibration_report.html` (+ raw grid + Pareto
-  analysis JSON next to it). Reproducer scripts in `scripts/research/`.
-- **Macro-axis calibration (Q8 grid-search, FRED-hydrated)**: with the
-  full FRED panel now local, ran a 162-config grid over the full
-  1921-today history (8 dims: min_weight × growth_thresh × inflation_thresh
-  × hysteresis × 3 layer-blend variants). LEVEL-based consensus labels
-  at 13 anchors (2008-2025) — honest framing for the engine's YoY
-  threshold-normalized scoring. Strict improver landed:
-  layer blend macro_nowcast 0.35/0.30 + market_implied 0.65/0.70 →
-  **0.50/0.50 + 0.50/0.50** (balanced), and growth_thresh ±0.15 →
-  **±0.10**. Inflation deadband (±0.12), hysteresis (5), and
-  recency-decay floor (0.65) kept — grid showed they are already
-  optimal. Overall consensus match: 51% → 56% (+5pp); growth axis:
-  35% → 46% (+11pp); inflation axis: 42% → 46% (+5pp); risk overlay:
-  77% (unchanged, Q7 still optimal). Per-anchor wins concentrate on
-  expansion / reflation periods that were getting under-labeled
-  (2017 Goldilocks +45pp growth, 2010-12 +24pp, 2021 +28pp,
-  2022 H1 +30pp). Stability slightly improves
-  (quadrant median run 17 → 19 bd). Surprise non-finding: dropping
-  `recency_weighting.min_weight` 0.65 → 0.10 (the documented
-  next-step for engaging per-frequency decay) does not materially
-  improve match — the decay-relevant series (weekly ICSA) are too
-  small a fraction of the labor concept to swing the axis score.
-  Documented in the report as a caveat. Report:
-  `data/research_artifacts/macro_calibration_report.html` (+
-  `macro_scout.json` baseline, `macro_scout_after.json` post-apply,
-  `macro_calibration_grid.json` raw 162-run, `macro_calibration_analysis.json`
-  Pareto front + recommendation). Reproducer scripts in
-  `scripts/research/macro_*.py`. All 72 regime unit tests + 448 unit
-  suite still pass.
+Landed (one-liner summaries; full detail in
+`DEV_DOCS/archive/landed/regime_engine_landed.md`):
+- Engine + CLI baseline (`regime-detect`, `regime-calibrate`,
+  `regime-run-report`, `regime-refresh-report`), standalone HTML, GUI actions,
+  combined report regime section. v1 rulebook deleted.
+- Concept-level aggregation on both layers (macro + market). Signals → concept
+  → axis; within-concept weights handle redundancy, concept weights express
+  semantic importance.
+- Symmetric tanh compression, beta-adjusted relative returns (60-day EWMA β),
+  label-level hysteresis (median run length 3 → 18 bdays).
+- Per-series normalization: `none/centered/threshold/zscore/minmax/percentile`,
+  per-spec window/clip overrides, post-norm `compression: tanh`.
+- Dormant signals shipped (config-flip activation): curve, breakeven, DXY, ISM
+  proxy, housing, consumer sentiment, growth-vs-value, extra sector pairs.
+  Activation runbook in `regime_engine_devplan.md`.
+- Concept panel propagated to BOTH the standalone regime HTML and the combined
+  report's regime section via shared `render_regime_section_body()`. Combined
+  sticky ribbon stays minimal by design.
+- **Anchor-period sanity harness** — `tests/unit/regimes/test_anchor_periods.py`
+  pins regime output across COVID 2020, GFC 2008-09, 2022 inflation, 2025
+  tariff shock. 11 pinned assertions; ~400 KB fixtures under
+  `tests/unit/regimes/fixtures/`. Two structural market-only limitations
+  documented (risk overlay 1-3 bday lag on shocks; commodity-vs-CPI decoupling
+  in 2022 mid-year).
+- **Auto-sync + historical baseline** — `regime-detect` auto-syncs the Yahoo
+  market panel; pre-2025 panel (1984-2024, ~1 MB) checked into
+  `data/external/regime_detection/historical/`. FRED auto-sync requires
+  `FRED_API_KEY`; missing key disables macro layer gracefully. Cold-sync ~10s.
+- **Per-frequency macro decay (structural)** — `SeriesSpec.decay_half_life_bdays`
+  resolves via override → `frequency_hint` derivation → engine default. Behind
+  the existing `recency_weighting` enable flag; Q8 confirmed engaging it does
+  not materially shift anchors (decay-relevant series are too small a within-
+  concept share).
+- **Q7 risk-overlay calibration** — `enter_threshold` 0.75 → 0.65,
+  `min_consecutive_days` 3 → 1. Same-day Lehman detection; benign FP rate 3.0%
+  → 6.4%. Report: `data/research_artifacts/calibration_report.html`.
+- **Q8 macro-axis calibration (FRED-hydrated)** — 162-config grid across
+  1921-today. Layer blend balanced **0.50/0.50 + 0.50/0.50**, growth_thresh
+  **±0.10**. Overall consensus 51% → 56%; growth axis 35% → 46% (+11pp). Risk
+  overlay unchanged (Q7 still optimal). Report:
+  `data/research_artifacts/macro_calibration_report.html`. Full grid +
+  reproducer scripts under `data/research_artifacts/` and `scripts/research/`.
 
 Near-term work:
-1. ~~Calibrate per-frequency decay~~ — investigated in Q8: lowering
-   `min_weight` 0.65 → 0.10/0.30 does not materially change anchor
-   matches because the decay-relevant series are a tiny fraction of
-   each concept's within-weight. Keep floor at 0.65 unless concept
-   composition is restructured to put more weight on high-cadence
-   series (weekly ICSA, daily T5YIFR).
-2. Layer a macro-included anchor into the harness once FRED panel is
-   hydrated locally — covers the 2022 inflation case the market-only path
-   structurally cannot read. **Partially addressed in Q8**: the
-   full-history macro scout + grid now serves as a macro-aware
-   measurement harness; can add per-anchor pytest fixtures from
-   `macro_scout_after.json` if a CI guardrail is desired.
-3. Direction-honest velocity layer (NEW from Q8): the engine's
-   YoY+threshold scoring is structurally level-based — it cannot read
-   "inflation is falling toward target" as Down while CPI YoY is still
-   above 2.5%. Adding a MoM-velocity or 6m-change concept would
-   capture the direction axis. Out of scope for Q8; left as a
-   structural follow-up.
-4. Keep ML layers as unavailable/zero-weight until model artifacts and
-   feature schemas are explicit. Standing guardrail — do not emit fake ML
-   outputs.
-
-Calibration session record:
-`notebooks/regime_detection/regime_v2_calibration_index.ipynb` (TOC) +
-per-round notebooks: Q1+Q2 (macro scale fix and concept aggregation), Q3
-(market tanh, lower thresholds, label hysteresis), Q4 (market concept
-aggregation, beta-adjusted returns, S&P GSCI), Q5 (calibration workflow
-macro-config fix; rebuilt the post-Q4 baseline before the next tuning pass),
-Q6 (market-heavier blend and narrower deadband to improve recovery-window
-responsiveness), Q7 (risk-overlay grid-search; 0.75/3 → 0.65/1, see
-`data/research_artifacts/calibration_report.html`), Q8 (macro-axis
-grid-search after FRED hydration; layer-blend balanced 50/50 +
-growth_thresh ±0.15 → ±0.10, see
-`data/research_artifacts/macro_calibration_report.html`).
+1. **Direction-honest velocity layer (Q9 candidate)** — Engine's YoY +
+   threshold scoring is structurally level-based: it cannot read "inflation is
+   falling toward target" as Down while CPI YoY is still above 2.5%. Add a
+   MoM-velocity or 6m-change transform / concept to capture the direction axis.
+   Calibration question: does it help 2022-H2 → 2023 disinflation without
+   breaking 2022-H1 (where YoY is still rising)? Run as Q9 grid against the
+   existing macro anchors.
+2. **Optional**: pin per-anchor macro fixtures from `macro_scout_after.json` if
+   a CI guardrail for the macro layer is desired (the full-history macro scout
+   already serves as an offline measurement harness).
+3. **Standing guardrail**: keep ML layers unavailable/zero-weight until model
+   artifacts and feature schemas are explicit. Do not emit fake ML outputs.
 
 Detail: `DEV_DOCS/docs/devplans/regime_engine_devplan.md`.
 
@@ -326,6 +182,9 @@ Detail: `DEV_DOCS/docs/devplans/regime_engine_devplan.md`.
   diagnostics.
 - Cached benchmark/proxy loaders beyond SPY, such as AGG and 60/40 benchmark
   support.
+- Performance diagnostics — unsafe-metric slice (per-currency metric failures,
+  partial NAV/cashflow series). Symmetric follow-on to the missing-history
+  actionable warning that landed.
 - Lightweight portfolio/regime integration scenarios only after portfolio and
   regime contracts stop moving.
 - Workbook-style target report generation after risk/report semantics are stable.

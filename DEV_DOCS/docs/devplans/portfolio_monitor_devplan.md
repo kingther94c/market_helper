@@ -2,18 +2,27 @@
 
 ## Current Focus
 
-The portfolio monitor is the primary operator surface. Keep it artifact-driven,
-read-only, and reliable before adding new analytics breadth.
+The portfolio monitor is the primary operator surface. As of the latest
+architectural review the stack is at a **stable shape** — no near-term scope
+is open here. Further work moves through the PLAN.md Backlog as discrete asks
+land.
 
 Current ownership rules:
 - `market_helper/application/portfolio_monitor/` owns GUI-triggered actions,
-  artifact path resolution, progress events, and output contracts.
+  artifact path resolution, progress events, and output contracts. All
+  CLI / workflows / dashboard call-sites share one input-contract layer
+  (`application/portfolio_monitor/contracts.py` — 9 `*Inputs` dataclasses
+  including `BenchmarkRefreshInputs` for the actionable benchmark-cache
+  warning).
 - `market_helper/domain/portfolio_monitor/services/` owns reusable analytics:
   NAV/cashflow history, performance windows, risk math, Yahoo return cache,
-  SPY benchmark attachment, fixed-income vol, and proxy logic.
-- `market_helper/presentation/dashboard/` owns the live NiceGUI UI.
-- Static report rendering remains in `market_helper/reporting/` until the
-  snapshot pipeline fully replaces legacy HTML renderers.
+  SPY/BIL benchmark attachment, fixed-income vol, and proxy logic.
+- `market_helper/presentation/dashboard/` owns the live NiceGUI UI. The
+  dashboard is the **interactive entry**; HTML is the **deliverable** — the
+  dashboard embeds the rendered HTML in an iframe. No separate snapshot
+  pipeline or ViewModel rewire is planned.
+- `market_helper/reporting/` owns the HTML report renderers (combined,
+  performance, risk, regime).
 
 Canonical artifacts/config:
 - `configs/security_universe.csv`: manually maintained semantic universe.
@@ -25,45 +34,49 @@ Canonical artifacts/config:
   config.
 - `configs/portfolio_monitor/local.env`: gitignored account/provider secrets;
   set `MARKET_HELPER_GDRIVE_ROOT` and place `local.env` at `<ROOT>/local.env`
-  to share one file across machines via GDrive sync.
+  to share one file across machines via GDrive sync. Process env always wins;
+  `<ROOT>/local.env` is the canonical per-machine fallback;
+  `configs/portfolio_monitor/local.env` is the final fallback. On Windows the
+  `resolve_local_config_path` helper reads `MARKET_HELPER_GDRIVE_ROOT` from
+  the User registry hive if `os.environ` is empty (see CLAUDE.md /
+  AGENTS.md "Per-machine env vars (Windows gotcha)").
 - `configs/portfolio_monitor/us_sector_lookthrough.json`: tracked ETF sector
-  look-through cache.
+  look-through cache (auto-managed by `etf-sector-sync`).
+- `configs/portfolio_monitor/country_lookthrough_manual.csv` +
+  `sector_lookthrough_manual.csv`: per-symbol manual fallbacks populated by
+  the `lookthrough-researcher` skill (mirrored at `.claude/skills/` and
+  `.agents/skills/`).
 
 ## Near-Term Next Steps
 
-1. **Snapshot performance parity**
-   Add the missing cumulative/drawdown Plotly views and benchmark traces to the
-   NiceGUI Performance USD/SGD tabs so they match the static performance HTML.
+(none — the portfolio-monitor stack is stable. PLAN.md's Backlog tracks the
+items that may rotate in as discrete asks land.)
 
-2. **Combined report snapshot path**
-   Rewire `combined-html-report` to use the same NiceGUI/Playwright snapshot
-   pipeline that already backs `risk-html-report`.
+Reference, in priority order if any one becomes a real ask:
 
-3. **Legacy renderer cleanup**
-   After combined snapshot parity, delete or shrink the obsolete HTML rendering
-   branches and migrate brittle HTML-string tests toward view-model assertions.
+1. **Performance diagnostics — unsafe-metric slice**
+   Symmetric follow-on to the missing-history actionable warning that already
+   landed. Promote per-currency metric failures and partial NAV/cashflow series
+   from silent `n/a` to structured warnings (with remediation buttons where one
+   action can fix it).
 
-4. **Artifact/config contract**
-   Replace loosely coupled path strings across CLI/workflows/dashboard snapshot
-   overrides with a small shared contract. Keep this narrow: paths, vol method,
-   correlation assumption, regime artifact, output HTML.
+2. **Cached benchmark/proxy loaders beyond SPY**
+   AGG, 60/40, etc. — would generalize the Yahoo-cache pattern exercised by
+   the new "Refresh Benchmark Cache" action.
+
+3. **Live TWS ergonomics**
+   Account/session metadata, account selection, broader contract fixtures.
+
+4. **Flex ergonomics**
+   Historical backfill validation, archive metadata, stale XML diagnostics.
 
 5. **Commodity spread risk treatment**
-   Add config-driven CM multi-leg spread synthesis for NG first: collapse
+   Config-driven CM multi-leg spread synthesis for NG first: collapse
    same-account/root/exchange futures legs into one risk row, estimate
    front-contract beta with EWMA-weighted Huber regression, cache beta/spread
    risk analytics for seven days, and combine cached spread diagnostics with
    each selected front-contract vol method behind the normal commodity
    position table.
-
-6. **Performance diagnostics**
-   Add explicit warnings/logging for missing or unsafe performance metrics
-   instead of silent `n/a`, especially per-currency metric failures and
-   incomplete NAV/cashflow histories. *Missing-history slice landed*: the
-   dashboard now promotes the "Performance history file not found / is empty"
-   and "Dated performance report CSV is missing" warnings to `pm-error`
-   banners with an inline "Run Flex Refresh" button (`_run_action("flex")`).
-   Remaining: per-currency metric failures and partial NAV/cashflow series.
 
 ## Deferred
 
@@ -81,3 +94,10 @@ These are useful but not next:
   them.
 - Risk report as a standalone primary surface; combined report/dashboard are the
   product surfaces.
+- **Separate snapshot/Playwright pipeline for combined-html-report** — the
+  architectural review confirmed CLI / workflows / dashboard already share one
+  input-contract layer; the static HTML renderer in `market_helper/reporting/`
+  stays the canonical render path. (This item was previously listed as the top
+  near-term work; it is now retired by decision, not deferred.)
+- **Legacy renderer cleanup tied to the retired snapshot path** — without the
+  snapshot rewire, there is no "legacy" path to shrink.
