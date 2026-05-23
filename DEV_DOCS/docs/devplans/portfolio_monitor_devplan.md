@@ -38,8 +38,8 @@ Canonical artifacts/config:
   `<ROOT>/local.env` is the canonical per-machine fallback;
   `configs/portfolio_monitor/local.env` is the final fallback. On Windows the
   `resolve_local_config_path` helper reads `MARKET_HELPER_GDRIVE_ROOT` from
-  the User registry hive if `os.environ` is empty (see CLAUDE.md /
-  AGENTS.md "Per-machine env vars (Windows gotcha)").
+  the User registry hive if `os.environ` is empty (see
+  `memory/hot/operations.md` "Per-machine env vars" section).
 - `configs/portfolio_monitor/us_sector_lookthrough.json`: tracked ETF sector
   look-through cache (auto-managed by `etf-sector-sync`).
 - `configs/portfolio_monitor/country_lookthrough_manual.csv` +

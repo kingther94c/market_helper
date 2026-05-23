@@ -1,101 +1,13 @@
 # CLAUDE.md
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+This file used to carry Claude-specific agent guidance. That content has been
+folded into `AGENTS.md`, which is now the **canonical** governance source for
+every agent (Claude Code, Codex, future agents).
 
-## Project
+**Start here**: [`AGENTS.md`](AGENTS.md)
 
-`market_helper` is a broker-agnostic, **read-only** market research and portfolio-analytics platform centered on IBKR. It produces position reports, performance analytics (TWR/MWR, USD/SGD), risk reports, regime detection, and a live NiceGUI dashboard. V1 is strictly read-only — no order placement.
+Operational knowledge (commands, env, architecture, domain gotchas) lives in
+[`memory/hot/`](memory/hot/).
 
-## Environment
-
-All work runs in the Conda env `py313` (Python 3.13). **Never use `conda base`.**
-
-```bash
-./scripts/setup_python_env.sh     # one-time setup
-conda activate py313
-```
-
-### Per-machine env vars (Windows gotcha)
-
-`MARKET_HELPER_GDRIVE_ROOT` is the per-machine env var that drives both
-report mirroring and `local.env` discovery (FRED / Alpha Vantage / IBKR
-Flex secrets all live in `<ROOT>/local.env`). It is typically set as a
-**User-level** Windows env var via `setx` or the System Properties dialog.
-
-**Agent-shell gotcha**: a child process only inherits User env vars that
-existed when its **parent** process started. If the agent (Claude Code,
-Codex, ...) was launched before `setx` ran — or by a service that doesn't
-inherit User-level env at all — `$env:MARKET_HELPER_GDRIVE_ROOT` will be
-empty in tool calls even though the value is set in the registry.
-
-**Always recover by reading the registry first**, then inject into the
-process env before any child command that resolves `local.env`:
-
-```powershell
-if (-not $env:MARKET_HELPER_GDRIVE_ROOT) {
-    $env:MARKET_HELPER_GDRIVE_ROOT = [Environment]::GetEnvironmentVariable("MARKET_HELPER_GDRIVE_ROOT", "User")
-}
-```
-
-Apply this before `fred-macro-sync`, `etf-sector-sync`, `regime-detect`,
-`run_report.sh`, the dashboard launch, or any other path that needs
-`local.env`. Same pattern applies to other User-only env vars
-(`FRED_API_KEY`, `IBKR_FLEX_TOKEN`, etc.) if set after the agent started.
-A single PowerShell injection propagates to subsequent `python -m ...`
-calls because the Python config layer (`market_helper.config.local_env`)
-reads `os.environ`.
-
-## Common commands
-
-- Tests: `conda run -n py313 python -m pytest -q tests/unit`
-- Single test: `conda run -n py313 python -m pytest tests/unit/path/to/test_file.py::test_name -q`
-- Live dashboard (NiceGUI at http://127.0.0.1:8080/portfolio): `./scripts/launch_ui.sh` (env overrides: `PORT`, `HOST`, `ENV_NAME`, `AUTO_OPEN`, `OPEN_WAIT_SECONDS`)
-- Reports/workflows: `./scripts/run_report.sh`, `./scripts/run_regime_detection.sh`, `./scripts/run_backtest.sh`, `./scripts/run_data_update.sh`
-- CLI dispatch: `python -m market_helper.cli.main <subcommand>` — key subcommands: `position-report`, `ibkr-position-report`, `ibkr-live-position-report`, `ibkr-flex-performance-report`, `risk-html-report`, `combined-html-report`, `regime-detect`, `regime-report`, `etf-sector-sync`, `security-reference-sync`
-
-## Architecture
-
-Source under `market_helper/`:
-
-- `data_sources/` — IBKR (Client Portal Web API, TWS/IB Gateway via `ib_async`, Flex Web Service), Yahoo, FRED adapters
-- `domain/portfolio_monitor/` — position reports, performance analytics, security reference
-- `domain/regime_detection/` — deterministic 7-regime rulebook, factor scoring, policy mapping
-- `domain/integration/` — cross-domain (stress tests, combined reports)
-- `presentation/dashboard/` — NiceGUI live UI
-- `reporting/` — HTML rendering (performance, risk, combined)
-- `regimes/`, `suggest/` — factor scoring + hysteresis; regime-to-policy suggestions
-- `portfolio/`, `backtest/`, `common/`, `cli/` — supporting layers
-- Legacy compatibility wrappers: `ui/`, `workflows/`, `utils/`, `config/`, `safety/`
-
-Main data flows:
-1. **Position → Report**: IBKR snapshot → normalized models → CSV/HTML
-2. **Performance**: Flex XML + daily NAV snapshots → `nav_cashflow_history.feather` → MTD/YTD TWR/MWR
-3. **Risk**: Position CSV + Yahoo returns + proxy vols → portfolio vol, correlation, sector/country/duration breakdowns
-4. **Regime**: VIX/MOVE/HY_OAS/UST factor inputs → 7 regime labels with crisis hysteresis → policy targets
-5. **Dashboard**: Live TWS query → position snapshots → NiceGUI refresh
-
-Config: `configs/{app,portfolio_monitor,regime_detection,integration}/`. `configs/portfolio_monitor/local.env` is gitignored, local-only secrets (includes `IBKR_CP_PASSWORD`).
-
-Data layout: `data/{raw,interim,processed,cache,artifacts}/`. Internal intermediates use **Feather**; debug CSVs emitted on demand. Yahoo return cache at `data/artifacts/portfolio_monitor/yahoo_returns/`.
-
-## Project rules (from DEV_DOCS/RULES.md)
-
-- **Every commit AND every PR must update `DEV_DOCS/PLAN.md`** — not just PRs. A local commit that lands meaningful behavior without a PLAN entry is treated as a serious mistake; the next commit must add the missing entry. Also update relevant files under `DEV_DOCS/docs/devplans/` when scope or architecture changes.
-- Clear notebook outputs before committing. `notebooks/dev_lab/` is scratch and out of version control.
-- Audit every commit for private-information leakage.
-- Keep the project read-only with respect to the broker — no trading / order-entry code in V1.
-
-## Domain gotchas
-
-- FI tenor bucketing is explicit mapping (e.g. `ZT → 1-3Y`, `ZN → 7-10Y`), not derived from duration.
-- Flex XML cashflow attribution uses `reportDate`, **not** `settleDate`.
-- Portfolio AUM denominator excludes futures/options — stock-like + cash only.
-- FI proxy-vol applies a modified-duration adjustment rather than using MOVE price vol directly.
-- `security_reference.csv` is regenerated by tooling; `security_universe.csv` is **manually maintained** — don't auto-overwrite it.
-- EQ country/sector lookthrough is split across four files. Country is **manual-only** (no API); sector prefers API cache then manual fallback:
-  - `configs/portfolio_monitor/eq_country_lookthrough.csv` — bucket taxonomy (DM/EM aggregate → leaf bucket weights). Leaf buckets are `DM-US`, `DM-EUME`, `DM-JP`, `DM-CA`, `DM-AUNZ`, `DM-Other DM`, `EM-CN`, `EM-TW`, `EM-KR`, `EM-IN`, `EM-ASEAN`, `EM-LATAM`, `EM-EMEA EM`.
-  - `configs/portfolio_monitor/country_lookthrough_manual.csv` — per-symbol country mix (manually maintained). Rows may point at leaf buckets or aggregates (`DM`/`EM`/`ACWI`), which get re-expanded through the taxonomy.
-  - `configs/portfolio_monitor/us_sector_lookthrough.json` — Alpha Vantage sector cache (auto-managed by `etf-sector-sync`).
-  - `configs/portfolio_monitor/sector_lookthrough_manual.csv` — per-symbol sector fallback. Only consulted when the API cache misses for both the symbol and its `eq_sector_proxy`.
-  - The `lookthrough-researcher` skill (project-local at `.claude/skills/`) populates the two manual files from issuer fact sheets via web research.
-- The EQ panel renders a **Country × Sector heatmap** computed per-position as `w_position × country_weight × sector_weight`. Single-axis ETFs give exact joints; multi-axis ETFs are an independence approximation. Marginals (right column / bottom row) reconcile with the 1D country / sector breakdowns. Rows/cols below 0.1% of funded AUM are hidden to keep the table readable — adjust `COUNTRY_SECTOR_MIN_WEIGHT` in `market_helper/reporting/risk_html.py` if a portfolio's tilts are smaller than that. The card carries an amber "approximate" disclaimer that explicitly points readers back to the 1D country / sector breakdowns and their policy-drift tables as the authoritative source for sleeve-level allocation decisions — keep that disclaimer in any layout / refactor work.
+This file is intentionally short so Claude Code can still locate it by name
+and follow the pointer; do not re-expand it.

@@ -6,10 +6,14 @@ A scaffolded market research and workflow project organized around data sources,
 
 Before starting implementation, review:
 
-- [`DEV_DOCS/RULES.md`](DEV_DOCS/RULES.md)
-- [`DEV_DOCS/PLAN.md`](DEV_DOCS/PLAN.md)
+- [`AGENTS.md`](AGENTS.md) — canonical agent rules and governance
+- [`memory/hot/`](memory/hot/) — compact operational knowledge (commands, env, architecture, gotchas)
+- [`DEV_DOCS/PLAN.md`](DEV_DOCS/PLAN.md) — living delivery plan
 
-`DEV_DOCS/RULES.md` is the compact always-check file. `DEV_DOCS/PLAN.md` is the living delivery plan and must be updated in every PR that changes completed work, current status, or next steps.
+`AGENTS.md` is the always-check governance file (single source for every
+agent — Claude Code, Codex, future agents). `DEV_DOCS/PLAN.md` is the living
+delivery plan and must be updated in every commit / PR that changes completed
+work, current status, or next steps.
 ## Environment
 
 Create or verify the project environment:

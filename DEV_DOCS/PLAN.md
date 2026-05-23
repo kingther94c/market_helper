@@ -1,7 +1,8 @@
 # PLAN
 
-> Process gates live in `DEV_DOCS/RULES.md`. Historical detail lives in
-> `DEV_DOCS/archive/` (gitignored, do not read by default).
+> Process gates live in `AGENTS.md`. Operational reference lives in
+> `memory/hot/`. Historical detail lives in `DEV_DOCS/archive/` and
+> `memory/archive/` (both gitignored, not read by default).
 
 ## Objective
 
@@ -43,6 +44,21 @@ Important seams:
   of truth; `data/artifacts/portfolio_monitor/security_reference.csv` is a
   generated lookup cache.
 - `nav_cashflow_history.feather` is the canonical daily NAV + cashflow store.
+
+## Repository governance
+
+Canonical memory layout (landed):
+- `AGENTS.md` — single agent-governance source (Claude Code, Codex, future
+  agents). Absorbed retired `DEV_DOCS/RULES.md`.
+- `memory/hot/` — compact operational knowledge: `operations.md` (commands +
+  env), `architecture.md` (layout + flows), `gotchas.md` (domain rules).
+- `memory/archive/` + `DEV_DOCS/archive/` — gitignored cold memory; not read
+  by default.
+- `CLAUDE.md` reduced to a thin redirect into `AGENTS.md`.
+- `DEV_DOCS/PLAN.md` (this file) + `DEV_DOCS/docs/devplans/*.md` — active
+  plan; `DEV_DOCS/docs/{architecture,architecture/,data_dictionary,...}.md`
+  remain in place pending a later move into `docs/{architecture,decisions,
+  operations}/`.
 
 ## Active Tracks
 
