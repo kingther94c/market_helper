@@ -106,6 +106,12 @@ class SeriesSpec:
     neutral_level: Optional[float] = None
     threshold: Optional[float] = None
     normalization: str = "none"
+    # Optional alias used as the panel column key and concept-member ID.
+    # Defaults to series_id. Lets the same FRED series be loaded under
+    # multiple transforms (e.g. CPIAUCSL as both yoy_pct and qoq_annualized
+    # for the level + velocity concepts). Cache is still keyed by series_id
+    # so the FRED API is hit once per unique series_id.
+    name: Optional[str] = None
     # per-series overrides for normalization knobs (None = inherit engine default)
     zscore_window_bdays: Optional[int] = None
     zscore_min_periods: Optional[int] = None
@@ -120,6 +126,11 @@ class SeriesSpec:
     # frequency_hint via FREQUENCY_HINT_TO_HALF_LIFE_BDAYS; when that is also
     # unset, falls back to the engine-level recency_half_life_bdays default.
     decay_half_life_bdays: Optional[float] = None
+
+    @property
+    def column_name(self) -> str:
+        """Panel-column key + concept-member ID. Defaults to series_id."""
+        return self.name or self.series_id
 
     def validate(self) -> None:
         if self.axis not in {"growth", "inflation"}:
@@ -199,6 +210,7 @@ def load_series_specs(config_path: str | Path) -> List[SeriesSpec]:
             minmax_window_bdays=_opt_int(entry, "minmax_window_bdays"),
             percentile_window_bdays=_opt_int(entry, "percentile_window_bdays"),
             decay_half_life_bdays=_opt_float(entry, "decay_half_life_bdays"),
+            name=entry.get("name"),
         )
         spec.validate()
         specs.append(spec)
@@ -530,7 +542,10 @@ def build_panel(
         release_date = periods_end + pd.Timedelta(days=spec.publication_lag_days)
         transformed = transformed.assign(release_date=release_date)
         transformed = transformed.sort_values("release_date").reset_index(drop=True)
-        raw_frames[spec.series_id] = transformed
+        # Panel column is keyed by spec.column_name (which defaults to
+        # series_id). Lets the same FRED series_id be loaded under multiple
+        # transforms (e.g. yoy_pct + qoq_annualized as separate panel columns).
+        raw_frames[spec.column_name] = transformed
 
     if not raw_frames:
         return pd.DataFrame()
@@ -545,15 +560,15 @@ def build_panel(
     index = pd.bdate_range(start=panel_start, end=panel_end, name="date")
     panel = pd.DataFrame(index=index)
 
-    for series_id, frame in raw_frames.items():
+    for column_name, frame in raw_frames.items():
         release_events = (
             frame.assign(release_bday=_next_bday(frame["release_date"]))
             .drop_duplicates("release_bday", keep="last")
             .set_index("release_bday")
         )
         aligned = release_events["value"].reindex(index).ffill()
-        panel[series_id] = aligned
-        panel[f"{FRESHNESS_AGE_COLUMN_PREFIX}{series_id}"] = _age_bdays_since_release(
+        panel[column_name] = aligned
+        panel[f"{FRESHNESS_AGE_COLUMN_PREFIX}{column_name}"] = _age_bdays_since_release(
             index,
             release_events.index,
         )

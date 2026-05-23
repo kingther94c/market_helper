@@ -337,7 +337,11 @@ def compute_macro_axis_scores(
         frame = frame.set_index(pd.to_datetime(frame["date"])).drop(columns=["date"])
     frame.index.name = "date"
 
-    spec_by_id = {s.series_id: s for s in specs}
+    # Panel columns are keyed by spec.column_name (which may differ from
+    # series_id when a single FRED series is loaded under multiple
+    # transforms; defaults to series_id otherwise). Concepts reference
+    # their members by the same name → column_name.
+    spec_by_id = {s.column_name: s for s in specs}
     contribs: dict[str, pd.Series] = {}
     recency_weights: dict[str, pd.Series] = {}
     for sid, spec in spec_by_id.items():

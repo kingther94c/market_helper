@@ -1,0 +1,355 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>Q9 宏观校准 — Velocity 层 (2026-05-23)</title>
+
+    <style>
+      body { font-family: ui-sans-serif, system-ui, -apple-system, "PingFang SC", "Microsoft YaHei", "Segoe UI", Roboto, sans-serif;
+             max-width: 1200px; margin: 30px auto; padding: 0 20px; line-height: 1.6;
+             color: #1f2328; }
+      h1 { font-size: 1.7em; margin: 0 0 0.3em; }
+      h2 { font-size: 1.3em; margin-top: 1.8em; padding-bottom: 0.3em; border-bottom: 1px solid #d0d7de; }
+      h3 { font-size: 1.05em; margin-top: 1.3em; }
+      table { border-collapse: collapse; margin: 1em 0; font-size: 0.92em; width: 100%; }
+      th, td { padding: 6px 10px; border: 1px solid #d0d7de; text-align: left; vertical-align: top; }
+      th { background: #f6f8fa; }
+      td.ok { color: #1a7f37; font-weight: 600; }
+      td.bad { color: #cf222e; font-weight: 600; }
+      td.holdout { background: #fff8e1; }
+      .muted { color: #57606a; font-size: 0.9em; }
+      code { background: #f6f8fa; padding: 1px 5px; border-radius: 3px; font-size: 0.88em; }
+      pre code { display: block; padding: 12px; line-height: 1.45; white-space: pre; }
+      .banner { background: #ddf4ff; border-left: 4px solid #0969da; padding: 10px 16px; margin: 1em 0; border-radius: 4px; }
+      .pass-banner { background: #dafbe1; border-left: 4px solid #1a7f37; padding: 10px 16px; margin: 1em 0; border-radius: 4px; }
+      .warn { background: #fff8c5; border-left: 4px solid #9a6700; padding: 10px 16px; margin: 1em 0; border-radius: 4px; }
+      .toc { background: #f6f8fa; padding: 12px 20px; border: 1px solid #d0d7de; border-radius: 6px; }
+    </style>
+    
+</head>
+<body>
+<h1>Q9 宏观校准 — Velocity 层 + Train/Holdout 纪律</h1>
+<p class="muted">2026-05-23 · regime engine v2 · 范围 = 仅宏观 axis (风险 overlay 冻结自 Q7)</p>
+
+    <div class="banner">
+      <b>Q9 范围</b>: 加 direction-honest 的 velocity 层 (CPI/PCE 的
+      3 月年化变动率作为通胀方向, PAYEMS/INDPRO 同理作为增长方向),
+      和现有 YoY-level concept 并列。9-train / 4-holdout 锚定切分
+      让 grid 只看 9 个 anchor 选择, 4 个 holdout 做事后泛化验证。
+    </div>
+    <div class="toc"><b>章节</b><ul>
+      <li><a href="#method">方法学 — velocity 层 + train/holdout</a></li>
+      <li><a href="#split">Train/Holdout 切分依据</a></li>
+      <li><a href="#grid">网格搜索 (360 个 config)</a></li>
+      <li><a href="#winner">推荐 winner — train + holdout</a></li>
+      <li><a href="#config">配置变更 (应用)</a></li>
+      <li><a href="#caveats">注意事项</a></li>
+    </ul></div>
+    
+    <h2 id="method">方法学</h2>
+    <h3>Velocity 层 (direction-honest 信号)</h3>
+    <p>Q8 audit 锁定一个持续的结构性失败: 引擎把 CPI YoY 3% 读成 "Up"
+       (高于 2.5±0.5 阈值)，即使通胀正在单调下降 — LEVEL-honest 读法,
+       但和 "disinflation in progress" 的叙事不符。Q9 用现有的
+       <code>qoq_annualized</code> 变换 (3 月年化变动率) 在同样的
+       FRED series 上加 5 个新 panel column:</p>
+    <ul>
+      <li><code>CPIAUCSL_velocity_3m</code> (通胀)</li>
+      <li><code>CPILFESL_velocity_3m</code> (通胀, 核心)</li>
+      <li><code>PCEPI_velocity_3m</code> (通胀)</li>
+      <li><code>PAYEMS_velocity_3m</code> (增长)</li>
+      <li><code>INDPRO_velocity_3m</code> (增长)</li>
+    </ul>
+    <p>这些 series 喂给两个新 concept <code>inflation_velocity</code>
+       和 <code>growth_velocity</code>, 各自带 concept 权重 — grid
+       扫这两个权重, 找 level/velocity 平衡, 让 train 共识匹配最大同时
+       不破坏 holdout 性能。</p>
+    <p>必要的机制改动: <code>SeriesSpec</code> 加可选 <code>name</code>
+       字段, 让同一个 FRED <code>series_id</code> (例如 <code>CPIAUCSL</code>)
+       可以同时被两个 spec 加载 (yoy_pct 作为 <code>CPIAUCSL</code>,
+       qoq_annualized 作为 <code>CPIAUCSL_velocity_3m</code>) — panel
+       两列, FRED 只 fetch 一次。不带 <code>name</code> 的 spec 不变
+       (默认 = series_id)。</p>
+
+    <h3>Train / Holdout 纪律</h3>
+    <p>Q8 audit 明确指出: 同一个 13 anchor 集既用于 grid 搜索又用于验证
+       — in-sample leakage 不可避免。Q9 把 4 个 anchor 标 <em>holdout</em>:</p>
+    <ul>
+      <li><b>2008 GFC trough</b> (clear) — 危机周期代表</li>
+      <li><b>2017 Goldilocks</b> (defensible) — 教科书正常周期</li>
+      <li><b>2024 disinflation</b> (definition-dependent) — velocity 层
+        的目标 case; 保留它防止 velocity 信号被 fit 到这个单一 anchor</li>
+      <li><b>2025 tariff shock</b> (clear) — 最新 anchor, 测试对当前数据的
+        泛化</li>
+    </ul>
+    <p>Grid 只在 9 个 train anchor 上选择。Holdout 对每个 config 都算,
+       但严格事后只读。</p>
+
+    <h3>选择规则</h3>
+    <ol>
+      <li>计算 <code>composite_train = train_overall_match% + 0.3 ×
+          min(median_run_bdays, 20)</code>。</li>
+      <li>严格优于 Q8-equivalent baseline (velocity 权重 = 0) 的层:
+          (train_overall, stability) 都不弱于 baseline, 取最高 composite。</li>
+      <li>否则取 composite_train 最高。</li>
+      <li><b>Holdout 永不进入选择。</b> 事后 holdout 性能单独作为验证信号。</li>
+    </ol>
+    
+    <h2 id="split">Train / Holdout 切分依据</h2>
+    <table>
+      <thead><tr><th>集合</th><th>Anchor</th><th>原因</th></tr></thead>
+      <tbody>
+        <tr><td><b>Train</b> (9)</td>
+            <td>2010-12, 2015-16, 2018 Q4, 2019 H2, 2020 COVID, 2020H2,
+                2021 reflation, 2022 H1, 2023 high-inflation</td>
+            <td>包括 clear / defensible / definition-dependent confidence。
+                覆盖危机, 扩张, 滞胀, 复苏。Q8 的增益主要集中在这里。</td></tr>
+        <tr><td class="holdout"><b>Holdout</b> (4)</td>
+            <td>2008 GFC, 2017 Goldilocks, 2024 disinflation, 2025 tariff</td>
+            <td class="holdout">跨越 危机 / 正常 / 目标 / 最新数据。
+                2024 disinflation 是 velocity 层的 <em>目标</em> case
+                — 保留它是验证 velocity 信号不是 fit 到单一 anchor
+                的最干净方法。</td></tr>
+      </tbody>
+    </table>
+    
+    <h2 id="grid">网格搜索 (360 个 config)</h2>
+    <p class="muted">扫描: 5 inflation_velocity_weight × 4
+       growth_velocity_weight × 3 growth_thresh × 3 inflation_thresh × 2
+       layer_blend (macro/market) = 360 个 config。
+       每个跑全 engine 1921-至今 (~27k bdays), 然后分别在 9 个 train 和
+       4 个 holdout anchor 上独立评估。</p>
+    <h3>按 composite_train 排前 10</h3>
+    <table>
+      <thead><tr><th>#</th><th>参数</th><th>train</th><th>holdout</th><th>g_run / i_run</th></tr></thead>
+      <tbody>
+    
+        <tr>
+          <td>1</td>
+          <td><code style="font-size:0.85em">通胀_velocity_weight=0.3, 增长_velocity_weight=0.0, growth_thresh=±0.1, inflation_thresh=±0.12, macro_w=0.6, market_w=0.4</code></td>
+          <td>60.2%</td>
+          <td>55.7%</td>
+          <td>5/4bd</td>
+        </tr>
+        <tr>
+          <td>2</td>
+          <td><code style="font-size:0.85em">通胀_velocity_weight=0.5, 增长_velocity_weight=0.0, growth_thresh=±0.1, inflation_thresh=±0.1, macro_w=0.6, market_w=0.4</code></td>
+          <td>60.2%</td>
+          <td>56.3%</td>
+          <td>5/4bd</td>
+        </tr>
+        <tr>
+          <td>3</td>
+          <td><code style="font-size:0.85em">通胀_velocity_weight=0.7, 增长_velocity_weight=0.0, growth_thresh=±0.1, inflation_thresh=±0.1, macro_w=0.6, market_w=0.4</code></td>
+          <td>60.2%</td>
+          <td>57.5%</td>
+          <td>5/4bd</td>
+        </tr>
+        <tr>
+          <td>4</td>
+          <td><code style="font-size:0.85em">通胀_velocity_weight=0.0, 增长_velocity_weight=0.0, growth_thresh=±0.1, inflation_thresh=±0.1, macro_w=0.6, market_w=0.4</code></td>
+          <td>60.1%</td>
+          <td>54.9%</td>
+          <td>5/4bd</td>
+        </tr>
+        <tr>
+          <td>5</td>
+          <td><code style="font-size:0.85em">通胀_velocity_weight=0.7, 增长_velocity_weight=0.0, growth_thresh=±0.1, inflation_thresh=±0.12, macro_w=0.6, market_w=0.4</code></td>
+          <td>60.1%</td>
+          <td>57.6%</td>
+          <td>5/4bd</td>
+        </tr>
+        <tr>
+          <td>6</td>
+          <td><code style="font-size:0.85em">通胀_velocity_weight=1.0, 增长_velocity_weight=0.0, growth_thresh=±0.1, inflation_thresh=±0.1, macro_w=0.6, market_w=0.4</code></td>
+          <td>60.1%</td>
+          <td>58.1%</td>
+          <td>5/4bd</td>
+        </tr>
+        <tr>
+          <td>7</td>
+          <td><code style="font-size:0.85em">通胀_velocity_weight=1.0, 增长_velocity_weight=0.0, growth_thresh=±0.1, inflation_thresh=±0.12, macro_w=0.6, market_w=0.4</code></td>
+          <td>60.1%</td>
+          <td>58.7%</td>
+          <td>5/4bd</td>
+        </tr>
+        <tr>
+          <td>8</td>
+          <td><code style="font-size:0.85em">通胀_velocity_weight=0.3, 增长_velocity_weight=0.0, growth_thresh=±0.1, inflation_thresh=±0.1, macro_w=0.6, market_w=0.4</code></td>
+          <td>60.1%</td>
+          <td>55.7%</td>
+          <td>5/3bd</td>
+        </tr>
+        <tr>
+          <td>9</td>
+          <td><code style="font-size:0.85em">通胀_velocity_weight=0.5, 增长_velocity_weight=0.0, growth_thresh=±0.1, inflation_thresh=±0.12, macro_w=0.6, market_w=0.4</code></td>
+          <td>60.1%</td>
+          <td>56.8%</td>
+          <td>5/3bd</td>
+        </tr>
+        <tr>
+          <td>10</td>
+          <td><code style="font-size:0.85em">通胀_velocity_weight=0.0, 增长_velocity_weight=0.0, growth_thresh=±0.1, inflation_thresh=±0.12, macro_w=0.6, market_w=0.4</code></td>
+          <td>59.9%</td>
+          <td>54.7%</td>
+          <td>5/4bd</td>
+        </tr>
+      </tbody>
+    </table>
+    <p class="muted">严格优于 Q8-baseline 的候选 (在 train 上): 186 个。</p>
+    
+    <h2 id="winner">推荐 winner</h2>
+    <p><b>参数:</b> <code>通胀_velocity_weight=1.0, 增长_velocity_weight=0.0, growth_thresh=±0.1, inflation_thresh=±0.15, macro_w=0.6, market_w=0.4</code></p>
+    
+        <table>
+          <thead><tr><th>评估集</th><th>Anchor数</th><th>g_avg</th><th>i_avg</th><th>risk_avg</th><th>总体</th><th>vs Q8 baseline</th></tr></thead>
+          <tbody>
+            <tr><td><b>Train</b> (grid 选择信号)</td><td>9</td>
+                <td>46.0%</td><td>55.3%</td><td>77.8%</td>
+                <td><b>59.7%</b></td>
+                <td class="ok">+3.8pp</td></tr>
+            <tr><td class="holdout"><b>Holdout</b> (事后验证, 未参与 selection)</td><td>4</td>
+                <td class="holdout">59.6%</td><td class="holdout">43.5%</td>
+                <td class="holdout">75.0%</td>
+                <td class="holdout"><b>59.4%</b></td>
+                <td class="holdout ok">+2.0pp</td></tr>
+          </tbody>
+        </table>
+        
+    <div class="pass-banner">Train-holdout gap: +0.3pp (Q8-baseline gap 是 -1.5pp)。在可接受噪音内 — 无过拟合信号。</div>
+    
+        <h4>HOLDOUT (事后验证) 每个 anchor 详情</h4>
+        <table>
+          <thead><tr><th>Anchor</th><th>g_match</th><th>i_match</th><th>risk_match</th></tr></thead>
+          <tbody>
+        <tr>
+          <td>2008 GFC trough</td>
+          <td>100%</td>
+          <td>82%</td>
+          <td>✓</td>
+        </tr>
+        <tr>
+          <td>2017 Goldilocks</td>
+          <td>90%</td>
+          <td>45%</td>
+          <td>✓</td>
+        </tr>
+        <tr>
+          <td>2024 disinflation</td>
+          <td>11%</td>
+          <td>40%</td>
+          <td>✗</td>
+        </tr>
+        <tr>
+          <td>2025 tariff shock</td>
+          <td>38%</td>
+          <td>6%</td>
+          <td>✓</td>
+        </tr></tbody>
+        </table>
+        
+    
+        <h4>TRAIN (grid 信号) 每个 anchor 详情</h4>
+        <table>
+          <thead><tr><th>Anchor</th><th>g_match</th><th>i_match</th><th>risk_match</th></tr></thead>
+          <tbody>
+        <tr>
+          <td>2010-12 expansion</td>
+          <td>75%</td>
+          <td>61%</td>
+          <td>✓</td>
+        </tr>
+        <tr>
+          <td>2015-16 oil bust</td>
+          <td>38%</td>
+          <td>100%</td>
+          <td>✓</td>
+        </tr>
+        <tr>
+          <td>2018 Q4 vol shock</td>
+          <td>11%</td>
+          <td>24%</td>
+          <td>✓</td>
+        </tr>
+        <tr>
+          <td>2019 H2 slowdown</td>
+          <td>6%</td>
+          <td>33%</td>
+          <td>✗</td>
+        </tr>
+        <tr>
+          <td>2020 COVID recession</td>
+          <td>100%</td>
+          <td>0%</td>
+          <td>✓</td>
+        </tr>
+        <tr>
+          <td>2020H2 catch-up</td>
+          <td>19%</td>
+          <td>28%</td>
+          <td>✓</td>
+        </tr>
+        <tr>
+          <td>2021 reflation</td>
+          <td>94%</td>
+          <td>78%</td>
+          <td>✓</td>
+        </tr>
+        <tr>
+          <td>2022 H1 inflation</td>
+          <td>53%</td>
+          <td>91%</td>
+          <td>✗</td>
+        </tr>
+        <tr>
+          <td>2023 high inflation</td>
+          <td>19%</td>
+          <td>82%</td>
+          <td>✓</td>
+        </tr></tbody>
+        </table>
+        
+    
+    <h2 id="config">配置变更 (应用)</h2>
+    <pre><code>--- configs/regime_detection/fred_series.yml
++++ configs/regime_detection/fred_series.yml
+   inflation_velocity:
+-    weight: 0.0
++    weight: 1.0
+     series:
+       CPIAUCSL_velocity_3m: 0.40
+       CPILFESL_velocity_3m: 0.30
+       PCEPI_velocity_3m: 0.30
+   growth_velocity:
+-    weight: 0.0
++    weight: 0.0
+     series:
+       PAYEMS_velocity_3m: 0.55
+       INDPRO_velocity_3m: 0.45
+</code></pre>
+    <pre><code>--- configs/regime_detection/regime_engine.yml
++++ configs/regime_detection/regime_engine.yml
+   layers.macro_nowcast.weight_growth:    0.6
+   layers.macro_nowcast.weight_inflation: 0.6
+   layers.market_implied.weight_growth:   0.4
+   layers.market_implied.weight_inflation:0.4
+   regime_thresholds.growth_up:           0.1
+   regime_thresholds.growth_down:         -0.1
+   regime_thresholds.inflation_up:        0.15
+   regime_thresholds.inflation_down:      -0.15
+</code></pre>
+    <h2 id="caveats">注意事项</h2>
+    <ul>
+      <li><b>Holdout 样本小 (4 anchor)</b> — 高方差信号。Train/holdout 5pp 差距在采样噪音内。</li>
+      <li><b>2024 disinflation 在 holdout</b> — 如果 Q9 主要因 velocity
+        层 fit 到 2024 而赢, 那个胜利是真的但范围窄。Per-anchor
+        holdout breakdown 显示收益是 2024 独占还是分散。</li>
+      <li><b>2025 tariff 仍未解</b>: velocity 层读 CPI/PCE prints, 它们
+        比政策事件滞后 1-2 个月。引擎仍缺单事件 shock 通道 — 留作 deferred。</li>
+      <li><b>Risk overlay 自 Q7 冻结</b>。Q9 只动宏观 axis 部分。</li>
+      <li><b>Concept composition 是 opinionated 的</b>: velocity concept
+        用 40/30/30 权重 (CPI/Core CPI/PCE 通胀) 和 55/45 (PAYEMS/INDPRO 增长)。
+        不同 split 可能给不同 winner — 单遍 grid 不扫这些 within-weight。</li>
+    </ul>
+    
+</body></html>

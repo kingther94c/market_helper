@@ -108,6 +108,9 @@ RUNNERUP_LOW_DECAY = dict(
 
 CONTENDERS = [BASELINE, Q8_WINNER, RUNNERUP_BALANCED_IT008,
               RUNNERUP_INFLATION_HEAVY, RUNNERUP_LOW_DECAY]
+# Q9 contenders are appended by macro_robustness_q9.py for the velocity-layer
+# audit re-run; this module's CONTENDERS list stays the Q8 audit set so the
+# original Q8 robustness JSON remains reproducible.
 
 
 def axis_label(score: float, up: float, down: float) -> str:

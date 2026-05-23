@@ -1,0 +1,3564 @@
+{
+  "n_configs": 360,
+  "baseline_q8_equivalent": {
+    "params": {
+      "inflation_velocity_weight": 0.0,
+      "growth_velocity_weight": 0.0,
+      "growth_thresh": 0.1,
+      "inflation_thresh": 0.12,
+      "macro_w": 0.5,
+      "market_w": 0.5
+    },
+    "train": {
+      "overall": 55.9,
+      "g_avg": 41.5,
+      "i_avg": 48.3,
+      "risk_avg": 77.8,
+      "per_anchor": [
+        {
+          "name": "2010-12 expansion",
+          "g_match_pct": 58.4,
+          "i_match_pct": 49.5,
+          "risk_match": true
+        },
+        {
+          "name": "2015-16 oil bust",
+          "g_match_pct": 26.5,
+          "i_match_pct": 100.0,
+          "risk_match": true
+        },
+        {
+          "name": "2018 Q4 vol shock",
+          "g_match_pct": 9.1,
+          "i_match_pct": 19.7,
+          "risk_match": true
+        },
+        {
+          "name": "2019 H2 slowdown",
+          "g_match_pct": 20.5,
+          "i_match_pct": 25.0,
+          "risk_match": false
+        },
+        {
+          "name": "2020 COVID recession",
+          "g_match_pct": 100.0,
+          "i_match_pct": 0.0,
+          "risk_match": true
+        },
+        {
+          "name": "2020H2 catch-up",
+          "g_match_pct": 0.8,
+          "i_match_pct": 40.9,
+          "risk_match": true
+        },
+        {
+          "name": "2021 reflation",
+          "g_match_pct": 94.4,
+          "i_match_pct": 60.4,
+          "risk_match": true
+        },
+        {
+          "name": "2022 H1 inflation",
+          "g_match_pct": 33.8,
+          "i_match_pct": 59.1,
+          "risk_match": false
+        },
+        {
+          "name": "2023 high inflation",
+          "g_match_pct": 29.6,
+          "i_match_pct": 80.3,
+          "risk_match": true
+        }
+      ]
+    },
+    "holdout": {
+      "overall": 57.4,
+      "g_avg": 55.0,
+      "i_avg": 42.3,
+      "risk_avg": 75.0,
+      "per_anchor": [
+        {
+          "name": "2008 GFC trough",
+          "g_match_pct": 100.0,
+          "i_match_pct": 88.5,
+          "risk_match": true
+        },
+        {
+          "name": "2017 Goldilocks",
+          "g_match_pct": 87.7,
+          "i_match_pct": 39.0,
+          "risk_match": true
+        },
+        {
+          "name": "2024 disinflation",
+          "g_match_pct": 19.8,
+          "i_match_pct": 35.5,
+          "risk_match": false
+        },
+        {
+          "name": "2025 tariff shock",
+          "g_match_pct": 12.5,
+          "i_match_pct": 6.2,
+          "risk_match": true
+        }
+      ]
+    },
+    "stability": {
+      "g_median_run_bdays": 4,
+      "i_median_run_bdays": 4,
+      "g_n_runs": 972,
+      "i_n_runs": 923
+    },
+    "composite_train": 57.1
+  },
+  "recommendation": {
+    "params": {
+      "inflation_velocity_weight": 1.0,
+      "growth_velocity_weight": 0.0,
+      "growth_thresh": 0.1,
+      "inflation_thresh": 0.15,
+      "macro_w": 0.6,
+      "market_w": 0.4
+    },
+    "train": {
+      "overall": 59.7,
+      "g_avg": 46.0,
+      "i_avg": 55.3,
+      "risk_avg": 77.8,
+      "per_anchor": [
+        {
+          "name": "2010-12 expansion",
+          "g_match_pct": 74.8,
+          "i_match_pct": 61.3,
+          "risk_match": true
+        },
+        {
+          "name": "2015-16 oil bust",
+          "g_match_pct": 37.7,
+          "i_match_pct": 100.0,
+          "risk_match": true
+        },
+        {
+          "name": "2018 Q4 vol shock",
+          "g_match_pct": 10.6,
+          "i_match_pct": 24.2,
+          "risk_match": true
+        },
+        {
+          "name": "2019 H2 slowdown",
+          "g_match_pct": 6.1,
+          "i_match_pct": 33.3,
+          "risk_match": false
+        },
+        {
+          "name": "2020 COVID recession",
+          "g_match_pct": 100.0,
+          "i_match_pct": 0.0,
+          "risk_match": true
+        },
+        {
+          "name": "2020H2 catch-up",
+          "g_match_pct": 18.9,
+          "i_match_pct": 28.0,
+          "risk_match": true
+        },
+        {
+          "name": "2021 reflation",
+          "g_match_pct": 94.4,
+          "i_match_pct": 77.7,
+          "risk_match": true
+        },
+        {
+          "name": "2022 H1 inflation",
+          "g_match_pct": 52.6,
+          "i_match_pct": 90.9,
+          "risk_match": false
+        },
+        {
+          "name": "2023 high inflation",
+          "g_match_pct": 19.1,
+          "i_match_pct": 82.2,
+          "risk_match": true
+        }
+      ]
+    },
+    "holdout": {
+      "overall": 59.4,
+      "g_avg": 59.6,
+      "i_avg": 43.5,
+      "risk_avg": 75.0,
+      "per_anchor": [
+        {
+          "name": "2008 GFC trough",
+          "g_match_pct": 100.0,
+          "i_match_pct": 82.3,
+          "risk_match": true
+        },
+        {
+          "name": "2017 Goldilocks",
+          "g_match_pct": 90.3,
+          "i_match_pct": 45.1,
+          "risk_match": true
+        },
+        {
+          "name": "2024 disinflation",
+          "g_match_pct": 10.7,
+          "i_match_pct": 40.5,
+          "risk_match": false
+        },
+        {
+          "name": "2025 tariff shock",
+          "g_match_pct": 37.5,
+          "i_match_pct": 6.2,
+          "risk_match": true
+        }
+      ]
+    },
+    "stability": {
+      "g_median_run_bdays": 5,
+      "i_median_run_bdays": 4,
+      "g_n_runs": 884,
+      "i_n_runs": 784
+    },
+    "composite_train": 61.050000000000004
+  },
+  "recommendation_source": "strict-train-improver with non-regressing holdout",
+  "strict_improvers_count": 186,
+  "strict_improvers_top10": [
+    {
+      "params": {
+        "inflation_velocity_weight": 0.3,
+        "growth_velocity_weight": 0.0,
+        "growth_thresh": 0.1,
+        "inflation_thresh": 0.12,
+        "macro_w": 0.6,
+        "market_w": 0.4
+      },
+      "train": {
+        "overall": 60.2,
+        "g_avg": 46.0,
+        "i_avg": 56.9,
+        "risk_avg": 77.8,
+        "per_anchor": [
+          {
+            "name": "2010-12 expansion",
+            "g_match_pct": 74.8,
+            "i_match_pct": 52.1,
+            "risk_match": true
+          },
+          {
+            "name": "2015-16 oil bust",
+            "g_match_pct": 37.7,
+            "i_match_pct": 100.0,
+            "risk_match": true
+          },
+          {
+            "name": "2018 Q4 vol shock",
+            "g_match_pct": 10.6,
+            "i_match_pct": 18.2,
+            "risk_match": true
+          },
+          {
+            "name": "2019 H2 slowdown",
+            "g_match_pct": 6.1,
+            "i_match_pct": 16.7,
+            "risk_match": false
+          },
+          {
+            "name": "2020 COVID recession",
+            "g_match_pct": 100.0,
+            "i_match_pct": 0.0,
+            "risk_match": true
+          },
+          {
+            "name": "2020H2 catch-up",
+            "g_match_pct": 18.9,
+            "i_match_pct": 59.1,
+            "risk_match": true
+          },
+          {
+            "name": "2021 reflation",
+            "g_match_pct": 94.4,
+            "i_match_pct": 71.6,
+            "risk_match": true
+          },
+          {
+            "name": "2022 H1 inflation",
+            "g_match_pct": 52.6,
+            "i_match_pct": 94.8,
+            "risk_match": false
+          },
+          {
+            "name": "2023 high inflation",
+            "g_match_pct": 19.1,
+            "i_match_pct": 99.3,
+            "risk_match": true
+          }
+        ]
+      },
+      "holdout": {
+        "overall": 55.7,
+        "g_avg": 59.6,
+        "i_avg": 32.5,
+        "risk_avg": 75.0,
+        "per_anchor": [
+          {
+            "name": "2008 GFC trough",
+            "g_match_pct": 100.0,
+            "i_match_pct": 79.2,
+            "risk_match": true
+          },
+          {
+            "name": "2017 Goldilocks",
+            "g_match_pct": 90.3,
+            "i_match_pct": 19.5,
+            "risk_match": true
+          },
+          {
+            "name": "2024 disinflation",
+            "g_match_pct": 10.7,
+            "i_match_pct": 25.2,
+            "risk_match": false
+          },
+          {
+            "name": "2025 tariff shock",
+            "g_match_pct": 37.5,
+            "i_match_pct": 6.2,
+            "risk_match": true
+          }
+        ]
+      },
+      "stability": {
+        "g_median_run_bdays": 5,
+        "i_median_run_bdays": 4,
+        "g_n_runs": 884,
+        "i_n_runs": 869
+      },
+      "composite_train": 61.550000000000004
+    },
+    {
+      "params": {
+        "inflation_velocity_weight": 0.5,
+        "growth_velocity_weight": 0.0,
+        "growth_thresh": 0.1,
+        "inflation_thresh": 0.1,
+        "macro_w": 0.6,
+        "market_w": 0.4
+      },
+      "train": {
+        "overall": 60.2,
+        "g_avg": 46.0,
+        "i_avg": 56.9,
+        "risk_avg": 77.8,
+        "per_anchor": [
+          {
+            "name": "2010-12 expansion",
+            "g_match_pct": 74.8,
+            "i_match_pct": 47.4,
+            "risk_match": true
+          },
+          {
+            "name": "2015-16 oil bust",
+            "g_match_pct": 37.7,
+            "i_match_pct": 100.0,
+            "risk_match": true
+          },
+          {
+            "name": "2018 Q4 vol shock",
+            "g_match_pct": 10.6,
+            "i_match_pct": 10.6,
+            "risk_match": true
+          },
+          {
+            "name": "2019 H2 slowdown",
+            "g_match_pct": 6.1,
+            "i_match_pct": 13.6,
+            "risk_match": false
+          },
+          {
+            "name": "2020 COVID recession",
+            "g_match_pct": 100.0,
+            "i_match_pct": 0.0,
+            "risk_match": true
+          },
+          {
+            "name": "2020H2 catch-up",
+            "g_match_pct": 18.9,
+            "i_match_pct": 62.9,
+            "risk_match": true
+          },
+          {
+            "name": "2021 reflation",
+            "g_match_pct": 94.4,
+            "i_match_pct": 78.7,
+            "risk_match": true
+          },
+          {
+            "name": "2022 H1 inflation",
+            "g_match_pct": 52.6,
+            "i_match_pct": 98.7,
+            "risk_match": false
+          },
+          {
+            "name": "2023 high inflation",
+            "g_match_pct": 19.1,
+            "i_match_pct": 100.0,
+            "risk_match": true
+          }
+        ]
+      },
+      "holdout": {
+        "overall": 56.3,
+        "g_avg": 59.6,
+        "i_avg": 34.2,
+        "risk_avg": 75.0,
+        "per_anchor": [
+          {
+            "name": "2008 GFC trough",
+            "g_match_pct": 100.0,
+            "i_match_pct": 83.1,
+            "risk_match": true
+          },
+          {
+            "name": "2017 Goldilocks",
+            "g_match_pct": 90.3,
+            "i_match_pct": 18.5,
+            "risk_match": true
+          },
+          {
+            "name": "2024 disinflation",
+            "g_match_pct": 10.7,
+            "i_match_pct": 22.9,
+            "risk_match": false
+          },
+          {
+            "name": "2025 tariff shock",
+            "g_match_pct": 37.5,
+            "i_match_pct": 12.5,
+            "risk_match": true
+          }
+        ]
+      },
+      "stability": {
+        "g_median_run_bdays": 5,
+        "i_median_run_bdays": 4,
+        "g_n_runs": 884,
+        "i_n_runs": 838
+      },
+      "composite_train": 61.550000000000004
+    },
+    {
+      "params": {
+        "inflation_velocity_weight": 0.7,
+        "growth_velocity_weight": 0.0,
+        "growth_thresh": 0.1,
+        "inflation_thresh": 0.1,
+        "macro_w": 0.6,
+        "market_w": 0.4
+      },
+      "train": {
+        "overall": 60.2,
+        "g_avg": 46.0,
+        "i_avg": 56.7,
+        "risk_avg": 77.8,
+        "per_anchor": [
+          {
+            "name": "2010-12 expansion",
+            "g_match_pct": 74.8,
+            "i_match_pct": 47.6,
+            "risk_match": true
+          },
+          {
+            "name": "2015-16 oil bust",
+            "g_match_pct": 37.7,
+            "i_match_pct": 100.0,
+            "risk_match": true
+          },
+          {
+            "name": "2018 Q4 vol shock",
+            "g_match_pct": 10.6,
+            "i_match_pct": 10.6,
+            "risk_match": true
+          },
+          {
+            "name": "2019 H2 slowdown",
+            "g_match_pct": 6.1,
+            "i_match_pct": 18.2,
+            "risk_match": false
+          },
+          {
+            "name": "2020 COVID recession",
+            "g_match_pct": 100.0,
+            "i_match_pct": 0.0,
+            "risk_match": true
+          },
+          {
+            "name": "2020H2 catch-up",
+            "g_match_pct": 18.9,
+            "i_match_pct": 52.3,
+            "risk_match": true
+          },
+          {
+            "name": "2021 reflation",
+            "g_match_pct": 94.4,
+            "i_match_pct": 82.7,
+            "risk_match": true
+          },
+          {
+            "name": "2022 H1 inflation",
+            "g_match_pct": 52.6,
+            "i_match_pct": 98.7,
+            "risk_match": false
+          },
+          {
+            "name": "2023 high inflation",
+            "g_match_pct": 19.1,
+            "i_match_pct": 100.0,
+            "risk_match": true
+          }
+        ]
+      },
+      "holdout": {
+        "overall": 57.5,
+        "g_avg": 59.6,
+        "i_avg": 37.9,
+        "risk_avg": 75.0,
+        "per_anchor": [
+          {
+            "name": "2008 GFC trough",
+            "g_match_pct": 100.0,
+            "i_match_pct": 86.2,
+            "risk_match": true
+          },
+          {
+            "name": "2017 Goldilocks",
+            "g_match_pct": 90.3,
+            "i_match_pct": 24.6,
+            "risk_match": true
+          },
+          {
+            "name": "2024 disinflation",
+            "g_match_pct": 10.7,
+            "i_match_pct": 28.2,
+            "risk_match": false
+          },
+          {
+            "name": "2025 tariff shock",
+            "g_match_pct": 37.5,
+            "i_match_pct": 12.5,
+            "risk_match": true
+          }
+        ]
+      },
+      "stability": {
+        "g_median_run_bdays": 5,
+        "i_median_run_bdays": 4,
+        "g_n_runs": 884,
+        "i_n_runs": 875
+      },
+      "composite_train": 61.550000000000004
+    },
+    {
+      "params": {
+        "inflation_velocity_weight": 0.0,
+        "growth_velocity_weight": 0.0,
+        "growth_thresh": 0.1,
+        "inflation_thresh": 0.1,
+        "macro_w": 0.6,
+        "market_w": 0.4
+      },
+      "train": {
+        "overall": 60.1,
+        "g_avg": 46.0,
+        "i_avg": 56.4,
+        "risk_avg": 77.8,
+        "per_anchor": [
+          {
+            "name": "2010-12 expansion",
+            "g_match_pct": 74.8,
+            "i_match_pct": 46.5,
+            "risk_match": true
+          },
+          {
+            "name": "2015-16 oil bust",
+            "g_match_pct": 37.7,
+            "i_match_pct": 100.0,
+            "risk_match": true
+          },
+          {
+            "name": "2018 Q4 vol shock",
+            "g_match_pct": 10.6,
+            "i_match_pct": 9.1,
+            "risk_match": true
+          },
+          {
+            "name": "2019 H2 slowdown",
+            "g_match_pct": 6.1,
+            "i_match_pct": 9.8,
+            "risk_match": false
+          },
+          {
+            "name": "2020 COVID recession",
+            "g_match_pct": 100.0,
+            "i_match_pct": 0.0,
+            "risk_match": true
+          },
+          {
+            "name": "2020H2 catch-up",
+            "g_match_pct": 18.9,
+            "i_match_pct": 75.8,
+            "risk_match": true
+          },
+          {
+            "name": "2021 reflation",
+            "g_match_pct": 94.4,
+            "i_match_pct": 70.1,
+            "risk_match": true
+          },
+          {
+            "name": "2022 H1 inflation",
+            "g_match_pct": 52.6,
+            "i_match_pct": 96.1,
+            "risk_match": false
+          },
+          {
+            "name": "2023 high inflation",
+            "g_match_pct": 19.1,
+            "i_match_pct": 100.0,
+            "risk_match": true
+          }
+        ]
+      },
+      "holdout": {
+        "overall": 54.9,
+        "g_avg": 59.6,
+        "i_avg": 30.0,
+        "risk_avg": 75.0,
+        "per_anchor": [
+          {
+            "name": "2008 GFC trough",
+            "g_match_pct": 100.0,
+            "i_match_pct": 79.2,
+            "risk_match": true
+          },
+          {
+            "name": "2017 Goldilocks",
+            "g_match_pct": 90.3,
+            "i_match_pct": 13.8,
+            "risk_match": true
+          },
+          {
+            "name": "2024 disinflation",
+            "g_match_pct": 10.7,
+            "i_match_pct": 11.5,
+            "risk_match": false
+          },
+          {
+            "name": "2025 tariff shock",
+            "g_match_pct": 37.5,
+            "i_match_pct": 15.6,
+            "risk_match": true
+          }
+        ]
+      },
+      "stability": {
+        "g_median_run_bdays": 5,
+        "i_median_run_bdays": 4,
+        "g_n_runs": 884,
+        "i_n_runs": 804
+      },
+      "composite_train": 61.45
+    },
+    {
+      "params": {
+        "inflation_velocity_weight": 0.7,
+        "growth_velocity_weight": 0.0,
+        "growth_thresh": 0.1,
+        "inflation_thresh": 0.12,
+        "macro_w": 0.6,
+        "market_w": 0.4
+      },
+      "train": {
+        "overall": 60.1,
+        "g_avg": 46.0,
+        "i_avg": 56.5,
+        "risk_avg": 77.8,
+        "per_anchor": [
+          {
+            "name": "2010-12 expansion",
+            "g_match_pct": 74.8,
+            "i_match_pct": 52.4,
+            "risk_match": true
+          },
+          {
+            "name": "2015-16 oil bust",
+            "g_match_pct": 37.7,
+            "i_match_pct": 100.0,
+            "risk_match": true
+          },
+          {
+            "name": "2018 Q4 vol shock",
+            "g_match_pct": 10.6,
+            "i_match_pct": 16.7,
+            "risk_match": true
+          },
+          {
+            "name": "2019 H2 slowdown",
+            "g_match_pct": 6.1,
+            "i_match_pct": 23.5,
+            "risk_match": false
+          },
+          {
+            "name": "2020 COVID recession",
+            "g_match_pct": 100.0,
+            "i_match_pct": 0.0,
+            "risk_match": true
+          },
+          {
+            "name": "2020H2 catch-up",
+            "g_match_pct": 18.9,
+            "i_match_pct": 42.4,
+            "risk_match": true
+          },
+          {
+            "name": "2021 reflation",
+            "g_match_pct": 94.4,
+            "i_match_pct": 79.2,
+            "risk_match": true
+          },
+          {
+            "name": "2022 H1 inflation",
+            "g_match_pct": 52.6,
+            "i_match_pct": 97.4,
+            "risk_match": false
+          },
+          {
+            "name": "2023 high inflation",
+            "g_match_pct": 19.1,
+            "i_match_pct": 96.7,
+            "risk_match": true
+          }
+        ]
+      },
+      "holdout": {
+        "overall": 57.6,
+        "g_avg": 59.6,
+        "i_avg": 38.2,
+        "risk_avg": 75.0,
+        "per_anchor": [
+          {
+            "name": "2008 GFC trough",
+            "g_match_pct": 100.0,
+            "i_match_pct": 82.3,
+            "risk_match": true
+          },
+          {
+            "name": "2017 Goldilocks",
+            "g_match_pct": 90.3,
+            "i_match_pct": 32.8,
+            "risk_match": true
+          },
+          {
+            "name": "2024 disinflation",
+            "g_match_pct": 10.7,
+            "i_match_pct": 31.3,
+            "risk_match": false
+          },
+          {
+            "name": "2025 tariff shock",
+            "g_match_pct": 37.5,
+            "i_match_pct": 6.2,
+            "risk_match": true
+          }
+        ]
+      },
+      "stability": {
+        "g_median_run_bdays": 5,
+        "i_median_run_bdays": 4,
+        "g_n_runs": 884,
+        "i_n_runs": 860
+      },
+      "composite_train": 61.45
+    },
+    {
+      "params": {
+        "inflation_velocity_weight": 1.0,
+        "growth_velocity_weight": 0.0,
+        "growth_thresh": 0.1,
+        "inflation_thresh": 0.1,
+        "macro_w": 0.6,
+        "market_w": 0.4
+      },
+      "train": {
+        "overall": 60.1,
+        "g_avg": 46.0,
+        "i_avg": 56.6,
+        "risk_avg": 77.8,
+        "per_anchor": [
+          {
+            "name": "2010-12 expansion",
+            "g_match_pct": 74.8,
+            "i_match_pct": 47.7,
+            "risk_match": true
+          },
+          {
+            "name": "2015-16 oil bust",
+            "g_match_pct": 37.7,
+            "i_match_pct": 100.0,
+            "risk_match": true
+          },
+          {
+            "name": "2018 Q4 vol shock",
+            "g_match_pct": 10.6,
+            "i_match_pct": 10.6,
+            "risk_match": true
+          },
+          {
+            "name": "2019 H2 slowdown",
+            "g_match_pct": 6.1,
+            "i_match_pct": 22.0,
+            "risk_match": false
+          },
+          {
+            "name": "2020 COVID recession",
+            "g_match_pct": 100.0,
+            "i_match_pct": 0.0,
+            "risk_match": true
+          },
+          {
+            "name": "2020H2 catch-up",
+            "g_match_pct": 18.9,
+            "i_match_pct": 43.2,
+            "risk_match": true
+          },
+          {
+            "name": "2021 reflation",
+            "g_match_pct": 94.4,
+            "i_match_pct": 87.3,
+            "risk_match": true
+          },
+          {
+            "name": "2022 H1 inflation",
+            "g_match_pct": 52.6,
+            "i_match_pct": 100.0,
+            "risk_match": false
+          },
+          {
+            "name": "2023 high inflation",
+            "g_match_pct": 19.1,
+            "i_match_pct": 98.7,
+            "risk_match": true
+          }
+        ]
+      },
+      "holdout": {
+        "overall": 58.1,
+        "g_avg": 59.6,
+        "i_avg": 39.7,
+        "risk_avg": 75.0,
+        "per_anchor": [
+          {
+            "name": "2008 GFC trough",
+            "g_match_pct": 100.0,
+            "i_match_pct": 90.0,
+            "risk_match": true
+          },
+          {
+            "name": "2017 Goldilocks",
+            "g_match_pct": 90.3,
+            "i_match_pct": 31.8,
+            "risk_match": true
+          },
+          {
+            "name": "2024 disinflation",
+            "g_match_pct": 10.7,
+            "i_match_pct": 30.9,
+            "risk_match": false
+          },
+          {
+            "name": "2025 tariff shock",
+            "g_match_pct": 37.5,
+            "i_match_pct": 6.2,
+            "risk_match": true
+          }
+        ]
+      },
+      "stability": {
+        "g_median_run_bdays": 5,
+        "i_median_run_bdays": 4,
+        "g_n_runs": 884,
+        "i_n_runs": 927
+      },
+      "composite_train": 61.45
+    },
+    {
+      "params": {
+        "inflation_velocity_weight": 1.0,
+        "growth_velocity_weight": 0.0,
+        "growth_thresh": 0.1,
+        "inflation_thresh": 0.12,
+        "macro_w": 0.6,
+        "market_w": 0.4
+      },
+      "train": {
+        "overall": 60.1,
+        "g_avg": 46.0,
+        "i_avg": 56.5,
+        "risk_avg": 77.8,
+        "per_anchor": [
+          {
+            "name": "2010-12 expansion",
+            "g_match_pct": 74.8,
+            "i_match_pct": 53.8,
+            "risk_match": true
+          },
+          {
+            "name": "2015-16 oil bust",
+            "g_match_pct": 37.7,
+            "i_match_pct": 100.0,
+            "risk_match": true
+          },
+          {
+            "name": "2018 Q4 vol shock",
+            "g_match_pct": 10.6,
+            "i_match_pct": 16.7,
+            "risk_match": true
+          },
+          {
+            "name": "2019 H2 slowdown",
+            "g_match_pct": 6.1,
+            "i_match_pct": 28.0,
+            "risk_match": false
+          },
+          {
+            "name": "2020 COVID recession",
+            "g_match_pct": 100.0,
+            "i_match_pct": 0.0,
+            "risk_match": true
+          },
+          {
+            "name": "2020H2 catch-up",
+            "g_match_pct": 18.9,
+            "i_match_pct": 37.9,
+            "risk_match": true
+          },
+          {
+            "name": "2021 reflation",
+            "g_match_pct": 94.4,
+            "i_match_pct": 84.8,
+            "risk_match": true
+          },
+          {
+            "name": "2022 H1 inflation",
+            "g_match_pct": 52.6,
+            "i_match_pct": 98.7,
+            "risk_match": false
+          },
+          {
+            "name": "2023 high inflation",
+            "g_match_pct": 19.1,
+            "i_match_pct": 88.2,
+            "risk_match": true
+          }
+        ]
+      },
+      "holdout": {
+        "overall": 58.7,
+        "g_avg": 59.6,
+        "i_avg": 41.5,
+        "risk_avg": 75.0,
+        "per_anchor": [
+          {
+            "name": "2008 GFC trough",
+            "g_match_pct": 100.0,
+            "i_match_pct": 86.9,
+            "risk_match": true
+          },
+          {
+            "name": "2017 Goldilocks",
+            "g_match_pct": 90.3,
+            "i_match_pct": 37.4,
+            "risk_match": true
+          },
+          {
+            "name": "2024 disinflation",
+            "g_match_pct": 10.7,
+            "i_match_pct": 35.5,
+            "risk_match": false
+          },
+          {
+            "name": "2025 tariff shock",
+            "g_match_pct": 37.5,
+            "i_match_pct": 6.2,
+            "risk_match": true
+          }
+        ]
+      },
+      "stability": {
+        "g_median_run_bdays": 5,
+        "i_median_run_bdays": 4,
+        "g_n_runs": 884,
+        "i_n_runs": 866
+      },
+      "composite_train": 61.45
+    },
+    {
+      "params": {
+        "inflation_velocity_weight": 0.3,
+        "growth_velocity_weight": 0.0,
+        "growth_thresh": 0.1,
+        "inflation_thresh": 0.1,
+        "macro_w": 0.6,
+        "market_w": 0.4
+      },
+      "train": {
+        "overall": 60.1,
+        "g_avg": 46.0,
+        "i_avg": 56.6,
+        "risk_avg": 77.8,
+        "per_anchor": [
+          {
+            "name": "2010-12 expansion",
+            "g_match_pct": 74.8,
+            "i_match_pct": 47.1,
+            "risk_match": true
+          },
+          {
+            "name": "2015-16 oil bust",
+            "g_match_pct": 37.7,
+            "i_match_pct": 100.0,
+            "risk_match": true
+          },
+          {
+            "name": "2018 Q4 vol shock",
+            "g_match_pct": 10.6,
+            "i_match_pct": 10.6,
+            "risk_match": true
+          },
+          {
+            "name": "2019 H2 slowdown",
+            "g_match_pct": 6.1,
+            "i_match_pct": 10.6,
+            "risk_match": false
+          },
+          {
+            "name": "2020 COVID recession",
+            "g_match_pct": 100.0,
+            "i_match_pct": 0.0,
+            "risk_match": true
+          },
+          {
+            "name": "2020H2 catch-up",
+            "g_match_pct": 18.9,
+            "i_match_pct": 68.2,
+            "risk_match": true
+          },
+          {
+            "name": "2021 reflation",
+            "g_match_pct": 94.4,
+            "i_match_pct": 74.6,
+            "risk_match": true
+          },
+          {
+            "name": "2022 H1 inflation",
+            "g_match_pct": 52.6,
+            "i_match_pct": 98.7,
+            "risk_match": false
+          },
+          {
+            "name": "2023 high inflation",
+            "g_match_pct": 19.1,
+            "i_match_pct": 100.0,
+            "risk_match": true
+          }
+        ]
+      },
+      "holdout": {
+        "overall": 55.7,
+        "g_avg": 59.6,
+        "i_avg": 32.4,
+        "risk_avg": 75.0,
+        "per_anchor": [
+          {
+            "name": "2008 GFC trough",
+            "g_match_pct": 100.0,
+            "i_match_pct": 81.5,
+            "risk_match": true
+          },
+          {
+            "name": "2017 Goldilocks",
+            "g_match_pct": 90.3,
+            "i_match_pct": 17.9,
+            "risk_match": true
+          },
+          {
+            "name": "2024 disinflation",
+            "g_match_pct": 10.7,
+            "i_match_pct": 17.6,
+            "risk_match": false
+          },
+          {
+            "name": "2025 tariff shock",
+            "g_match_pct": 37.5,
+            "i_match_pct": 12.5,
+            "risk_match": true
+          }
+        ]
+      },
+      "stability": {
+        "g_median_run_bdays": 5,
+        "i_median_run_bdays": 3,
+        "g_n_runs": 884,
+        "i_n_runs": 849
+      },
+      "composite_train": 61.300000000000004
+    },
+    {
+      "params": {
+        "inflation_velocity_weight": 0.5,
+        "growth_velocity_weight": 0.0,
+        "growth_thresh": 0.1,
+        "inflation_thresh": 0.12,
+        "macro_w": 0.6,
+        "market_w": 0.4
+      },
+      "train": {
+        "overall": 60.1,
+        "g_avg": 46.0,
+        "i_avg": 56.4,
+        "risk_avg": 77.8,
+        "per_anchor": [
+          {
+            "name": "2010-12 expansion",
+            "g_match_pct": 74.8,
+            "i_match_pct": 52.4,
+            "risk_match": true
+          },
+          {
+            "name": "2015-16 oil bust",
+            "g_match_pct": 37.7,
+            "i_match_pct": 100.0,
+            "risk_match": true
+          },
+          {
+            "name": "2018 Q4 vol shock",
+            "g_match_pct": 10.6,
+            "i_match_pct": 16.7,
+            "risk_match": true
+          },
+          {
+            "name": "2019 H2 slowdown",
+            "g_match_pct": 6.1,
+            "i_match_pct": 18.9,
+            "risk_match": false
+          },
+          {
+            "name": "2020 COVID recession",
+            "g_match_pct": 100.0,
+            "i_match_pct": 0.0,
+            "risk_match": true
+          },
+          {
+            "name": "2020H2 catch-up",
+            "g_match_pct": 18.9,
+            "i_match_pct": 51.5,
+            "risk_match": true
+          },
+          {
+            "name": "2021 reflation",
+            "g_match_pct": 94.4,
+            "i_match_pct": 74.1,
+            "risk_match": true
+          },
+          {
+            "name": "2022 H1 inflation",
+            "g_match_pct": 52.6,
+            "i_match_pct": 95.5,
+            "risk_match": false
+          },
+          {
+            "name": "2023 high inflation",
+            "g_match_pct": 19.1,
+            "i_match_pct": 98.7,
+            "risk_match": true
+          }
+        ]
+      },
+      "holdout": {
+        "overall": 56.8,
+        "g_avg": 59.6,
+        "i_avg": 35.9,
+        "risk_avg": 75.0,
+        "per_anchor": [
+          {
+            "name": "2008 GFC trough",
+            "g_match_pct": 100.0,
+            "i_match_pct": 81.5,
+            "risk_match": true
+          },
+          {
+            "name": "2017 Goldilocks",
+            "g_match_pct": 90.3,
+            "i_match_pct": 26.2,
+            "risk_match": true
+          },
+          {
+            "name": "2024 disinflation",
+            "g_match_pct": 10.7,
+            "i_match_pct": 29.8,
+            "risk_match": false
+          },
+          {
+            "name": "2025 tariff shock",
+            "g_match_pct": 37.5,
+            "i_match_pct": 6.2,
+            "risk_match": true
+          }
+        ]
+      },
+      "stability": {
+        "g_median_run_bdays": 5,
+        "i_median_run_bdays": 3,
+        "g_n_runs": 884,
+        "i_n_runs": 875
+      },
+      "composite_train": 61.300000000000004
+    },
+    {
+      "params": {
+        "inflation_velocity_weight": 0.0,
+        "growth_velocity_weight": 0.0,
+        "growth_thresh": 0.1,
+        "inflation_thresh": 0.12,
+        "macro_w": 0.6,
+        "market_w": 0.4
+      },
+      "train": {
+        "overall": 59.9,
+        "g_avg": 46.0,
+        "i_avg": 56.0,
+        "risk_avg": 77.8,
+        "per_anchor": [
+          {
+            "name": "2010-12 expansion",
+            "g_match_pct": 74.8,
+            "i_match_pct": 50.7,
+            "risk_match": true
+          },
+          {
+            "name": "2015-16 oil bust",
+            "g_match_pct": 37.7,
+            "i_match_pct": 100.0,
+            "risk_match": true
+          },
+          {
+            "name": "2018 Q4 vol shock",
+            "g_match_pct": 10.6,
+            "i_match_pct": 19.7,
+            "risk_match": true
+          },
+          {
+            "name": "2019 H2 slowdown",
+            "g_match_pct": 6.1,
+            "i_match_pct": 10.6,
+            "risk_match": false
+          },
+          {
+            "name": "2020 COVID recession",
+            "g_match_pct": 100.0,
+            "i_match_pct": 0.0,
+            "risk_match": true
+          },
+          {
+            "name": "2020H2 catch-up",
+            "g_match_pct": 18.9,
+            "i_match_pct": 71.2,
+            "risk_match": true
+          },
+          {
+            "name": "2021 reflation",
+            "g_match_pct": 94.4,
+            "i_match_pct": 64.5,
+            "risk_match": true
+          },
+          {
+            "name": "2022 H1 inflation",
+            "g_match_pct": 52.6,
+            "i_match_pct": 87.7,
+            "risk_match": false
+          },
+          {
+            "name": "2023 high inflation",
+            "g_match_pct": 19.1,
+            "i_match_pct": 100.0,
+            "risk_match": true
+          }
+        ]
+      },
+      "holdout": {
+        "overall": 54.7,
+        "g_avg": 59.6,
+        "i_avg": 29.4,
+        "risk_avg": 75.0,
+        "per_anchor": [
+          {
+            "name": "2008 GFC trough",
+            "g_match_pct": 100.0,
+            "i_match_pct": 78.5,
+            "risk_match": true
+          },
+          {
+            "name": "2017 Goldilocks",
+            "g_match_pct": 90.3,
+            "i_match_pct": 16.9,
+            "risk_match": true
+          },
+          {
+            "name": "2024 disinflation",
+            "g_match_pct": 10.7,
+            "i_match_pct": 16.0,
+            "risk_match": false
+          },
+          {
+            "name": "2025 tariff shock",
+            "g_match_pct": 37.5,
+            "i_match_pct": 6.2,
+            "risk_match": true
+          }
+        ]
+      },
+      "stability": {
+        "g_median_run_bdays": 5,
+        "i_median_run_bdays": 4,
+        "g_n_runs": 884,
+        "i_n_runs": 789
+      },
+      "composite_train": 61.25
+    }
+  ],
+  "safe_against_holdout_count": 50,
+  "safe_against_holdout_top10": [
+    {
+      "params": {
+        "inflation_velocity_weight": 1.0,
+        "growth_velocity_weight": 0.0,
+        "growth_thresh": 0.1,
+        "inflation_thresh": 0.15,
+        "macro_w": 0.6,
+        "market_w": 0.4
+      },
+      "train": {
+        "overall": 59.7,
+        "g_avg": 46.0,
+        "i_avg": 55.3,
+        "risk_avg": 77.8,
+        "per_anchor": [
+          {
+            "name": "2010-12 expansion",
+            "g_match_pct": 74.8,
+            "i_match_pct": 61.3,
+            "risk_match": true
+          },
+          {
+            "name": "2015-16 oil bust",
+            "g_match_pct": 37.7,
+            "i_match_pct": 100.0,
+            "risk_match": true
+          },
+          {
+            "name": "2018 Q4 vol shock",
+            "g_match_pct": 10.6,
+            "i_match_pct": 24.2,
+            "risk_match": true
+          },
+          {
+            "name": "2019 H2 slowdown",
+            "g_match_pct": 6.1,
+            "i_match_pct": 33.3,
+            "risk_match": false
+          },
+          {
+            "name": "2020 COVID recession",
+            "g_match_pct": 100.0,
+            "i_match_pct": 0.0,
+            "risk_match": true
+          },
+          {
+            "name": "2020H2 catch-up",
+            "g_match_pct": 18.9,
+            "i_match_pct": 28.0,
+            "risk_match": true
+          },
+          {
+            "name": "2021 reflation",
+            "g_match_pct": 94.4,
+            "i_match_pct": 77.7,
+            "risk_match": true
+          },
+          {
+            "name": "2022 H1 inflation",
+            "g_match_pct": 52.6,
+            "i_match_pct": 90.9,
+            "risk_match": false
+          },
+          {
+            "name": "2023 high inflation",
+            "g_match_pct": 19.1,
+            "i_match_pct": 82.2,
+            "risk_match": true
+          }
+        ]
+      },
+      "holdout": {
+        "overall": 59.4,
+        "g_avg": 59.6,
+        "i_avg": 43.5,
+        "risk_avg": 75.0,
+        "per_anchor": [
+          {
+            "name": "2008 GFC trough",
+            "g_match_pct": 100.0,
+            "i_match_pct": 82.3,
+            "risk_match": true
+          },
+          {
+            "name": "2017 Goldilocks",
+            "g_match_pct": 90.3,
+            "i_match_pct": 45.1,
+            "risk_match": true
+          },
+          {
+            "name": "2024 disinflation",
+            "g_match_pct": 10.7,
+            "i_match_pct": 40.5,
+            "risk_match": false
+          },
+          {
+            "name": "2025 tariff shock",
+            "g_match_pct": 37.5,
+            "i_match_pct": 6.2,
+            "risk_match": true
+          }
+        ]
+      },
+      "stability": {
+        "g_median_run_bdays": 5,
+        "i_median_run_bdays": 4,
+        "g_n_runs": 884,
+        "i_n_runs": 784
+      },
+      "composite_train": 61.050000000000004
+    },
+    {
+      "params": {
+        "inflation_velocity_weight": 1.0,
+        "growth_velocity_weight": 0.0,
+        "growth_thresh": 0.1,
+        "inflation_thresh": 0.12,
+        "macro_w": 0.6,
+        "market_w": 0.4
+      },
+      "train": {
+        "overall": 60.1,
+        "g_avg": 46.0,
+        "i_avg": 56.5,
+        "risk_avg": 77.8,
+        "per_anchor": [
+          {
+            "name": "2010-12 expansion",
+            "g_match_pct": 74.8,
+            "i_match_pct": 53.8,
+            "risk_match": true
+          },
+          {
+            "name": "2015-16 oil bust",
+            "g_match_pct": 37.7,
+            "i_match_pct": 100.0,
+            "risk_match": true
+          },
+          {
+            "name": "2018 Q4 vol shock",
+            "g_match_pct": 10.6,
+            "i_match_pct": 16.7,
+            "risk_match": true
+          },
+          {
+            "name": "2019 H2 slowdown",
+            "g_match_pct": 6.1,
+            "i_match_pct": 28.0,
+            "risk_match": false
+          },
+          {
+            "name": "2020 COVID recession",
+            "g_match_pct": 100.0,
+            "i_match_pct": 0.0,
+            "risk_match": true
+          },
+          {
+            "name": "2020H2 catch-up",
+            "g_match_pct": 18.9,
+            "i_match_pct": 37.9,
+            "risk_match": true
+          },
+          {
+            "name": "2021 reflation",
+            "g_match_pct": 94.4,
+            "i_match_pct": 84.8,
+            "risk_match": true
+          },
+          {
+            "name": "2022 H1 inflation",
+            "g_match_pct": 52.6,
+            "i_match_pct": 98.7,
+            "risk_match": false
+          },
+          {
+            "name": "2023 high inflation",
+            "g_match_pct": 19.1,
+            "i_match_pct": 88.2,
+            "risk_match": true
+          }
+        ]
+      },
+      "holdout": {
+        "overall": 58.7,
+        "g_avg": 59.6,
+        "i_avg": 41.5,
+        "risk_avg": 75.0,
+        "per_anchor": [
+          {
+            "name": "2008 GFC trough",
+            "g_match_pct": 100.0,
+            "i_match_pct": 86.9,
+            "risk_match": true
+          },
+          {
+            "name": "2017 Goldilocks",
+            "g_match_pct": 90.3,
+            "i_match_pct": 37.4,
+            "risk_match": true
+          },
+          {
+            "name": "2024 disinflation",
+            "g_match_pct": 10.7,
+            "i_match_pct": 35.5,
+            "risk_match": false
+          },
+          {
+            "name": "2025 tariff shock",
+            "g_match_pct": 37.5,
+            "i_match_pct": 6.2,
+            "risk_match": true
+          }
+        ]
+      },
+      "stability": {
+        "g_median_run_bdays": 5,
+        "i_median_run_bdays": 4,
+        "g_n_runs": 884,
+        "i_n_runs": 866
+      },
+      "composite_train": 61.45
+    },
+    {
+      "params": {
+        "inflation_velocity_weight": 1.0,
+        "growth_velocity_weight": 0.0,
+        "growth_thresh": 0.1,
+        "inflation_thresh": 0.1,
+        "macro_w": 0.6,
+        "market_w": 0.4
+      },
+      "train": {
+        "overall": 60.1,
+        "g_avg": 46.0,
+        "i_avg": 56.6,
+        "risk_avg": 77.8,
+        "per_anchor": [
+          {
+            "name": "2010-12 expansion",
+            "g_match_pct": 74.8,
+            "i_match_pct": 47.7,
+            "risk_match": true
+          },
+          {
+            "name": "2015-16 oil bust",
+            "g_match_pct": 37.7,
+            "i_match_pct": 100.0,
+            "risk_match": true
+          },
+          {
+            "name": "2018 Q4 vol shock",
+            "g_match_pct": 10.6,
+            "i_match_pct": 10.6,
+            "risk_match": true
+          },
+          {
+            "name": "2019 H2 slowdown",
+            "g_match_pct": 6.1,
+            "i_match_pct": 22.0,
+            "risk_match": false
+          },
+          {
+            "name": "2020 COVID recession",
+            "g_match_pct": 100.0,
+            "i_match_pct": 0.0,
+            "risk_match": true
+          },
+          {
+            "name": "2020H2 catch-up",
+            "g_match_pct": 18.9,
+            "i_match_pct": 43.2,
+            "risk_match": true
+          },
+          {
+            "name": "2021 reflation",
+            "g_match_pct": 94.4,
+            "i_match_pct": 87.3,
+            "risk_match": true
+          },
+          {
+            "name": "2022 H1 inflation",
+            "g_match_pct": 52.6,
+            "i_match_pct": 100.0,
+            "risk_match": false
+          },
+          {
+            "name": "2023 high inflation",
+            "g_match_pct": 19.1,
+            "i_match_pct": 98.7,
+            "risk_match": true
+          }
+        ]
+      },
+      "holdout": {
+        "overall": 58.1,
+        "g_avg": 59.6,
+        "i_avg": 39.7,
+        "risk_avg": 75.0,
+        "per_anchor": [
+          {
+            "name": "2008 GFC trough",
+            "g_match_pct": 100.0,
+            "i_match_pct": 90.0,
+            "risk_match": true
+          },
+          {
+            "name": "2017 Goldilocks",
+            "g_match_pct": 90.3,
+            "i_match_pct": 31.8,
+            "risk_match": true
+          },
+          {
+            "name": "2024 disinflation",
+            "g_match_pct": 10.7,
+            "i_match_pct": 30.9,
+            "risk_match": false
+          },
+          {
+            "name": "2025 tariff shock",
+            "g_match_pct": 37.5,
+            "i_match_pct": 6.2,
+            "risk_match": true
+          }
+        ]
+      },
+      "stability": {
+        "g_median_run_bdays": 5,
+        "i_median_run_bdays": 4,
+        "g_n_runs": 884,
+        "i_n_runs": 927
+      },
+      "composite_train": 61.45
+    },
+    {
+      "params": {
+        "inflation_velocity_weight": 1.0,
+        "growth_velocity_weight": 0.3,
+        "growth_thresh": 0.1,
+        "inflation_thresh": 0.15,
+        "macro_w": 0.6,
+        "market_w": 0.4
+      },
+      "train": {
+        "overall": 59.2,
+        "g_avg": 44.6,
+        "i_avg": 55.3,
+        "risk_avg": 77.8,
+        "per_anchor": [
+          {
+            "name": "2010-12 expansion",
+            "g_match_pct": 73.9,
+            "i_match_pct": 61.3,
+            "risk_match": true
+          },
+          {
+            "name": "2015-16 oil bust",
+            "g_match_pct": 37.7,
+            "i_match_pct": 100.0,
+            "risk_match": true
+          },
+          {
+            "name": "2018 Q4 vol shock",
+            "g_match_pct": 10.6,
+            "i_match_pct": 24.2,
+            "risk_match": true
+          },
+          {
+            "name": "2019 H2 slowdown",
+            "g_match_pct": 6.8,
+            "i_match_pct": 33.3,
+            "risk_match": false
+          },
+          {
+            "name": "2020 COVID recession",
+            "g_match_pct": 100.0,
+            "i_match_pct": 0.0,
+            "risk_match": true
+          },
+          {
+            "name": "2020H2 catch-up",
+            "g_match_pct": 12.9,
+            "i_match_pct": 28.0,
+            "risk_match": true
+          },
+          {
+            "name": "2021 reflation",
+            "g_match_pct": 94.4,
+            "i_match_pct": 77.7,
+            "risk_match": true
+          },
+          {
+            "name": "2022 H1 inflation",
+            "g_match_pct": 46.1,
+            "i_match_pct": 90.9,
+            "risk_match": false
+          },
+          {
+            "name": "2023 high inflation",
+            "g_match_pct": 19.1,
+            "i_match_pct": 82.2,
+            "risk_match": true
+          }
+        ]
+      },
+      "holdout": {
+        "overall": 59.0,
+        "g_avg": 58.6,
+        "i_avg": 43.5,
+        "risk_avg": 75.0,
+        "per_anchor": [
+          {
+            "name": "2008 GFC trough",
+            "g_match_pct": 100.0,
+            "i_match_pct": 82.3,
+            "risk_match": true
+          },
+          {
+            "name": "2017 Goldilocks",
+            "g_match_pct": 90.8,
+            "i_match_pct": 45.1,
+            "risk_match": true
+          },
+          {
+            "name": "2024 disinflation",
+            "g_match_pct": 9.2,
+            "i_match_pct": 40.5,
+            "risk_match": false
+          },
+          {
+            "name": "2025 tariff shock",
+            "g_match_pct": 34.4,
+            "i_match_pct": 6.2,
+            "risk_match": true
+          }
+        ]
+      },
+      "stability": {
+        "g_median_run_bdays": 5,
+        "i_median_run_bdays": 4,
+        "g_n_runs": 868,
+        "i_n_runs": 784
+      },
+      "composite_train": 60.550000000000004
+    },
+    {
+      "params": {
+        "inflation_velocity_weight": 0.7,
+        "growth_velocity_weight": 0.0,
+        "growth_thresh": 0.1,
+        "inflation_thresh": 0.15,
+        "macro_w": 0.6,
+        "market_w": 0.4
+      },
+      "train": {
+        "overall": 59.5,
+        "g_avg": 46.0,
+        "i_avg": 54.6,
+        "risk_avg": 77.8,
+        "per_anchor": [
+          {
+            "name": "2010-12 expansion",
+            "g_match_pct": 74.8,
+            "i_match_pct": 59.9,
+            "risk_match": true
+          },
+          {
+            "name": "2015-16 oil bust",
+            "g_match_pct": 37.7,
+            "i_match_pct": 100.0,
+            "risk_match": true
+          },
+          {
+            "name": "2018 Q4 vol shock",
+            "g_match_pct": 10.6,
+            "i_match_pct": 24.2,
+            "risk_match": true
+          },
+          {
+            "name": "2019 H2 slowdown",
+            "g_match_pct": 6.1,
+            "i_match_pct": 31.1,
+            "risk_match": false
+          },
+          {
+            "name": "2020 COVID recession",
+            "g_match_pct": 100.0,
+            "i_match_pct": 0.0,
+            "risk_match": true
+          },
+          {
+            "name": "2020H2 catch-up",
+            "g_match_pct": 18.9,
+            "i_match_pct": 35.6,
+            "risk_match": true
+          },
+          {
+            "name": "2021 reflation",
+            "g_match_pct": 94.4,
+            "i_match_pct": 72.1,
+            "risk_match": true
+          },
+          {
+            "name": "2022 H1 inflation",
+            "g_match_pct": 52.6,
+            "i_match_pct": 83.8,
+            "risk_match": false
+          },
+          {
+            "name": "2023 high inflation",
+            "g_match_pct": 19.1,
+            "i_match_pct": 84.9,
+            "risk_match": true
+          }
+        ]
+      },
+      "holdout": {
+        "overall": 58.6,
+        "g_avg": 59.6,
+        "i_avg": 41.2,
+        "risk_avg": 75.0,
+        "per_anchor": [
+          {
+            "name": "2008 GFC trough",
+            "g_match_pct": 100.0,
+            "i_match_pct": 80.8,
+            "risk_match": true
+          },
+          {
+            "name": "2017 Goldilocks",
+            "g_match_pct": 90.3,
+            "i_match_pct": 40.5,
+            "risk_match": true
+          },
+          {
+            "name": "2024 disinflation",
+            "g_match_pct": 10.7,
+            "i_match_pct": 37.4,
+            "risk_match": false
+          },
+          {
+            "name": "2025 tariff shock",
+            "g_match_pct": 37.5,
+            "i_match_pct": 6.2,
+            "risk_match": true
+          }
+        ]
+      },
+      "stability": {
+        "g_median_run_bdays": 5,
+        "i_median_run_bdays": 4,
+        "g_n_runs": 884,
+        "i_n_runs": 779
+      },
+      "composite_train": 60.85
+    },
+    {
+      "params": {
+        "inflation_velocity_weight": 1.0,
+        "growth_velocity_weight": 0.3,
+        "growth_thresh": 0.1,
+        "inflation_thresh": 0.12,
+        "macro_w": 0.6,
+        "market_w": 0.4
+      },
+      "train": {
+        "overall": 59.6,
+        "g_avg": 44.6,
+        "i_avg": 56.5,
+        "risk_avg": 77.8,
+        "per_anchor": [
+          {
+            "name": "2010-12 expansion",
+            "g_match_pct": 73.9,
+            "i_match_pct": 53.8,
+            "risk_match": true
+          },
+          {
+            "name": "2015-16 oil bust",
+            "g_match_pct": 37.7,
+            "i_match_pct": 100.0,
+            "risk_match": true
+          },
+          {
+            "name": "2018 Q4 vol shock",
+            "g_match_pct": 10.6,
+            "i_match_pct": 16.7,
+            "risk_match": true
+          },
+          {
+            "name": "2019 H2 slowdown",
+            "g_match_pct": 6.8,
+            "i_match_pct": 28.0,
+            "risk_match": false
+          },
+          {
+            "name": "2020 COVID recession",
+            "g_match_pct": 100.0,
+            "i_match_pct": 0.0,
+            "risk_match": true
+          },
+          {
+            "name": "2020H2 catch-up",
+            "g_match_pct": 12.9,
+            "i_match_pct": 37.9,
+            "risk_match": true
+          },
+          {
+            "name": "2021 reflation",
+            "g_match_pct": 94.4,
+            "i_match_pct": 84.8,
+            "risk_match": true
+          },
+          {
+            "name": "2022 H1 inflation",
+            "g_match_pct": 46.1,
+            "i_match_pct": 98.7,
+            "risk_match": false
+          },
+          {
+            "name": "2023 high inflation",
+            "g_match_pct": 19.1,
+            "i_match_pct": 88.2,
+            "risk_match": true
+          }
+        ]
+      },
+      "holdout": {
+        "overall": 58.4,
+        "g_avg": 58.6,
+        "i_avg": 41.5,
+        "risk_avg": 75.0,
+        "per_anchor": [
+          {
+            "name": "2008 GFC trough",
+            "g_match_pct": 100.0,
+            "i_match_pct": 86.9,
+            "risk_match": true
+          },
+          {
+            "name": "2017 Goldilocks",
+            "g_match_pct": 90.8,
+            "i_match_pct": 37.4,
+            "risk_match": true
+          },
+          {
+            "name": "2024 disinflation",
+            "g_match_pct": 9.2,
+            "i_match_pct": 35.5,
+            "risk_match": false
+          },
+          {
+            "name": "2025 tariff shock",
+            "g_match_pct": 34.4,
+            "i_match_pct": 6.2,
+            "risk_match": true
+          }
+        ]
+      },
+      "stability": {
+        "g_median_run_bdays": 5,
+        "i_median_run_bdays": 4,
+        "g_n_runs": 868,
+        "i_n_runs": 866
+      },
+      "composite_train": 60.95
+    },
+    {
+      "params": {
+        "inflation_velocity_weight": 1.0,
+        "growth_velocity_weight": 0.5,
+        "growth_thresh": 0.1,
+        "inflation_thresh": 0.15,
+        "macro_w": 0.6,
+        "market_w": 0.4
+      },
+      "train": {
+        "overall": 59.2,
+        "g_avg": 44.5,
+        "i_avg": 55.3,
+        "risk_avg": 77.8,
+        "per_anchor": [
+          {
+            "name": "2010-12 expansion",
+            "g_match_pct": 73.5,
+            "i_match_pct": 61.3,
+            "risk_match": true
+          },
+          {
+            "name": "2015-16 oil bust",
+            "g_match_pct": 37.7,
+            "i_match_pct": 100.0,
+            "risk_match": true
+          },
+          {
+            "name": "2018 Q4 vol shock",
+            "g_match_pct": 10.6,
+            "i_match_pct": 24.2,
+            "risk_match": true
+          },
+          {
+            "name": "2019 H2 slowdown",
+            "g_match_pct": 7.6,
+            "i_match_pct": 33.3,
+            "risk_match": false
+          },
+          {
+            "name": "2020 COVID recession",
+            "g_match_pct": 100.0,
+            "i_match_pct": 0.0,
+            "risk_match": true
+          },
+          {
+            "name": "2020H2 catch-up",
+            "g_match_pct": 15.2,
+            "i_match_pct": 28.0,
+            "risk_match": true
+          },
+          {
+            "name": "2021 reflation",
+            "g_match_pct": 94.4,
+            "i_match_pct": 77.7,
+            "risk_match": true
+          },
+          {
+            "name": "2022 H1 inflation",
+            "g_match_pct": 42.9,
+            "i_match_pct": 90.9,
+            "risk_match": false
+          },
+          {
+            "name": "2023 high inflation",
+            "g_match_pct": 18.4,
+            "i_match_pct": 82.2,
+            "risk_match": true
+          }
+        ]
+      },
+      "holdout": {
+        "overall": 58.8,
+        "g_avg": 57.8,
+        "i_avg": 43.5,
+        "risk_avg": 75.0,
+        "per_anchor": [
+          {
+            "name": "2008 GFC trough",
+            "g_match_pct": 100.0,
+            "i_match_pct": 82.3,
+            "risk_match": true
+          },
+          {
+            "name": "2017 Goldilocks",
+            "g_match_pct": 90.8,
+            "i_match_pct": 45.1,
+            "risk_match": true
+          },
+          {
+            "name": "2024 disinflation",
+            "g_match_pct": 9.2,
+            "i_match_pct": 40.5,
+            "risk_match": false
+          },
+          {
+            "name": "2025 tariff shock",
+            "g_match_pct": 31.2,
+            "i_match_pct": 6.2,
+            "risk_match": true
+          }
+        ]
+      },
+      "stability": {
+        "g_median_run_bdays": 5,
+        "i_median_run_bdays": 4,
+        "g_n_runs": 871,
+        "i_n_runs": 784
+      },
+      "composite_train": 60.550000000000004
+    },
+    {
+      "params": {
+        "inflation_velocity_weight": 1.0,
+        "growth_velocity_weight": 0.0,
+        "growth_thresh": 0.12,
+        "inflation_thresh": 0.15,
+        "macro_w": 0.6,
+        "market_w": 0.4
+      },
+      "train": {
+        "overall": 58.9,
+        "g_avg": 43.5,
+        "i_avg": 55.3,
+        "risk_avg": 77.8,
+        "per_anchor": [
+          {
+            "name": "2010-12 expansion",
+            "g_match_pct": 69.0,
+            "i_match_pct": 61.3,
+            "risk_match": true
+          },
+          {
+            "name": "2015-16 oil bust",
+            "g_match_pct": 48.3,
+            "i_match_pct": 100.0,
+            "risk_match": true
+          },
+          {
+            "name": "2018 Q4 vol shock",
+            "g_match_pct": 10.6,
+            "i_match_pct": 24.2,
+            "risk_match": true
+          },
+          {
+            "name": "2019 H2 slowdown",
+            "g_match_pct": 10.6,
+            "i_match_pct": 33.3,
+            "risk_match": false
+          },
+          {
+            "name": "2020 COVID recession",
+            "g_match_pct": 100.0,
+            "i_match_pct": 0.0,
+            "risk_match": true
+          },
+          {
+            "name": "2020H2 catch-up",
+            "g_match_pct": 12.1,
+            "i_match_pct": 28.0,
+            "risk_match": true
+          },
+          {
+            "name": "2021 reflation",
+            "g_match_pct": 94.4,
+            "i_match_pct": 77.7,
+            "risk_match": true
+          },
+          {
+            "name": "2022 H1 inflation",
+            "g_match_pct": 39.6,
+            "i_match_pct": 90.9,
+            "risk_match": false
+          },
+          {
+            "name": "2023 high inflation",
+            "g_match_pct": 7.2,
+            "i_match_pct": 82.2,
+            "risk_match": true
+          }
+        ]
+      },
+      "holdout": {
+        "overall": 59.1,
+        "g_avg": 58.8,
+        "i_avg": 43.5,
+        "risk_avg": 75.0,
+        "per_anchor": [
+          {
+            "name": "2008 GFC trough",
+            "g_match_pct": 100.0,
+            "i_match_pct": 82.3,
+            "risk_match": true
+          },
+          {
+            "name": "2017 Goldilocks",
+            "g_match_pct": 82.6,
+            "i_match_pct": 45.1,
+            "risk_match": true
+          },
+          {
+            "name": "2024 disinflation",
+            "g_match_pct": 5.7,
+            "i_match_pct": 40.5,
+            "risk_match": false
+          },
+          {
+            "name": "2025 tariff shock",
+            "g_match_pct": 46.9,
+            "i_match_pct": 6.2,
+            "risk_match": true
+          }
+        ]
+      },
+      "stability": {
+        "g_median_run_bdays": 5,
+        "i_median_run_bdays": 4,
+        "g_n_runs": 870,
+        "i_n_runs": 784
+      },
+      "composite_train": 60.25
+    },
+    {
+      "params": {
+        "inflation_velocity_weight": 0.7,
+        "growth_velocity_weight": 0.0,
+        "growth_thresh": 0.1,
+        "inflation_thresh": 0.1,
+        "macro_w": 0.6,
+        "market_w": 0.4
+      },
+      "train": {
+        "overall": 60.2,
+        "g_avg": 46.0,
+        "i_avg": 56.7,
+        "risk_avg": 77.8,
+        "per_anchor": [
+          {
+            "name": "2010-12 expansion",
+            "g_match_pct": 74.8,
+            "i_match_pct": 47.6,
+            "risk_match": true
+          },
+          {
+            "name": "2015-16 oil bust",
+            "g_match_pct": 37.7,
+            "i_match_pct": 100.0,
+            "risk_match": true
+          },
+          {
+            "name": "2018 Q4 vol shock",
+            "g_match_pct": 10.6,
+            "i_match_pct": 10.6,
+            "risk_match": true
+          },
+          {
+            "name": "2019 H2 slowdown",
+            "g_match_pct": 6.1,
+            "i_match_pct": 18.2,
+            "risk_match": false
+          },
+          {
+            "name": "2020 COVID recession",
+            "g_match_pct": 100.0,
+            "i_match_pct": 0.0,
+            "risk_match": true
+          },
+          {
+            "name": "2020H2 catch-up",
+            "g_match_pct": 18.9,
+            "i_match_pct": 52.3,
+            "risk_match": true
+          },
+          {
+            "name": "2021 reflation",
+            "g_match_pct": 94.4,
+            "i_match_pct": 82.7,
+            "risk_match": true
+          },
+          {
+            "name": "2022 H1 inflation",
+            "g_match_pct": 52.6,
+            "i_match_pct": 98.7,
+            "risk_match": false
+          },
+          {
+            "name": "2023 high inflation",
+            "g_match_pct": 19.1,
+            "i_match_pct": 100.0,
+            "risk_match": true
+          }
+        ]
+      },
+      "holdout": {
+        "overall": 57.5,
+        "g_avg": 59.6,
+        "i_avg": 37.9,
+        "risk_avg": 75.0,
+        "per_anchor": [
+          {
+            "name": "2008 GFC trough",
+            "g_match_pct": 100.0,
+            "i_match_pct": 86.2,
+            "risk_match": true
+          },
+          {
+            "name": "2017 Goldilocks",
+            "g_match_pct": 90.3,
+            "i_match_pct": 24.6,
+            "risk_match": true
+          },
+          {
+            "name": "2024 disinflation",
+            "g_match_pct": 10.7,
+            "i_match_pct": 28.2,
+            "risk_match": false
+          },
+          {
+            "name": "2025 tariff shock",
+            "g_match_pct": 37.5,
+            "i_match_pct": 12.5,
+            "risk_match": true
+          }
+        ]
+      },
+      "stability": {
+        "g_median_run_bdays": 5,
+        "i_median_run_bdays": 4,
+        "g_n_runs": 884,
+        "i_n_runs": 875
+      },
+      "composite_train": 61.550000000000004
+    },
+    {
+      "params": {
+        "inflation_velocity_weight": 0.7,
+        "growth_velocity_weight": 0.0,
+        "growth_thresh": 0.1,
+        "inflation_thresh": 0.12,
+        "macro_w": 0.6,
+        "market_w": 0.4
+      },
+      "train": {
+        "overall": 60.1,
+        "g_avg": 46.0,
+        "i_avg": 56.5,
+        "risk_avg": 77.8,
+        "per_anchor": [
+          {
+            "name": "2010-12 expansion",
+            "g_match_pct": 74.8,
+            "i_match_pct": 52.4,
+            "risk_match": true
+          },
+          {
+            "name": "2015-16 oil bust",
+            "g_match_pct": 37.7,
+            "i_match_pct": 100.0,
+            "risk_match": true
+          },
+          {
+            "name": "2018 Q4 vol shock",
+            "g_match_pct": 10.6,
+            "i_match_pct": 16.7,
+            "risk_match": true
+          },
+          {
+            "name": "2019 H2 slowdown",
+            "g_match_pct": 6.1,
+            "i_match_pct": 23.5,
+            "risk_match": false
+          },
+          {
+            "name": "2020 COVID recession",
+            "g_match_pct": 100.0,
+            "i_match_pct": 0.0,
+            "risk_match": true
+          },
+          {
+            "name": "2020H2 catch-up",
+            "g_match_pct": 18.9,
+            "i_match_pct": 42.4,
+            "risk_match": true
+          },
+          {
+            "name": "2021 reflation",
+            "g_match_pct": 94.4,
+            "i_match_pct": 79.2,
+            "risk_match": true
+          },
+          {
+            "name": "2022 H1 inflation",
+            "g_match_pct": 52.6,
+            "i_match_pct": 97.4,
+            "risk_match": false
+          },
+          {
+            "name": "2023 high inflation",
+            "g_match_pct": 19.1,
+            "i_match_pct": 96.7,
+            "risk_match": true
+          }
+        ]
+      },
+      "holdout": {
+        "overall": 57.6,
+        "g_avg": 59.6,
+        "i_avg": 38.2,
+        "risk_avg": 75.0,
+        "per_anchor": [
+          {
+            "name": "2008 GFC trough",
+            "g_match_pct": 100.0,
+            "i_match_pct": 82.3,
+            "risk_match": true
+          },
+          {
+            "name": "2017 Goldilocks",
+            "g_match_pct": 90.3,
+            "i_match_pct": 32.8,
+            "risk_match": true
+          },
+          {
+            "name": "2024 disinflation",
+            "g_match_pct": 10.7,
+            "i_match_pct": 31.3,
+            "risk_match": false
+          },
+          {
+            "name": "2025 tariff shock",
+            "g_match_pct": 37.5,
+            "i_match_pct": 6.2,
+            "risk_match": true
+          }
+        ]
+      },
+      "stability": {
+        "g_median_run_bdays": 5,
+        "i_median_run_bdays": 4,
+        "g_n_runs": 884,
+        "i_n_runs": 860
+      },
+      "composite_train": 61.45
+    }
+  ],
+  "top10_by_train_composite": [
+    {
+      "params": {
+        "inflation_velocity_weight": 0.3,
+        "growth_velocity_weight": 0.0,
+        "growth_thresh": 0.1,
+        "inflation_thresh": 0.12,
+        "macro_w": 0.6,
+        "market_w": 0.4
+      },
+      "train": {
+        "overall": 60.2,
+        "g_avg": 46.0,
+        "i_avg": 56.9,
+        "risk_avg": 77.8,
+        "per_anchor": [
+          {
+            "name": "2010-12 expansion",
+            "g_match_pct": 74.8,
+            "i_match_pct": 52.1,
+            "risk_match": true
+          },
+          {
+            "name": "2015-16 oil bust",
+            "g_match_pct": 37.7,
+            "i_match_pct": 100.0,
+            "risk_match": true
+          },
+          {
+            "name": "2018 Q4 vol shock",
+            "g_match_pct": 10.6,
+            "i_match_pct": 18.2,
+            "risk_match": true
+          },
+          {
+            "name": "2019 H2 slowdown",
+            "g_match_pct": 6.1,
+            "i_match_pct": 16.7,
+            "risk_match": false
+          },
+          {
+            "name": "2020 COVID recession",
+            "g_match_pct": 100.0,
+            "i_match_pct": 0.0,
+            "risk_match": true
+          },
+          {
+            "name": "2020H2 catch-up",
+            "g_match_pct": 18.9,
+            "i_match_pct": 59.1,
+            "risk_match": true
+          },
+          {
+            "name": "2021 reflation",
+            "g_match_pct": 94.4,
+            "i_match_pct": 71.6,
+            "risk_match": true
+          },
+          {
+            "name": "2022 H1 inflation",
+            "g_match_pct": 52.6,
+            "i_match_pct": 94.8,
+            "risk_match": false
+          },
+          {
+            "name": "2023 high inflation",
+            "g_match_pct": 19.1,
+            "i_match_pct": 99.3,
+            "risk_match": true
+          }
+        ]
+      },
+      "holdout": {
+        "overall": 55.7,
+        "g_avg": 59.6,
+        "i_avg": 32.5,
+        "risk_avg": 75.0,
+        "per_anchor": [
+          {
+            "name": "2008 GFC trough",
+            "g_match_pct": 100.0,
+            "i_match_pct": 79.2,
+            "risk_match": true
+          },
+          {
+            "name": "2017 Goldilocks",
+            "g_match_pct": 90.3,
+            "i_match_pct": 19.5,
+            "risk_match": true
+          },
+          {
+            "name": "2024 disinflation",
+            "g_match_pct": 10.7,
+            "i_match_pct": 25.2,
+            "risk_match": false
+          },
+          {
+            "name": "2025 tariff shock",
+            "g_match_pct": 37.5,
+            "i_match_pct": 6.2,
+            "risk_match": true
+          }
+        ]
+      },
+      "stability": {
+        "g_median_run_bdays": 5,
+        "i_median_run_bdays": 4,
+        "g_n_runs": 884,
+        "i_n_runs": 869
+      },
+      "composite_train": 61.550000000000004
+    },
+    {
+      "params": {
+        "inflation_velocity_weight": 0.5,
+        "growth_velocity_weight": 0.0,
+        "growth_thresh": 0.1,
+        "inflation_thresh": 0.1,
+        "macro_w": 0.6,
+        "market_w": 0.4
+      },
+      "train": {
+        "overall": 60.2,
+        "g_avg": 46.0,
+        "i_avg": 56.9,
+        "risk_avg": 77.8,
+        "per_anchor": [
+          {
+            "name": "2010-12 expansion",
+            "g_match_pct": 74.8,
+            "i_match_pct": 47.4,
+            "risk_match": true
+          },
+          {
+            "name": "2015-16 oil bust",
+            "g_match_pct": 37.7,
+            "i_match_pct": 100.0,
+            "risk_match": true
+          },
+          {
+            "name": "2018 Q4 vol shock",
+            "g_match_pct": 10.6,
+            "i_match_pct": 10.6,
+            "risk_match": true
+          },
+          {
+            "name": "2019 H2 slowdown",
+            "g_match_pct": 6.1,
+            "i_match_pct": 13.6,
+            "risk_match": false
+          },
+          {
+            "name": "2020 COVID recession",
+            "g_match_pct": 100.0,
+            "i_match_pct": 0.0,
+            "risk_match": true
+          },
+          {
+            "name": "2020H2 catch-up",
+            "g_match_pct": 18.9,
+            "i_match_pct": 62.9,
+            "risk_match": true
+          },
+          {
+            "name": "2021 reflation",
+            "g_match_pct": 94.4,
+            "i_match_pct": 78.7,
+            "risk_match": true
+          },
+          {
+            "name": "2022 H1 inflation",
+            "g_match_pct": 52.6,
+            "i_match_pct": 98.7,
+            "risk_match": false
+          },
+          {
+            "name": "2023 high inflation",
+            "g_match_pct": 19.1,
+            "i_match_pct": 100.0,
+            "risk_match": true
+          }
+        ]
+      },
+      "holdout": {
+        "overall": 56.3,
+        "g_avg": 59.6,
+        "i_avg": 34.2,
+        "risk_avg": 75.0,
+        "per_anchor": [
+          {
+            "name": "2008 GFC trough",
+            "g_match_pct": 100.0,
+            "i_match_pct": 83.1,
+            "risk_match": true
+          },
+          {
+            "name": "2017 Goldilocks",
+            "g_match_pct": 90.3,
+            "i_match_pct": 18.5,
+            "risk_match": true
+          },
+          {
+            "name": "2024 disinflation",
+            "g_match_pct": 10.7,
+            "i_match_pct": 22.9,
+            "risk_match": false
+          },
+          {
+            "name": "2025 tariff shock",
+            "g_match_pct": 37.5,
+            "i_match_pct": 12.5,
+            "risk_match": true
+          }
+        ]
+      },
+      "stability": {
+        "g_median_run_bdays": 5,
+        "i_median_run_bdays": 4,
+        "g_n_runs": 884,
+        "i_n_runs": 838
+      },
+      "composite_train": 61.550000000000004
+    },
+    {
+      "params": {
+        "inflation_velocity_weight": 0.7,
+        "growth_velocity_weight": 0.0,
+        "growth_thresh": 0.1,
+        "inflation_thresh": 0.1,
+        "macro_w": 0.6,
+        "market_w": 0.4
+      },
+      "train": {
+        "overall": 60.2,
+        "g_avg": 46.0,
+        "i_avg": 56.7,
+        "risk_avg": 77.8,
+        "per_anchor": [
+          {
+            "name": "2010-12 expansion",
+            "g_match_pct": 74.8,
+            "i_match_pct": 47.6,
+            "risk_match": true
+          },
+          {
+            "name": "2015-16 oil bust",
+            "g_match_pct": 37.7,
+            "i_match_pct": 100.0,
+            "risk_match": true
+          },
+          {
+            "name": "2018 Q4 vol shock",
+            "g_match_pct": 10.6,
+            "i_match_pct": 10.6,
+            "risk_match": true
+          },
+          {
+            "name": "2019 H2 slowdown",
+            "g_match_pct": 6.1,
+            "i_match_pct": 18.2,
+            "risk_match": false
+          },
+          {
+            "name": "2020 COVID recession",
+            "g_match_pct": 100.0,
+            "i_match_pct": 0.0,
+            "risk_match": true
+          },
+          {
+            "name": "2020H2 catch-up",
+            "g_match_pct": 18.9,
+            "i_match_pct": 52.3,
+            "risk_match": true
+          },
+          {
+            "name": "2021 reflation",
+            "g_match_pct": 94.4,
+            "i_match_pct": 82.7,
+            "risk_match": true
+          },
+          {
+            "name": "2022 H1 inflation",
+            "g_match_pct": 52.6,
+            "i_match_pct": 98.7,
+            "risk_match": false
+          },
+          {
+            "name": "2023 high inflation",
+            "g_match_pct": 19.1,
+            "i_match_pct": 100.0,
+            "risk_match": true
+          }
+        ]
+      },
+      "holdout": {
+        "overall": 57.5,
+        "g_avg": 59.6,
+        "i_avg": 37.9,
+        "risk_avg": 75.0,
+        "per_anchor": [
+          {
+            "name": "2008 GFC trough",
+            "g_match_pct": 100.0,
+            "i_match_pct": 86.2,
+            "risk_match": true
+          },
+          {
+            "name": "2017 Goldilocks",
+            "g_match_pct": 90.3,
+            "i_match_pct": 24.6,
+            "risk_match": true
+          },
+          {
+            "name": "2024 disinflation",
+            "g_match_pct": 10.7,
+            "i_match_pct": 28.2,
+            "risk_match": false
+          },
+          {
+            "name": "2025 tariff shock",
+            "g_match_pct": 37.5,
+            "i_match_pct": 12.5,
+            "risk_match": true
+          }
+        ]
+      },
+      "stability": {
+        "g_median_run_bdays": 5,
+        "i_median_run_bdays": 4,
+        "g_n_runs": 884,
+        "i_n_runs": 875
+      },
+      "composite_train": 61.550000000000004
+    },
+    {
+      "params": {
+        "inflation_velocity_weight": 0.0,
+        "growth_velocity_weight": 0.0,
+        "growth_thresh": 0.1,
+        "inflation_thresh": 0.1,
+        "macro_w": 0.6,
+        "market_w": 0.4
+      },
+      "train": {
+        "overall": 60.1,
+        "g_avg": 46.0,
+        "i_avg": 56.4,
+        "risk_avg": 77.8,
+        "per_anchor": [
+          {
+            "name": "2010-12 expansion",
+            "g_match_pct": 74.8,
+            "i_match_pct": 46.5,
+            "risk_match": true
+          },
+          {
+            "name": "2015-16 oil bust",
+            "g_match_pct": 37.7,
+            "i_match_pct": 100.0,
+            "risk_match": true
+          },
+          {
+            "name": "2018 Q4 vol shock",
+            "g_match_pct": 10.6,
+            "i_match_pct": 9.1,
+            "risk_match": true
+          },
+          {
+            "name": "2019 H2 slowdown",
+            "g_match_pct": 6.1,
+            "i_match_pct": 9.8,
+            "risk_match": false
+          },
+          {
+            "name": "2020 COVID recession",
+            "g_match_pct": 100.0,
+            "i_match_pct": 0.0,
+            "risk_match": true
+          },
+          {
+            "name": "2020H2 catch-up",
+            "g_match_pct": 18.9,
+            "i_match_pct": 75.8,
+            "risk_match": true
+          },
+          {
+            "name": "2021 reflation",
+            "g_match_pct": 94.4,
+            "i_match_pct": 70.1,
+            "risk_match": true
+          },
+          {
+            "name": "2022 H1 inflation",
+            "g_match_pct": 52.6,
+            "i_match_pct": 96.1,
+            "risk_match": false
+          },
+          {
+            "name": "2023 high inflation",
+            "g_match_pct": 19.1,
+            "i_match_pct": 100.0,
+            "risk_match": true
+          }
+        ]
+      },
+      "holdout": {
+        "overall": 54.9,
+        "g_avg": 59.6,
+        "i_avg": 30.0,
+        "risk_avg": 75.0,
+        "per_anchor": [
+          {
+            "name": "2008 GFC trough",
+            "g_match_pct": 100.0,
+            "i_match_pct": 79.2,
+            "risk_match": true
+          },
+          {
+            "name": "2017 Goldilocks",
+            "g_match_pct": 90.3,
+            "i_match_pct": 13.8,
+            "risk_match": true
+          },
+          {
+            "name": "2024 disinflation",
+            "g_match_pct": 10.7,
+            "i_match_pct": 11.5,
+            "risk_match": false
+          },
+          {
+            "name": "2025 tariff shock",
+            "g_match_pct": 37.5,
+            "i_match_pct": 15.6,
+            "risk_match": true
+          }
+        ]
+      },
+      "stability": {
+        "g_median_run_bdays": 5,
+        "i_median_run_bdays": 4,
+        "g_n_runs": 884,
+        "i_n_runs": 804
+      },
+      "composite_train": 61.45
+    },
+    {
+      "params": {
+        "inflation_velocity_weight": 0.7,
+        "growth_velocity_weight": 0.0,
+        "growth_thresh": 0.1,
+        "inflation_thresh": 0.12,
+        "macro_w": 0.6,
+        "market_w": 0.4
+      },
+      "train": {
+        "overall": 60.1,
+        "g_avg": 46.0,
+        "i_avg": 56.5,
+        "risk_avg": 77.8,
+        "per_anchor": [
+          {
+            "name": "2010-12 expansion",
+            "g_match_pct": 74.8,
+            "i_match_pct": 52.4,
+            "risk_match": true
+          },
+          {
+            "name": "2015-16 oil bust",
+            "g_match_pct": 37.7,
+            "i_match_pct": 100.0,
+            "risk_match": true
+          },
+          {
+            "name": "2018 Q4 vol shock",
+            "g_match_pct": 10.6,
+            "i_match_pct": 16.7,
+            "risk_match": true
+          },
+          {
+            "name": "2019 H2 slowdown",
+            "g_match_pct": 6.1,
+            "i_match_pct": 23.5,
+            "risk_match": false
+          },
+          {
+            "name": "2020 COVID recession",
+            "g_match_pct": 100.0,
+            "i_match_pct": 0.0,
+            "risk_match": true
+          },
+          {
+            "name": "2020H2 catch-up",
+            "g_match_pct": 18.9,
+            "i_match_pct": 42.4,
+            "risk_match": true
+          },
+          {
+            "name": "2021 reflation",
+            "g_match_pct": 94.4,
+            "i_match_pct": 79.2,
+            "risk_match": true
+          },
+          {
+            "name": "2022 H1 inflation",
+            "g_match_pct": 52.6,
+            "i_match_pct": 97.4,
+            "risk_match": false
+          },
+          {
+            "name": "2023 high inflation",
+            "g_match_pct": 19.1,
+            "i_match_pct": 96.7,
+            "risk_match": true
+          }
+        ]
+      },
+      "holdout": {
+        "overall": 57.6,
+        "g_avg": 59.6,
+        "i_avg": 38.2,
+        "risk_avg": 75.0,
+        "per_anchor": [
+          {
+            "name": "2008 GFC trough",
+            "g_match_pct": 100.0,
+            "i_match_pct": 82.3,
+            "risk_match": true
+          },
+          {
+            "name": "2017 Goldilocks",
+            "g_match_pct": 90.3,
+            "i_match_pct": 32.8,
+            "risk_match": true
+          },
+          {
+            "name": "2024 disinflation",
+            "g_match_pct": 10.7,
+            "i_match_pct": 31.3,
+            "risk_match": false
+          },
+          {
+            "name": "2025 tariff shock",
+            "g_match_pct": 37.5,
+            "i_match_pct": 6.2,
+            "risk_match": true
+          }
+        ]
+      },
+      "stability": {
+        "g_median_run_bdays": 5,
+        "i_median_run_bdays": 4,
+        "g_n_runs": 884,
+        "i_n_runs": 860
+      },
+      "composite_train": 61.45
+    },
+    {
+      "params": {
+        "inflation_velocity_weight": 1.0,
+        "growth_velocity_weight": 0.0,
+        "growth_thresh": 0.1,
+        "inflation_thresh": 0.1,
+        "macro_w": 0.6,
+        "market_w": 0.4
+      },
+      "train": {
+        "overall": 60.1,
+        "g_avg": 46.0,
+        "i_avg": 56.6,
+        "risk_avg": 77.8,
+        "per_anchor": [
+          {
+            "name": "2010-12 expansion",
+            "g_match_pct": 74.8,
+            "i_match_pct": 47.7,
+            "risk_match": true
+          },
+          {
+            "name": "2015-16 oil bust",
+            "g_match_pct": 37.7,
+            "i_match_pct": 100.0,
+            "risk_match": true
+          },
+          {
+            "name": "2018 Q4 vol shock",
+            "g_match_pct": 10.6,
+            "i_match_pct": 10.6,
+            "risk_match": true
+          },
+          {
+            "name": "2019 H2 slowdown",
+            "g_match_pct": 6.1,
+            "i_match_pct": 22.0,
+            "risk_match": false
+          },
+          {
+            "name": "2020 COVID recession",
+            "g_match_pct": 100.0,
+            "i_match_pct": 0.0,
+            "risk_match": true
+          },
+          {
+            "name": "2020H2 catch-up",
+            "g_match_pct": 18.9,
+            "i_match_pct": 43.2,
+            "risk_match": true
+          },
+          {
+            "name": "2021 reflation",
+            "g_match_pct": 94.4,
+            "i_match_pct": 87.3,
+            "risk_match": true
+          },
+          {
+            "name": "2022 H1 inflation",
+            "g_match_pct": 52.6,
+            "i_match_pct": 100.0,
+            "risk_match": false
+          },
+          {
+            "name": "2023 high inflation",
+            "g_match_pct": 19.1,
+            "i_match_pct": 98.7,
+            "risk_match": true
+          }
+        ]
+      },
+      "holdout": {
+        "overall": 58.1,
+        "g_avg": 59.6,
+        "i_avg": 39.7,
+        "risk_avg": 75.0,
+        "per_anchor": [
+          {
+            "name": "2008 GFC trough",
+            "g_match_pct": 100.0,
+            "i_match_pct": 90.0,
+            "risk_match": true
+          },
+          {
+            "name": "2017 Goldilocks",
+            "g_match_pct": 90.3,
+            "i_match_pct": 31.8,
+            "risk_match": true
+          },
+          {
+            "name": "2024 disinflation",
+            "g_match_pct": 10.7,
+            "i_match_pct": 30.9,
+            "risk_match": false
+          },
+          {
+            "name": "2025 tariff shock",
+            "g_match_pct": 37.5,
+            "i_match_pct": 6.2,
+            "risk_match": true
+          }
+        ]
+      },
+      "stability": {
+        "g_median_run_bdays": 5,
+        "i_median_run_bdays": 4,
+        "g_n_runs": 884,
+        "i_n_runs": 927
+      },
+      "composite_train": 61.45
+    },
+    {
+      "params": {
+        "inflation_velocity_weight": 1.0,
+        "growth_velocity_weight": 0.0,
+        "growth_thresh": 0.1,
+        "inflation_thresh": 0.12,
+        "macro_w": 0.6,
+        "market_w": 0.4
+      },
+      "train": {
+        "overall": 60.1,
+        "g_avg": 46.0,
+        "i_avg": 56.5,
+        "risk_avg": 77.8,
+        "per_anchor": [
+          {
+            "name": "2010-12 expansion",
+            "g_match_pct": 74.8,
+            "i_match_pct": 53.8,
+            "risk_match": true
+          },
+          {
+            "name": "2015-16 oil bust",
+            "g_match_pct": 37.7,
+            "i_match_pct": 100.0,
+            "risk_match": true
+          },
+          {
+            "name": "2018 Q4 vol shock",
+            "g_match_pct": 10.6,
+            "i_match_pct": 16.7,
+            "risk_match": true
+          },
+          {
+            "name": "2019 H2 slowdown",
+            "g_match_pct": 6.1,
+            "i_match_pct": 28.0,
+            "risk_match": false
+          },
+          {
+            "name": "2020 COVID recession",
+            "g_match_pct": 100.0,
+            "i_match_pct": 0.0,
+            "risk_match": true
+          },
+          {
+            "name": "2020H2 catch-up",
+            "g_match_pct": 18.9,
+            "i_match_pct": 37.9,
+            "risk_match": true
+          },
+          {
+            "name": "2021 reflation",
+            "g_match_pct": 94.4,
+            "i_match_pct": 84.8,
+            "risk_match": true
+          },
+          {
+            "name": "2022 H1 inflation",
+            "g_match_pct": 52.6,
+            "i_match_pct": 98.7,
+            "risk_match": false
+          },
+          {
+            "name": "2023 high inflation",
+            "g_match_pct": 19.1,
+            "i_match_pct": 88.2,
+            "risk_match": true
+          }
+        ]
+      },
+      "holdout": {
+        "overall": 58.7,
+        "g_avg": 59.6,
+        "i_avg": 41.5,
+        "risk_avg": 75.0,
+        "per_anchor": [
+          {
+            "name": "2008 GFC trough",
+            "g_match_pct": 100.0,
+            "i_match_pct": 86.9,
+            "risk_match": true
+          },
+          {
+            "name": "2017 Goldilocks",
+            "g_match_pct": 90.3,
+            "i_match_pct": 37.4,
+            "risk_match": true
+          },
+          {
+            "name": "2024 disinflation",
+            "g_match_pct": 10.7,
+            "i_match_pct": 35.5,
+            "risk_match": false
+          },
+          {
+            "name": "2025 tariff shock",
+            "g_match_pct": 37.5,
+            "i_match_pct": 6.2,
+            "risk_match": true
+          }
+        ]
+      },
+      "stability": {
+        "g_median_run_bdays": 5,
+        "i_median_run_bdays": 4,
+        "g_n_runs": 884,
+        "i_n_runs": 866
+      },
+      "composite_train": 61.45
+    },
+    {
+      "params": {
+        "inflation_velocity_weight": 0.3,
+        "growth_velocity_weight": 0.0,
+        "growth_thresh": 0.1,
+        "inflation_thresh": 0.1,
+        "macro_w": 0.6,
+        "market_w": 0.4
+      },
+      "train": {
+        "overall": 60.1,
+        "g_avg": 46.0,
+        "i_avg": 56.6,
+        "risk_avg": 77.8,
+        "per_anchor": [
+          {
+            "name": "2010-12 expansion",
+            "g_match_pct": 74.8,
+            "i_match_pct": 47.1,
+            "risk_match": true
+          },
+          {
+            "name": "2015-16 oil bust",
+            "g_match_pct": 37.7,
+            "i_match_pct": 100.0,
+            "risk_match": true
+          },
+          {
+            "name": "2018 Q4 vol shock",
+            "g_match_pct": 10.6,
+            "i_match_pct": 10.6,
+            "risk_match": true
+          },
+          {
+            "name": "2019 H2 slowdown",
+            "g_match_pct": 6.1,
+            "i_match_pct": 10.6,
+            "risk_match": false
+          },
+          {
+            "name": "2020 COVID recession",
+            "g_match_pct": 100.0,
+            "i_match_pct": 0.0,
+            "risk_match": true
+          },
+          {
+            "name": "2020H2 catch-up",
+            "g_match_pct": 18.9,
+            "i_match_pct": 68.2,
+            "risk_match": true
+          },
+          {
+            "name": "2021 reflation",
+            "g_match_pct": 94.4,
+            "i_match_pct": 74.6,
+            "risk_match": true
+          },
+          {
+            "name": "2022 H1 inflation",
+            "g_match_pct": 52.6,
+            "i_match_pct": 98.7,
+            "risk_match": false
+          },
+          {
+            "name": "2023 high inflation",
+            "g_match_pct": 19.1,
+            "i_match_pct": 100.0,
+            "risk_match": true
+          }
+        ]
+      },
+      "holdout": {
+        "overall": 55.7,
+        "g_avg": 59.6,
+        "i_avg": 32.4,
+        "risk_avg": 75.0,
+        "per_anchor": [
+          {
+            "name": "2008 GFC trough",
+            "g_match_pct": 100.0,
+            "i_match_pct": 81.5,
+            "risk_match": true
+          },
+          {
+            "name": "2017 Goldilocks",
+            "g_match_pct": 90.3,
+            "i_match_pct": 17.9,
+            "risk_match": true
+          },
+          {
+            "name": "2024 disinflation",
+            "g_match_pct": 10.7,
+            "i_match_pct": 17.6,
+            "risk_match": false
+          },
+          {
+            "name": "2025 tariff shock",
+            "g_match_pct": 37.5,
+            "i_match_pct": 12.5,
+            "risk_match": true
+          }
+        ]
+      },
+      "stability": {
+        "g_median_run_bdays": 5,
+        "i_median_run_bdays": 3,
+        "g_n_runs": 884,
+        "i_n_runs": 849
+      },
+      "composite_train": 61.300000000000004
+    },
+    {
+      "params": {
+        "inflation_velocity_weight": 0.5,
+        "growth_velocity_weight": 0.0,
+        "growth_thresh": 0.1,
+        "inflation_thresh": 0.12,
+        "macro_w": 0.6,
+        "market_w": 0.4
+      },
+      "train": {
+        "overall": 60.1,
+        "g_avg": 46.0,
+        "i_avg": 56.4,
+        "risk_avg": 77.8,
+        "per_anchor": [
+          {
+            "name": "2010-12 expansion",
+            "g_match_pct": 74.8,
+            "i_match_pct": 52.4,
+            "risk_match": true
+          },
+          {
+            "name": "2015-16 oil bust",
+            "g_match_pct": 37.7,
+            "i_match_pct": 100.0,
+            "risk_match": true
+          },
+          {
+            "name": "2018 Q4 vol shock",
+            "g_match_pct": 10.6,
+            "i_match_pct": 16.7,
+            "risk_match": true
+          },
+          {
+            "name": "2019 H2 slowdown",
+            "g_match_pct": 6.1,
+            "i_match_pct": 18.9,
+            "risk_match": false
+          },
+          {
+            "name": "2020 COVID recession",
+            "g_match_pct": 100.0,
+            "i_match_pct": 0.0,
+            "risk_match": true
+          },
+          {
+            "name": "2020H2 catch-up",
+            "g_match_pct": 18.9,
+            "i_match_pct": 51.5,
+            "risk_match": true
+          },
+          {
+            "name": "2021 reflation",
+            "g_match_pct": 94.4,
+            "i_match_pct": 74.1,
+            "risk_match": true
+          },
+          {
+            "name": "2022 H1 inflation",
+            "g_match_pct": 52.6,
+            "i_match_pct": 95.5,
+            "risk_match": false
+          },
+          {
+            "name": "2023 high inflation",
+            "g_match_pct": 19.1,
+            "i_match_pct": 98.7,
+            "risk_match": true
+          }
+        ]
+      },
+      "holdout": {
+        "overall": 56.8,
+        "g_avg": 59.6,
+        "i_avg": 35.9,
+        "risk_avg": 75.0,
+        "per_anchor": [
+          {
+            "name": "2008 GFC trough",
+            "g_match_pct": 100.0,
+            "i_match_pct": 81.5,
+            "risk_match": true
+          },
+          {
+            "name": "2017 Goldilocks",
+            "g_match_pct": 90.3,
+            "i_match_pct": 26.2,
+            "risk_match": true
+          },
+          {
+            "name": "2024 disinflation",
+            "g_match_pct": 10.7,
+            "i_match_pct": 29.8,
+            "risk_match": false
+          },
+          {
+            "name": "2025 tariff shock",
+            "g_match_pct": 37.5,
+            "i_match_pct": 6.2,
+            "risk_match": true
+          }
+        ]
+      },
+      "stability": {
+        "g_median_run_bdays": 5,
+        "i_median_run_bdays": 3,
+        "g_n_runs": 884,
+        "i_n_runs": 875
+      },
+      "composite_train": 61.300000000000004
+    },
+    {
+      "params": {
+        "inflation_velocity_weight": 0.0,
+        "growth_velocity_weight": 0.0,
+        "growth_thresh": 0.1,
+        "inflation_thresh": 0.12,
+        "macro_w": 0.6,
+        "market_w": 0.4
+      },
+      "train": {
+        "overall": 59.9,
+        "g_avg": 46.0,
+        "i_avg": 56.0,
+        "risk_avg": 77.8,
+        "per_anchor": [
+          {
+            "name": "2010-12 expansion",
+            "g_match_pct": 74.8,
+            "i_match_pct": 50.7,
+            "risk_match": true
+          },
+          {
+            "name": "2015-16 oil bust",
+            "g_match_pct": 37.7,
+            "i_match_pct": 100.0,
+            "risk_match": true
+          },
+          {
+            "name": "2018 Q4 vol shock",
+            "g_match_pct": 10.6,
+            "i_match_pct": 19.7,
+            "risk_match": true
+          },
+          {
+            "name": "2019 H2 slowdown",
+            "g_match_pct": 6.1,
+            "i_match_pct": 10.6,
+            "risk_match": false
+          },
+          {
+            "name": "2020 COVID recession",
+            "g_match_pct": 100.0,
+            "i_match_pct": 0.0,
+            "risk_match": true
+          },
+          {
+            "name": "2020H2 catch-up",
+            "g_match_pct": 18.9,
+            "i_match_pct": 71.2,
+            "risk_match": true
+          },
+          {
+            "name": "2021 reflation",
+            "g_match_pct": 94.4,
+            "i_match_pct": 64.5,
+            "risk_match": true
+          },
+          {
+            "name": "2022 H1 inflation",
+            "g_match_pct": 52.6,
+            "i_match_pct": 87.7,
+            "risk_match": false
+          },
+          {
+            "name": "2023 high inflation",
+            "g_match_pct": 19.1,
+            "i_match_pct": 100.0,
+            "risk_match": true
+          }
+        ]
+      },
+      "holdout": {
+        "overall": 54.7,
+        "g_avg": 59.6,
+        "i_avg": 29.4,
+        "risk_avg": 75.0,
+        "per_anchor": [
+          {
+            "name": "2008 GFC trough",
+            "g_match_pct": 100.0,
+            "i_match_pct": 78.5,
+            "risk_match": true
+          },
+          {
+            "name": "2017 Goldilocks",
+            "g_match_pct": 90.3,
+            "i_match_pct": 16.9,
+            "risk_match": true
+          },
+          {
+            "name": "2024 disinflation",
+            "g_match_pct": 10.7,
+            "i_match_pct": 16.0,
+            "risk_match": false
+          },
+          {
+            "name": "2025 tariff shock",
+            "g_match_pct": 37.5,
+            "i_match_pct": 6.2,
+            "risk_match": true
+          }
+        ]
+      },
+      "stability": {
+        "g_median_run_bdays": 5,
+        "i_median_run_bdays": 4,
+        "g_n_runs": 884,
+        "i_n_runs": 789
+      },
+      "composite_train": 61.25
+    }
+  ]
+}

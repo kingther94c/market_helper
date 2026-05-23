@@ -29,31 +29,49 @@ as discrete asks land.
 
 ## Regime Engine
 
-**State**: calibrated through Q8 (macro-axis grid). Engine + concept
-aggregation + symmetric tanh + beta-adjusted returns + label hysteresis +
-anchor-period sanity harness + auto-sync + historical baseline + per-
-frequency decay all landed. See `memory/archive/landed/regime_engine_landed.md`
-and `data/research_artifacts/` for the calibration record.
+**State**: calibrated through **Q9** (inflation velocity layer + train/holdout
+discipline). Engine + concept aggregation + symmetric tanh + beta-adjusted
+returns + label hysteresis + anchor-period sanity harness + auto-sync +
+historical baseline + per-frequency decay all landed. See
+`memory/archive/landed/regime_engine_landed.md` and
+`data/research_artifacts/` for the calibration record.
+
+Q9 landing summary (2026-05-23):
+- New `inflation_velocity` concept (CPI/CoreCPI/PCE 3m annualized via the
+  existing `qoq_annualized` transform), weight **1.0**.
+- `macro_nowcast` layer weight 0.50 → **0.60**, `market_implied` 0.50 →
+  **0.40**.
+- Inflation deadband widened ±0.12 → **±0.15** (prevents over-rotation when
+  YoY-level and 3m-velocity both read ~3% as Up).
+- Growth velocity concept added but kept at weight 0 (grid showed no win).
+- Mechanical: `SeriesSpec` gained optional `name` field so the same FRED
+  `series_id` can produce multiple panel columns (e.g. CPIAUCSL yoy_pct +
+  CPIAUCSL_velocity_3m). Backwards-compatible (name defaults to series_id).
+- **Train/holdout split** introduced: 9 training anchors + 4 holdout (2008,
+  2017, 2024, 2025). Grid selects on train only; holdout is hard
+  non-regression constraint. Validation-aware selection (not selection
+  pressure on holdout). Result: train +3.8pp, holdout +2.0pp vs Q8 — gap
+  +0.3pp (almost zero).
+- Reports: `data/research_artifacts/macro_calibration_q9_{en,cn}.html`.
 
 Open near-term work:
 
-1. **Direction-honest velocity layer (Q9 candidate)**
-   The engine's YoY + threshold scoring is structurally level-based: it
-   cannot read "inflation is falling toward target" as Down while CPI YoY
-   is still above 2.5%. Add a MoM-velocity or 6m-change transform / concept
-   to capture the **direction** axis alongside the existing **level** axis.
-   - Pick the transform (probably `mom_zscore_*` or `change_6m` normalization).
-   - Add a "velocity" concept to `inflation_concepts:` with a modest blend
-     weight vs the existing level concepts.
-   - Calibration: help 2022-H2 → 2023 disinflation without breaking
-     2022-H1 (YoY still rising)?
-   - Run as Q9 grid against existing macro anchors + new ones from
-     `macro_scout_after.json`.
+1. **(Optional)** Pin per-anchor macro fixtures from
+   `macro_scout_q9_after.json` into the anchor-period harness for a CI
+   guardrail on the macro layer. Not blocking — the full-history macro
+   scout is the offline measurement harness today.
 
-2. **(Optional)** Pin per-anchor macro fixtures from `macro_scout_after.json`
-   into the anchor-period harness for a CI guardrail on the macro layer.
-   Not blocking — the full-history macro scout is the offline measurement
-   harness today.
+2. **Q10 candidates (parked, not active)**:
+   - 2025 tariff shock channel — engine still has no single-event-shock
+     signal; both axes failed clear-confidence on this anchor in Q8 and Q9.
+   - 2022 H1 growth misread — macro_g says Up (correctly, YoY payrolls
+     strong post-COVID) but market_g says Down (equity drawdown); Q9 60/40
+     blend lifted train g_match from 11% to 53% but holdout misses persist.
+     Investigate concept-level rebalancing for post-COVID base-effect
+     handling.
+   - Velocity layer 2nd-derivative refinement — current 3m annualized
+     captures *rate*, not *acceleration*. A separate "deceleration" signal
+     (velocity vs YoY divergence) could improve 2024 disinflation further.
 
 3. **Standing guardrail** — Keep ML layers (`macro_truth_ml`,
    `return_truth_ml`) unavailable / zero-weight until model artifacts and

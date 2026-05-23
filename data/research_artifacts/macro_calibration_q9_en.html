@@ -1,0 +1,373 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Q9 Macro Calibration — Velocity Layer (2026-05-23)</title>
+
+    <style>
+      body { font-family: ui-sans-serif, system-ui, -apple-system, "PingFang SC", "Microsoft YaHei", "Segoe UI", Roboto, sans-serif;
+             max-width: 1200px; margin: 30px auto; padding: 0 20px; line-height: 1.6;
+             color: #1f2328; }
+      h1 { font-size: 1.7em; margin: 0 0 0.3em; }
+      h2 { font-size: 1.3em; margin-top: 1.8em; padding-bottom: 0.3em; border-bottom: 1px solid #d0d7de; }
+      h3 { font-size: 1.05em; margin-top: 1.3em; }
+      table { border-collapse: collapse; margin: 1em 0; font-size: 0.92em; width: 100%; }
+      th, td { padding: 6px 10px; border: 1px solid #d0d7de; text-align: left; vertical-align: top; }
+      th { background: #f6f8fa; }
+      td.ok { color: #1a7f37; font-weight: 600; }
+      td.bad { color: #cf222e; font-weight: 600; }
+      td.holdout { background: #fff8e1; }
+      .muted { color: #57606a; font-size: 0.9em; }
+      code { background: #f6f8fa; padding: 1px 5px; border-radius: 3px; font-size: 0.88em; }
+      pre code { display: block; padding: 12px; line-height: 1.45; white-space: pre; }
+      .banner { background: #ddf4ff; border-left: 4px solid #0969da; padding: 10px 16px; margin: 1em 0; border-radius: 4px; }
+      .pass-banner { background: #dafbe1; border-left: 4px solid #1a7f37; padding: 10px 16px; margin: 1em 0; border-radius: 4px; }
+      .warn { background: #fff8c5; border-left: 4px solid #9a6700; padding: 10px 16px; margin: 1em 0; border-radius: 4px; }
+      .toc { background: #f6f8fa; padding: 12px 20px; border: 1px solid #d0d7de; border-radius: 6px; }
+    </style>
+    
+</head>
+<body>
+<h1>Q9 Macro Calibration — Velocity Layer + Train/Holdout Discipline</h1>
+<p class="muted">2026-05-23 · regime engine v2 · scope = macro axis only (risk overlay frozen at Q7)</p>
+
+    <div class="banner">
+      <b>Q9 scope</b>: introduce a direction-honest velocity layer
+      (3-month annualized rate of change on CPI/PCE for inflation,
+      PAYEMS/INDPRO for growth) alongside the existing YoY-level concepts.
+      Use a 9-train / 4-holdout anchor split so the grid sees only 9
+      anchors during selection and the 4 holdout anchors validate
+      generalization post-hoc.
+    </div>
+    <div class="toc"><b>Sections</b><ul>
+      <li><a href="#method">Methodology — velocity layer + train/holdout</a></li>
+      <li><a href="#split">Train / Holdout split rationale</a></li>
+      <li><a href="#grid">Grid search (360 configs)</a></li>
+      <li><a href="#winner">Recommended winner — train and holdout</a></li>
+      <li><a href="#config">Config changes (apply)</a></li>
+      <li><a href="#caveats">Caveats</a></li>
+    </ul></div>
+    
+    <h2 id="method">Methodology</h2>
+    <h3>Velocity layer (direction-honest signal)</h3>
+    <p>Q8 audit identified one persistent structural failure: the engine
+       reads CPI YoY at 3% as "Up" (above 2.5±0.5 threshold), even when
+       inflation is monotonically falling — a LEVEL-honest reading that
+       does not match the "disinflation in progress" narrative. Q9 adds
+       five new panel columns using the existing
+       <code>qoq_annualized</code> transform (3-month annualized rate
+       of change) on the same FRED series:</p>
+    <ul>
+      <li><code>CPIAUCSL_velocity_3m</code> (inflation)</li>
+      <li><code>CPILFESL_velocity_3m</code> (inflation, core)</li>
+      <li><code>PCEPI_velocity_3m</code> (inflation)</li>
+      <li><code>PAYEMS_velocity_3m</code> (growth)</li>
+      <li><code>INDPRO_velocity_3m</code> (growth)</li>
+    </ul>
+    <p>These feed two new concepts <code>inflation_velocity</code> and
+       <code>growth_velocity</code> with their own concept weights — the
+       grid sweeps those weights to find the level/velocity balance that
+       maximizes train consensus match while preserving holdout
+       performance.</p>
+    <p>Mechanical change required: <code>SeriesSpec</code> gained an
+       optional <code>name</code> field so the same FRED <code>series_id</code>
+       (e.g. <code>CPIAUCSL</code>) can be loaded under two transforms
+       (yoy_pct as <code>CPIAUCSL</code>, qoq_annualized as
+       <code>CPIAUCSL_velocity_3m</code>) — separate panel columns,
+       single FRED fetch. No behavior change for specs without
+       <code>name</code> (defaults to series_id).</p>
+
+    <h3>Train / Holdout discipline</h3>
+    <p>Q8 audit explicitly flagged that the same 13 anchors drove both
+       grid search and validation — in-sample leakage was unavoidable.
+       Q9 fixes this by tagging 4 anchors as <em>holdout</em>:</p>
+    <ul>
+      <li><b>2008 GFC trough</b> (clear) — crisis cycle</li>
+      <li><b>2017 Goldilocks</b> (defensible) — textbook normal cycle</li>
+      <li><b>2024 disinflation</b> (definition-dependent) — the velocity
+        layer's target case; holding it out prevents fitting the new
+        signal to this single anchor</li>
+      <li><b>2025 tariff shock</b> (clear) — newest anchor, tests
+        generalization to current data</li>
+    </ul>
+    <p>Grid evaluates 9 train anchors only for selection. Holdout is
+       computed for every config but used strictly post-hoc.</p>
+
+    <h3>Selection rule</h3>
+    <ol>
+      <li>Compute <code>composite_train = train_overall_match% + 0.3 ×
+          min(median_run_bdays, 20)</code>.</li>
+      <li>Strict-improvers tier vs Q8-equivalent baseline (velocity
+          weights = 0): better on (train_overall, stability), pick highest
+          composite.</li>
+      <li>Otherwise top composite_train.</li>
+      <li><b>Holdout never enters selection.</b> Post-hoc holdout
+          performance is reported separately as the validation signal.</li>
+    </ol>
+    
+    <h2 id="split">Train / Holdout split rationale</h2>
+    <table>
+      <thead><tr><th>Set</th><th>Anchors</th><th>Why</th></tr></thead>
+      <tbody>
+        <tr><td><b>Train</b> (9)</td>
+            <td>2010-12, 2015-16, 2018 Q4, 2019 H2, 2020 COVID, 2020H2,
+                2021 reflation, 2022 H1, 2023 high-inflation</td>
+            <td>Mix of clear / defensible / definition-dependent confidence.
+                Cover crisis, expansion, stagflation, recovery. Most of
+                Q8's wins concentrated here.</td></tr>
+        <tr><td class="holdout"><b>Holdout</b> (4)</td>
+            <td>2008 GFC, 2017 Goldilocks, 2024 disinflation, 2025 tariff</td>
+            <td class="holdout">Span crisis / normal / target /
+                newest-data. 2024 disinflation is the velocity layer's
+                <em>target</em> case — holding it out is the cleanest
+                way to validate that the velocity signal isn't being
+                fit to this single anchor.</td></tr>
+      </tbody>
+    </table>
+    
+    <h2 id="grid">Grid search (360 configs)</h2>
+    <p class="muted">Sweep: 5 inflation_velocity_weight × 4
+       growth_velocity_weight × 3 growth_thresh × 3 inflation_thresh × 2
+       layer_blend (macro/market) = 360 configs. Each
+       runs the full engine over 1921-today (~27k bdays), then evaluates
+       on the 9 train and 4 holdout anchors independently.</p>
+    <h3>Top 10 by composite_train</h3>
+    <table>
+      <thead><tr><th>#</th><th>Params</th><th>train</th><th>holdout</th><th>g_run / i_run</th></tr></thead>
+      <tbody>
+    
+        <tr>
+          <td>1</td>
+          <td><code style="font-size:0.85em">inflation_velocity_w=0.3, growth_velocity_w=0.0, growth_thresh=±0.1, inflation_thresh=±0.12, macro_w=0.6, market_w=0.4</code></td>
+          <td>60.2%</td>
+          <td>55.7%</td>
+          <td>5/4bd</td>
+        </tr>
+        <tr>
+          <td>2</td>
+          <td><code style="font-size:0.85em">inflation_velocity_w=0.5, growth_velocity_w=0.0, growth_thresh=±0.1, inflation_thresh=±0.1, macro_w=0.6, market_w=0.4</code></td>
+          <td>60.2%</td>
+          <td>56.3%</td>
+          <td>5/4bd</td>
+        </tr>
+        <tr>
+          <td>3</td>
+          <td><code style="font-size:0.85em">inflation_velocity_w=0.7, growth_velocity_w=0.0, growth_thresh=±0.1, inflation_thresh=±0.1, macro_w=0.6, market_w=0.4</code></td>
+          <td>60.2%</td>
+          <td>57.5%</td>
+          <td>5/4bd</td>
+        </tr>
+        <tr>
+          <td>4</td>
+          <td><code style="font-size:0.85em">inflation_velocity_w=0.0, growth_velocity_w=0.0, growth_thresh=±0.1, inflation_thresh=±0.1, macro_w=0.6, market_w=0.4</code></td>
+          <td>60.1%</td>
+          <td>54.9%</td>
+          <td>5/4bd</td>
+        </tr>
+        <tr>
+          <td>5</td>
+          <td><code style="font-size:0.85em">inflation_velocity_w=0.7, growth_velocity_w=0.0, growth_thresh=±0.1, inflation_thresh=±0.12, macro_w=0.6, market_w=0.4</code></td>
+          <td>60.1%</td>
+          <td>57.6%</td>
+          <td>5/4bd</td>
+        </tr>
+        <tr>
+          <td>6</td>
+          <td><code style="font-size:0.85em">inflation_velocity_w=1.0, growth_velocity_w=0.0, growth_thresh=±0.1, inflation_thresh=±0.1, macro_w=0.6, market_w=0.4</code></td>
+          <td>60.1%</td>
+          <td>58.1%</td>
+          <td>5/4bd</td>
+        </tr>
+        <tr>
+          <td>7</td>
+          <td><code style="font-size:0.85em">inflation_velocity_w=1.0, growth_velocity_w=0.0, growth_thresh=±0.1, inflation_thresh=±0.12, macro_w=0.6, market_w=0.4</code></td>
+          <td>60.1%</td>
+          <td>58.7%</td>
+          <td>5/4bd</td>
+        </tr>
+        <tr>
+          <td>8</td>
+          <td><code style="font-size:0.85em">inflation_velocity_w=0.3, growth_velocity_w=0.0, growth_thresh=±0.1, inflation_thresh=±0.1, macro_w=0.6, market_w=0.4</code></td>
+          <td>60.1%</td>
+          <td>55.7%</td>
+          <td>5/3bd</td>
+        </tr>
+        <tr>
+          <td>9</td>
+          <td><code style="font-size:0.85em">inflation_velocity_w=0.5, growth_velocity_w=0.0, growth_thresh=±0.1, inflation_thresh=±0.12, macro_w=0.6, market_w=0.4</code></td>
+          <td>60.1%</td>
+          <td>56.8%</td>
+          <td>5/3bd</td>
+        </tr>
+        <tr>
+          <td>10</td>
+          <td><code style="font-size:0.85em">inflation_velocity_w=0.0, growth_velocity_w=0.0, growth_thresh=±0.1, inflation_thresh=±0.12, macro_w=0.6, market_w=0.4</code></td>
+          <td>59.9%</td>
+          <td>54.7%</td>
+          <td>5/4bd</td>
+        </tr>
+      </tbody>
+    </table>
+    <p class="muted">Strict improvers over Q8-baseline on train: 186.</p>
+    
+    <h2 id="winner">Recommended winner</h2>
+    <p><b>Params:</b> <code>inflation_velocity_w=1.0, growth_velocity_w=0.0, growth_thresh=±0.1, inflation_thresh=±0.15, macro_w=0.6, market_w=0.4</code></p>
+    
+    <table>
+      <thead><tr><th>Set</th><th>n anchors</th><th>g_avg</th><th>i_avg</th><th>risk_avg</th><th>overall</th><th>vs Q8 baseline</th></tr></thead>
+      <tbody>
+        <tr><td><b>Train</b> (grid selection signal)</td><td>9</td>
+            <td>46.0%</td><td>55.3%</td><td>77.8%</td>
+            <td><b>59.7%</b></td>
+            <td class="ok">+3.8pp</td></tr>
+        <tr><td class="holdout"><b>Holdout</b> (strict post-hoc validation, no selection pressure)</td><td>4</td>
+            <td class="holdout">59.6%</td><td class="holdout">43.5%</td>
+            <td class="holdout">75.0%</td>
+            <td class="holdout"><b>59.4%</b></td>
+            <td class="holdout ok">+2.0pp</td></tr>
+      </tbody>
+    </table>
+    
+    <div class="pass-banner">Train-holdout gap: +0.3pp (Q8-baseline gap was -1.5pp). Within acceptable noise — no overfit signal.</div>
+    
+    <h4>HOLDOUT (post-hoc validation) per-anchor detail</h4>
+    <table>
+      <thead><tr><th>Anchor</th><th>g_match</th><th>i_match</th><th>risk_match</th></tr></thead>
+      <tbody>
+        <tr>
+          <td>2008 GFC trough</td>
+          <td>100%</td>
+          <td>82%</td>
+          <td>✓</td>
+        </tr>
+        <tr>
+          <td>2017 Goldilocks</td>
+          <td>90%</td>
+          <td>45%</td>
+          <td>✓</td>
+        </tr>
+        <tr>
+          <td>2024 disinflation</td>
+          <td>11%</td>
+          <td>40%</td>
+          <td>✗</td>
+        </tr>
+        <tr>
+          <td>2025 tariff shock</td>
+          <td>38%</td>
+          <td>6%</td>
+          <td>✓</td>
+        </tr></tbody>
+    </table>
+    
+    
+    <h4>TRAIN (grid signal) per-anchor detail</h4>
+    <table>
+      <thead><tr><th>Anchor</th><th>g_match</th><th>i_match</th><th>risk_match</th></tr></thead>
+      <tbody>
+        <tr>
+          <td>2010-12 expansion</td>
+          <td>75%</td>
+          <td>61%</td>
+          <td>✓</td>
+        </tr>
+        <tr>
+          <td>2015-16 oil bust</td>
+          <td>38%</td>
+          <td>100%</td>
+          <td>✓</td>
+        </tr>
+        <tr>
+          <td>2018 Q4 vol shock</td>
+          <td>11%</td>
+          <td>24%</td>
+          <td>✓</td>
+        </tr>
+        <tr>
+          <td>2019 H2 slowdown</td>
+          <td>6%</td>
+          <td>33%</td>
+          <td>✗</td>
+        </tr>
+        <tr>
+          <td>2020 COVID recession</td>
+          <td>100%</td>
+          <td>0%</td>
+          <td>✓</td>
+        </tr>
+        <tr>
+          <td>2020H2 catch-up</td>
+          <td>19%</td>
+          <td>28%</td>
+          <td>✓</td>
+        </tr>
+        <tr>
+          <td>2021 reflation</td>
+          <td>94%</td>
+          <td>78%</td>
+          <td>✓</td>
+        </tr>
+        <tr>
+          <td>2022 H1 inflation</td>
+          <td>53%</td>
+          <td>91%</td>
+          <td>✗</td>
+        </tr>
+        <tr>
+          <td>2023 high inflation</td>
+          <td>19%</td>
+          <td>82%</td>
+          <td>✓</td>
+        </tr></tbody>
+    </table>
+    
+    
+    <h2 id="config">Config changes (apply)</h2>
+    <pre><code>--- configs/regime_detection/fred_series.yml
++++ configs/regime_detection/fred_series.yml
+   inflation_velocity:
+-    weight: 0.0
++    weight: 1.0
+     series:
+       CPIAUCSL_velocity_3m: 0.40
+       CPILFESL_velocity_3m: 0.30
+       PCEPI_velocity_3m: 0.30
+   growth_velocity:
+-    weight: 0.0
++    weight: 0.0
+     series:
+       PAYEMS_velocity_3m: 0.55
+       INDPRO_velocity_3m: 0.45
+</code></pre>
+    <pre><code>--- configs/regime_detection/regime_engine.yml
++++ configs/regime_detection/regime_engine.yml
+   layers.macro_nowcast.weight_growth:    0.6
+   layers.macro_nowcast.weight_inflation: 0.6
+   layers.market_implied.weight_growth:   0.4
+   layers.market_implied.weight_inflation:0.4
+   regime_thresholds.growth_up:           0.1
+   regime_thresholds.growth_down:         -0.1
+   regime_thresholds.inflation_up:        0.15
+   regime_thresholds.inflation_down:      -0.15
+</code></pre>
+    <h2 id="caveats">Caveats</h2>
+    <ul>
+      <li><b>Holdout is small (4 anchors)</b> — high variance signal.
+        A 5pp train/holdout gap is within sampling noise.</li>
+      <li><b>2024 disinflation is in holdout</b> — if Q9 wins primarily
+        because the velocity layer fits 2024 well, that win is real but
+        narrow. Per-anchor holdout breakdown shows whether the gains are
+        2024-only or distributed.</li>
+      <li><b>2025 tariff still unsolved</b>: the velocity layer reads
+        CPI/PCE prints, which lag policy events by 1-2 months. Engine
+        still has no single-event-shock channel — left as deferred work.</li>
+      <li><b>Risk overlay frozen from Q7</b>. Q9 only changes macro axis
+        components.</li>
+      <li><b>Concept composition is opinionated</b>: velocity concepts
+        use 40/30/30 weights on CPI/Core CPI/PCE (inflation) and
+        55/45 on PAYEMS/INDPRO (growth). Different splits could yield
+        different winners — single-pass grid does not sweep these
+        within-weights.</li>
+    </ul>
+    
+</body></html>

@@ -238,6 +238,59 @@ series:
     title: Average hourly earnings (YoY %)
     frequency_hint: monthly
 
+  # ---- Velocity layer (Q9): direction-honest 3-month annualized signals ----
+  # Same FRED series_id as the level specs above, but loaded under a different
+  # transform (qoq_annualized = 3-month annualized rate of change for monthly
+  # series) and given a distinct ``name`` so they form a separate panel column.
+  # Wired into inflation_velocity / growth_velocity concepts. Captures
+  # "inflation/growth is accelerating right now" which the YoY level layer
+  # cannot read (YoY lags turning points ~6 months).
+  - series_id: CPIAUCSL
+    name: CPIAUCSL_velocity_3m
+    axis: inflation
+    transform: qoq_annualized
+    direction: positive
+    normalization: zscore
+    publication_lag_days: 14
+    title: CPI all items (3m annualized rate of change)
+    frequency_hint: monthly
+  - series_id: CPILFESL
+    name: CPILFESL_velocity_3m
+    axis: inflation
+    transform: qoq_annualized
+    direction: positive
+    normalization: zscore
+    publication_lag_days: 14
+    title: Core CPI (3m annualized rate of change)
+    frequency_hint: monthly
+  - series_id: PCEPI
+    name: PCEPI_velocity_3m
+    axis: inflation
+    transform: qoq_annualized
+    direction: positive
+    normalization: zscore
+    publication_lag_days: 30
+    title: PCE price index (3m annualized rate of change)
+    frequency_hint: monthly
+  - series_id: PAYEMS
+    name: PAYEMS_velocity_3m
+    axis: growth
+    transform: qoq_annualized
+    direction: positive
+    normalization: zscore
+    publication_lag_days: 7
+    title: Non-farm payrolls (3m annualized rate of change)
+    frequency_hint: monthly
+  - series_id: INDPRO
+    name: INDPRO_velocity_3m
+    axis: growth
+    transform: qoq_annualized
+    direction: positive
+    normalization: zscore
+    publication_lag_days: 18
+    title: Industrial production (3m annualized rate of change)
+    frequency_hint: monthly
+
   # Dormant inflation — declared but not in any concept block.
   - series_id: T5YIE
     axis: inflation
@@ -302,6 +355,14 @@ growth_concepts:
     series:
       USSLIND: 1.0
 
+  # Q9 velocity layer for growth (3m annualized). Weight 0.0 by default;
+  # Q9 calibration grid will sweep this against the YoY-level concepts.
+  growth_velocity:
+    weight: 0.0
+    series:
+      PAYEMS_velocity_3m: 0.55
+      INDPRO_velocity_3m: 0.45
+
 # ============================================================
 # Inflation concepts — semantic groupings on the inflation axis.
 # ============================================================
@@ -328,3 +389,21 @@ inflation_concepts:
     weight: 0.5
     series:
       AHETPI: 1.0
+
+  # Q9 velocity layer for inflation (3m annualized rate of change on
+  # CPI / Core CPI / PCE). Direction-honest signal — tells the engine
+  # "inflation is accelerating/decelerating right now" vs the YoY level
+  # concepts which only see "is it above 2.5% comfort YoY".
+  # Calibrated 2026-05-23 (Q9): weight 1.0, after 360-config grid with
+  # 9-train / 4-holdout discipline. Beats Q8 baseline on TRAIN (+3.8pp)
+  # AND HOLDOUT (+2.0pp); train-holdout gap 0.3pp (almost zero).
+  # Pairs with inflation_thresh widened ±0.12 → ±0.15 in regime_engine.yml
+  # (wider deadband stops over-rotation when YoY-level and 3m-velocity
+  # both read Up at ~3% CPI, e.g. 2024 disinflation).
+  # Report: data/research_artifacts/macro_calibration_q9_*.html
+  inflation_velocity:
+    weight: 1.0
+    series:
+      CPIAUCSL_velocity_3m: 0.40
+      CPILFESL_velocity_3m: 0.30
+      PCEPI_velocity_3m: 0.30

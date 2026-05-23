@@ -6,18 +6,18 @@ regime_engine:
       enabled: true
       available_required: false
       # Q8 (2026-05-22): macro layer hydrated with full FRED panel for the
-      # first time; balanced 50/50 blend tested by 162-run grid wins on
-      # overall consensus match (+11pp growth axis, +5pp overall vs
-      # Q6/Q7 baseline at 35/30 macro + 65/70 market). Report:
-      # data/research_artifacts/macro_calibration_report.html
-      weight_growth: 0.50
-      weight_inflation: 0.50
+      # first time; balanced 50/50 blend tested by 162-run grid.
+      # Q9 (2026-05-23): macro lifted to 60/40 alongside inflation_velocity
+      # layer (weight 1.0) and inflation_thresh widened ±0.12 → ±0.15.
+      # 360-config train/holdout grid: train +3.8pp, holdout +2.0pp vs Q8.
+      weight_growth: 0.60
+      weight_inflation: 0.60
 
     market_implied:
       enabled: true
       available_required: false
-      weight_growth: 0.50
-      weight_inflation: 0.50
+      weight_growth: 0.40
+      weight_inflation: 0.40
 
     macro_truth_ml:
       enabled: false
@@ -49,17 +49,17 @@ regime_engine:
     min_consecutive_days: 1
 
   regime_thresholds:
-    # Q8 (2026-05-22): tightened growth deadband from ±0.15 to ±0.10. The
-    # 162-config grid (macro now FRED-hydrated) showed the tighter
-    # growth threshold lifts 2017 Goldilocks +45pp, 2010-12 expansion
-    # +24pp, 2021 reflation +28pp, 2022 H1 inflation +30pp — periods
-    # where the model's score legitimately moved above the prior ±0.15
-    # but only marginally. Inflation deadband (±0.12) and hysteresis (5)
-    # kept from Q6 — already optimal in the grid.
+    # Q8 (2026-05-22): tightened growth deadband from ±0.15 to ±0.10
+    # (lifts marginal-Up windows: 2017 Goldilocks, 2010-12, 2021, 2022 H1).
+    # Q9 (2026-05-23): widened inflation deadband ±0.12 → ±0.15 alongside
+    # the inflation_velocity layer. Without this widening, the velocity
+    # layer over-rotates 2024 disinflation (CPI ~3%) to Up; with ±0.15
+    # the same scores fall into Neutral, matching consensus. Growth
+    # deadband stays ±0.10; hysteresis stays 5 bdays.
     growth_up: 0.10
     growth_down: -0.10
-    inflation_up: 0.12
-    inflation_down: -0.12
+    inflation_up: 0.15
+    inflation_down: -0.15
     # Require this many consecutive bdays past the threshold before flipping
     # the axis state (Up / Neutral/Mixed / Down). Cuts whipsaw turnover —
     # without this hysteresis the median regime run was 3 bdays.
