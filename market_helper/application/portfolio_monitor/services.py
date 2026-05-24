@@ -394,7 +394,7 @@ class PortfolioMonitorActionService:
         sink: UiProgressSink | None = None,
     ) -> Path:
         reporter = UiProgressReporterAdapter(sink)
-        return report_workflows.generate_live_ibkr_position_report(
+        output_path = report_workflows.generate_live_ibkr_position_report(
             output_path=Path(inputs.output_path),
             host=inputs.host,
             port=inputs.port,
@@ -404,6 +404,8 @@ class PortfolioMonitorActionService:
             as_of=inputs.as_of,
             progress=reporter,
         )
+        _mirror_artifact_to_gdrive(output_path, sink=sink, label="Live positions CSV")
+        return output_path
 
     def refresh_benchmark_cache(
         self,
@@ -452,6 +454,7 @@ class PortfolioMonitorActionService:
             except Exception as exc:  # noqa: BLE001 — performance report remains usable without benchmark.
                 logger.warning("Failed to refresh benchmark returns in %s: %s", history_path, exc)
                 _record_manual_event(sink, kind="done", label="Benchmark history", detail=f"skipped SPY/BIL ({exc})")
+        _mirror_artifact_to_gdrive(output_path, sink=sink, label="Flex performance CSV")
         return output_path
 
     def run_regime_report(
@@ -555,6 +558,43 @@ class PortfolioMonitorActionService:
             api_key=inputs.api_key,
             progress=reporter,
         )
+
+
+def _mirror_artifact_to_gdrive(
+    output_path: Path,
+    *,
+    sink: UiProgressSink | None,
+    label: str,
+) -> Path | None:
+    """Mirror a non-HTML refresh artifact (CSV / feather) to GDrive.
+
+    Uses the source basename as the target filename so dated outputs
+    (e.g. position snapshots) accumulate in the Portfolio_Report mirror.
+    HTML mirroring already happens inside `generate_combined_report`;
+    this helper closes the gap so a Full Refresh writes BOTH CSV and
+    HTML to GDrive without manual intervention.
+
+    Failure is non-fatal: log + record a UI event but never propagate.
+    The local file remains the source of truth.
+    """
+    try:
+        target = report_workflows.ensure_google_drive_artifact_mirror(
+            source_path=output_path,
+            target_name=output_path.name,
+        )
+    except Exception as exc:  # noqa: BLE001 — mirror is best-effort.
+        logger.warning("Failed to mirror %s to GDrive: %s", output_path, exc)
+        _record_manual_event(
+            sink, kind="done", label=label,
+            detail=f"GDrive mirror skipped ({exc})",
+        )
+        return None
+    if target is not None:
+        _record_manual_event(
+            sink, kind="done", label=label,
+            detail=f"mirrored to {target.name}",
+        )
+    return target
 
 
 def _empty_nav_cashflow_history_frame() -> pd.DataFrame:

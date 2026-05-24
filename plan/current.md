@@ -21,6 +21,21 @@ Recent landed work (one-liners; full detail in
   "Run Flex Refresh" / "Refresh Benchmark Cache" buttons.
 - Env-first secret resolution end-to-end + Windows agent-shell ROOT
   inheritance auto-recovery in `market_helper.config.local_env`.
+- **Live Refresh + Flex Refresh CSVs auto-mirror to GDrive** —
+  `PortfolioMonitorActionService.refresh_live_positions` and
+  `rebuild_flex_performance` now call the new `_mirror_artifact_to_gdrive`
+  helper after writing local artifacts, so the dashboard's "Live Refresh"
+  / "Flex Refresh" buttons mirror their CSVs alongside the combined HTML
+  (previously only the HTML mirrored; CSV mirrors only fired from the deep
+  pipeline path and silently failed). Failure is non-fatal — local file
+  stays the source of truth; the failure is surfaced as a UI sink event.
+- **Windows scheduled task: daily report at 11:55 local** —
+  `scripts/run_daily_report.bat` (→ `scripts/dev/run_daily_report.py`)
+  runs end-to-end: live IBKR positions (graceful fall-through to cached
+  CSV if TWS unreachable) → combined HTML → both CSV+HTML mirror to GDrive
+  via Pattern B probe. Registered as Windows task `MarketHelperDailyReport`
+  (`schtasks /Query /TN MarketHelperDailyReport` to inspect; `taskschd.msc`
+  to edit). Logs land under `data/artifacts/scheduled/` (gitignored).
 - **OS-aware GDRIVE_ROOT probe (zero-config Mac+Win)** —
   `market_helper.config.local_env.read_gdrive_root()` now resolves
   `MARKET_HELPER_GDRIVE_ROOT` via process env → Windows registry → OS-aware
