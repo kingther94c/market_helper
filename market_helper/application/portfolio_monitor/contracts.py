@@ -5,8 +5,11 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Protocol
 
+from market_helper.domain.regime_detection.services.regime_report_provider import (
+    RegimeArtifactState,
+    RegimeMode,
+)
 from market_helper.reporting.performance_html import PerformanceReportViewModel
-from market_helper.reporting.regime_html import RegimeHtmlViewModel
 from market_helper.reporting.risk_html import RiskReportViewModel
 
 
@@ -24,6 +27,10 @@ class PortfolioReportInputs:
     allocation_policy_path: str | Path | None = None
     vol_method: str = "geomean_1m_3m"
     inter_asset_corr: str = "historical"
+    # Combined-report regime orchestration: the report pipeline asks the
+    # regime provider for data in this mode. Default refresh-if-stale keeps
+    # cron + dashboard "always fresh" without per-call configuration.
+    regime_mode: RegimeMode = "refresh-if-stale"
 
 
 @dataclass(frozen=True)
@@ -52,6 +59,19 @@ class GeneratedReportArtifact:
     exists: bool = False
 
 
+def _empty_regime_state() -> RegimeArtifactState:
+    """Construct a missing-state sentinel for tests / callers that build report
+    data directly without going through the provider."""
+    return RegimeArtifactState(
+        state="missing",
+        mode_used="cached",
+        view_model=None,
+        regime_as_of=None,
+        last_run_at=None,
+        error_message="No regime artifact configured.",
+    )
+
+
 @dataclass(frozen=True)
 class PortfolioReportData:
     as_of: str
@@ -60,9 +80,10 @@ class PortfolioReportData:
     performance_sgd_view_model: PerformanceReportViewModel
     artifact_metadata: ArtifactMetadata
     warnings: list[str] = field(default_factory=list)
-    # P5: optional folded-in regime view-model — None when no regime artifact is
-    # available, so the combined report skips the Regime section + ribbon.
-    regime_view_model: RegimeHtmlViewModel | None = None
+    # Always present: the regime provider returns a tagged state (ok / stale /
+    # missing / engine_error). The combined report always renders the section,
+    # choosing the body presentation from this state — no Optional-fan-out.
+    regime_state: RegimeArtifactState = field(default_factory=_empty_regime_state)
     as_of_freshness_note: str | None = None
 
 

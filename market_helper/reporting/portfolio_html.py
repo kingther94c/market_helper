@@ -6,6 +6,9 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 from market_helper.common.datetime_display import format_local_datetime
+from market_helper.domain.regime_detection.services.regime_report_provider import (
+    RegimeArtifactState,
+)
 from market_helper.reporting.html_tables import HtmlTableColumn, HtmlTableRow, render_html_table
 from market_helper.reporting.performance_html import (
     PerformanceMetricRow,
@@ -14,7 +17,6 @@ from market_helper.reporting.performance_html import (
     render_performance_tab,
 )
 from market_helper.reporting.regime_html import (
-    RegimeHtmlViewModel,
     regime_section_styles,
     render_regime_section_body,
 )
@@ -77,10 +79,25 @@ def _kpi_cell(label: str, value_html: str, sub_html: str = "", *, value_class: s
     )
 
 
-def _regime_kpi_cell(view_model: RegimeHtmlViewModel | None) -> str:
-    """Regime summary cell: regime label with an agreement + risk-overlay sub-line."""
+def _regime_kpi_cell(state: RegimeArtifactState) -> str:
+    """Regime summary cell: regime label with an agreement + risk-overlay sub-line.
+
+    Renders parallel ‟unavailable" presentations for missing / engine_error
+    states so the KPI strip always has six cells instead of going blank.
+    """
+    view_model = state.view_model
     if view_model is None:
-        return _kpi_cell("Regime", "—", "no regime artifact")
+        sub = (
+            "engine error — see Regime section"
+            if state.state == "engine_error"
+            else "no regime artifact — click Refresh Regime"
+        )
+        return _kpi_cell(
+            "Regime",
+            "<span class='kpi__regime'><span class='kpi__regime-dot' aria-hidden='true'></span>Unavailable</span>",
+            html.escape(sub),
+            value_class=" is-warn",
+        )
     sub_parts: list[str] = []
     if view_model.method_agreement is not None:
         sub_parts.append(f"Agreement {view_model.method_agreement:.0%}")
@@ -89,6 +106,8 @@ def _regime_kpi_cell(view_model: RegimeHtmlViewModel | None) -> str:
             sub_parts.append("Risk overlay on" if view_model.crisis_flag else "Risk overlay off")
         else:
             sub_parts.append("Crisis on" if view_model.crisis_flag else "Crisis off")
+    if state.state == "stale":
+        sub_parts.append("stale vs trading day T-1")
     value_class = " is-warn" if view_model.crisis_flag else ""
     value_html = (
         "<span class='kpi__regime'>"
@@ -146,7 +165,7 @@ def build_topline_html(report_data: "PortfolioReportData") -> str:
             html.escape(_format_pct(target_vol_fast)),
             "geomean 1m/3m · historical corr",
         ),
-        _regime_kpi_cell(report_data.regime_view_model),
+        _regime_kpi_cell(report_data.regime_state),
     ]
     cell_count = len(cells)
     grid_style = f"grid-template-columns: repeat({cell_count}, minmax(0, 1fr));"
@@ -159,14 +178,30 @@ def build_topline_html(report_data: "PortfolioReportData") -> str:
     )
 
 
-def build_regime_ribbon_html(view_model: RegimeHtmlViewModel | None) -> str:
-    """Single-line sticky regime ribbon rendered under the app-bar (P5).
+def build_regime_ribbon_html(state: RegimeArtifactState) -> str:
+    """Single-line sticky regime ribbon rendered under the app-bar.
 
-    Returns an empty string when no regime data is available so the shell
-    naturally collapses the slot.
+    Always renders something so the chrome layout stays stable. For
+    missing / engine_error states the ribbon shows an unavailable pill
+    plus a one-line action hint that mirrors the in-body card.
     """
+    view_model = state.view_model
     if view_model is None:
-        return ""
+        action = (
+            "regime engine failed — see Regime section"
+            if state.state == "engine_error"
+            else "no regime data — click Refresh Regime"
+        )
+        return (
+            "<div class='regime-ribbon'>"
+            "<div class='regime-ribbon__row'>"
+            "<span class='regime-ribbon__pill regime-ribbon__pill--unavailable'>"
+            "<span class='regime-ribbon__dot'></span>Regime unavailable"
+            "</span>"
+            f"<span class='regime-ribbon__crisis is-on'>{html.escape(action)}</span>"
+            "</div>"
+            "</div>"
+        )
     pieces: list[str] = [
         f"<span class='regime-ribbon__pill'><span class='regime-ribbon__dot'></span>{html.escape(view_model.regime)}</span>"
     ]
@@ -175,6 +210,8 @@ def build_regime_ribbon_html(view_model: RegimeHtmlViewModel | None) -> str:
         meta_pieces.append(f"Agreement <b>{view_model.method_agreement:.0%}</b>")
     if view_model.duration_days is not None:
         meta_pieces.append(f"Duration <b class='num'>{view_model.duration_days}d</b>")
+    if state.state == "stale":
+        meta_pieces.append("<b>stale vs T-1</b>")
     if meta_pieces:
         pieces.append(
             "<div class='regime-ribbon__meta'>"
@@ -208,10 +245,61 @@ def build_regime_ribbon_html(view_model: RegimeHtmlViewModel | None) -> str:
     )
 
 
+def _render_regime_unavailable_card(state: RegimeArtifactState) -> str:
+    """Body content for the regime section when no view-model could be built.
+
+    Spells out exactly which state the regime is in, when the engine last ran,
+    which mode we tried, the error message (for engine_error), and the precise
+    user action that fixes it. This is the *single* place where ‟regime missing"
+    is explained to the user — KPI cell + ribbon link to it via the section
+    anchor.
+    """
+    title = (
+        "Regime engine failed"
+        if state.state == "engine_error"
+        else "Regime artifact not available"
+    )
+    detail_rows: list[tuple[str, str]] = []
+    detail_rows.append(("State", state.state.replace("_", " ")))
+    detail_rows.append(("Mode tried", state.mode_used))
+    detail_rows.append(("Freshness rule", "regime.as_of must reach T-1 trading day"))
+    if state.last_run_at is not None:
+        detail_rows.append(("Last engine run", format_local_datetime(state.last_run_at.isoformat())))
+    if state.regime_as_of:
+        detail_rows.append(("Regime data as of", format_local_datetime(state.regime_as_of)))
+    if state.error_message:
+        detail_rows.append(("Error", state.error_message))
+    detail_html = "".join(
+        f"<dt>{html.escape(label)}</dt><dd>{html.escape(value)}</dd>"
+        for label, value in detail_rows
+    )
+    fix_html = (
+        "<p class='regime-unavailable__fix'><strong>How to fix:</strong> "
+        "click <b>Refresh Regime</b> in the dashboard's Regime card, "
+        "or run <code>scripts/run_regime_detection.bat</code> from the project root. "
+        "The combined report's daily cron auto-refreshes regime whenever "
+        "the snapshot lags the latest trading day (same T-1 rule as the "
+        "report's overall freshness note).</p>"
+    )
+    return (
+        "<div class='regime-unavailable'>"
+        f"<h3 class='regime-unavailable__title'>{html.escape(title)}</h3>"
+        "<p class='regime-unavailable__lede'>"
+        "The combined report needs a regime snapshot to populate the growth / inflation "
+        "axes, layer detail, and risk overlay. None is currently available."
+        "</p>"
+        f"<dl class='regime-unavailable__grid'>{detail_html}</dl>"
+        f"{fix_html}"
+        "</div>"
+    )
+
+
 _REGIME_RIBBON_STYLES = """
 .regime-ribbon { position: sticky; top: 49px; z-index: 20; background: var(--surface); border-bottom: 1px solid var(--panel-border); }
 .regime-ribbon__row { max-width: 1540px; margin: 0 auto; padding: 8px 24px; display: flex; align-items: center; gap: 20px; font-size: 13px; flex-wrap: wrap; }
 .regime-ribbon__pill { display: inline-flex; align-items: center; gap: 8px; padding: 4px 10px; border-radius: 999px; background: var(--accent-soft); color: var(--accent-ink); font-weight: 700; font-size: 12px; letter-spacing: 0.02em; }
+.regime-ribbon__pill--unavailable { background: var(--warning-bg); color: var(--warn); }
+.regime-ribbon__pill--unavailable .regime-ribbon__dot { background: var(--warn); }
 .regime-ribbon__dot { width: 6px; height: 6px; border-radius: 999px; background: var(--accent); }
 .regime-ribbon__meta { display: flex; gap: 20px; color: var(--muted-ink); }
 .regime-ribbon__meta b { color: var(--ink-2); font-weight: 600; }
@@ -219,6 +307,15 @@ _REGIME_RIBBON_STYLES = """
 .regime-ribbon__crisis.is-on { background: var(--neg-soft); color: var(--neg); }
 .regime-ribbon__transition { margin-left: auto; color: var(--muted-ink); font-size: 12px; }
 .regime-ribbon__transition b { color: var(--ink-2); }
+
+.regime-unavailable { padding: 20px 22px; border-radius: var(--r-3); border: 1px dashed var(--warning-border); background: var(--warning-bg); color: var(--warn); }
+.regime-unavailable__title { margin: 0 0 6px; font-size: 16px; font-weight: 700; }
+.regime-unavailable__lede { margin: 0 0 12px; color: var(--ink-2); font-size: 13px; max-width: 720px; }
+.regime-unavailable__grid { display: grid; grid-template-columns: max-content 1fr; column-gap: 16px; row-gap: 4px; margin: 0 0 12px; font-size: 12px; font-variant-numeric: tabular-nums; }
+.regime-unavailable__grid dt { color: var(--muted-ink); font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em; font-size: 11px; }
+.regime-unavailable__grid dd { margin: 0; color: var(--ink); }
+.regime-unavailable__fix { margin: 0; font-size: 13px; color: var(--ink-2); }
+.regime-unavailable__fix code { background: var(--surface); padding: 1px 6px; border-radius: 4px; border: 1px solid var(--panel-border); font-family: var(--font-mono, monospace); font-size: 12px; }
 """
 
 
@@ -243,18 +340,17 @@ def build_portfolio_report_document(report_data: "PortfolioReportData") -> Repor
             body_html=render_risk_tab(report_data.risk_view_model),
         ),
     ]
-    if report_data.regime_view_model is not None:
-        sections.append(
-            ReportSection(
-                key="regime",
-                title="Regime",
-                summary="Regime Engine context: growth/inflation axes, layer detail, independent risk overlay, disagreement, and history.",
-                body_html=render_regime_section_body(
-                    report_data.regime_view_model,
-                    parent_as_of=report_data.as_of,
-                ),
-            )
+    sections.append(
+        ReportSection(
+            key="regime",
+            title="Regime",
+            summary="Regime Engine context: growth/inflation axes, layer detail, independent risk overlay, disagreement, and history.",
+            body_html=_render_regime_section_body_for_state(
+                report_data.regime_state,
+                parent_as_of=report_data.as_of,
+            ),
         )
+    )
     sections.append(
         ReportSection(
             key="artifacts",
@@ -266,11 +362,11 @@ def build_portfolio_report_document(report_data: "PortfolioReportData") -> Repor
     head_html_pieces = [
         f"<style>{render_risk_report_styles()}</style>",
         render_performance_assets(),
+        # Regime CSS is always injected — the regime section is now always
+        # present, even when the view-model is missing (renders an explainer
+        # card instead of going blank).
+        f"<style>{regime_section_styles()}{_REGIME_RIBBON_STYLES}</style>",
     ]
-    if report_data.regime_view_model is not None:
-        head_html_pieces.append(
-            f"<style>{regime_section_styles()}{_REGIME_RIBBON_STYLES}</style>"
-        )
     return ReportDocument(
         title="Portfolio Monitor",
         subtitle="HTML-first portfolio report for export, embedding, and future report-type expansion.",
@@ -280,9 +376,29 @@ def build_portfolio_report_document(report_data: "PortfolioReportData") -> Repor
         head_html="".join(head_html_pieces),
         body_end_html=render_risk_report_script(),
         topline_html=build_topline_html(report_data),
-        ribbon_html=build_regime_ribbon_html(report_data.regime_view_model),
+        ribbon_html=build_regime_ribbon_html(report_data.regime_state),
         as_of_freshness_note=report_data.as_of_freshness_note,
     )
+
+
+def _render_regime_section_body_for_state(
+    state: RegimeArtifactState,
+    *,
+    parent_as_of: str,
+) -> str:
+    """Dispatch the regime section body based on the provider's tagged state.
+
+    Single switch instead of the previous five scattered ``view_model is None``
+    branches. ``ok``/``stale`` get the full v2 body (with the existing
+    parent-vs-regime stale tag); ``missing``/``engine_error`` get the
+    actionable unavailable card.
+    """
+    if state.view_model is not None:
+        return render_regime_section_body(
+            state.view_model,
+            parent_as_of=parent_as_of,
+        )
+    return _render_regime_unavailable_card(state)
 
 
 def render_portfolio_report(report_data: "PortfolioReportData") -> str:

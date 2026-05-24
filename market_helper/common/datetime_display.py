@@ -31,6 +31,39 @@ _ET_TZ = ZoneInfo("America/New_York")
 _SGT_TZ = ZoneInfo("Asia/Singapore")
 
 
+def expected_t1_date(now: datetime | None = None):
+    """Return the latest trading day we expect data to cover.
+
+    T-1 in SGT-anchored terms — the previous weekday relative to today's
+    SGT date. Shared by `compute_as_of_freshness_note` (report-level) and
+    `is_as_of_stale` (per-artifact, used by the regime provider) so the two
+    can't drift.
+    """
+    now_dt = now or datetime.now(timezone.utc)
+    if now_dt.tzinfo is None:
+        now_dt = now_dt.astimezone()
+    now_sgt = now_dt.astimezone(_SGT_TZ)
+    return _previous_or_same_weekday(now_sgt.date() - timedelta(days=1))
+
+
+def is_as_of_stale(
+    as_of: str | None,
+    *,
+    now: datetime | None = None,
+) -> bool:
+    """True when ``as_of`` is older than the expected T-1 trading day.
+
+    Boolean predicate shared between the regime provider (drives the stale
+    state + the refresh-if-stale trigger) and `compute_as_of_freshness_note`
+    (drives the report's small-text freshness hint). Unparseable inputs are
+    treated as **stale** so producers must supply a real timestamp.
+    """
+    parsed = _parse_datetime(str(as_of or "").strip())
+    if parsed is None:
+        return True
+    return parsed.date() < expected_t1_date(now=now)
+
+
 def compute_as_of_freshness_note(
     as_of: str | None,
     *,
@@ -49,8 +82,7 @@ def compute_as_of_freshness_note(
     if now_dt.tzinfo is None:
         now_dt = now_dt.astimezone()
     now_et = now_dt.astimezone(_ET_TZ)
-    now_sgt = now_dt.astimezone(_SGT_TZ)
-    expected_t1 = _previous_or_same_weekday(now_sgt.date() - timedelta(days=1))
+    expected_t1 = expected_t1_date(now=now_dt)
     if as_of_date >= expected_t1:
         return None
     flex_baseline = _previous_or_same_weekday(now_et.date() - timedelta(days=1))

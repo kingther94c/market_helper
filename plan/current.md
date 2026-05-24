@@ -46,6 +46,28 @@ Recent landed work (one-liners; full detail in
   per-machine env var setup needed for canonical layouts; env var still
   takes precedence as an override. Conftest neutralizes the probe for
   hermetic tests.
+- **Combined report owns regime orchestration (ADR 0005)** —
+  `GenerateCombinedReportInputs.regime_mode` (`cached` / `refresh-if-stale`
+  / `force-refresh`, default `refresh-if-stale`) drives a new
+  `RegimeReportProvider`
+  (`market_helper/domain/regime_detection/services/regime_report_provider.py`)
+  that owns load / refresh / fallback / staleness tagging in one place.
+  `PortfolioReportData.regime_state: RegimeArtifactState` (always present)
+  replaces the old `Optional[regime_view_model]` — the combined report's
+  regime section, ribbon, KPI cell, and CSS are now always emitted, with
+  `missing` / `engine_error` rendering an actionable explainer card instead
+  of silently disappearing. The five `is None` branches that used to live
+  in `portfolio_html.py` collapse to one switch on `regime_state.state`.
+  Staleness uses the **same trading-day T-1 predicate**
+  (`market_helper.common.datetime_display.is_as_of_stale`) that drives the
+  report's overall `as_of_freshness_note` — single source of truth for what
+  counts as out-of-date.
+- **Daily cron self-sufficiently refreshes regime** —
+  `scripts/dev/run_daily_report.py` now passes
+  `regime_mode="refresh-if-stale"`. The Windows scheduled task no longer
+  produces reports missing the Regime section just because nobody clicked
+  the separate "Refresh Regime" button. The dashboard's manual button
+  remains as a `force-refresh` shortcut.
 - Architectural route confirmed (no separate snapshot/Playwright pipeline —
   see ADR 0002).
 

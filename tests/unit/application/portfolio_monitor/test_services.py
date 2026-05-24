@@ -95,21 +95,31 @@ def test_query_service_warns_when_performance_artifacts_are_missing(tmp_path: Pa
     assert report_data.performance_usd_view_model.as_of == "n/a"
 
 
-def test_generate_combined_inputs_default_to_existing_regime_artifact(
+def test_generate_combined_inputs_default_to_canonical_regime_artifact_path(
     monkeypatch,
     tmp_path: Path,
 ) -> None:
+    """GenerateCombinedReportInputs always resolves to the default regime path
+    so the provider can refresh into it — the previous behavior of only
+    defaulting when the file already existed silently dropped the regime
+    section on fresh machines."""
     regime_path = tmp_path / "regime_snapshots.json"
-    regime_path.write_text("[]", encoding="utf-8")
     monkeypatch.setattr(app_services, "DEFAULT_REGIME_ARTIFACT_PATH", regime_path)
 
     service = PortfolioMonitorQueryService()
 
-    resolved = service.resolve_inputs(
+    resolved_when_file_exists = service.resolve_inputs(
         GenerateCombinedReportInputs(positions_csv_path=tmp_path / "positions.csv")
     )
+    assert resolved_when_file_exists.regime_path == regime_path
 
-    assert resolved.regime_path == regime_path
+    # Same outcome even when the artifact doesn't exist yet — the provider
+    # will create it via refresh-if-stale.
+    assert not regime_path.exists()
+    resolved_when_missing = service.resolve_inputs(
+        GenerateCombinedReportInputs(positions_csv_path=tmp_path / "positions.csv")
+    )
+    assert resolved_when_missing.regime_path == regime_path
 
 
 def test_plain_report_inputs_do_not_implicitly_load_default_regime(
@@ -142,9 +152,17 @@ def test_report_data_passes_regime_into_risk_view_model(
         captured.update(kwargs)
         return _FakeRiskViewModel(as_of="2026-04-08")
 
-    def fake_load_regime_view_model(**kwargs):
+    def fake_load_regime_state(**kwargs):
         captured["loaded_regime_path"] = kwargs["regime_path"]
-        return SimpleNamespace(regime="Goldilocks")
+        captured["loaded_regime_mode"] = kwargs["regime_mode"]
+        return app_services.RegimeArtifactState(
+            state="ok",
+            mode_used=kwargs["regime_mode"],
+            view_model=SimpleNamespace(regime="Goldilocks"),
+            regime_as_of="2026-04-08T00:00:00+00:00",
+            last_run_at=None,
+            error_message=None,
+        )
 
     fake_perf_entry = app_services._PerformanceCacheEntry(
         date=app_services.datetime.date.today(),
@@ -158,7 +176,7 @@ def test_report_data_passes_regime_into_risk_view_model(
 
     monkeypatch.setattr(app_services, "build_risk_report_view_model", fake_build_risk_report_view_model)
     monkeypatch.setattr(PortfolioMonitorQueryService, "_load_perf_cached", lambda *args, **kwargs: fake_perf_entry)
-    monkeypatch.setattr(PortfolioMonitorQueryService, "_load_regime_view_model", staticmethod(fake_load_regime_view_model))
+    monkeypatch.setattr(PortfolioMonitorQueryService, "_load_regime_state", staticmethod(fake_load_regime_state))
 
     report_data = PortfolioMonitorQueryService().load_report_data(
         PortfolioReportInputs(
@@ -170,8 +188,11 @@ def test_report_data_passes_regime_into_risk_view_model(
 
     assert captured["regime_path"] == regime_path
     assert captured["loaded_regime_path"] == regime_path
+    # Default regime_mode on PortfolioReportInputs is refresh-if-stale.
+    assert captured["loaded_regime_mode"] == "refresh-if-stale"
     assert report_data.risk_view_model.as_of == "2026-04-08T00:00:00+00:00"
-    assert report_data.regime_view_model.regime == "Goldilocks"
+    assert report_data.regime_state.state == "ok"
+    assert report_data.regime_state.view_model.regime == "Goldilocks"
 
 
 def test_query_service_fills_missing_spy_benchmark_from_cached_returns(

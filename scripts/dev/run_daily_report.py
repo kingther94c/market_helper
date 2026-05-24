@@ -105,11 +105,18 @@ def main() -> int:
             logger.error("Cached positions CSV also missing at %s; aborting.", positions_path)
             return 2
 
-    # Step 2: combined HTML report
+    # Step 2: combined HTML report.
+    # regime_mode="refresh-if-stale" ensures the regime engine runs as part of
+    # this single cron pass when the snapshot is older than the provider's
+    # stale window (72h). This is what restored the regime section in the
+    # daily report — previously the cron only refreshed positions + rendered,
+    # leaving regime to a separately-triggered manual button that nobody
+    # remembered to push.
     try:
         combined_inputs = GenerateCombinedReportInputs(
             positions_csv_path=positions_path,
             output_path=html_path,
+            regime_mode="refresh-if-stale",
         )
         logger.info("Combined HTML -> %s", html_path)
         artifact = service.generate_combined_report(combined_inputs)

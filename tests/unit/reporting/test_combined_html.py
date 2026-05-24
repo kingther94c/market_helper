@@ -5,6 +5,9 @@ from pathlib import Path
 import pandas as pd
 
 from market_helper.application.portfolio_monitor.contracts import ArtifactMetadata, PortfolioReportData
+from market_helper.domain.regime_detection.services.regime_report_provider import (
+    RegimeArtifactState,
+)
 import market_helper.domain.portfolio_monitor.pipelines.generate_portfolio_report as pipeline
 from market_helper.reporting.performance_html import (
     build_performance_chart_specs,
@@ -210,10 +213,15 @@ def test_render_portfolio_report_builds_html_shell_without_nicegui_refs(tmp_path
     assert "Artifacts" in rendered
     assert "report-table" in rendered
     assert "/_nicegui/" not in rendered
-    # When no regime artifact is provided, the combined report omits the Regime
-    # section + ribbon entirely (no empty chrome).
-    assert "regime-ribbon" not in rendered
-    assert "href='#regime'" not in rendered and 'href="#regime"' not in rendered
+    # When no regime artifact is available, the combined report still renders
+    # the Regime section (now always present) with an actionable
+    # ‟unavailable" card and a fallback ribbon pill — no silent omission.
+    assert "regime-ribbon" in rendered
+    assert "regime-ribbon__pill--unavailable" in rendered
+    assert "Regime unavailable" in rendered
+    assert "href='#regime'" in rendered or 'href="#regime"' in rendered
+    assert "regime-unavailable" in rendered
+    assert "Refresh Regime" in rendered
     # B1 — the Artifacts table no longer leaks raw `<span class='tone-muted'>`
     # markup that was getting double-escaped through `render_html_table`.
     assert "&lt;span class=&#x27;tone-muted&#x27;&gt;n/a&lt;/span&gt;" not in rendered
@@ -285,7 +293,7 @@ def test_render_portfolio_report_includes_regime_section_when_view_model_present
         ],
     )
     base = _fake_report_data(tmp_path)
-    rendered = render_portfolio_report(_replace(base, regime_view_model=regime_vm))
+    rendered = render_portfolio_report(_replace(base, regime_state=_ok_regime_state(regime_vm)))
 
     # Ribbon is sticky directly under the app-bar.
     assert "regime-ribbon" in rendered
@@ -357,7 +365,7 @@ def test_regime_section_marks_stale_when_regime_as_of_lags_report(tmp_path: Path
     fresh = _replace(
         base,
         as_of="2026-05-02T00:00:00+00:00",
-        regime_view_model=regime_vm,
+        regime_state=_ok_regime_state(regime_vm),
     )
     rendered = render_portfolio_report(fresh)
 
@@ -392,6 +400,18 @@ def _demo_history_frame() -> pd.DataFrame:
             "source_file": ["demo.xml"] * 5,
             "source_as_of": pd.to_datetime(["2026-03-31"] * 5),
         }
+    )
+
+
+def _ok_regime_state(view_model) -> RegimeArtifactState:
+    """Wrap a fully-populated view-model in an ok-state for renderer tests."""
+    return RegimeArtifactState(
+        state="ok",
+        mode_used="cached",
+        view_model=view_model,
+        regime_as_of=view_model.as_of,
+        last_run_at=None,
+        error_message=None,
     )
 
 

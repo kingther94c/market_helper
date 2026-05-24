@@ -41,11 +41,12 @@ from market_helper.reporting.performance_html import (
     build_performance_report_view_model,
     load_nav_cashflow_history_frame,
 )
-from market_helper.reporting.portfolio_html import write_portfolio_report
-from market_helper.reporting.regime_html import (
-    RegimeHtmlViewModel,
-    build_regime_html_view_model,
+from market_helper.domain.regime_detection.services.regime_report_provider import (
+    RegimeArtifactState,
+    RegimeMode,
+    provide_regime_view_model,
 )
+from market_helper.reporting.portfolio_html import write_portfolio_report
 from market_helper.reporting.risk_html import DEFAULT_RISK_REPORT_CONFIG_PATH, build_risk_report_view_model
 from market_helper.workflows import generate_report as report_workflows
 from market_helper.workflows import run_regime_report as regime_report_workflows
@@ -112,9 +113,17 @@ def _resolve_performance_report_csv_path(
 
 
 def _resolve_regime_input_path(source: PortfolioReportInputs) -> Path | None:
+    """Resolve where the regime artifact should be read from / written to.
+
+    For the combined-report flow we always return a path (defaulting to the
+    canonical artifact location) even when the file doesn't exist yet, so the
+    regime provider can refresh into it. Other input types still degrade to
+    None when nothing is explicitly configured — risk / performance flows
+    don't trigger regime engine runs as a side effect.
+    """
     if source.regime_path is not None:
         return Path(source.regime_path)
-    if isinstance(source, GenerateCombinedReportInputs) and DEFAULT_REGIME_ARTIFACT_PATH.exists():
+    if isinstance(source, GenerateCombinedReportInputs):
         return DEFAULT_REGIME_ARTIFACT_PATH
     return None
 
@@ -177,6 +186,7 @@ class PortfolioMonitorQueryService:
             allocation_policy_path=Path(source.allocation_policy_path) if source.allocation_policy_path is not None else None,
             vol_method=source.vol_method,
             inter_asset_corr=source.inter_asset_corr,
+            regime_mode=source.regime_mode,
         )
 
     def load_report_data(self, inputs: PortfolioReportInputs | None = None) -> PortfolioReportData:
@@ -211,8 +221,9 @@ class PortfolioMonitorQueryService:
             vol_method=resolved.vol_method,
             inter_asset_corr=resolved.inter_asset_corr,
         )
-        regime_view_model = self._load_regime_view_model(
+        regime_state = self._load_regime_state(
             regime_path=resolved.regime_path,
+            regime_mode=resolved.regime_mode,
             policy_path=resolved.allocation_policy_path,
             warnings=warnings,
         )
@@ -244,33 +255,50 @@ class PortfolioMonitorQueryService:
             performance_sgd_view_model=performance_sgd_view_model,
             artifact_metadata=metadata,
             warnings=warnings,
-            regime_view_model=regime_view_model,
+            regime_state=regime_state,
             as_of_freshness_note=compute_as_of_freshness_note(report_as_of),
         )
 
     @staticmethod
-    def _load_regime_view_model(
+    def _load_regime_state(
         *,
         regime_path: str | Path | None,
+        regime_mode: RegimeMode,
         policy_path: str | Path | None,
         warnings: list[str],
-    ) -> RegimeHtmlViewModel | None:
-        """Best-effort regime view-model load — failures degrade to a warning."""
+    ) -> RegimeArtifactState:
+        """Delegate to the regime provider; surface non-ok states as warnings.
+
+        The provider always returns a state — never raises — so the report can
+        always render. We mirror non-ok states into ``warnings`` so existing
+        warning UIs (banner, log) still see something. The actual *presentation*
+        of the failure lives in the rendered regime section (unavailable card).
+        """
         if regime_path is None:
-            return None
-        path = Path(str(regime_path))
-        if not path.exists():
-            warnings.append(f"Regime artifact not found at {path}; regime section will be omitted.")
-            return None
-        try:
-            return build_regime_html_view_model(
-                regime_path=path,
-                policy_path=policy_path,
+            return RegimeArtifactState(
+                state="missing",
+                mode_used="cached",
+                view_model=None,
+                regime_as_of=None,
+                last_run_at=None,
+                error_message="No regime artifact path configured.",
             )
-        except Exception as exc:  # noqa: BLE001 — swallow into a warning to keep the report alive
-            logger.warning("Failed to build regime view-model from %s: %s", path, exc)
-            warnings.append(f"Regime artifact at {path} could not be parsed ({exc}); regime section will be omitted.")
-            return None
+        state = provide_regime_view_model(
+            regime_path=Path(str(regime_path)),
+            mode=regime_mode,
+            policy_path=policy_path,
+        )
+        if state.state == "missing":
+            warnings.append(
+                f"Regime artifact not found at {regime_path}; "
+                "click Refresh Regime in the dashboard or run "
+                "`python scripts/run_regime_detection.bat` to produce it."
+            )
+        elif state.state == "engine_error":
+            warnings.append(
+                f"Regime engine failed: {state.error_message or 'unknown error'}."
+            )
+        return state
 
     def resolve_report_artifact(
         self,
