@@ -163,7 +163,8 @@ def _session_cache_key(
 
 
 def _today_iso(now: pd.Timestamp | None = None) -> str:
-    reference = pd.Timestamp.utcnow() if now is None else pd.Timestamp(now)
+    # Pandas4 deprecates Timestamp.utcnow in favour of Timestamp.now('UTC').
+    reference = pd.Timestamp.now("UTC") if now is None else pd.Timestamp(now)
     if reference.tzinfo is not None:
         reference = reference.tz_localize(None)
     return reference.normalize().date().isoformat()
@@ -233,7 +234,7 @@ def ensure_symbol_return_cache(
         return_method=return_method,
         interval=interval,
         period=period,
-        generated_at=pd.Timestamp.utcnow().isoformat(),
+        generated_at=pd.Timestamp.now("UTC").isoformat(),
         series=series,
     )
     write_symbol_return_cache(cache, path=cache_path)
@@ -373,7 +374,7 @@ def _is_cache_stale(
 
 
 def _latest_expected_daily_observation(now: pd.Timestamp | None) -> pd.Timestamp:
-    reference = pd.Timestamp.utcnow() if now is None else pd.Timestamp(now)
+    reference = pd.Timestamp.now("UTC") if now is None else pd.Timestamp(now)
     reference = reference.tz_localize(None) if reference.tzinfo is not None else reference
     normalized = reference.normalize()
     return (normalized - pd.offsets.BDay(1)).normalize()

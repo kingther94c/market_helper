@@ -430,7 +430,8 @@ def _is_cache_payload_fresh(
     generated_at = _optional_timestamp(payload.get("generated_at"))
     if generated_at is None:
         return False
-    reference = pd.Timestamp.utcnow() if now is None else pd.Timestamp(now)
+    # Pandas4 deprecates Timestamp.utcnow in favour of Timestamp.now('UTC').
+    reference = pd.Timestamp.now("UTC") if now is None else pd.Timestamp(now)
     if reference.tzinfo is not None:
         reference = reference.tz_localize(None)
     age_days = (reference - generated_at).total_seconds() / 86400.0

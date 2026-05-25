@@ -85,6 +85,15 @@ Recent landed work (one-liners; full detail in
   GDRIVE_ROOT refactor; 1 e2e position-report fixture missing 8 columns
   added after the schema extension; 1 Windows-incompat probe test skipped
   on `win32`). Full suite is now **472 passed, 11 skipped, 0 failed**.
+- AGENTS.md gained a **Tests** section codifying maintenance rules
+  derived from the three rot-classes above (refactor drift, schema drift,
+  platform incompat). Required checks for refactor / schema-extension /
+  platform-specific changes; per-commit triage checklist; explicit don'ts
+  (no test-deletion to make suite green, no defensive monkeypatches when
+  conftest already provides isolation).
+- Cleared ~129 `Pandas4Warning: Timestamp.utcnow is deprecated` warnings
+  by migrating 4 call sites in `yahoo_returns.py` + `commodity_spread_risk.py`
+  to `pd.Timestamp.now("UTC")`. Suite now produces zero warnings.
 - **Daily cron self-sufficiently refreshes regime** —
   `scripts/dev/run_daily_report.py` now passes
   `regime_mode="refresh-if-stale"`. The Windows scheduled task no longer

@@ -64,6 +64,36 @@ size, not grow it.
 - Keep the project **read-only with respect to the broker** — no trading /
   order-entry code in V1.
 
+## Tests
+
+The suite is the safety net for every refactor. Keep it green: failing
+tests must not accumulate. If you discover a pre-existing failure while
+working on something else, **fix or `@pytest.mark.skipif` it with a
+written reason in the same change** — do not pretend you didn't see it.
+
+### Required checks for common changes
+
+| You did this | Then you must |
+|---|---|
+| Renamed / removed a public symbol (function, class, attribute, module-level constant) | `grep -r "old_name" tests/` — especially `monkeypatch.setattr(..., "old_name", ...)`, which silently fails to neutralize but raises `AttributeError` when the test runs. Then run the **full** suite, not just nearby tests. |
+| Extended a canonical schema (`POSITION_REPORT_HEADERS`, an `*Inputs` dataclass, a `*ViewModel`, a JSON output shape) | Regenerate every fixture pinned to that schema. Prefer schema-derived assertions (`assert headers == POSITION_REPORT_HEADERS`) over hand-rolled golden files so the fixture can't silently drift. |
+| Added a test that touches the host filesystem in a platform-specific way (NTFS-reserved chars, POSIX permissions, symlinks, fork semantics) | Add `@pytest.mark.skipif(sys.platform == "win32", reason="...")` (or the inverse) with a one-line reason. Do not rely on the test happening to pass on the developer's machine. |
+| Added a test that needs an external resource (network, env var, registry, real GDrive mount, broker connection) | Neutralize it. The unit suite's `tests/unit/conftest.py` already isolates `MARKET_HELPER_GDRIVE_ROOT`, the Windows registry probe, and the OS-aware GDrive probe; extend that fixture rather than monkeypatching ad-hoc in each test. |
+
+### Triage on every commit
+
+Before pushing, scan the test run for:
+- **New failures** — re-run any failing test you didn't recognize; do not assume "it was already broken".
+- **Deprecation warnings** (especially Pandas, Python 3.14, library majors) — note them in `plan/backlog.md` if not in scope; fix when the production import is in the same diff.
+- **Newly-skipped tests with no `reason=` argument** — every skip needs a written justification.
+
+### Don't
+
+- Don't delete a failing test to make the suite green. Fix it, skip it with a reason, or open a tracked task.
+- Don't add `pytest.importorskip(...)` to mask an env problem you can fix.
+- Don't use `pytest.skip()` inside the test body without an explicit reason argument.
+- Don't `monkeypatch.setattr(module, "name", ...)` defensively when the conftest already provides hermetic isolation — dead monkeypatches are how refactor drift hides.
+
 ## Memory maintenance loop
 
 Run a memory maintenance pass after one of:
