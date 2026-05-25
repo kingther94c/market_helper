@@ -79,6 +79,12 @@ Recent landed work (one-liners; full detail in
   report — by the provider — so the regime section and the risk sidebar
   can never disagree about what data they're showing. Legacy file-read
   path stays for standalone risk-only flows (CLI, ad-hoc).
+- Test-suite hygiene: cleared 6 pre-existing failures unrelated to the
+  regime work (4 mirror-dir tests carrying a stale
+  `read_local_config_value` monkeypatch from the
+  GDRIVE_ROOT refactor; 1 e2e position-report fixture missing 8 columns
+  added after the schema extension; 1 Windows-incompat probe test skipped
+  on `win32`). Full suite is now **472 passed, 11 skipped, 0 failed**.
 - **Daily cron self-sufficiently refreshes regime** —
   `scripts/dev/run_daily_report.py` now passes
   `regime_mode="refresh-if-stale"`. The Windows scheduled task no longer

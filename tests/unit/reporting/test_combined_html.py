@@ -105,7 +105,6 @@ def test_load_artifact_mirror_dir_joins_gdrive_root_with_portfolio_report(
     monkeypatch, tmp_path: Path
 ) -> None:
     """ROOT-based resolution: mirror dir is always <ROOT>/Portfolio_Report."""
-    monkeypatch.setattr(pipeline, "read_local_config_value", lambda key: "")
     root = tmp_path / "005 Portfolio"
     monkeypatch.setenv(pipeline.MARKET_HELPER_GDRIVE_ROOT_ENV_VAR, str(root))
 
@@ -117,27 +116,16 @@ def test_load_artifact_mirror_dir_joins_gdrive_root_with_portfolio_report(
 def test_load_artifact_mirror_dir_returns_none_when_root_unset(
     monkeypatch, tmp_path: Path
 ) -> None:
-    """Without GDRIVE_ROOT, mirroring is silently skipped."""
+    """Without GDRIVE_ROOT, mirroring is silently skipped.
+
+    The unit-test conftest already clears the env var + neutralizes the
+    registry and OS-aware probe fallbacks for hermetic runs, so this test
+    just confirms the resolver collapses to None when no source supplies a
+    value.
+    """
     monkeypatch.delenv(pipeline.MARKET_HELPER_GDRIVE_ROOT_ENV_VAR, raising=False)
-    monkeypatch.setattr(pipeline, "read_local_config_value", lambda key: "")
 
     assert pipeline._load_artifact_mirror_dir() is None
-
-
-def test_load_artifact_mirror_dir_root_falls_back_to_local_env(
-    monkeypatch, tmp_path: Path
-) -> None:
-    """GDRIVE_ROOT can come from local.env (not just process env)."""
-    monkeypatch.delenv(pipeline.MARKET_HELPER_GDRIVE_ROOT_ENV_VAR, raising=False)
-    root = tmp_path / "005 Portfolio"
-    monkeypatch.setattr(
-        pipeline,
-        "read_local_config_value",
-        lambda key: str(root) if key == pipeline.MARKET_HELPER_GDRIVE_ROOT_ENV_VAR else "",
-    )
-
-    resolved = pipeline._load_artifact_mirror_dir()
-    assert resolved == root / pipeline.REPORT_SUBDIR
 
 
 def test_mirror_artifact_swallows_permission_error_when_path_unreachable(
@@ -145,7 +133,6 @@ def test_mirror_artifact_swallows_permission_error_when_path_unreachable(
 ) -> None:
     """Stale per-user GDrive path (e.g. macOS path resolved on Windows) must
     not crash the report — the mirror step is best-effort."""
-    monkeypatch.setattr(pipeline, "read_local_config_value", lambda key: "")
     unreachable_dir = tmp_path / "no-such-root"
     monkeypatch.setattr(
         pipeline, "_load_artifact_mirror_dir", lambda config_path=None: unreachable_dir

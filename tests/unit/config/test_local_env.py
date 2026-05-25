@@ -154,6 +154,15 @@ def test_probe_gdrive_root_finds_windows_path(monkeypatch) -> None:
     assert _probe_gdrive_root() == str(expected_root)
 
 
+@pytest.mark.skipif(
+    sys.platform == "win32",
+    reason=(
+        "GoogleDrive-<account> literal candidate contains angle brackets which "
+        "are reserved characters on NTFS; the test fixture can't materialize "
+        "this directory tree on Windows. The probe logic itself is platform-"
+        "neutral — Mac CI exercises this code path."
+    ),
+)
 def test_probe_gdrive_root_finds_mac_path(tmp_path, monkeypatch) -> None:
     """Pattern B: on macOS the probe finds the
     ``~/Library/CloudStorage/GoogleDrive-<account>/My Drive/005 Portfolio``
