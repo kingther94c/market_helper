@@ -1,6 +1,6 @@
 import pytest
 
-from market_helper.safety import (
+from market_helper.common.read_only import (
     ReadOnlyViolationError,
     assert_operation_allowed,
     assert_read_only_mode,

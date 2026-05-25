@@ -70,7 +70,7 @@ Within `market_helper/`, the recommended internal layout is:
 - `presentation/` for HTML/table/chart/dashboard-facing formatting and rendering
 - `cli/` for user-facing command entrypoints
 
-Legacy modules (for example `market_helper.ui.*`) remain as compatibility wrappers where needed, but new imports should target the package layout above.
+Legacy compatibility wrappers may exist for older import paths; new imports should target the package layout above.
 
 ## Quick test
 

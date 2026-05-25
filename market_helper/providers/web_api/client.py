@@ -16,7 +16,7 @@ from market_helper.providers.web_api.mappers import (
     map_quote_snapshot,
 )
 from market_helper.providers.web_api.retry import with_retry
-from market_helper.safety import assert_operation_allowed, assert_read_only_mode
+from market_helper.common.read_only import assert_operation_allowed, assert_read_only_mode
 
 WebApiTransport = Callable[
     [str, str, Optional[Mapping[str, object]], Optional[Mapping[str, object]]],

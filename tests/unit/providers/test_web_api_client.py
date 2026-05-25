@@ -1,7 +1,7 @@
 import pytest
 
 from market_helper.providers.web_api import WebApiClient
-from market_helper.safety import ReadOnlyViolationError
+from market_helper.common.read_only import ReadOnlyViolationError
 
 
 def test_web_api_client_blocks_non_read_only_mode() -> None:

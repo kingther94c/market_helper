@@ -3,7 +3,7 @@ from __future__ import annotations
 from collections.abc import Mapping
 
 from market_helper.domain import AccountSnapshot, PositionSnapshot, QuoteSnapshot
-from market_helper.utils import utc_now_iso
+from market_helper.common.time import utc_now_iso
 
 
 def map_account_summary(payload: Mapping[str, object], *, as_of: str | None = None) -> AccountSnapshot:

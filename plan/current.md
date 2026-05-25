@@ -129,6 +129,9 @@ Recent landed work (one-liners; full detail in
     NaN→0, `vol_proxies` validators raising on negative/zero,
     `risk_analysis` wrapper paths, `security_reference_table` re-export
     guard).
+  - Dead-shim deletion: `market_helper/{utils,safety,ui}/` removed (53 LOC).
+    Active importers in `providers/web_api/{client,mappers}.py` + 2 tests
+    migrated to canonical `common.{read_only,time}`; README updated.
 
 Further portfolio-monitor work rotates in through [`backlog.md`](backlog.md)
 as discrete asks land.
