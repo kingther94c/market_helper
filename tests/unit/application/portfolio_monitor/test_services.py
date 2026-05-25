@@ -155,10 +155,28 @@ def test_report_data_passes_regime_into_risk_view_model(
     def fake_load_regime_state(**kwargs):
         captured["loaded_regime_path"] = kwargs["regime_path"]
         captured["loaded_regime_mode"] = kwargs["regime_mode"]
+        # Minimal view-model shape that derive_regime_summary_from_view_model
+        # can project — confirms the combined-report pipeline derives the
+        # risk sidebar from the same source the regime section uses, with
+        # no second file read.
         return app_services.RegimeArtifactState(
             state="ok",
             mode_used=kwargs["regime_mode"],
-            view_model=SimpleNamespace(regime="Goldilocks"),
+            view_model=SimpleNamespace(
+                regime="Goldilocks",
+                as_of="2026-04-08T00:00:00+00:00",
+                scores={"GROWTH": 0.5, "INFLATION": -0.1, "RISK": 0.2},
+                schema="regime-engine-v2",
+                method_agreement=0.8,
+                crisis_flag=False,
+                crisis_intensity=0.2,
+                confidence="Medium",
+                disagreement_flag=False,
+                disagreement_summary="",
+                risk_state="Calm",
+                methods=[],
+                layers=[],
+            ),
             regime_as_of="2026-04-08T00:00:00+00:00",
             last_run_at=None,
             error_message=None,
@@ -186,10 +204,18 @@ def test_report_data_passes_regime_into_risk_view_model(
         )
     )
 
-    assert captured["regime_path"] == regime_path
     assert captured["loaded_regime_path"] == regime_path
     # Default regime_mode on PortfolioReportInputs is refresh-if-stale.
     assert captured["loaded_regime_mode"] == "refresh-if-stale"
+    # build_risk_report_view_model is now called with a derived
+    # regime_summary (not regime_path) so the regime artifact is read
+    # exactly once per report — by the provider, not by both consumers.
+    assert "regime_path" not in captured or captured["regime_path"] is None
+    derived_summary = captured["regime_summary"]
+    assert derived_summary is not None
+    assert derived_summary.regime == "Goldilocks"
+    assert derived_summary.scores == {"GROWTH": 0.5, "INFLATION": -0.1, "RISK": 0.2}
+    assert derived_summary.confidence == "Medium"
     assert report_data.risk_view_model.as_of == "2026-04-08T00:00:00+00:00"
     assert report_data.regime_state.state == "ok"
     assert report_data.regime_state.view_model.regime == "Goldilocks"

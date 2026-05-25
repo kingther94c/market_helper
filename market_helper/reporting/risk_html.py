@@ -457,6 +457,7 @@ def build_risk_report_view_model(
     returns_path: str | Path | None = None,
     proxy_path: str | Path | None = None,
     regime_path: str | Path | None = None,
+    regime_summary: RegimeReportSummary | None = None,
     security_reference_path: str | Path | None = None,
     risk_config_path: str | Path | None = None,
     allocation_policy_path: str | Path | None = None,
@@ -465,6 +466,14 @@ def build_risk_report_view_model(
     inter_asset_corr: str = "historical",
     progress: ProgressReporter | None = None,
 ) -> RiskReportViewModel:
+    """Build the risk view-model.
+
+    ``regime_summary`` (preferred) lets the combined-report pipeline pass a
+    pre-derived summary built from the same view-model that drives the
+    Regime section — so the regime artifact is parsed exactly once per
+    report. ``regime_path`` is the fallback for standalone risk-only
+    callers (CLI, ad-hoc) that don't have a regime provider on hand.
+    """
     reporter = resolve_progress_reporter(progress)
     total_steps = 8
     current_step = 0
@@ -533,7 +542,11 @@ def build_risk_report_view_model(
     returns.update(synthetic_spread_returns)
     current_step += 1
     reporter.stage("Risk HTML: returns ready", current=current_step, total=total_steps)
-    regime_summary = _load_regime_summary(regime_path)
+    # Prefer the explicit summary (combined-report pipeline path) over the
+    # legacy file-read so the regime artifact is parsed exactly once per
+    # report. Falls back to file read for standalone risk-only callers.
+    if regime_summary is None:
+        regime_summary = _load_regime_summary(regime_path)
     allocation_policy = risk_report_config.policy
 
     def historical_row_vol(row: RiskInputRow, method: str) -> float:
@@ -4590,14 +4603,20 @@ def _fetch_symbol_level_from_yahoo(
 
 
 def _load_regime_summary(path: str | Path | None) -> RegimeReportSummary | None:
+    """Legacy: read the regime artifact directly from disk and derive a summary.
+
+    The combined-report pipeline (`PortfolioMonitorQueryService`) no longer
+    routes through this — it asks the regime provider for a view-model and
+    then calls :func:`derive_regime_summary_from_view_model`, so the regime
+    file is read exactly once per report. This function remains for
+    standalone risk-only flows (CLI, ad-hoc) that don't have a provider
+    handy.
+    """
     if path is None:
         return None
     resolved = Path(path)
-    # The combined-report pipeline now always passes a regime path (so the
-    # regime provider can refresh into it); the file may not exist yet when
-    # the regime workflow hasn't run on this machine. Treat "missing file"
-    # the same as path=None — the regime section in the combined report
-    # surfaces the absence; the risk side just omits its regime sidebar.
+    # Treat "missing file" the same as path=None — the standalone risk path
+    # doesn't have a regime provider to surface the absence elsewhere.
     if not resolved.exists():
         return None
     loaded: Any = json.loads(resolved.read_text(encoding="utf-8"))
@@ -4607,6 +4626,61 @@ def _load_regime_summary(path: str | Path | None) -> RegimeReportSummary | None:
     if not isinstance(row, dict):
         return None
     return _load_v2_regime_summary(row)
+
+
+def derive_regime_summary_from_view_model(view_model) -> RegimeReportSummary | None:
+    """Project the regime provider's view-model down to the risk sidebar shape.
+
+    Combined-report assembly calls this so the regime file is read exactly
+    once per report (in the provider) and both consumers — the regime
+    section + the risk sidebar — work off the same parsed data. Returns None
+    when the provider has no view-model to share (missing / engine_error).
+    """
+    if view_model is None:
+        return None
+    layer_summaries: list[dict[str, str]] = []
+    for layer in getattr(view_model, "layers", []) or []:
+        if not layer.enabled:
+            status = "Disabled"
+            state = "Disabled"
+        elif not layer.available:
+            status = layer.status or "Not available"
+            state = "Not available"
+        else:
+            status = layer.confidence or "Available"
+            state = f"{layer.growth_state or 'n/a'} / {layer.inflation_state or 'n/a'}"
+        layer_summaries.append(
+            {
+                "method": layer.layer_name,
+                "quadrant": state,
+                "native_label": status,
+            }
+        )
+    # Fall back to view_model.methods when the v2 `layers` list is empty
+    # (older / minimal view-models constructed in tests).
+    if not layer_summaries:
+        for method in view_model.methods or []:
+            layer_summaries.append(
+                {
+                    "method": method.method,
+                    "quadrant": method.quadrant,
+                    "native_label": method.native_label,
+                }
+            )
+    return RegimeReportSummary(
+        as_of=view_model.as_of or "",
+        regime=view_model.regime or "Unknown",
+        scores=dict(view_model.scores or {}),
+        version=view_model.schema or "regime-engine-v2",
+        method_agreement=view_model.method_agreement,
+        crisis_flag=view_model.crisis_flag,
+        crisis_intensity=view_model.crisis_intensity,
+        per_method=layer_summaries or None,
+        confidence=view_model.confidence or None,
+        disagreement_flag=view_model.disagreement_flag,
+        disagreement_summary=view_model.disagreement_summary or None,
+        risk_state=view_model.risk_state or None,
+    )
 
 
 

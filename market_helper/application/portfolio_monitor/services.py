@@ -47,7 +47,11 @@ from market_helper.domain.regime_detection.services.regime_report_provider impor
     provide_regime_view_model,
 )
 from market_helper.reporting.portfolio_html import write_portfolio_report
-from market_helper.reporting.risk_html import DEFAULT_RISK_REPORT_CONFIG_PATH, build_risk_report_view_model
+from market_helper.reporting.risk_html import (
+    DEFAULT_RISK_REPORT_CONFIG_PATH,
+    build_risk_report_view_model,
+    derive_regime_summary_from_view_model,
+)
 from market_helper.workflows import generate_report as report_workflows
 from market_helper.workflows import run_regime_report as regime_report_workflows
 
@@ -210,11 +214,10 @@ class PortfolioMonitorQueryService:
             performance_report_csv_path=performance_report_csv_path,
         )
         warnings.extend(perf_entry.perf_warnings)
-        # Regime provider runs BEFORE the risk view-model build: under
-        # `refresh-if-stale` (the default) it may need to create the regime
-        # artifact, and the risk side reads that same file for its regime
-        # sidebar. If provider fails / file still doesn't exist after refresh,
-        # both consumers (regime section + risk sidebar) degrade gracefully.
+        # Regime provider is the single entry point for regime data in the
+        # combined report. The risk sidebar derives its summary from the
+        # same view-model (no second file read) so the two consumers can't
+        # disagree about what regime data they're showing.
         regime_state = self._load_regime_state(
             regime_path=resolved.regime_path,
             regime_mode=resolved.regime_mode,
@@ -225,7 +228,9 @@ class PortfolioMonitorQueryService:
             positions_csv_path=positions_path,
             returns_path=resolved.returns_path,
             proxy_path=resolved.proxy_path,
-            regime_path=resolved.regime_path,
+            regime_summary=derive_regime_summary_from_view_model(
+                regime_state.view_model
+            ),
             security_reference_path=resolved.security_reference_path,
             risk_config_path=resolved.risk_config_path,
             allocation_policy_path=resolved.allocation_policy_path,

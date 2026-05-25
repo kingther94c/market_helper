@@ -76,6 +76,16 @@ modes; the renderer always renders the regime section.
    `regime_mode="refresh-if-stale"`. The daily cron now self-sufficiently
    keeps the regime fresh — no separate manual step.
 
+7. **Single source of truth across the combined report**: the regime
+   artifact is parsed **exactly once per report** (by the provider). The
+   risk view-model's `RegimeReportSummary` is derived from the same
+   `RegimeHtmlViewModel` via
+   `market_helper.reporting.risk_html.derive_regime_summary_from_view_model`,
+   not from a second independent file read. The risk side's legacy
+   `regime_path` parameter remains for standalone risk-only callers (CLI,
+   ad-hoc), but combined-report assembly always passes the explicit
+   `regime_summary`.
+
 ### Why trading-day T-1 (not an hour-count threshold)
 
 The combined report already uses trading-day semantics for its

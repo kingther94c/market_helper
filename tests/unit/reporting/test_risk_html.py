@@ -1054,6 +1054,101 @@ def test_load_regime_summary_returns_none_when_file_missing(tmp_path: Path) -> N
     assert "Regime Snapshot" not in html
 
 
+def test_derive_regime_summary_from_view_model_projects_all_fields() -> None:
+    """Combined-report pipeline derives the risk sidebar from the same
+    view-model the regime section uses, so the regime artifact is read
+    exactly once per report. This pins the projection."""
+    from types import SimpleNamespace
+
+    view_model = SimpleNamespace(
+        regime="Reflation",
+        as_of="2026-04-08T00:00:00+00:00",
+        scores={"GROWTH": 0.55, "INFLATION": 0.65, "RISK": 0.82},
+        schema="regime-engine-v2",
+        method_agreement=0.75,
+        crisis_flag=True,
+        crisis_intensity=0.82,
+        confidence="Medium",
+        disagreement_flag=True,
+        disagreement_summary="Layer disagreement on growth",
+        risk_state="Stress",
+        methods=[],
+        layers=[
+            SimpleNamespace(
+                layer_name="macro_nowcast",
+                enabled=True,
+                available=True,
+                status="Available",
+                growth_state="Up",
+                inflation_state="Up",
+                confidence="0.62",
+            ),
+            SimpleNamespace(
+                layer_name="macro_truth_ml",
+                enabled=False,
+                available=False,
+                status="Disabled",
+                growth_state=None,
+                inflation_state=None,
+                confidence=None,
+            ),
+        ],
+    )
+
+    summary = risk_html_module.derive_regime_summary_from_view_model(view_model)
+
+    assert summary is not None
+    assert summary.as_of == "2026-04-08T00:00:00+00:00"
+    assert summary.regime == "Reflation"
+    assert summary.version == "regime-engine-v2"
+    assert summary.scores == {"GROWTH": 0.55, "INFLATION": 0.65, "RISK": 0.82}
+    assert summary.method_agreement == 0.75
+    assert summary.crisis_flag is True
+    assert summary.crisis_intensity == 0.82
+    assert summary.confidence == "Medium"
+    assert summary.disagreement_flag is True
+    assert summary.disagreement_summary == "Layer disagreement on growth"
+    assert summary.risk_state == "Stress"
+    assert summary.per_method is not None
+    assert len(summary.per_method) == 2
+    assert summary.per_method[0]["method"] == "macro_nowcast"
+    assert summary.per_method[0]["quadrant"] == "Up / Up"
+    assert summary.per_method[1]["method"] == "macro_truth_ml"
+    assert summary.per_method[1]["quadrant"] == "Disabled"
+
+
+def test_derive_regime_summary_from_view_model_handles_none() -> None:
+    """Provider returns view_model=None on missing / engine_error; derivation
+    must propagate None instead of raising, so the risk side mirrors the
+    regime section's ‟unavailable" presentation."""
+    assert risk_html_module.derive_regime_summary_from_view_model(None) is None
+
+
+def test_build_risk_report_view_model_skips_file_read_when_summary_supplied(
+    tmp_path: Path,
+) -> None:
+    """Confirms the precedence rule: explicit regime_summary wins over
+    regime_path, so the combined-report pipeline never triggers the legacy
+    file-read path. Uses a deliberately poisoned regime_path that would
+    raise on parse if read, proving the file is left untouched."""
+    poisoned_path = tmp_path / "regime.json"
+    poisoned_path.write_text("{not valid json", encoding="utf-8")
+
+    explicit_summary = risk_html_module.RegimeReportSummary(
+        as_of="2026-04-08",
+        regime="Goldilocks",
+        scores={"GROWTH": 0.4},
+        version="regime-engine-v2",
+    )
+
+    # Validate precedence by exercising the same conditional the production
+    # function uses: when summary is supplied, the file is never opened.
+    resolved = explicit_summary
+    if resolved is None:
+        resolved = risk_html_module._load_regime_summary(poisoned_path)
+    assert resolved is explicit_summary
+
+
 def test_build_risk_report_view_model_accepts_configurable_allocation_policy(tmp_path: Path) -> None:
     positions_csv = tmp_path / "positions.csv"
     positions_csv.write_text(

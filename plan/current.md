@@ -70,6 +70,15 @@ Recent landed work (one-liners; full detail in
   and reordered `_assemble_report_data` so the regime provider runs before
   the risk view-model build (refresh has a chance to create the file before
   any consumer reads it).
+- Long-term consolidation (SSOT): the risk sidebar's `RegimeReportSummary`
+  is now **derived from the provider's view-model** via
+  `derive_regime_summary_from_view_model`, not from a second independent
+  file read. `build_risk_report_view_model` accepts a `regime_summary`
+  param (preferred over the legacy `regime_path` for combined-report
+  callers). The regime artifact is now parsed exactly once per combined
+  report — by the provider — so the regime section and the risk sidebar
+  can never disagree about what data they're showing. Legacy file-read
+  path stays for standalone risk-only flows (CLI, ad-hoc).
 - **Daily cron self-sufficiently refreshes regime** —
   `scripts/dev/run_daily_report.py` now passes
   `regime_mode="refresh-if-stale"`. The Windows scheduled task no longer
