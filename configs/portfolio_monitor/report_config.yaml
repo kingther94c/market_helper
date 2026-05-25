@@ -1,3 +1,10 @@
+# Canonical tunable values for the risk report. The module-level
+# DEFAULT_* constants in `market_helper/reporting/risk_html.py` are
+# fallback defaults only; entries here win when present. The merge
+# happens in `_parse_volatility_config` / `_parse_fixed_income_config` /
+# `_parse_proxy_default_levels`. Adding a new tunable: add it both
+# places (constant + YAML) and to the matching `_parse_*` function.
+
 risk_report:
   lookthrough:
     eq_country: eq_country_lookthrough.csv

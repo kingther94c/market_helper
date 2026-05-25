@@ -62,6 +62,14 @@ from market_helper.portfolio.security_reference import (
     SecurityReferenceTable,
     build_security_reference_table,
 )
+# Module-level constants are **fallback defaults** for the risk report's
+# tunable knobs. The canonical values live in
+# `configs/portfolio_monitor/report_config.yaml` under `risk_report.*` and are
+# merged over these defaults by `_parse_volatility_config` /
+# `_parse_fixed_income_config` / `_parse_proxy_default_levels` /
+# `_merged_proxy_default_levels` (search the file for those names). If a YAML
+# entry is present, it wins; the constants here only matter when running
+# without a config file (rare — tests and ad-hoc CLI runs).
 TRADING_DAYS = 252
 HIST_1M_DAYS = 21
 HIST_3M_DAYS = 63

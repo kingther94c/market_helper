@@ -137,6 +137,11 @@ Recent landed work (one-liners; full detail in
     `GenerateCombinedReportInputs.from_namespace(args)` own Path/None
     coercion; `risk-html-report` and `combined-html-report` branches no
     longer inline per-arg coercion. Flags and facade signatures unchanged.
+  - Documented the YAML/code layering in `reporting/risk_html.py` —
+    `DEFAULT_*` constants are fallback defaults; canonical values live in
+    `report_config.yaml` and are merged via `_parse_*_config`. Audit
+    showed the original "lift constants to YAML" framing was wrong (already
+    lifted); only the relationship was undocumented.
 
 Further portfolio-monitor work rotates in through [`backlog.md`](backlog.md)
 as discrete asks land.
