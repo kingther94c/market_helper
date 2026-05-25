@@ -94,6 +94,19 @@ Recent landed work (one-liners; full detail in
 - Cleared ~129 `Pandas4Warning: Timestamp.utcnow is deprecated` warnings
   by migrating 4 call sites in `yahoo_returns.py` + `commodity_spread_risk.py`
   to `pd.Timestamp.now("UTC")`. Suite now produces zero warnings.
+- **Overview landing tab** — `build_overview_section_body` adds a new
+  first section to the combined report carrying the headline KPIs plus
+  the regime body inline. New KPI exclusive to Overview: **YTD $ PNL
+  (SGD)** (TWR-windowed absolute P&L from
+  `BenchmarkComparisonRow.twr_pnl` on the SGD perf view-model). The
+  sticky topline strip keeps its 6-cell compact layout; Overview adds the
+  $ PNL cell to its 7-cell grid.
+- **Ex-ante Vol KPI** — renamed from the hard-coded "Target Vol (Fast)"
+  label to a dynamic `Ex-ante Vol ({display_label})` that reads from
+  `risk.vol_method` via `VOL_METHOD_DISPLAY_LABELS`, so the topline KPI
+  follows the report's actual vol-method choice instead of always
+  showing the Fast (geomean_1m_3m) snapshot. Sub-line gained
+  `{method} · {corr} corr` for full transparency.
 - **Daily cron self-sufficiently refreshes regime** —
   `scripts/dev/run_daily_report.py` now passes
   `regime_mode="refresh-if-stale"`. The Windows scheduled task no longer

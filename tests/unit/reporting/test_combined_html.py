@@ -194,6 +194,18 @@ def test_render_portfolio_report_builds_html_shell_without_nicegui_refs(tmp_path
     assert "app-bar" in rendered
     # Section nav uses hash-routed anchors, not the legacy `<button>` toggle.
     assert "section-nav" in rendered
+    # Overview is the new landing tab and renders first in the nav.
+    assert "href='#overview'" in rendered or 'href="#overview"' in rendered
+    assert ">Overview<" in rendered
+    assert "overview-kpis" in rendered
+    # YTD $ PNL (SGD) is exclusive to the Overview KPI grid (the sticky
+    # topline strip keeps its 6-cell layout).
+    assert "YTD $ PNL (SGD)" in rendered
+    # The vol KPI was renamed Target Vol → Ex-ante Vol; the display name in
+    # parens follows the resolved vol method (default ‟Fast" for the
+    # geomean_1m_3m key).
+    assert "Ex-ante Vol" in rendered
+    assert "Target Vol" not in rendered
     assert "href='#performance-usd'" in rendered or 'href="#performance-usd"' in rendered
     assert "Performance USD" in rendered
     assert "Risk" in rendered
@@ -359,6 +371,46 @@ def test_regime_section_marks_stale_when_regime_as_of_lags_report(tmp_path: Path
     # Stale tag is present (regime as-of > 1d behind report).
     assert "regime stale" in rendered
     assert "regime-stale-tag" in rendered
+
+
+def test_overview_section_renders_kpi_grid_and_regime_body(tmp_path: Path) -> None:
+    """Overview is the landing tab — it must show the headline KPIs (including
+    the YTD $ PNL SGD that's exclusive to it) and embed the regime body so
+    users see status + portfolio together without tab-hopping."""
+    from market_helper.reporting.portfolio_html import build_overview_section_body
+
+    base = _fake_report_data(tmp_path)
+    body = build_overview_section_body(base)
+
+    # Overview-exclusive KPI: dollar-denominated YTD P&L in SGD.
+    assert "overview-kpis" in body
+    assert "YTD $ PNL (SGD)" in body
+    # Vol KPI uses the Ex-ante naming and parameterises the method.
+    assert "Ex-ante Vol" in body
+    assert "Target Vol" not in body
+    # The fixture sets `vol_method="geomean_1m_3m"` → display label "Fast".
+    assert "Ex-ante Vol (Fast)" in body
+    # Regime body is embedded inline (this fixture has no regime artifact,
+    # so the unavailable card is the expected presentation).
+    assert "overview-regime" in body
+    assert "regime-unavailable" in body
+
+
+def test_topline_strip_uses_dynamic_vol_method_label(tmp_path: Path) -> None:
+    """Topline KPI label tracks the resolved vol_method on the risk view-model
+    rather than hard-coding the geomean_1m_3m / Fast pairing."""
+    from dataclasses import replace as _replace
+    from market_helper.reporting.portfolio_html import build_topline_html
+
+    base = _fake_report_data(tmp_path)
+    long_term = _replace(base.risk_view_model, vol_method="5y_realized")
+    swapped = _replace(base, risk_view_model=long_term)
+
+    topline = build_topline_html(swapped)
+
+    assert "Ex-ante Vol (Long-Term)" in topline
+    assert "Ex-ante Vol (Fast)" not in topline
+    assert "Target Vol" not in topline
 
 
 def _demo_history_frame() -> pd.DataFrame:

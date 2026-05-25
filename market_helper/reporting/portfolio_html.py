@@ -10,6 +10,9 @@ from market_helper.domain.regime_detection.services.regime_report_provider impor
     RegimeArtifactState,
 )
 from market_helper.reporting.html_tables import HtmlTableColumn, HtmlTableRow, render_html_table
+from market_helper.domain.portfolio_monitor.services.performance_analytics import (
+    BenchmarkComparisonRow,
+)
 from market_helper.reporting.performance_html import (
     PerformanceMetricRow,
     PerformanceReportViewModel,
@@ -22,6 +25,7 @@ from market_helper.reporting.regime_html import (
 )
 from market_helper.reporting.report_document import ReportDocument, ReportSection, render_report_document
 from market_helper.reporting.risk_html import (
+    VOL_METHOD_DISPLAY_LABELS,
     RiskReportViewModel,
     render_risk_report_script,
     render_risk_report_styles,
@@ -57,6 +61,41 @@ def _horizon_row(view_model: PerformanceReportViewModel | None, label: str) -> P
         if row.label == label:
             return row
     return None
+
+
+def _benchmark_row(
+    view_model: PerformanceReportViewModel | None, label: str
+) -> BenchmarkComparisonRow | None:
+    """Look up the benchmark-comparison row for a window (MTD / YTD / 1Y).
+
+    The SGD performance view-model carries `BenchmarkComparisonRow.twr_pnl` —
+    the absolute dollar PnL for the window — which the Overview uses to expose
+    YTD $ PNL (SGD) alongside the percentage returns. Returns None when the
+    window isn't present.
+    """
+    if view_model is None:
+        return None
+    for row in view_model.benchmark_rows:
+        if row.label == label:
+            return row
+    return None
+
+
+def _ex_ante_vol_value(view_model: RiskReportViewModel | None) -> float | None:
+    """Read the portfolio's ex-ante vol at the report's correlation snapshot
+    using the report's *actual* vol method, not a hard-coded one. Mirrors the
+    cell the user picked in the Risk tab's vol-method segmented control."""
+    if view_model is None:
+        return None
+    matrix_row = view_model.portfolio_vol_matrix.get(view_model.inter_asset_corr, {})
+    return matrix_row.get(view_model.vol_method)
+
+
+def _ex_ante_vol_label(view_model: RiskReportViewModel | None) -> str:
+    """Resolve the displayed vol-method name (e.g. 'Fast' for 'geomean_1m_3m')."""
+    if view_model is None:
+        return ""
+    return VOL_METHOD_DISPLAY_LABELS.get(view_model.vol_method, view_model.vol_method)
 
 
 def _delta_class(value: float | None) -> str:
@@ -134,12 +173,18 @@ def build_topline_html(report_data: "PortfolioReportData") -> str:
     nav_usd = summary.funded_aum_usd if summary is not None else None
     nav_sgd = summary.funded_aum_sgd if summary is not None else None
 
-    # Target Vol (Fast): the portfolio's realised vol under the Fast method
-    # (geomean 1m/3m) at the report's historical-correlation snapshot — i.e. the
-    # Historical row / Fast column of the Portfolio Vol Matrix.
-    target_vol_fast = None
-    if risk is not None:
-        target_vol_fast = risk.portfolio_vol_matrix.get("historical", {}).get("geomean_1m_3m")
+    # Ex-ante Vol: the portfolio's forward-looking vol under the *user's
+    # currently-selected* vol method (Fast / Long-Term / Forward-Looking) at
+    # the report's correlation snapshot. The displayed method name follows
+    # `risk.vol_method` so the topline matches the Risk tab's segmented control
+    # rather than hard-coding "Fast".
+    ex_ante_vol = _ex_ante_vol_value(risk)
+    ex_ante_label = _ex_ante_vol_label(risk)
+    ex_ante_sub = (
+        f"{risk.vol_method} · {risk.inter_asset_corr} corr"
+        if risk is not None and ex_ante_vol is not None
+        else ""
+    )
 
     cells = [
         _kpi_cell(
@@ -161,9 +206,9 @@ def build_topline_html(report_data: "PortfolioReportData") -> str:
             value_class=_delta_class(ytd_sgd.twr_return if ytd_sgd else None),
         ),
         _kpi_cell(
-            "Target Vol (Fast)",
-            html.escape(_format_pct(target_vol_fast)),
-            "geomean 1m/3m · historical corr",
+            f"Ex-ante Vol ({ex_ante_label})" if ex_ante_label else "Ex-ante Vol",
+            html.escape(_format_pct(ex_ante_vol)),
+            html.escape(ex_ante_sub),
         ),
         _regime_kpi_cell(report_data.regime_state),
     ]
@@ -319,8 +364,117 @@ _REGIME_RIBBON_STYLES = """
 """
 
 
+def build_overview_section_body(report_data: "PortfolioReportData") -> str:
+    """Landing-tab body: headline KPIs (incl. YTD $ PNL SGD) + the regime body.
+
+    Reuses the same KPI grid styles as the sticky topline strip but adds one
+    cell — the dollar-denominated YTD P&L in SGD — that the topline strip
+    doesn't carry, so a user opening the report can see both percentage and
+    absolute YTD performance side-by-side without scrolling tabs. The regime
+    section body is embedded inline (same renderer as the dedicated Regime
+    tab) so the at-a-glance view is genuinely one-stop.
+    """
+    risk = report_data.risk_view_model
+    summary = risk.summary if risk is not None else None
+    perf_sgd = report_data.performance_sgd_view_model
+
+    mtd_sgd_row = _horizon_row(perf_sgd, "MTD")
+    ytd_sgd_row = _horizon_row(perf_sgd, "YTD")
+    ytd_sgd_bench = _benchmark_row(perf_sgd, "YTD")
+    ytd_dollar_pnl_sgd = ytd_sgd_bench.twr_pnl if ytd_sgd_bench is not None else None
+
+    nav_usd = summary.funded_aum_usd if summary is not None else None
+    nav_sgd = summary.funded_aum_sgd if summary is not None else None
+
+    ex_ante_vol = _ex_ante_vol_value(risk)
+    ex_ante_label = _ex_ante_vol_label(risk)
+    ex_ante_sub = (
+        f"{risk.vol_method} · {risk.inter_asset_corr} corr"
+        if risk is not None and ex_ante_vol is not None
+        else ""
+    )
+
+    cells = [
+        _kpi_cell("NAV (USD)", html.escape(_format_money_usd(nav_usd))),
+        _kpi_cell("NAV (SGD)", html.escape(_format_money_usd(nav_sgd))),
+        _kpi_cell(
+            "Return MTD (SGD)",
+            html.escape(_format_pct(mtd_sgd_row.twr_return if mtd_sgd_row else None, signed=True)),
+            value_class=_delta_class(mtd_sgd_row.twr_return if mtd_sgd_row else None),
+        ),
+        _kpi_cell(
+            "Return YTD (SGD)",
+            html.escape(_format_pct(ytd_sgd_row.twr_return if ytd_sgd_row else None, signed=True)),
+            value_class=_delta_class(ytd_sgd_row.twr_return if ytd_sgd_row else None),
+        ),
+        _kpi_cell(
+            "YTD $ PNL (SGD)",
+            html.escape(_format_money_signed(ytd_dollar_pnl_sgd)),
+            "absolute, TWR-windowed",
+            value_class=_delta_class(ytd_dollar_pnl_sgd),
+        ),
+        _kpi_cell(
+            f"Ex-ante Vol ({ex_ante_label})" if ex_ante_label else "Ex-ante Vol",
+            html.escape(_format_pct(ex_ante_vol)),
+            html.escape(ex_ante_sub),
+        ),
+        _regime_kpi_cell(report_data.regime_state),
+    ]
+    grid_style = f"grid-template-columns: repeat({len(cells)}, minmax(0, 1fr));"
+    kpi_block = (
+        "<div class='overview-kpis'>"
+        f"<div class='kpi-strip' style='{grid_style}'>"
+        + "".join(cells)
+        + "</div>"
+        "</div>"
+    )
+    regime_block = (
+        "<div class='overview-regime'>"
+        + _render_regime_section_body_for_state(
+            report_data.regime_state,
+            parent_as_of=report_data.as_of,
+        )
+        + "</div>"
+    )
+    return kpi_block + regime_block
+
+
+def _format_money_signed(value: float | None) -> str:
+    """Money formatter that shows a leading sign for positive values (so $ PNL
+    KPIs read like ‟+$12,345" / ‟-$1,234"). Mirrors the percent formatter's
+    `signed=True` behaviour."""
+    if value is None:
+        return "—"
+    if value > 0:
+        return f"+${value:,.0f}"
+    if value < 0:
+        return f"-${abs(value):,.0f}"
+    return "$0"
+
+
+_OVERVIEW_STYLES = """
+.overview-kpis { margin-bottom: 24px; }
+.overview-kpis .kpi-strip {
+  display: grid; gap: 1px; background: var(--panel-border);
+  border: 1px solid var(--panel-border); border-radius: var(--r-3); overflow: hidden;
+  box-shadow: var(--shadow-1);
+}
+.overview-kpis .kpi { background: var(--surface); padding: 14px 18px; display: flex; flex-direction: column; gap: 4px; }
+.overview-kpis .kpi__label { font-size: 11px; letter-spacing: 0.04em; text-transform: uppercase; color: var(--muted-ink); font-weight: 600; }
+.overview-kpis .kpi__value { font-size: 21px; font-weight: 700; line-height: 1.15; font-variant-numeric: tabular-nums; }
+.overview-kpis .kpi__sub { font-size: 11px; color: var(--muted-ink); font-variant-numeric: tabular-nums; min-height: 14px; }
+.overview-regime > .regime-v2-hero { margin-top: 0; }
+"""
+
+
 def build_portfolio_report_document(report_data: "PortfolioReportData") -> ReportDocument:
     sections = [
+        ReportSection(
+            key="overview",
+            title="Overview",
+            summary="Headline NAV, returns, ex-ante vol, and the regime section in one place — the report's landing view.",
+            body_html=build_overview_section_body(report_data),
+        ),
         ReportSection(
             key="performance-usd",
             title="Performance USD",
@@ -365,7 +519,7 @@ def build_portfolio_report_document(report_data: "PortfolioReportData") -> Repor
         # Regime CSS is always injected — the regime section is now always
         # present, even when the view-model is missing (renders an explainer
         # card instead of going blank).
-        f"<style>{regime_section_styles()}{_REGIME_RIBBON_STYLES}</style>",
+        f"<style>{regime_section_styles()}{_REGIME_RIBBON_STYLES}{_OVERVIEW_STYLES}</style>",
     ]
     return ReportDocument(
         title="Portfolio Monitor",
