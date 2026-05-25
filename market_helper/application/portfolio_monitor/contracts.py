@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import argparse
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
@@ -11,6 +12,10 @@ from market_helper.domain.regime_detection.services.regime_report_provider impor
 )
 from market_helper.reporting.performance_html import PerformanceReportViewModel
 from market_helper.reporting.risk_html import RiskReportViewModel
+
+
+def _optional_path(value: object) -> Path | None:
+    return Path(value) if value else None
 
 
 @dataclass
@@ -31,6 +36,30 @@ class PortfolioReportInputs:
     # regime provider for data in this mode. Default refresh-if-stale keeps
     # cron + dashboard "always fresh" without per-call configuration.
     regime_mode: RegimeMode = "refresh-if-stale"
+
+    @classmethod
+    def from_namespace(cls, args: argparse.Namespace) -> "PortfolioReportInputs":
+        """Build from a CLI argparse Namespace.
+
+        Centralizes the Path()/None coercion so individual dispatch branches
+        in `cli/main.py` do not each re-implement the same `Path(x) if x
+        else None` dance. Only the fields that appear on the namespace are
+        consulted; missing optional flags fall back to dataclass defaults.
+        """
+        return cls(
+            positions_csv_path=_optional_path(getattr(args, "positions_csv", None)),
+            performance_output_dir=_optional_path(getattr(args, "performance_output_dir", None)),
+            performance_history_path=_optional_path(getattr(args, "performance_history", None)),
+            performance_report_csv_path=_optional_path(getattr(args, "performance_report_csv", None)),
+            returns_path=_optional_path(getattr(args, "returns", None)),
+            proxy_path=_optional_path(getattr(args, "proxy", None)),
+            regime_path=_optional_path(getattr(args, "regime", None)),
+            security_reference_path=_optional_path(getattr(args, "security_reference", None)),
+            risk_config_path=_optional_path(getattr(args, "risk_config", None)),
+            allocation_policy_path=_optional_path(getattr(args, "allocation_policy", None)),
+            vol_method=getattr(args, "vol_method", "geomean_1m_3m"),
+            inter_asset_corr=getattr(args, "inter_asset_corr", "historical"),
+        )
 
 
 @dataclass(frozen=True)
@@ -126,6 +155,26 @@ class RegimeReportRefreshInputs(RegimeReportRunInputs):
 @dataclass
 class GenerateCombinedReportInputs(PortfolioReportInputs):
     output_path: str | Path | None = None
+
+    @classmethod
+    def from_namespace(cls, args: argparse.Namespace) -> "GenerateCombinedReportInputs":
+        base = PortfolioReportInputs.from_namespace(args)
+        return cls(
+            positions_csv_path=base.positions_csv_path,
+            performance_output_dir=base.performance_output_dir,
+            performance_history_path=base.performance_history_path,
+            performance_report_csv_path=base.performance_report_csv_path,
+            returns_path=base.returns_path,
+            proxy_path=base.proxy_path,
+            regime_path=base.regime_path,
+            security_reference_path=base.security_reference_path,
+            risk_config_path=base.risk_config_path,
+            allocation_policy_path=base.allocation_policy_path,
+            vol_method=base.vol_method,
+            inter_asset_corr=base.inter_asset_corr,
+            regime_mode=base.regime_mode,
+            output_path=_optional_path(getattr(args, "output", None)),
+        )
 
 
 @dataclass

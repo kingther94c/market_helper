@@ -132,6 +132,11 @@ Recent landed work (one-liners; full detail in
   - Dead-shim deletion: `market_helper/{utils,safety,ui}/` removed (53 LOC).
     Active importers in `providers/web_api/{client,mappers}.py` + 2 tests
     migrated to canonical `common.{read_only,time}`; README updated.
+  - CLI now consumes `application/portfolio_monitor/contracts.py` —
+    `PortfolioReportInputs.from_namespace(args)` /
+    `GenerateCombinedReportInputs.from_namespace(args)` own Path/None
+    coercion; `risk-html-report` and `combined-html-report` branches no
+    longer inline per-arg coercion. Flags and facade signatures unchanged.
 
 Further portfolio-monitor work rotates in through [`backlog.md`](backlog.md)
 as discrete asks land.

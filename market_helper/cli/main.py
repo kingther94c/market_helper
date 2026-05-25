@@ -7,6 +7,10 @@ import sys
 from pathlib import Path
 from typing import Sequence
 
+from market_helper.application.portfolio_monitor.contracts import (
+    GenerateCombinedReportInputs,
+    PortfolioReportInputs,
+)
 from market_helper.workflows.generate_report import (
     generate_combined_html_report,
     generate_etf_sector_sync,
@@ -561,34 +565,36 @@ def main(argv: Sequence[str] | None = None) -> int:
         )
         return 0
     if args.command == "risk-html-report":
+        inputs = PortfolioReportInputs.from_namespace(args)
         generate_risk_snapshot_report(
-            positions_csv_path=Path(args.positions_csv),
-            returns_path=Path(args.returns) if args.returns else None,
+            positions_csv_path=inputs.positions_csv_path,
+            returns_path=inputs.returns_path,
             output_path=Path(args.output),
-            proxy_path=Path(args.proxy) if args.proxy else None,
-            regime_path=Path(args.regime) if args.regime else None,
-            security_reference_path=Path(args.security_reference) if args.security_reference else None,
-            risk_config_path=Path(args.risk_config) if args.risk_config else None,
-            allocation_policy_path=Path(args.allocation_policy) if args.allocation_policy else None,
-            vol_method=args.vol_method,
-            inter_asset_corr=args.inter_asset_corr,
+            proxy_path=inputs.proxy_path,
+            regime_path=inputs.regime_path,
+            security_reference_path=inputs.security_reference_path,
+            risk_config_path=inputs.risk_config_path,
+            allocation_policy_path=inputs.allocation_policy_path,
+            vol_method=inputs.vol_method,
+            inter_asset_corr=inputs.inter_asset_corr,
         )
         return 0
     if args.command == "combined-html-report":
+        inputs = GenerateCombinedReportInputs.from_namespace(args)
         generate_combined_html_report(
-            positions_csv_path=Path(args.positions_csv),
-            output_path=Path(args.output),
-            performance_history_path=Path(args.performance_history) if args.performance_history else None,
-            performance_output_dir=Path(args.performance_output_dir) if args.performance_output_dir else None,
-            performance_report_csv_path=Path(args.performance_report_csv) if args.performance_report_csv else None,
-            returns_path=Path(args.returns) if args.returns else None,
-            proxy_path=Path(args.proxy) if args.proxy else None,
-            regime_path=Path(args.regime) if args.regime else None,
-            security_reference_path=Path(args.security_reference) if args.security_reference else None,
-            risk_config_path=Path(args.risk_config) if args.risk_config else None,
-            allocation_policy_path=Path(args.allocation_policy) if args.allocation_policy else None,
-            vol_method=args.vol_method,
-            inter_asset_corr=args.inter_asset_corr,
+            positions_csv_path=inputs.positions_csv_path,
+            output_path=inputs.output_path,
+            performance_history_path=inputs.performance_history_path,
+            performance_output_dir=inputs.performance_output_dir,
+            performance_report_csv_path=inputs.performance_report_csv_path,
+            returns_path=inputs.returns_path,
+            proxy_path=inputs.proxy_path,
+            regime_path=inputs.regime_path,
+            security_reference_path=inputs.security_reference_path,
+            risk_config_path=inputs.risk_config_path,
+            allocation_policy_path=inputs.allocation_policy_path,
+            vol_method=inputs.vol_method,
+            inter_asset_corr=inputs.inter_asset_corr,
         )
         return 0
     if args.command == "security-reference-sync":
