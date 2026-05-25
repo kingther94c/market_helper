@@ -101,3 +101,42 @@ Three standing rules apply to every round:
 The calibration round catalog (Q7 → Q9 + Phase 1+2 audit) lives in
 [`data/research_artifacts/README.md`](../../data/research_artifacts/README.md);
 reports there are the durable record, HTML reports are summaries.
+
+## NiceGUI "Your browser does not support ES modules" fallback
+
+If the dashboard shows this message persistently, **it is not a browser-age
+problem in 99% of cases** — the message is misleading. The mechanism:
+
+- NiceGUI 3.x's [`templates/index.html`](.) bootstraps Vue 3 via
+  `<script type="module">`. A hidden `<div id="esm-fallback">` is shown
+  after a 1s CSS animation; the module script removes it on success.
+- A `~ *` CSS sibling selector hides everything else (incl. `#app`) while
+  the fallback is visible — so a persistent fallback = blank dashboard.
+
+If the fallback persists, Vue failed to **load**, not because the browser
+lacks ES module support. Real causes, in order of frequency:
+
+1. **Stale browser cache** after a NiceGUI version bump — the cached
+   `index.html` points at module URLs that no longer exist.
+   **Fix**: hard refresh (`Ctrl+Shift+R` / `Cmd+Shift+R`), then DevTools →
+   Network → "Disable cache".
+2. Browser extension (adblocker / privacy plugin) blocking
+   `<script type="module">`.
+3. Corporate CSP / proxy stripping module scripts.
+
+The static HTML report (`portfolio_combined_report.html`) is **not
+affected** — it uses inline `<script>` only and opens fine in any modern
+browser via `file://` or HTTP.
+
+Quick diagnostic to confirm it's environmental (not code):
+
+```pwsh
+# Launch dashboard on a spare port, then HEAD the Vue chunk.
+& "<py313 python>" -m market_helper.presentation.dashboard.app `
+    --host 127.0.0.1 --port 18080 --no-show
+Invoke-WebRequest -Method Head `
+    'http://127.0.0.1:18080/_nicegui/<ver>/static/vue.esm-browser.prod.js' `
+    -UseBasicParsing
+# 200 OK with Content-Type: text/javascript → NiceGUI is serving it correctly;
+# the issue is on the client browser side.
+```

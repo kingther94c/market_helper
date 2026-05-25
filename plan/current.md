@@ -107,6 +107,13 @@ Recent landed work (one-liners; full detail in
   follows the report's actual vol-method choice instead of always
   showing the Fast (geomean_1m_3m) snapshot. Sub-line gained
   `{method} · {corr} corr` for full transparency.
+- Documented the misleading **NiceGUI "Your browser does not support
+  ES modules"** dashboard fallback in
+  [`memory/hot/gotchas.md`](memory/hot/gotchas.md) — confirmed
+  reproducibly on the local install that NiceGUI serves the Vue module
+  correctly (`200 OK · text/javascript · 164KB`), so when the fallback
+  shows it's a client-side cache / extension / CSP issue, not a code
+  bug. Static HTML report is unaffected.
 - **Daily cron self-sufficiently refreshes regime** —
   `scripts/dev/run_daily_report.py` now passes
   `regime_mode="refresh-if-stale"`. The Windows scheduled task no longer
