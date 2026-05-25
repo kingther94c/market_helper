@@ -122,6 +122,13 @@ Recent landed work (one-liners; full detail in
   remains as a `force-refresh` shortcut.
 - Architectural route confirmed (no separate snapshot/Playwright pipeline —
   see ADR 0002).
+- **System-design pass (Plans 1+2 from review; additive, no behaviour change)**:
+  - Test coverage backfill — 5 new/extended test files, ~58 unit tests
+    covering previously integration-only gotchas
+    (`_extract_cashflow_date` precedence, `_compound_window_benchmark`
+    NaN→0, `vol_proxies` validators raising on negative/zero,
+    `risk_analysis` wrapper paths, `security_reference_table` re-export
+    guard).
 
 Further portfolio-monitor work rotates in through [`backlog.md`](backlog.md)
 as discrete asks land.
