@@ -210,6 +210,17 @@ class PortfolioMonitorQueryService:
             performance_report_csv_path=performance_report_csv_path,
         )
         warnings.extend(perf_entry.perf_warnings)
+        # Regime provider runs BEFORE the risk view-model build: under
+        # `refresh-if-stale` (the default) it may need to create the regime
+        # artifact, and the risk side reads that same file for its regime
+        # sidebar. If provider fails / file still doesn't exist after refresh,
+        # both consumers (regime section + risk sidebar) degrade gracefully.
+        regime_state = self._load_regime_state(
+            regime_path=resolved.regime_path,
+            regime_mode=resolved.regime_mode,
+            policy_path=resolved.allocation_policy_path,
+            warnings=warnings,
+        )
         risk_view_model = build_risk_report_view_model(
             positions_csv_path=positions_path,
             returns_path=resolved.returns_path,
@@ -220,12 +231,6 @@ class PortfolioMonitorQueryService:
             allocation_policy_path=resolved.allocation_policy_path,
             vol_method=resolved.vol_method,
             inter_asset_corr=resolved.inter_asset_corr,
-        )
-        regime_state = self._load_regime_state(
-            regime_path=resolved.regime_path,
-            regime_mode=resolved.regime_mode,
-            policy_path=resolved.allocation_policy_path,
-            warnings=warnings,
         )
         performance_usd_view_model = perf_entry.usd_view_model
         performance_sgd_view_model = perf_entry.sgd_view_model

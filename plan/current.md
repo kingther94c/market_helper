@@ -62,6 +62,14 @@ Recent landed work (one-liners; full detail in
   (`market_helper.common.datetime_display.is_as_of_stale`) that drives the
   report's overall `as_of_freshness_note` — single source of truth for what
   counts as out-of-date.
+- Follow-up regression fix: `_load_regime_summary` in `risk_html.py` was
+  reading the regime artifact unconditionally; once the combined-report
+  pipeline started passing a path that may not exist yet (so the provider
+  can refresh into it), the risk view-model build crashed with
+  FileNotFoundError on fresh machines. Hardened with an `.exists()` guard
+  and reordered `_assemble_report_data` so the regime provider runs before
+  the risk view-model build (refresh has a chance to create the file before
+  any consumer reads it).
 - **Daily cron self-sufficiently refreshes regime** —
   `scripts/dev/run_daily_report.py` now passes
   `regime_mode="refresh-if-stale"`. The Windows scheduled task no longer

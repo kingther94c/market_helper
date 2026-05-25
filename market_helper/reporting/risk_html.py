@@ -4592,7 +4592,15 @@ def _fetch_symbol_level_from_yahoo(
 def _load_regime_summary(path: str | Path | None) -> RegimeReportSummary | None:
     if path is None:
         return None
-    loaded: Any = json.loads(Path(path).read_text(encoding="utf-8"))
+    resolved = Path(path)
+    # The combined-report pipeline now always passes a regime path (so the
+    # regime provider can refresh into it); the file may not exist yet when
+    # the regime workflow hasn't run on this machine. Treat "missing file"
+    # the same as path=None — the regime section in the combined report
+    # surfaces the absence; the risk side just omits its regime sidebar.
+    if not resolved.exists():
+        return None
+    loaded: Any = json.loads(resolved.read_text(encoding="utf-8"))
     if not isinstance(loaded, list) or not loaded:
         return None
     row = loaded[-1]

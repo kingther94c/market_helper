@@ -1032,6 +1032,20 @@ def test_load_regime_summary_accepts_v2_payload(tmp_path: Path) -> None:
     assert summary.per_method is not None
     assert summary.per_method[0]["method"] == "macro_nowcast"
 
+
+def test_load_regime_summary_returns_none_when_file_missing(tmp_path: Path) -> None:
+    """Regression: the combined-report pipeline now always passes a
+    `regime_path` (so the regime provider can refresh into it). On a fresh
+    machine the file may not exist yet — `_load_regime_summary` must treat
+    that as ‟no regime sidebar" rather than raising FileNotFoundError, which
+    used to crash the entire combined-report action."""
+    absent_path = tmp_path / "regime_does_not_exist.json"
+    assert not absent_path.exists()
+
+    summary = risk_html_module._load_regime_summary(absent_path)
+
+    assert summary is None
+
     # The regime snapshot is rendered in the dedicated Regime section, not the
     # Risk tab — render_risk_tab no longer emits the regime block.
     html = risk_html_module.render_risk_tab(
