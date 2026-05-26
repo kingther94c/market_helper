@@ -102,6 +102,37 @@ The calibration round catalog (Q7 → Q9 + Phase 1+2 audit) lives in
 [`data/research_artifacts/README.md`](../../data/research_artifacts/README.md);
 reports there are the durable record, HTML reports are summaries.
 
+## Dashboard URLs + Tailscale access
+
+The dashboard exposes two URLs for the combined HTML report:
+
+- `http://<host>:<port>/portfolio/portfolio_dashboard_report.html` —
+  **pretty alias**, fixed path, no query string. Use this for bookmarks,
+  share links, and Tailscale-served cross-device access. Serves the file
+  at `DEFAULT_COMBINED_REPORT_PATH`
+  (`data/artifacts/portfolio_monitor/portfolio_dashboard_report.html`).
+- `http://<host>:<port>/portfolio/generated-html?path=<abs-path>` —
+  **generic sandboxed fallback** for any file under `DATA_DIR` (CSV,
+  JSON, feather, plus the HTML report). Used by the dashboard iframe
+  for non-canonical artifacts (e.g. policy YAML mirrors).
+
+Both routes return `Cache-Control: no-cache` so a refresh button (or
+just reloading the page) always sees the latest body — important for
+cross-device viewing where the *other* device might have a stale cache.
+
+To expose the dashboard over **Tailscale**, bind to all interfaces
+instead of the localhost-only default:
+
+```pwsh
+& "<py313 python>" -m market_helper.presentation.dashboard.app `
+    --host 0.0.0.0 --port 8080 --no-show
+```
+
+Then any device on the tailnet reaches the report at
+`http://<this-host's-tailscale-ip>:8080/portfolio/portfolio_dashboard_report.html`.
+Tailscale's ACLs are the security boundary — the dashboard has no auth
+of its own, so don't open the port to the public internet.
+
 ## NiceGUI "Your browser does not support ES modules" fallback
 
 If the dashboard shows this message persistently, **it is not a browser-age

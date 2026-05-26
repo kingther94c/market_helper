@@ -128,6 +128,15 @@ Recent landed work (one-liners; full detail in
   (no glob). Old dated files left on disk become harmless leftovers —
   delete manually if desired. New overwrite-pinning test prevents this
   from drifting back.
+- **Pretty URL for the combined report**: the dashboard now serves the
+  report at `http://<host>:<port>/portfolio/portfolio_dashboard_report.html`
+  (no `?path=` query, no absolute-path leak). The legacy
+  `?path=<abs-path>` route still handles any other artifact under
+  `DATA_DIR`. `_served_artifact_url` prefers the pretty alias when the
+  target IS the canonical combined report. Both routes return
+  `Cache-Control: no-cache` so cross-device refresh works. Documented
+  the Tailscale binding pattern (`--host=0.0.0.0`) in
+  `memory/hot/gotchas.md`.
 - **Overview landing tab** — `build_overview_section_body` adds a new
   first section to the combined report carrying the headline KPIs plus
   the regime body inline. New KPI exclusive to Overview: **YTD $ PNL

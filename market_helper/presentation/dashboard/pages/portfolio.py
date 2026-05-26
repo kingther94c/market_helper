@@ -17,6 +17,9 @@ from nicegui import app as nicegui_app
 from nicegui import ui
 
 from market_helper.app.paths import DATA_DIR
+from market_helper.application.portfolio_monitor.services import (
+    DEFAULT_COMBINED_REPORT_PATH,
+)
 from market_helper.application.portfolio_monitor import (
     BenchmarkRefreshInputs,
     EtfSectorSyncInputs,
@@ -363,6 +366,7 @@ def register_portfolio_page(
         return
 
     _register_generated_html_route()
+    _register_dashboard_report_route()
 
     @ui.page("/portfolio")
     async def portfolio_page(tab: str | None = None) -> None:
@@ -1239,6 +1243,13 @@ def _benchmark_inputs_from_form(state: PortfolioPageState) -> BenchmarkRefreshIn
 
 _GENERATED_HTML_ROUTE = "/portfolio/generated-html"
 _GENERATED_HTML_ROUTE_REGISTERED = False
+# Pretty alias for the canonical combined report. Lets users share /
+# bookmark `http://<host>:<port>/portfolio/portfolio_dashboard_report.html`
+# instead of the legacy `?path=<absolute-fs-path>` form. Accessing the same
+# file via either URL is fine; we just prefer the clean one for the iframe
+# embed + any external sharing (e.g. via Tailscale).
+_DASHBOARD_REPORT_ROUTE = "/portfolio/portfolio_dashboard_report.html"
+_DASHBOARD_REPORT_ROUTE_REGISTERED = False
 
 
 def _register_generated_html_route() -> None:
@@ -1285,22 +1296,66 @@ def _register_generated_html_route() -> None:
     _GENERATED_HTML_ROUTE_REGISTERED = True
 
 
-def _served_artifact_url(target: Path | str | None) -> str | None:
-    """Return a dashboard-relative URL that serves `target` via the generated-html route.
+def _register_dashboard_report_route() -> None:
+    """Register the pretty alias for the canonical combined report.
 
-    Returns None when the path is empty / outside `DATA_DIR` / does not exist on
-    disk — callers should fall back to a plain label rather than render a broken
-    link.
+    A GET to ``/portfolio/portfolio_dashboard_report.html`` serves the file
+    at :data:`DEFAULT_COMBINED_REPORT_PATH` directly — no query string, no
+    absolute-path leak in the URL. Mirrors the headers of the legacy
+    generated-html route so cross-device refresh (e.g. via Tailscale) keeps
+    working: ``Cache-Control: no-cache`` forces the browser to revalidate
+    on every load instead of serving a stale cached body.
+
+    Idempotent: subsequent calls noop.
+    """
+    global _DASHBOARD_REPORT_ROUTE_REGISTERED
+    if _DASHBOARD_REPORT_ROUTE_REGISTERED:
+        return
+
+    @nicegui_app.get(_DASHBOARD_REPORT_ROUTE)
+    async def serve_dashboard_report() -> FileResponse:  # type: ignore[no-redef]
+        target = DEFAULT_COMBINED_REPORT_PATH
+        if not target.is_file():
+            raise HTTPException(
+                status_code=404,
+                detail=(
+                    f"Combined report not yet generated at {target}. Click "
+                    "'Generate Combined Report' in the dashboard to produce it."
+                ),
+            )
+        return FileResponse(
+            target,
+            media_type="text/html; charset=utf-8",
+            headers={"Cache-Control": "no-cache"},
+        )
+
+    _DASHBOARD_REPORT_ROUTE_REGISTERED = True
+
+
+def _served_artifact_url(target: Path | str | None) -> str | None:
+    """Return a dashboard-relative URL that serves `target`.
+
+    Prefers the pretty alias ``/portfolio/portfolio_dashboard_report.html``
+    when ``target`` IS the canonical combined report; falls back to the
+    generic ``/portfolio/generated-html?path=...`` route for any other
+    artifact under ``DATA_DIR`` (CSVs, JSON, feather, etc.).
+
+    Returns None when the path is empty / outside ``DATA_DIR`` / does not
+    exist on disk — callers should fall back to a plain label rather than
+    render a broken link.
     """
     if target is None:
         return None
     candidate = Path(str(target)).expanduser()
     if not candidate.is_absolute() or not candidate.exists():
         return None
+    resolved = candidate.resolve()
     try:
-        candidate.resolve().relative_to(DATA_DIR.resolve())
+        resolved.relative_to(DATA_DIR.resolve())
     except ValueError:
         return None
+    if resolved == DEFAULT_COMBINED_REPORT_PATH.resolve():
+        return _DASHBOARD_REPORT_ROUTE
     return f"{_GENERATED_HTML_ROUTE}?path={quote(str(candidate))}"
 
 

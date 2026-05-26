@@ -525,3 +525,64 @@ def test_classify_warning_returns_none_for_unrelated_warning() -> None:
     # muted warning rather than being promoted to a remediation banner.
     assert _classify_warning("Performance history path is not configured.") is None
     assert _classify_warning("") is None
+
+
+def test_served_artifact_url_uses_pretty_alias_for_canonical_dashboard_report(
+    monkeypatch, tmp_path
+) -> None:
+    """The canonical combined report gets a clean URL —
+    /portfolio/portfolio_dashboard_report.html — instead of the
+    legacy ?path=<abs-path> form. Lets users bookmark / share the URL
+    (e.g. for Tailscale-served access from another device)."""
+    # Re-root DATA_DIR + the canonical report path into tmp_path so we don't
+    # depend on the developer's actual artifact tree.
+    canonical = tmp_path / "artifacts" / "portfolio_monitor" / "portfolio_dashboard_report.html"
+    canonical.parent.mkdir(parents=True)
+    canonical.write_text("<html><body>fake</body></html>", encoding="utf-8")
+    monkeypatch.setattr(portfolio_page, "DATA_DIR", tmp_path)
+    monkeypatch.setattr(portfolio_page, "DEFAULT_COMBINED_REPORT_PATH", canonical)
+
+    url = portfolio_page._served_artifact_url(canonical)
+
+    assert url == portfolio_page._DASHBOARD_REPORT_ROUTE
+    assert url == "/portfolio/portfolio_dashboard_report.html"
+    assert "?path=" not in url
+
+
+def test_served_artifact_url_falls_back_to_legacy_query_for_other_files(
+    monkeypatch, tmp_path
+) -> None:
+    """Non-canonical artifacts (CSV, JSON, etc.) still flow through the
+    generic ?path= route so existing iframe links continue to work."""
+    other = tmp_path / "artifacts" / "portfolio_monitor" / "live_ibkr_position_report.csv"
+    other.parent.mkdir(parents=True)
+    other.write_text("as_of,account\n", encoding="utf-8")
+    # Make sure DATA_DIR contains `other` so the sandbox check passes.
+    monkeypatch.setattr(portfolio_page, "DATA_DIR", tmp_path)
+    # Re-point DEFAULT_COMBINED_REPORT_PATH somewhere else so `other` is NOT
+    # the canonical report.
+    canonical = tmp_path / "artifacts" / "portfolio_monitor" / "portfolio_dashboard_report.html"
+    monkeypatch.setattr(portfolio_page, "DEFAULT_COMBINED_REPORT_PATH", canonical)
+
+    url = portfolio_page._served_artifact_url(other)
+
+    assert url is not None
+    assert url.startswith(portfolio_page._GENERATED_HTML_ROUTE + "?path=")
+    assert "live_ibkr_position_report.csv" in url
+
+
+def test_served_artifact_url_returns_none_for_missing_or_outside_paths(
+    monkeypatch, tmp_path
+) -> None:
+    monkeypatch.setattr(portfolio_page, "DATA_DIR", tmp_path)
+    # Missing file under DATA_DIR.
+    assert portfolio_page._served_artifact_url(tmp_path / "absent.html") is None
+    # Path outside DATA_DIR (resolves to a different drive root in tests).
+    outside = tmp_path.parent / "outside.html"
+    outside.write_text("hi", encoding="utf-8")
+    try:
+        assert portfolio_page._served_artifact_url(outside) is None
+    finally:
+        outside.unlink(missing_ok=True)
+    # None input -> None.
+    assert portfolio_page._served_artifact_url(None) is None
