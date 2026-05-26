@@ -103,6 +103,21 @@ Recent landed work (one-liners; full detail in
   `output_path.name` and dragged the date over) now passes the canonical
   date-less name explicitly. Combined HTML mirror was already canonical.
   Two regression tests pin both call sites.
+- **Combined report → Dashboard report rename**: literal substring
+  `portfolio_combined_report` → `portfolio_dashboard_report` across the
+  whole repo (output filename, GDrive mirror target, dashboard form
+  default, daily-cron output, README, scripts/run_report.sh, tests,
+  gotchas). Internal symbols like `GenerateCombinedReportInputs` keep
+  the ‟combined" concept-word (still accurate — it combines perf+risk+
+  regime view-models).
+- **Duplicate Regime tab dropped**: previously the report rendered the
+  full regime body twice (in Overview and in a standalone Regime tab).
+  Overview is now the sole deep-link target for regime content; the
+  ribbon + KPI cell stay as cross-tab summaries.
+- **Timezone display simplified**: `format_local_datetime` no longer
+  emits the OS-supplied tz name (‟Malay Peninsula Standard Time", ‟Pacific
+  Daylight Time", etc.) — those vary by OS locale + DST and add visual
+  noise. The UTC offset alone unambiguously pins the local zone.
 - **Overview landing tab** — `build_overview_section_body` adds a new
   first section to the combined report carrying the headline KPIs plus
   the regime body inline. New KPI exclusive to Overview: **YTD $ PNL

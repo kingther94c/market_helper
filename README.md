@@ -245,7 +245,7 @@ conda run -n py313 python -m market_helper.cli.main combined-html-report \
   --positions-csv data/artifacts/portfolio_monitor/live_ibkr_position_report.csv \
   --performance-output-dir data/artifacts/portfolio_monitor/flex \
   --returns data/processed/returns.json \
-  --output data/artifacts/portfolio_monitor/portfolio_combined_report.html
+  --output data/artifacts/portfolio_monitor/portfolio_dashboard_report.html
 ```
 
 - The combined report renders `Performance` and `Risk` tabs in one static HTML page.
@@ -287,7 +287,7 @@ If `--output` is omitted, the script writes to:
 - `data/artifacts/portfolio_monitor/position_report.csv`
 - `data/artifacts/portfolio_monitor/ibkr_position_report.csv`
 - `data/artifacts/portfolio_monitor/live_ibkr_position_report.csv`
-- `data/artifacts/portfolio_monitor/portfolio_combined_report.html`
+- `data/artifacts/portfolio_monitor/portfolio_dashboard_report.html`
 
 Those files under `data/artifacts/portfolio_monitor/` are generated outputs, not config inputs. The checked-in preview files under `outputs/` are also output artifacts rather than runtime config.
 `data/artifacts/portfolio_monitor/live_ibkr_position_report.csv` is a local generated output and should remain gitignored.

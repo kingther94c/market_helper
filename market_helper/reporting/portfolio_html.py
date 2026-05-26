@@ -494,17 +494,10 @@ def build_portfolio_report_document(report_data: "PortfolioReportData") -> Repor
             body_html=render_risk_tab(report_data.risk_view_model),
         ),
     ]
-    sections.append(
-        ReportSection(
-            key="regime",
-            title="Regime",
-            summary="Regime Engine context: growth/inflation axes, layer detail, independent risk overlay, disagreement, and history.",
-            body_html=_render_regime_section_body_for_state(
-                report_data.regime_state,
-                parent_as_of=report_data.as_of,
-            ),
-        )
-    )
+    # Regime body lives inside the Overview section (the report's landing
+    # view); no separate Regime tab — the previous layout rendered the same
+    # body twice (Overview AND a standalone Regime section), which was
+    # visually noisy. Ribbon + KPI cell are the cross-tab summaries.
     sections.append(
         ReportSection(
             key="artifacts",

@@ -460,8 +460,8 @@ def test_action_service_normalizes_combined_and_etf_calls(monkeypatch, tmp_path:
 
     def fake_ensure_google_drive_artifact_mirror(**kwargs):
         assert kwargs["source_path"] == tmp_path / "combined.html"
-        assert kwargs["target_name"] == "portfolio_combined_report.html"
-        return tmp_path / "google-drive" / "portfolio_combined_report.html"
+        assert kwargs["target_name"] == "portfolio_dashboard_report.html"
+        return tmp_path / "google-drive" / "portfolio_dashboard_report.html"
 
     def fake_generate_etf_sector_sync(**kwargs):
         etf_calls.update(kwargs)
@@ -518,7 +518,7 @@ def test_action_service_normalizes_combined_and_etf_calls(monkeypatch, tmp_path:
     )
 
     assert combined_written.output_path == tmp_path / "combined.html"
-    assert combined_written.mirrored_output_path == tmp_path / "google-drive" / "portfolio_combined_report.html"
+    assert combined_written.mirrored_output_path == tmp_path / "google-drive" / "portfolio_dashboard_report.html"
     assert combined_written.report_type == "portfolio_monitor"
     assert write_calls["output_path"] == tmp_path / "combined.html"
     assert write_calls["report_data"] == fake_report_data

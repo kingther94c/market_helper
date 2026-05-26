@@ -5,6 +5,12 @@ from zoneinfo import ZoneInfo
 
 
 def format_local_datetime(value: str | None) -> str:
+    """Render an ISO timestamp in the host's local zone as ``YYYY-MM-DD HH:MM:SS (UTC±HH:MM)``.
+
+    The OS-supplied tz name ("Malay Peninsula Standard Time", "Pacific Daylight
+    Time", etc.) is intentionally omitted — it varies by OS locale + DST and
+    adds visual noise; the UTC offset alone unambiguously pins the local zone.
+    """
     normalized = str(value or "").strip()
     if not normalized:
         return "n/a"
@@ -12,8 +18,7 @@ def format_local_datetime(value: str | None) -> str:
     if parsed is None:
         return normalized
     local_dt = parsed.astimezone()
-    tz_name = local_dt.tzname() or "Local"
-    return f"{local_dt.strftime('%Y-%m-%d %H:%M:%S')} ({tz_name}, {_format_utc_offset(local_dt)})"
+    return f"{local_dt.strftime('%Y-%m-%d %H:%M:%S')} ({_format_utc_offset(local_dt)})"
 
 
 def _parse_datetime(value: str) -> datetime | None:

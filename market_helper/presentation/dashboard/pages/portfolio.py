@@ -646,9 +646,9 @@ def _build_initial_state(query_service: PortfolioMonitorQueryService) -> Portfol
     positions_path = str(inputs.positions_csv_path or "")
     performance_output_dir = str(inputs.performance_output_dir or "")
     default_output_path = (
-        str(Path(performance_output_dir).parent / "portfolio_combined_report.html")
+        str(Path(performance_output_dir).parent / "portfolio_dashboard_report.html")
         if performance_output_dir
-        else "portfolio_combined_report.html"
+        else "portfolio_dashboard_report.html"
     )
     return PortfolioPageState(
         artifact_form=PortfolioArtifactFormState(

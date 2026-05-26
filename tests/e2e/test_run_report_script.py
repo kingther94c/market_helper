@@ -242,7 +242,7 @@ def test_run_report_ibkr_live_html_defaults_to_combined_report(tmp_path: Path) -
     assert "ibkr-live-position-report" in result.stdout
     assert "combined-html-report" in result.stdout
     assert "--performance-output-dir" in result.stdout
-    assert "portfolio_combined_report.html" not in result.stdout or "--output" in result.stdout
+    assert "portfolio_dashboard_report.html" not in result.stdout or "--output" in result.stdout
 
 
 def test_run_report_security_reference_sync_defaults_to_artifacts_cache_path(tmp_path: Path) -> None:

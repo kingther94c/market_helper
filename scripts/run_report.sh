@@ -141,24 +141,24 @@ case "${MODE}" in
         ;;
     ibkr-live-html)
         CLI_COMMAND=""
-        DEFAULT_OUTPUT="${ROOT_DIR}/data/artifacts/portfolio_monitor/portfolio_combined_report.html"
+        DEFAULT_OUTPUT="${ROOT_DIR}/data/artifacts/portfolio_monitor/portfolio_dashboard_report.html"
         DEFAULT_POSITIONS_OUTPUT="${ROOT_DIR}/data/artifacts/portfolio_monitor/live_ibkr_position_report.csv"
         DEFAULT_PERFORMANCE_OUTPUT_DIR="${ROOT_DIR}/data/artifacts/portfolio_monitor/flex"
         ;;
     ibkr-live-combined-html)
         CLI_COMMAND=""
-        DEFAULT_OUTPUT="${ROOT_DIR}/data/artifacts/portfolio_monitor/portfolio_combined_report.html"
+        DEFAULT_OUTPUT="${ROOT_DIR}/data/artifacts/portfolio_monitor/portfolio_dashboard_report.html"
         DEFAULT_POSITIONS_OUTPUT="${ROOT_DIR}/data/artifacts/portfolio_monitor/live_ibkr_position_report.csv"
         DEFAULT_PERFORMANCE_OUTPUT_DIR="${ROOT_DIR}/data/artifacts/portfolio_monitor/flex"
         ;;
     risk-html)
         CLI_COMMAND="combined-html-report"
-        DEFAULT_OUTPUT="${ROOT_DIR}/data/artifacts/portfolio_monitor/portfolio_combined_report.html"
+        DEFAULT_OUTPUT="${ROOT_DIR}/data/artifacts/portfolio_monitor/portfolio_dashboard_report.html"
         DEFAULT_PERFORMANCE_OUTPUT_DIR="${ROOT_DIR}/data/artifacts/portfolio_monitor/flex"
         ;;
     combined-html)
         CLI_COMMAND="combined-html-report"
-        DEFAULT_OUTPUT="${ROOT_DIR}/data/artifacts/portfolio_monitor/portfolio_combined_report.html"
+        DEFAULT_OUTPUT="${ROOT_DIR}/data/artifacts/portfolio_monitor/portfolio_dashboard_report.html"
         DEFAULT_PERFORMANCE_OUTPUT_DIR="${ROOT_DIR}/data/artifacts/portfolio_monitor/flex"
         ;;
     security-reference-sync)

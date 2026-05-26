@@ -34,7 +34,7 @@ from market_helper.application.portfolio_monitor import (
 from market_helper.config.local_env import read_local_config_value
 
 DEFAULT_POSITIONS_CSV = DATA_DIR / "artifacts" / "portfolio_monitor" / "live_ibkr_position_report.csv"
-DEFAULT_COMBINED_HTML = DATA_DIR / "artifacts" / "portfolio_monitor" / "portfolio_combined_report.html"
+DEFAULT_COMBINED_HTML = DATA_DIR / "artifacts" / "portfolio_monitor" / "portfolio_dashboard_report.html"
 SCHEDULED_LOG_DIR = DATA_DIR / "artifacts" / "scheduled"
 
 

@@ -289,7 +289,7 @@ def test_cli_combined_html_report_dispatches_to_workflow(monkeypatch, tmp_path) 
             "--security-reference",
             str(tmp_path / "security_reference.csv"),
             "--output",
-            str(tmp_path / "portfolio_combined_report.html"),
+            str(tmp_path / "portfolio_dashboard_report.html"),
             "--risk-config",
             str(tmp_path / "report_config.yaml"),
             "--allocation-policy",
@@ -311,7 +311,7 @@ def test_cli_combined_html_report_dispatches_to_workflow(monkeypatch, tmp_path) 
     assert str(captured["risk_config_path"]).endswith("report_config.yaml")
     assert str(captured["allocation_policy_path"]).endswith("allocation_policy.yaml")
     assert captured["vol_method"] == "5y_realized"
-    assert str(captured["output_path"]).endswith("portfolio_combined_report.html")
+    assert str(captured["output_path"]).endswith("portfolio_dashboard_report.html")
 
 
 def test_cli_regime_detect_dispatches_to_workflow(monkeypatch, tmp_path) -> None:

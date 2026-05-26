@@ -57,7 +57,7 @@ from market_helper.workflows import run_regime_report as regime_report_workflows
 
 
 DEFAULT_POSITIONS_CSV_PATH = PORTFOLIO_ARTIFACTS_DIR / "live_ibkr_position_report.csv"
-DEFAULT_COMBINED_REPORT_PATH = PORTFOLIO_ARTIFACTS_DIR / "portfolio_combined_report.html"
+DEFAULT_COMBINED_REPORT_PATH = PORTFOLIO_ARTIFACTS_DIR / "portfolio_dashboard_report.html"
 DEFAULT_PERFORMANCE_OUTPUT_DIR = PORTFOLIO_ARTIFACTS_DIR / "flex"
 DEFAULT_REGIME_ARTIFACT_PATH = Path("data/artifacts/regime_detection/regime_snapshots.json")
 DEFAULT_REGIME_HTML_PATH = Path("data/artifacts/regime_detection/regime_report.html")
@@ -565,7 +565,7 @@ class PortfolioMonitorActionService:
         try:
             mirrored = report_workflows.ensure_google_drive_artifact_mirror(
                 source_path=written,
-                target_name="portfolio_combined_report.html",
+                target_name="portfolio_dashboard_report.html",
                 config_path=Path(str(resolved.risk_config_path)) if resolved.risk_config_path is not None else None,
             )
         except Exception as exc:  # noqa: BLE001 — local report is the source of truth for GUI use.
@@ -625,7 +625,7 @@ def _mirror_artifact_to_gdrive(
 
     ``target_name`` overrides the destination basename — combined-report and
     Flex-performance callers pass canonical **date-less** names
-    (``portfolio_combined_report.html`` / ``performance_report.csv``) so the
+    (``portfolio_dashboard_report.html`` / ``performance_report.csv``) so the
     Portfolio_Report mirror is a "latest snapshot" view: one file per
     artifact type, overwritten on each refresh. Local artifacts keep their
     dated filenames for history.

@@ -124,7 +124,7 @@ lacks ES module support. Real causes, in order of frequency:
    `<script type="module">`.
 3. Corporate CSP / proxy stripping module scripts.
 
-The static HTML report (`portfolio_combined_report.html`) is **not
+The static HTML report (`portfolio_dashboard_report.html`) is **not
 affected** — it uses inline `<script>` only and opens fine in any modern
 browser via `file://` or HTTP.
 

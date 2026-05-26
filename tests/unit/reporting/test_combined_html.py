@@ -96,7 +96,7 @@ def test_generate_combined_html_report_writes_direct_html_and_mirrors_artifact(
     assert captured["inputs"].allocation_policy_path == tmp_path / "allocation_policy.yaml"
     assert captured["inputs"].vol_method == "forward_looking"
     assert captured["inputs"].inter_asset_corr == "corr_0"
-    mirrored_path = mirror_dir / "portfolio_combined_report.html"
+    mirrored_path = mirror_dir / "portfolio_dashboard_report.html"
     assert mirrored_path.exists()
     assert mirrored_path.read_text(encoding="utf-8") == "<html><body>report</body></html>"
 
@@ -148,7 +148,7 @@ def test_mirror_artifact_swallows_permission_error_when_path_unreachable(
 
     with caplog.at_level("WARNING"):
         result = pipeline._mirror_artifact_if_configured(
-            source, target_name="portfolio_combined_report.html"
+            source, target_name="portfolio_dashboard_report.html"
         )
 
     assert result is None
@@ -218,7 +218,11 @@ def test_render_portfolio_report_builds_html_shell_without_nicegui_refs(tmp_path
     assert "regime-ribbon" in rendered
     assert "regime-ribbon__pill--unavailable" in rendered
     assert "Regime unavailable" in rendered
-    assert "href='#regime'" in rendered or 'href="#regime"' in rendered
+    # Regime body lives inside the Overview section (the report's landing
+    # view) — no separate Regime tab. The Overview nav link is the way users
+    # reach the regime card.
+    assert "href='#overview'" in rendered or 'href="#overview"' in rendered
+    assert "href='#regime'" not in rendered and 'href="#regime"' not in rendered
     assert "regime-unavailable" in rendered
     assert "Refresh Regime" in rendered
     # B1 — the Artifacts table no longer leaks raw `<span class='tone-muted'>`
@@ -300,8 +304,10 @@ def test_render_portfolio_report_includes_regime_section_when_view_model_present
     assert "Goldilocks" in rendered
     assert "Crisis off" in rendered
     assert "Vol mult" not in rendered
-    # Regime section is reachable via deep-link and renders all four new visuals.
-    assert "href='#regime'" in rendered or 'href="#regime"' in rendered
+    # Regime body lives in the Overview section (single deep-link target);
+    # all four regime visuals must still render inside it.
+    assert "href='#overview'" in rendered or 'href="#overview"' in rendered
+    assert "href='#regime'" not in rendered and 'href="#regime"' not in rendered
     assert "Factor Scores" in rendered
     assert "Crisis Intensity" in rendered
     assert "Method-Vote Heat Strip" in rendered
