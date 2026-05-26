@@ -9,6 +9,7 @@ import pandas as pd
 
 from market_helper.application.portfolio_monitor import (
     EtfSectorSyncInputs,
+    FlexPerformanceRefreshInputs,
     GenerateCombinedReportInputs,
     InMemoryUiProgressSink,
     LivePortfolioRefreshInputs,
@@ -259,6 +260,91 @@ def test_query_service_fills_missing_spy_benchmark_from_cached_returns(
 
     figure = report_data.performance_usd_view_model.chart_specs["percent"]["FULL"]
     assert any(trace.get("name") == "SPY (benchmark)" for trace in figure["data"])
+
+
+def test_refresh_live_positions_mirrors_to_dateless_canonical_name(
+    monkeypatch, tmp_path: Path
+) -> None:
+    """All files mirrored into GDrive Portfolio_Report must use the
+    canonical date-less filename. Regression: even if a caller writes
+    the local file with a dated name, the mirror target stays
+    `live_ibkr_position_report.csv`."""
+    dated_local_path = tmp_path / "live_ibkr_position_report_20260524.csv"
+    mirror_calls: list[dict[str, object]] = []
+
+    def fake_generate_live_ibkr_position_report(**kwargs):
+        dated_local_path.write_text("as_of\n", encoding="utf-8")
+        return dated_local_path
+
+    def fake_ensure_mirror(**kwargs):
+        mirror_calls.append(kwargs)
+        return tmp_path / "gdrive" / kwargs["target_name"]
+
+    monkeypatch.setattr(
+        app_services.report_workflows,
+        "generate_live_ibkr_position_report",
+        fake_generate_live_ibkr_position_report,
+    )
+    monkeypatch.setattr(
+        app_services.report_workflows,
+        "ensure_google_drive_artifact_mirror",
+        fake_ensure_mirror,
+    )
+
+    PortfolioMonitorActionService().refresh_live_positions(
+        LivePortfolioRefreshInputs(
+            output_path=dated_local_path, client_id=1, account_id="U1"
+        )
+    )
+
+    assert len(mirror_calls) == 1
+    assert mirror_calls[0]["source_path"] == dated_local_path
+    assert mirror_calls[0]["target_name"] == app_services.DEFAULT_GDRIVE_LIVE_POSITIONS_FILENAME
+    assert mirror_calls[0]["target_name"] == "live_ibkr_position_report.csv"
+
+
+def test_rebuild_flex_performance_mirrors_to_dateless_canonical_name(
+    monkeypatch, tmp_path: Path
+) -> None:
+    """Flex CSVs are written locally with `performance_report_YYYYMMDD.csv`
+    so users keep a dated history, but the GDrive mirror must use the
+    date-less canonical name so Portfolio_Report/ shows one current
+    snapshot per artifact. This is the actual fix for the user request."""
+    output_dir = tmp_path / "flex"
+    output_dir.mkdir()
+    dated_csv = output_dir / "performance_report_20260524.csv"
+    mirror_calls: list[dict[str, object]] = []
+
+    def fake_generate_flex(**kwargs):
+        dated_csv.write_text("horizon,return_pct\n", encoding="utf-8")
+        return dated_csv
+
+    def fake_ensure_mirror(**kwargs):
+        mirror_calls.append(kwargs)
+        return tmp_path / "gdrive" / kwargs["target_name"]
+
+    monkeypatch.setattr(
+        app_services.report_workflows,
+        "generate_ibkr_flex_performance_report",
+        fake_generate_flex,
+    )
+    monkeypatch.setattr(
+        app_services.report_workflows,
+        "ensure_google_drive_artifact_mirror",
+        fake_ensure_mirror,
+    )
+
+    PortfolioMonitorActionService().rebuild_flex_performance(
+        FlexPerformanceRefreshInputs(output_dir=output_dir)
+    )
+
+    assert len(mirror_calls) == 1
+    # source_path is the dated local file …
+    assert mirror_calls[0]["source_path"] == dated_csv
+    # … but the GDrive target is date-less.
+    assert mirror_calls[0]["target_name"] == app_services.DEFAULT_GDRIVE_FLEX_PERFORMANCE_FILENAME
+    assert mirror_calls[0]["target_name"] == "performance_report.csv"
+    assert "_2026" not in mirror_calls[0]["target_name"]
 
 
 def test_action_service_bridges_workflow_progress(monkeypatch, tmp_path: Path) -> None:

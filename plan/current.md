@@ -94,6 +94,15 @@ Recent landed work (one-liners; full detail in
 - Cleared ~129 `Pandas4Warning: Timestamp.utcnow is deprecated` warnings
   by migrating 4 call sites in `yahoo_returns.py` + `commodity_spread_risk.py`
   to `pd.Timestamp.now("UTC")`. Suite now produces zero warnings.
+- GDrive Portfolio_Report mirror is now **strictly date-less**: the Flex
+  performance CSV (locally `performance_report_YYYYMMDD.csv` for snapshot
+  history) and the live positions CSV both mirror as
+  `performance_report.csv` / `live_ibkr_position_report.csv` regardless of
+  the caller-supplied local name. `_mirror_artifact_to_gdrive` gained a
+  `target_name` override; the Flex caller (which previously inherited
+  `output_path.name` and dragged the date over) now passes the canonical
+  date-less name explicitly. Combined HTML mirror was already canonical.
+  Two regression tests pin both call sites.
 - **Overview landing tab** — `build_overview_section_body` adds a new
   first section to the combined report carrying the headline KPIs plus
   the regime body inline. New KPI exclusive to Overview: **YTD $ PNL

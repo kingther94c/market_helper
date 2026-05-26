@@ -62,6 +62,12 @@ DEFAULT_PERFORMANCE_OUTPUT_DIR = PORTFOLIO_ARTIFACTS_DIR / "flex"
 DEFAULT_REGIME_ARTIFACT_PATH = Path("data/artifacts/regime_detection/regime_snapshots.json")
 DEFAULT_REGIME_HTML_PATH = Path("data/artifacts/regime_detection/regime_report.html")
 
+# GDrive Portfolio_Report mirror is a "latest-snapshot" view: every file
+# overwrites its date-less canonical name so users always see one current
+# version per artifact. Local artifacts retain dated filenames for history.
+DEFAULT_GDRIVE_LIVE_POSITIONS_FILENAME = "live_ibkr_position_report.csv"
+DEFAULT_GDRIVE_FLEX_PERFORMANCE_FILENAME = "performance_report.csv"
+
 
 @dataclass
 class _PerformanceCacheEntry:
@@ -442,7 +448,12 @@ class PortfolioMonitorActionService:
             as_of=inputs.as_of,
             progress=reporter,
         )
-        _mirror_artifact_to_gdrive(output_path, sink=sink, label="Live positions CSV")
+        _mirror_artifact_to_gdrive(
+            output_path,
+            sink=sink,
+            label="Live positions CSV",
+            target_name=DEFAULT_GDRIVE_LIVE_POSITIONS_FILENAME,
+        )
         return output_path
 
     def refresh_benchmark_cache(
@@ -492,7 +503,12 @@ class PortfolioMonitorActionService:
             except Exception as exc:  # noqa: BLE001 — performance report remains usable without benchmark.
                 logger.warning("Failed to refresh benchmark returns in %s: %s", history_path, exc)
                 _record_manual_event(sink, kind="done", label="Benchmark history", detail=f"skipped SPY/BIL ({exc})")
-        _mirror_artifact_to_gdrive(output_path, sink=sink, label="Flex performance CSV")
+        _mirror_artifact_to_gdrive(
+            output_path,
+            sink=sink,
+            label="Flex performance CSV",
+            target_name=DEFAULT_GDRIVE_FLEX_PERFORMANCE_FILENAME,
+        )
         return output_path
 
     def run_regime_report(
@@ -603,22 +619,29 @@ def _mirror_artifact_to_gdrive(
     *,
     sink: UiProgressSink | None,
     label: str,
+    target_name: str | None = None,
 ) -> Path | None:
     """Mirror a non-HTML refresh artifact (CSV / feather) to GDrive.
 
-    Uses the source basename as the target filename so dated outputs
-    (e.g. position snapshots) accumulate in the Portfolio_Report mirror.
-    HTML mirroring already happens inside `generate_combined_report`;
-    this helper closes the gap so a Full Refresh writes BOTH CSV and
-    HTML to GDrive without manual intervention.
+    ``target_name`` overrides the destination basename — combined-report and
+    Flex-performance callers pass canonical **date-less** names
+    (``portfolio_combined_report.html`` / ``performance_report.csv``) so the
+    Portfolio_Report mirror is a "latest snapshot" view: one file per
+    artifact type, overwritten on each refresh. Local artifacts keep their
+    dated filenames for history.
+
+    When ``target_name`` is None we fall back to ``output_path.name`` —
+    legacy behavior for callers that don't have a canonical date-less name
+    (e.g. ad-hoc one-offs).
 
     Failure is non-fatal: log + record a UI event but never propagate.
     The local file remains the source of truth.
     """
+    resolved_target_name = target_name or output_path.name
     try:
         target = report_workflows.ensure_google_drive_artifact_mirror(
             source_path=output_path,
-            target_name=output_path.name,
+            target_name=resolved_target_name,
         )
     except Exception as exc:  # noqa: BLE001 — mirror is best-effort.
         logger.warning("Failed to mirror %s to GDrive: %s", output_path, exc)
