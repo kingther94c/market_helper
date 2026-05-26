@@ -134,9 +134,14 @@ Recent landed work (one-liners; full detail in
   `?path=<abs-path>` route still handles any other artifact under
   `DATA_DIR`. `_served_artifact_url` prefers the pretty alias when the
   target IS the canonical combined report. Both routes return
-  `Cache-Control: no-cache` so cross-device refresh works. Documented
-  the Tailscale binding pattern (`--host=0.0.0.0`) in
-  `memory/hot/gotchas.md`.
+  `Cache-Control: no-cache` so cross-device refresh works.
+- **Launchers default to bind 0.0.0.0** so Tailscale / LAN devices reach
+  the dashboard with no manual flag. `scripts/launch_ui.{bat,sh}` split
+  the *bind* address (`HOST`, default `0.0.0.0`) from the *open* address
+  (`OPEN_HOST`, derived as `127.0.0.1` when binding broadly — browsers
+  can't navigate to a listen-only sentinel). The Python entry keeps
+  `127.0.0.1` as its safe default; the broad-bind decision lives in the
+  launchers. Documented in `memory/hot/gotchas.md`.
 - **Overview landing tab** — `build_overview_section_body` adds a new
   first section to the combined report carrying the headline KPIs plus
   the regime body inline. New KPI exclusive to Overview: **YTD $ PNL

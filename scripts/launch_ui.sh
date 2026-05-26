@@ -4,9 +4,26 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 ENV_NAME="${ENV_NAME:-py313}"
 CONDA_BIN="${CONDA_BIN:-$(command -v conda || true)}"
-HOST="${HOST:-127.0.0.1}"
+
+# HOST is the *bind* address the dashboard listens on. Default 0.0.0.0 so
+# the server is reachable from other devices on the LAN / Tailnet (the
+# iframe report URL works cross-device). Override with `HOST=127.0.0.1
+# ./scripts/launch_ui.sh` to scope back to localhost-only. Dashboard has
+# no auth of its own — Tailscale ACLs / host firewall are the security
+# boundary; don't open the port to the public internet.
+HOST="${HOST:-0.0.0.0}"
 PORT="${PORT:-8080}"
-URL="http://${HOST}:${PORT}/portfolio"
+
+# Browser navigates to a concrete address; 0.0.0.0 is a listen-only
+# sentinel. The readiness probe also targets the concrete address since
+# /dev/tcp/0.0.0.0 doesn't make sense for an outgoing connect.
+if [[ "${HOST}" == "0.0.0.0" || "${HOST}" == "::" ]]; then
+  OPEN_HOST="127.0.0.1"
+else
+  OPEN_HOST="${HOST}"
+fi
+URL="http://${OPEN_HOST}:${PORT}/portfolio"
+
 AUTO_OPEN="${AUTO_OPEN:-1}"
 FALLBACK_OPEN="${FALLBACK_OPEN:-1}"
 OPEN_WAIT_SECONDS="${OPEN_WAIT_SECONDS:-60}"
@@ -20,7 +37,7 @@ if [[ -z "${CONDA_BIN}" ]]; then
 fi
 
 cd "${ROOT_DIR}"
-echo "Starting Portfolio Monitor at ${URL}"
+echo "Starting Portfolio Monitor at ${URL} (bound on ${HOST}:${PORT})"
 
 mkdir -p "${MPLCONFIGDIR}" "${XDG_CACHE_HOME}"
 
@@ -49,7 +66,7 @@ if [[ "${AUTO_OPEN}" != "0" && "${FALLBACK_OPEN}" != "0" ]]; then
       break
     fi
     if [[ "${TCP_READY}" == "0" ]]; then
-      if (exec 3<>"/dev/tcp/${HOST}/${PORT}") >/dev/null 2>&1; then
+      if (exec 3<>"/dev/tcp/${OPEN_HOST}/${PORT}") >/dev/null 2>&1; then
         TCP_READY=1
       fi
     fi

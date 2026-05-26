@@ -120,18 +120,21 @@ Both routes return `Cache-Control: no-cache` so a refresh button (or
 just reloading the page) always sees the latest body — important for
 cross-device viewing where the *other* device might have a stale cache.
 
-To expose the dashboard over **Tailscale**, bind to all interfaces
-instead of the localhost-only default:
+**Tailscale / cross-device access**: `scripts/launch_ui.bat` and
+`scripts/launch_ui.sh` now bind to `0.0.0.0` by default so the dashboard
+is reachable from any device on the LAN / Tailnet without further
+flags. The auto-opened browser tab still navigates to `127.0.0.1` (you
+can't navigate to the listen-only `0.0.0.0`). To scope back to
+localhost-only, set `HOST=127.0.0.1` before running the launcher.
 
-```pwsh
-& "<py313 python>" -m market_helper.presentation.dashboard.app `
-    --host 0.0.0.0 --port 8080 --no-show
-```
+Cross-device URL pattern (Tailnet):
+`http://<this-host's-tailscale-ip>:8080/portfolio/portfolio_dashboard_report.html`
 
-Then any device on the tailnet reaches the report at
-`http://<this-host's-tailscale-ip>:8080/portfolio/portfolio_dashboard_report.html`.
-Tailscale's ACLs are the security boundary — the dashboard has no auth
-of its own, so don't open the port to the public internet.
+The Python entry (`python -m market_helper.presentation.dashboard.app`)
+keeps `--host 127.0.0.1` as its **safe** default; the launchers are
+where the broad-bind decision lives. Tailscale ACLs / host firewall are
+the security boundary — the dashboard has no auth of its own, so don't
+open the port to the public internet.
 
 ## NiceGUI "Your browser does not support ES modules" fallback
 
