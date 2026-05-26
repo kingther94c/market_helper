@@ -7,13 +7,15 @@ if "%ENV_NAME%"=="" set "ENV_NAME=py313"
 rem HOST is the *bind* address the dashboard listens on. Default 0.0.0.0
 rem so the server is reachable from other devices on the LAN / Tailnet
 rem (the iframe report URL like
-rem `http://<this-host>:8080/portfolio/portfolio_dashboard_report.html`
+rem `http://<this-host>:18080/portfolio/portfolio_dashboard_report.html`
 rem then works cross-device). Override with `set HOST=127.0.0.1` to scope
 rem back to localhost-only. Dashboard has no auth of its own — Tailscale
-rem ACLs / Windows Firewall are the security boundary; don't open port
-rem 8080 to the public internet.
+rem ACLs / Windows Firewall are the security boundary; don't open the
+rem port to the public internet.
 if "%HOST%"=="" set "HOST=0.0.0.0"
-if "%PORT%"=="" set "PORT=8080"
+rem 18080 instead of the more common 8080 to dodge collisions with Tomcat /
+rem Jenkins / Spring Boot / Docker port mappings on developer machines.
+if "%PORT%"=="" set "PORT=18080"
 if "%AUTO_OPEN%"=="" set "AUTO_OPEN=1"
 
 rem Browser navigates to a concrete address; 0.0.0.0 is a listen-only

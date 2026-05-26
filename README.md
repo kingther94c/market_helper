@@ -80,7 +80,7 @@ conda run -n py313 python -m pytest -q tests/unit
 
 ## Live dashboard
 
-A NiceGUI-backed live dashboard is available at `http://127.0.0.1:8080/portfolio`. Launch it with:
+A NiceGUI-backed live dashboard is available at `http://127.0.0.1:18080/portfolio`. Launch it with:
 
 ```bash
 ./scripts/launch_ui.sh
@@ -90,8 +90,8 @@ Environment overrides (all optional):
 
 | Variable | Default | Purpose |
 |---|---|---|
-| `PORT` | `8080` | Server port |
-| `HOST` | `127.0.0.1` | Bind address |
+| `PORT` | `18080` | Server port (chosen to dodge the more common 8080 collisions with Tomcat / Jenkins / Docker mappings) |
+| `HOST` | `0.0.0.0` | Bind address — `0.0.0.0` exposes the dashboard to the LAN / Tailnet; set `HOST=127.0.0.1` to scope back to localhost-only. Tailscale ACLs / host firewall are the security boundary; do **not** expose to the public internet. |
 | `ENV_NAME` | `py313` | Conda environment to run in |
 | `AUTO_OPEN` | `1` | Set to `0` to disable browser auto-open |
 | `OPEN_WAIT_SECONDS` | `60` | Seconds to wait for the server to become ready before auto-opening |

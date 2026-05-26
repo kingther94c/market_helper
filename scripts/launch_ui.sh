@@ -12,7 +12,9 @@ CONDA_BIN="${CONDA_BIN:-$(command -v conda || true)}"
 # no auth of its own — Tailscale ACLs / host firewall are the security
 # boundary; don't open the port to the public internet.
 HOST="${HOST:-0.0.0.0}"
-PORT="${PORT:-8080}"
+# 18080 instead of the more common 8080 to dodge collisions with Tomcat /
+# Jenkins / Spring Boot / Docker port mappings on developer machines.
+PORT="${PORT:-18080}"
 
 # Browser navigates to a concrete address; 0.0.0.0 is a listen-only
 # sentinel. The readiness probe also targets the concrete address since

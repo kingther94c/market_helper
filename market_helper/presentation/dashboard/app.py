@@ -76,7 +76,7 @@ def patch_nicegui_process_pool_setup() -> None:
 def run(
     *,
     host: str = "127.0.0.1",
-    port: int = 8080,
+    port: int = 18080,
     reload: bool = False,
     show: bool | str | None = None,
 ) -> None:
@@ -88,7 +88,7 @@ def run(
 def build_arg_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="market-helper-dashboard")
     parser.add_argument("--host", default="127.0.0.1")
-    parser.add_argument("--port", type=int, default=8080)
+    parser.add_argument("--port", type=int, default=18080)
     parser.add_argument("--reload", action="store_true")
     parser.add_argument("--show", default=None, help="Browser auto-open target; use /portfolio, true, or false.")
     parser.add_argument("--no-show", action="store_true", help="Disable browser auto-open.")

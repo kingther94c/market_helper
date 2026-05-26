@@ -128,7 +128,7 @@ can't navigate to the listen-only `0.0.0.0`). To scope back to
 localhost-only, set `HOST=127.0.0.1` before running the launcher.
 
 Cross-device URL pattern (Tailnet):
-`http://<this-host's-tailscale-ip>:8080/portfolio/portfolio_dashboard_report.html`
+`http://<this-host's-tailscale-ip>:18080/portfolio/portfolio_dashboard_report.html`
 
 The Python entry (`python -m market_helper.presentation.dashboard.app`)
 keeps `--host 127.0.0.1` as its **safe** default; the launchers are

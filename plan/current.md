@@ -142,6 +142,11 @@ Recent landed work (one-liners; full detail in
   can't navigate to a listen-only sentinel). The Python entry keeps
   `127.0.0.1` as its safe default; the broad-bind decision lives in the
   launchers. Documented in `memory/hot/gotchas.md`.
+- **Default port 8080 → 18080**. 8080 is the most frequently-claimed
+  port on dev machines (Tomcat / Jenkins / Spring Boot / Docker port
+  maps all default there); 18080 is in the same memorability bucket
+  with effectively zero collision risk. Updated Python defaults +
+  both launchers + README env-var table + gotchas + operations doc.
 - **Overview landing tab** — `build_overview_section_body` adds a new
   first section to the combined report carrying the headline KPIs plus
   the regime body inline. New KPI exclusive to Overview: **YTD $ PNL

@@ -64,7 +64,7 @@ process env → `<MARKET_HELPER_GDRIVE_ROOT>/local.env` →
 
 - Tests: `conda run -n py313 python -m pytest -q tests/unit`
 - Single test: `conda run -n py313 python -m pytest tests/unit/path/to/test_file.py::test_name -q`
-- Live dashboard (NiceGUI at http://127.0.0.1:8080/portfolio):
+- Live dashboard (NiceGUI at http://127.0.0.1:18080/portfolio):
   `./scripts/launch_ui.sh`
   env overrides: `PORT`, `HOST`, `ENV_NAME`, `AUTO_OPEN`, `OPEN_WAIT_SECONDS`
 - Reports / workflows:
