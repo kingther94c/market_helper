@@ -220,10 +220,21 @@ def export_flex_horizon_report_csv(
     output_dir: str | Path,
     as_of: date | None = None,
 ) -> Path:
+    """Export the horizon-performance dataset to ``performance_report.csv``.
+
+    Filename is intentionally **canonical (date-less)** and overwrites on
+    every refresh — there is no local snapshot history to maintain. The
+    dataset's report-as-of date is preserved inside the CSV via each row's
+    ``as_of`` column for downstream consumers. ``as_of`` is still accepted
+    so callers can pin the column value when needed.
+    """
     out_dir = Path(output_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
-    report_as_of = as_of or _resolve_as_of_date(dataset)
-    output_path = out_dir / f"performance_report_{report_as_of.strftime('%Y%m%d')}.csv"
+    output_path = out_dir / "performance_report.csv"
+    # `as_of` is kept on the signature for API symmetry with the old
+    # dated-filename variant; the row-level `as_of` column comes from each
+    # row's own date in the writer loop below.
+    _ = as_of
 
     with output_path.open("w", encoding="utf-8", newline="") as handle:
         writer = csv.DictWriter(

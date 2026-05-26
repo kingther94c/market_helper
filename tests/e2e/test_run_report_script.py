@@ -194,7 +194,7 @@ def test_run_report_combined_html_forwards_performance_inputs(tmp_path: Path) ->
     project_root, fake_conda = _prepare_script_project(tmp_path)
     positions_csv = project_root / "inputs" / "positions.csv"
     history_path = project_root / "data" / "artifacts" / "portfolio_monitor" / "flex" / "nav_cashflow_history.feather"
-    report_csv = project_root / "data" / "artifacts" / "portfolio_monitor" / "flex" / "performance_report_20260331.csv"
+    report_csv = project_root / "data" / "artifacts" / "portfolio_monitor" / "flex" / "performance_report.csv"
     positions_csv.parent.mkdir(parents=True)
     history_path.parent.mkdir(parents=True)
 

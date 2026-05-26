@@ -34,7 +34,7 @@ def test_query_service_load_report_data_resolves_expected_artifacts(tmp_path: Pa
     performance_output_dir = tmp_path / "flex"
     performance_output_dir.mkdir()
     _demo_history_frame().to_feather(performance_output_dir / "nav_cashflow_history.feather")
-    (performance_output_dir / "performance_report_20260408.csv").write_text(
+    (performance_output_dir / "performance_report.csv").write_text(
         "\n".join(
             [
                 "as_of,source_version,horizon,weighting,currency,dollar_pnl,return_pct",
@@ -57,7 +57,7 @@ def test_query_service_load_report_data_resolves_expected_artifacts(tmp_path: Pa
     assert report_data.as_of == "2026-04-08T00:00:00+00:00"
     assert report_data.artifact_metadata.positions_csv_path == positions_csv
     assert report_data.artifact_metadata.performance_output_dir == performance_output_dir
-    assert report_data.artifact_metadata.performance_report_csv_path == performance_output_dir / "performance_report_20260408.csv"
+    assert report_data.artifact_metadata.performance_report_csv_path == performance_output_dir / "performance_report.csv"
     assert report_data.performance_usd_view_model.as_of == "2026-04-08"
     assert report_data.performance_sgd_view_model.as_of == "2026-04-08"
     assert report_data.warnings == []
@@ -312,12 +312,14 @@ def test_rebuild_flex_performance_mirrors_to_dateless_canonical_name(
     snapshot per artifact. This is the actual fix for the user request."""
     output_dir = tmp_path / "flex"
     output_dir.mkdir()
-    dated_csv = output_dir / "performance_report_20260524.csv"
+    # Local exporter now writes the canonical date-less filename and
+    # overwrites on each refresh — no more dated snapshot history.
+    local_csv = output_dir / "performance_report.csv"
     mirror_calls: list[dict[str, object]] = []
 
     def fake_generate_flex(**kwargs):
-        dated_csv.write_text("horizon,return_pct\n", encoding="utf-8")
-        return dated_csv
+        local_csv.write_text("horizon,return_pct\n", encoding="utf-8")
+        return local_csv
 
     def fake_ensure_mirror(**kwargs):
         mirror_calls.append(kwargs)
@@ -339,9 +341,11 @@ def test_rebuild_flex_performance_mirrors_to_dateless_canonical_name(
     )
 
     assert len(mirror_calls) == 1
-    # source_path is the dated local file …
-    assert mirror_calls[0]["source_path"] == dated_csv
-    # … but the GDrive target is date-less.
+    # Source and target are both the canonical date-less name now (the
+    # exporter writes it directly); the explicit `target_name` override is
+    # kept as defense-in-depth so the GDrive name doesn't drift if a caller
+    # ever passes a non-canonical local path.
+    assert mirror_calls[0]["source_path"] == local_csv
     assert mirror_calls[0]["target_name"] == app_services.DEFAULT_GDRIVE_FLEX_PERFORMANCE_FILENAME
     assert mirror_calls[0]["target_name"] == "performance_report.csv"
     assert "_2026" not in mirror_calls[0]["target_name"]

@@ -41,7 +41,7 @@ def test_cli_ibkr_flex_performance_report_dispatches_to_workflow(monkeypatch, tm
     def fake_generate_ibkr_flex_performance_report(*, flex_xml_path, output_dir):
         captured["flex_xml_path"] = flex_xml_path
         captured["output_dir"] = output_dir
-        return output_dir / "performance_report_20260402.csv"
+        return output_dir / "performance_report.csv"
 
     monkeypatch.setattr(
         "market_helper.cli.main.generate_ibkr_flex_performance_report",
@@ -279,7 +279,7 @@ def test_cli_combined_html_report_dispatches_to_workflow(monkeypatch, tmp_path) 
             "--performance-output-dir",
             str(tmp_path / "flex"),
             "--performance-report-csv",
-            str(tmp_path / "performance_report_20260410.csv"),
+            str(tmp_path / "performance_report.csv"),
             "--returns",
             str(tmp_path / "returns.json"),
             "--proxy",
@@ -303,7 +303,7 @@ def test_cli_combined_html_report_dispatches_to_workflow(monkeypatch, tmp_path) 
     assert str(captured["positions_csv_path"]).endswith("live_ibkr_position_report.csv")
     assert str(captured["performance_history_path"]).endswith("nav_cashflow_history.feather")
     assert str(captured["performance_output_dir"]).endswith("flex")
-    assert str(captured["performance_report_csv_path"]).endswith("performance_report_20260410.csv")
+    assert str(captured["performance_report_csv_path"]).endswith("performance_report.csv")
     assert str(captured["returns_path"]).endswith("returns.json")
     assert str(captured["proxy_path"]).endswith("proxy.json")
     assert str(captured["regime_path"]).endswith("regime.json")

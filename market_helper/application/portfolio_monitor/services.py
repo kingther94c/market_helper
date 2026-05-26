@@ -112,14 +112,20 @@ def _resolve_performance_report_csv_path(
     performance_report_csv_path: str | Path | None,
     performance_output_dir: str | Path | None,
 ) -> Path | None:
+    """Locate the Flex performance CSV.
+
+    The exporter writes a **canonical date-less** ``performance_report.csv``
+    that overwrites on every refresh — no local snapshot history. Honors
+    an explicit override if the caller passes one; otherwise looks for the
+    canonical name in the output dir. Returns None when neither is
+    available (the report degrades to history-only metrics with a warning).
+    """
     if performance_report_csv_path is not None:
         return Path(performance_report_csv_path)
     if performance_output_dir is None:
         return None
-    candidates = sorted(Path(performance_output_dir).glob("performance_report_*.csv"))
-    if not candidates:
-        return None
-    return candidates[-1]
+    canonical = Path(performance_output_dir) / "performance_report.csv"
+    return canonical if canonical.exists() else None
 
 
 def _resolve_regime_input_path(source: PortfolioReportInputs) -> Path | None:

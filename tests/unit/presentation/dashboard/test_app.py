@@ -165,7 +165,7 @@ def _fake_report_data() -> PortfolioReportData:
         positions_csv_path=Path("positions.csv"),
         performance_output_dir=Path("flex"),
         performance_history_path=Path("flex/nav_cashflow_history.feather"),
-        performance_report_csv_path=Path("flex/performance_report_20260408.csv"),
+        performance_report_csv_path=Path("flex/performance_report.csv"),
         returns_path=None,
         proxy_path=None,
         regime_path=None,

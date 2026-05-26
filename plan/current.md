@@ -118,6 +118,16 @@ Recent landed work (one-liners; full detail in
   emits the OS-supplied tz name (‟Malay Peninsula Standard Time", ‟Pacific
   Daylight Time", etc.) — those vary by OS locale + DST and add visual
   noise. The UTC offset alone unambiguously pins the local zone.
+- **Local Flex CSV no longer accumulates history**: `export_flex_horizon_report_csv`
+  now writes the canonical date-less `performance_report.csv` and
+  overwrites on every refresh (previously
+  `performance_report_YYYYMMDD.csv` accumulated forever in
+  `data/artifacts/portfolio_monitor/flex/`). The CSV's `as_of` column
+  still records the report's report-as-of date. Resolver in
+  `PortfolioMonitorQueryService` looks up the canonical name directly
+  (no glob). Old dated files left on disk become harmless leftovers —
+  delete manually if desired. New overwrite-pinning test prevents this
+  from drifting back.
 - **Overview landing tab** — `build_overview_section_body` adds a new
   first section to the combined report carrying the headline KPIs plus
   the regime body inline. New KPI exclusive to Overview: **YTD $ PNL

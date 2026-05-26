@@ -72,7 +72,7 @@ def test_generate_combined_html_report_writes_direct_html_and_mirrors_artifact(
         output_path=output_path,
         performance_output_dir=tmp_path / "flex",
         performance_history_path=tmp_path / "flex" / "nav_cashflow_history.feather",
-        performance_report_csv_path=tmp_path / "flex" / "performance_report_20260331.csv",
+        performance_report_csv_path=tmp_path / "flex" / "performance_report.csv",
         returns_path=tmp_path / "returns.json",
         proxy_path=tmp_path / "proxy.json",
         regime_path=tmp_path / "regime.json",
@@ -88,7 +88,7 @@ def test_generate_combined_html_report_writes_direct_html_and_mirrors_artifact(
     assert captured["inputs"].positions_csv_path == tmp_path / "positions.csv"
     assert captured["inputs"].performance_history_path == tmp_path / "flex" / "nav_cashflow_history.feather"
     assert captured["inputs"].performance_output_dir == tmp_path / "flex"
-    assert captured["inputs"].performance_report_csv_path == tmp_path / "flex" / "performance_report_20260331.csv"
+    assert captured["inputs"].performance_report_csv_path == tmp_path / "flex" / "performance_report.csv"
     assert captured["inputs"].returns_path == tmp_path / "returns.json"
     assert captured["inputs"].proxy_path == tmp_path / "proxy.json"
     assert captured["inputs"].regime_path == tmp_path / "regime.json"
@@ -542,7 +542,7 @@ def _fake_report_data(tmp_path: Path) -> PortfolioReportData:
             positions_csv_path=tmp_path / "positions.csv",
             performance_output_dir=tmp_path / "flex",
             performance_history_path=tmp_path / "flex" / "nav_cashflow_history.feather",
-            performance_report_csv_path=tmp_path / "flex" / "performance_report_20260331.csv",
+            performance_report_csv_path=tmp_path / "flex" / "performance_report.csv",
             returns_path=tmp_path / "returns.json",
             proxy_path=tmp_path / "proxy.json",
             regime_path=tmp_path / "regime.json",

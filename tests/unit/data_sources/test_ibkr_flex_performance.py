@@ -104,7 +104,10 @@ def test_parse_flex_performance_xml_rebuilds_distinct_mwr_and_twr_from_daily_cas
     assert mtd_mwr_usd.return_pct != pytest.approx(mtd_twr_usd.return_pct)
 
 
-def test_export_flex_horizon_report_csv_writes_dated_file(tmp_path) -> None:
+def test_export_flex_horizon_report_csv_writes_canonical_file(tmp_path) -> None:
+    """Filename is the canonical date-less ``performance_report.csv`` — the
+    exporter overwrites on every refresh, no local snapshot history. The
+    report-as-of date is preserved as a column value inside each row."""
     xml_path = tmp_path / "flex.xml"
     xml_path.write_text(
         """
@@ -123,10 +126,56 @@ def test_export_flex_horizon_report_csv_writes_dated_file(tmp_path) -> None:
     dataset = parse_flex_performance_xml(xml_path)
     report_path = export_flex_horizon_report_csv(dataset, output_dir=tmp_path)
 
-    assert report_path.name == "performance_report_20260402.csv"
+    assert report_path.name == "performance_report.csv"
     csv_text = report_path.read_text(encoding="utf-8")
     assert "as_of,source_version,horizon,weighting,currency,dollar_pnl,return_pct" in csv_text
+    # As-of date is preserved as a column value, just not in the filename.
     assert "2026-04-02,PerformanceSummary,MTD,money_weighted,USD,1000,0.01" in csv_text
+
+
+def test_export_flex_horizon_report_csv_overwrites_on_each_call(tmp_path) -> None:
+    """Subsequent runs overwrite the canonical file rather than accumulating
+    dated snapshots. Pin so a future change doesn't bring history back by
+    accident."""
+    xml_v1 = tmp_path / "v1.xml"
+    xml_v1.write_text(
+        """
+<FlexQueryResponse>
+  <FlexStatements>
+    <FlexStatement>
+      <ChangeInNAV reportDate="2026-04-02" startingValue="100000" endingValue="101000" depositWithdrawal="0"/>
+      <PerformanceSummary mtdMoneyWeightedUsdPnl="1000" mtdMoneyWeightedUsdReturn="0.01" />
+    </FlexStatement>
+  </FlexStatements>
+</FlexQueryResponse>
+""".strip(),
+        encoding="utf-8",
+    )
+    xml_v2 = tmp_path / "v2.xml"
+    xml_v2.write_text(
+        """
+<FlexQueryResponse>
+  <FlexStatements>
+    <FlexStatement>
+      <ChangeInNAV reportDate="2026-05-15" startingValue="100000" endingValue="102000" depositWithdrawal="0"/>
+      <PerformanceSummary mtdMoneyWeightedUsdPnl="2000" mtdMoneyWeightedUsdReturn="0.02" />
+    </FlexStatement>
+  </FlexStatements>
+</FlexQueryResponse>
+""".strip(),
+        encoding="utf-8",
+    )
+
+    p1 = export_flex_horizon_report_csv(parse_flex_performance_xml(xml_v1), output_dir=tmp_path)
+    p2 = export_flex_horizon_report_csv(parse_flex_performance_xml(xml_v2), output_dir=tmp_path)
+
+    # Same path; v2 content replaces v1.
+    assert p1 == p2 == tmp_path / "performance_report.csv"
+    written = p2.read_text(encoding="utf-8")
+    assert "2026-05-15" in written
+    assert "2026-04-02" not in written
+    # No dated leftover from v1.
+    assert not list(tmp_path.glob("performance_report_*.csv"))
 
 
 def test_parse_flex_performance_xml_extracts_total_summary_rows_from_ibkr_statement_shape(tmp_path) -> None:

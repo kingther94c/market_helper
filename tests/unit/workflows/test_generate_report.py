@@ -286,7 +286,7 @@ def test_generate_ibkr_flex_performance_report_fetches_statement_from_web_servic
             yahoo_client=_fake_yahoo_client([("2026-04-02", 1.30)]),
         )
 
-    assert written_path.name == "performance_report_20260402.csv"
+    assert written_path.name == "performance_report.csv"
     assert xml_output_path.exists()
     with written_path.open("r", encoding="utf-8", newline="") as handle:
         rows = list(csv.DictReader(handle))
@@ -861,7 +861,7 @@ def test_generate_ibkr_flex_performance_report_default_live_flow_adds_previous_f
         )
     assert recorded == []
 
-    assert written_path.name == "performance_report_20260409.csv"
+    assert written_path.name == "performance_report.csv"
     assert (output_dir / "raw" / "ibkr_flex_2025_full.xml").exists()
     assert (output_dir / "raw" / "ibkr_flex_2026_latest.xml").exists()
     history = load_nav_cashflow_history(output_dir / "nav_cashflow_history.feather")
@@ -998,7 +998,7 @@ def test_generate_ibkr_flex_performance_report_fills_usd_rows_from_yahoo_fx(tmp_
         if row["horizon"] == "MTD" and row["weighting"] == "money_weighted" and row["currency"] == "USD"
     ][0]
 
-    assert written_path.name == "performance_report_20260407.csv"
+    assert written_path.name == "performance_report.csv"
     assert mtd_mwr_usd["source_version"] == "NavCashflowHistoryFeather"
     assert float(mtd_mwr_usd["dollar_pnl"]) > 0
     assert float(mtd_mwr_usd["return_pct"]) > 0
