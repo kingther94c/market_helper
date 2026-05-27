@@ -179,8 +179,8 @@ Recent landed work (one-liners; full detail in
   the .lnk itself lives in the user profile and isn't tracked. To
   recreate on a clean machine:
   ```pwsh
-  $target  = 'C:\git_projects\market_helper\scripts\launch_ui_startup.bat'
-  $workdir = 'C:\git_projects\market_helper'
+  $target  = 'D:\projects\git_projects\market_helper\scripts\launch_ui_startup.bat'
+  $workdir = 'D:\projects\git_projects\market_helper'
   $shortcut = Join-Path ([Environment]::GetFolderPath('Startup')) 'Market Helper Dashboard.lnk'
   $ws = New-Object -ComObject WScript.Shell
   $sc = $ws.CreateShortcut($shortcut)
