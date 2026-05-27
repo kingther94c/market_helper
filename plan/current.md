@@ -135,13 +135,19 @@ Recent landed work (one-liners; full detail in
   `DATA_DIR`. `_served_artifact_url` prefers the pretty alias when the
   target IS the canonical combined report. Both routes return
   `Cache-Control: no-cache` so cross-device refresh works.
-- **Launchers default to bind 0.0.0.0** so Tailscale / LAN devices reach
-  the dashboard with no manual flag. `scripts/launch_ui.{bat,sh}` split
-  the *bind* address (`HOST`, default `0.0.0.0`) from the *open* address
-  (`OPEN_HOST`, derived as `127.0.0.1` when binding broadly — browsers
-  can't navigate to a listen-only sentinel). The Python entry keeps
-  `127.0.0.1` as its safe default; the broad-bind decision lives in the
-  launchers. Documented in `memory/hot/gotchas.md`.
+- **Cross-device access via Tailscale Serve**, not a broad bind. The
+  launchers default `HOST=127.0.0.1` (loopback-only); Tailscale Serve
+  is the recommended path for reaching the dashboard from another
+  tailnet device. One-shot setup
+  (`tailscale serve --bg http://127.0.0.1:18080`) writes config into
+  tailscaled's persistent state — survives reboots, auto-issues a
+  HTTPS cert. Tailnet URL: `https://<host>.<tailnet>.ts.net/portfolio/portfolio_dashboard_report.html`.
+  The earlier 0.0.0.0 default was a security regression on hosts where
+  Windows misclassifies a home Wi-Fi as "Public" — even with that
+  classification, a broad python.exe inbound rule allows LAN devices to
+  reach the dashboard. Loopback-only bind + Tailscale Serve removes
+  that vector entirely. Subsequent services can mount at sub-paths
+  (`--set-path=/foo`) under the same tailnet hostname.
 - **Default port 8080 → 18080**. 8080 is the most frequently-claimed
   port on dev machines (Tomcat / Jenkins / Spring Boot / Docker port
   maps all default there); 18080 is in the same memorability bucket

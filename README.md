@@ -91,12 +91,29 @@ Environment overrides (all optional):
 | Variable | Default | Purpose |
 |---|---|---|
 | `PORT` | `18080` | Server port (chosen to dodge the more common 8080 collisions with Tomcat / Jenkins / Docker mappings) |
-| `HOST` | `0.0.0.0` | Bind address — `0.0.0.0` exposes the dashboard to the LAN / Tailnet; set `HOST=127.0.0.1` to scope back to localhost-only. Tailscale ACLs / host firewall are the security boundary; do **not** expose to the public internet. |
+| `HOST` | `127.0.0.1` | Bind address. Defaults to localhost-only since the dashboard has no auth of its own. For cross-device access from a Tailnet, prefer **Tailscale Serve** (see below) over `HOST=0.0.0.0`. |
 | `ENV_NAME` | `py313` | Conda environment to run in |
 | `AUTO_OPEN` | `1` | Set to `0` to disable browser auto-open |
 | `OPEN_WAIT_SECONDS` | `60` | Seconds to wait for the server to become ready before auto-opening |
 
 The script starts the server in the background and waits for the port to be available before opening the URL in your default browser. The server continues running after the browser opens; press `Ctrl+C` to stop it.
+
+### Cross-device access via Tailscale Serve
+
+To reach the dashboard from a phone or another laptop on your Tailnet without broadening the local bind, use Tailscale Serve as a reverse proxy:
+
+```pwsh
+# Windows
+& "C:\Program Files\Tailscale\tailscale.exe" serve --bg http://127.0.0.1:18080
+```
+```bash
+# macOS / Linux
+tailscale serve --bg http://127.0.0.1:18080
+```
+
+After that, any tailnet device can hit `https://<this-host>.<tailnet>.ts.net/portfolio/portfolio_dashboard_report.html` — Tailscale provisions an HTTPS cert automatically and the dashboard's local bind stays loopback-only.
+
+`tailscale serve --bg ...` writes the config into tailscaled's persistent state, so the tunnel survives reboots. You can mount additional services at sub-paths later (e.g. `tailscale serve --bg --set-path=/jupyter http://127.0.0.1:8888`).
 
 The dashboard module lives at `market_helper/presentation/dashboard/`. The NiceGUI page router is in `app.py`; per-route pages are under `pages/`.
 

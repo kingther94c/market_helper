@@ -120,21 +120,37 @@ Both routes return `Cache-Control: no-cache` so a refresh button (or
 just reloading the page) always sees the latest body — important for
 cross-device viewing where the *other* device might have a stale cache.
 
-**Tailscale / cross-device access**: `scripts/launch_ui.bat` and
-`scripts/launch_ui.sh` now bind to `0.0.0.0` by default so the dashboard
-is reachable from any device on the LAN / Tailnet without further
-flags. The auto-opened browser tab still navigates to `127.0.0.1` (you
-can't navigate to the listen-only `0.0.0.0`). To scope back to
-localhost-only, set `HOST=127.0.0.1` before running the launcher.
+**Cross-device access via Tailscale Serve** (recommended):
 
-Cross-device URL pattern (Tailnet):
-`http://<this-host's-tailscale-ip>:18080/portfolio/portfolio_dashboard_report.html`
+The dashboard now binds **localhost-only** (`127.0.0.1:18080`) by
+default. Cross-device access goes through Tailscale Serve, which
+tunnels tailnet traffic to the localhost-bound dashboard:
 
-The Python entry (`python -m market_helper.presentation.dashboard.app`)
-keeps `--host 127.0.0.1` as its **safe** default; the launchers are
-where the broad-bind decision lives. Tailscale ACLs / host firewall are
-the security boundary — the dashboard has no auth of its own, so don't
-open the port to the public internet.
+```pwsh
+# one-shot setup; persists across reboots in tailscaled state
+& "C:\Program Files\Tailscale\tailscale.exe" serve --bg http://127.0.0.1:18080
+```
+
+After that, any device on the tailnet reaches the report at
+`https://<this-host>.<tailnet>.ts.net/portfolio/portfolio_dashboard_report.html`
+— auto-issued HTTPS cert, no port number, and the local bind stays
+loopback-only so the LAN / Wi-Fi can't see the dashboard.
+
+Useful commands:
+- `tailscale serve status` — list active mounts
+- `tailscale serve reset` — wipe all serve config
+- `tailscale serve --bg --set-path=/foo http://127.0.0.1:NNN` — mount
+  additional services at sub-paths under the same tailnet hostname
+
+**Falling back to a broad bind** (for quick same-LAN testing only):
+set `HOST=0.0.0.0` before running the launcher. Dashboard has no auth
+of its own, so the LAN — including Wi-Fi networks Windows might
+misclassify — would see it. Prefer Tailscale Serve unless you have a
+specific reason.
+
+**One-time admin step**: Tailscale Serve must be enabled on the tailnet
+admin console (one toggle, free tier supports it). The CLI surfaces a
+personal one-click link when it's not yet enabled.
 
 ## NiceGUI "Your browser does not support ES modules" fallback
 

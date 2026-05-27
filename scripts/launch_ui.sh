@@ -5,13 +5,21 @@ ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 ENV_NAME="${ENV_NAME:-py313}"
 CONDA_BIN="${CONDA_BIN:-$(command -v conda || true)}"
 
-# HOST is the *bind* address the dashboard listens on. Default 0.0.0.0 so
-# the server is reachable from other devices on the LAN / Tailnet (the
-# iframe report URL works cross-device). Override with `HOST=127.0.0.1
-# ./scripts/launch_ui.sh` to scope back to localhost-only. Dashboard has
-# no auth of its own — Tailscale ACLs / host firewall are the security
-# boundary; don't open the port to the public internet.
-HOST="${HOST:-0.0.0.0}"
+# HOST is the *bind* address the dashboard listens on. Default 127.0.0.1
+# — the dashboard has no auth of its own, so binding broadly (0.0.0.0)
+# would expose it to anything on the LAN / Wi-Fi.
+#
+# For cross-device access from a Tailnet, use **Tailscale Serve** instead
+# of broadening the bind. One-shot setup:
+#   tailscale serve --bg https / http://127.0.0.1:18080
+# Then any tailnet device reaches the report at
+#   https://<this-host>.<tailnet>.ts.net/portfolio/portfolio_dashboard_report.html
+# Tailscale's tunnel + ACLs are the security boundary; the local bind
+# stays loopback-only and the LAN can't see the port.
+#
+# To override (e.g. broaden the bind for a quick same-LAN test):
+#   HOST=0.0.0.0 ./scripts/launch_ui.sh
+HOST="${HOST:-127.0.0.1}"
 # 18080 instead of the more common 8080 to dodge collisions with Tomcat /
 # Jenkins / Spring Boot / Docker port mappings on developer machines.
 PORT="${PORT:-18080}"

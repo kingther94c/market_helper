@@ -4,15 +4,21 @@ setlocal
 set "ROOT_DIR=%~dp0.."
 if "%ENV_NAME%"=="" set "ENV_NAME=py313"
 
-rem HOST is the *bind* address the dashboard listens on. Default 0.0.0.0
-rem so the server is reachable from other devices on the LAN / Tailnet
-rem (the iframe report URL like
-rem `http://<this-host>:18080/portfolio/portfolio_dashboard_report.html`
-rem then works cross-device). Override with `set HOST=127.0.0.1` to scope
-rem back to localhost-only. Dashboard has no auth of its own — Tailscale
-rem ACLs / Windows Firewall are the security boundary; don't open the
-rem port to the public internet.
-if "%HOST%"=="" set "HOST=0.0.0.0"
+rem HOST is the *bind* address the dashboard listens on. Default
+rem 127.0.0.1 — the dashboard has no auth of its own, so binding broadly
+rem (0.0.0.0) would expose it to anything on the LAN / Wi-Fi.
+rem
+rem For cross-device access from a Tailnet, use **Tailscale Serve**
+rem instead of broadening the bind. One-shot setup:
+rem   tailscale serve --bg https / http://127.0.0.1:18080
+rem Then any tailnet device reaches the report at
+rem   https://<this-host>.<tailnet>.ts.net/portfolio/portfolio_dashboard_report.html
+rem Tailscale's tunnel + ACLs are the security boundary; the local bind
+rem stays loopback-only and the LAN can't see the port.
+rem
+rem To override (e.g. broaden the bind for a quick same-LAN test), set
+rem `set HOST=0.0.0.0` before running this script.
+if "%HOST%"=="" set "HOST=127.0.0.1"
 rem 18080 instead of the more common 8080 to dodge collisions with Tomcat /
 rem Jenkins / Spring Boot / Docker port mappings on developer machines.
 if "%PORT%"=="" set "PORT=18080"
