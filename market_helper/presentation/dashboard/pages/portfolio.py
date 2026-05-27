@@ -909,6 +909,17 @@ _EMBEDDED_REPORT_OVERRIDES = """
   .app-bar__brand, .app-bar__meta { display: none !important; }
   .app-bar { background: var(--surface); }
   .report-shell { padding-top: 8px; }
+  /* The framework defaults assume the full app-bar (brand + nav + meta); this
+     iframe hides brand + meta so the visible `.app-bar` collapses to just the
+     section-nav. Desktop = padding (12*2) + button row (~24px) ≈ 48px; mobile
+     gets a touch-target lift so the section-nav row grows to ~40px + padding
+     (8*2) = ~56px. Re-declare the height vars so `.regime-ribbon`'s sticky
+     `top` matches the iframe's real app-bar height; values are conservative
+     upper bounds to avoid the ribbon overlapping the nav. */
+  :root {
+    --app-bar-height: 48px;
+    --app-bar-height-mobile: 56px;
+  }
 </style>
 """
 

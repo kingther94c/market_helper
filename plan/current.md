@@ -11,6 +11,32 @@ context is in `memory/archive/` (gitignored, not read by default).
 
 Recent landed work (one-liners; full detail in
 `memory/archive/landed/portfolio_monitor_landed.md`):
+- **Mobile / responsive framework centralised in `_design_tokens.py`** —
+  every HTML surface (dashboard chrome, combined report shell, regime ribbon,
+  perf/risk/regime sections) consumes one shared `--app-bar-height{,-mobile}`
+  / `--shell-max` / `--content-pad{,-mobile}` / `--bp-{phone,mobile,tablet}`
+  var set, one `@media (max-width: 768px)` primitive-override block (covers
+  `.app-bar`, `.section-nav`, `.kpi-strip`, `.metrics`, `.card`, `.chart-row`,
+  `.report-shell`, `.report-section`, `.regime-ribbon`, `.report-table*`,
+  `.segmented-control`), opt-in utility classes (`.responsive-grid-{2,3,4}`,
+  `.responsive-cluster`, `.scroll-x-on-narrow`, `.responsive-hide-sm`,
+  `.responsive-stack-sm`), and a `@media (pointer: coarse)` 40px touch-target
+  floor. Magic `top: 49px` / `scroll-margin-top: 64px` / `max-width: 1540px` /
+  `padding: 16px 24px` literals replaced with the shared vars across
+  `_design_tokens`, `report_document`, `portfolio_html`, and
+  `presentation/dashboard/components/common`. Standalone mobile `.app-bar__row`
+  uses `grid-template-areas` so brand+meta share row 1 and section-nav drops
+  to row 2 (height ≈ 96px under the 108px var). The dashboard iframe
+  (`_inject_embedded_overrides`) re-declares `--app-bar-height{,-mobile}` to
+  48/56px because hiding brand+meta collapses the iframe `.app-bar` to just
+  the section-nav. Legacy 720 / 760 per-section `@media` breakpoints
+  re-aligned to the canonical 768. Contract pinned by 36 assertions in
+  `tests/unit/reporting/test_responsive_framework.py` (covers var declarations
+  + breakpoint lock-step + utility classes + touch-target floor + sticky-top
+  invariant + iframe cascade order + section-wide breakpoint conformance +
+  `_MOBILE_OVERRIDES_CSS` non-resurrection). Future HTML inherits responsive
+  behavior by reusing existing primitives or adding a utility class — no
+  per-section `@media` block needed for shared primitives.
 - Combined report restructured (slim KPI strip, single regime section).
 - Performance overview + benchmark comparison vs cash + SPY (USD/SGD).
 - FX history coverage fix (`DEFAULT_YAHOO_FX_PERIOD` `2y` → `max`).

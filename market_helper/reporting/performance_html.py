@@ -202,13 +202,16 @@ def render_performance_assets() -> str:
         ".perf-card-kicker { margin:0; font-size:12px; font-weight:800; letter-spacing:0.08em; text-transform:uppercase; color:#0f766e; }"
         ".perf-plot-frame { padding:16px 16px 8px; border-radius:20px; background:linear-gradient(180deg, rgba(248,250,252,0.96), rgba(255,255,255,0.98)); border:1px solid rgba(148,163,184,0.18); }"
         ".perf-plot { min-height: 520px; }"
-        "@media (max-width: 720px) {"
+        # Breakpoint aligned to the framework's canonical 768px so the perf
+        # section transitions in lock-step with the rest of the report.
+        # `.segmented-control { width: 100% }` was here verbatim — promoted to
+        # `_RESPONSIVE_FRAMEWORK_CSS` so perf and risk no longer redeclare it.
+        "@media (max-width: 768px) {"
         ".perf-chart-toolbar { grid-template-columns: 1fr; }"
         ".perf-control-row { align-items:flex-start; flex-direction:column; }"
         ".perf-controls { justify-items:start; }"
         ".perf-control-row { justify-content:flex-start; }"
         ".perf-control-label { min-width:0; }"
-        ".segmented-control { width:100%; }"
         "}"
         "</style>"
         f"{plotly_loader}"

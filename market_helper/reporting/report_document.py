@@ -93,8 +93,8 @@ def render_report_document(document: ReportDocument) -> str:
       border-bottom: 1px solid var(--panel-border);
     }}
     .app-bar__row {{
-      max-width: 1540px; margin: 0 auto;
-      padding: 12px 24px;
+      max-width: var(--shell-max); margin: 0 auto;
+      padding: 12px var(--content-pad);
       display: grid; grid-template-columns: auto 1fr auto;
       align-items: center; gap: 20px;
     }}
@@ -124,7 +124,7 @@ def render_report_document(document: ReportDocument) -> str:
     .section-nav__button:focus-visible {{ outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 999px; }}
 
     /* KPI strip (P4): above-the-fold answers */
-    .kpi-strip-wrap {{ max-width: 1540px; margin: 0 auto; padding: 16px 24px 0; }}
+    .kpi-strip-wrap {{ max-width: var(--shell-max); margin: 0 auto; padding: 16px var(--content-pad) 0; }}
     .kpi-strip {{
       display: grid; gap: 1px; background: var(--panel-border);
       border: 1px solid var(--panel-border); border-radius: var(--r-3); overflow: hidden;
@@ -148,7 +148,7 @@ def render_report_document(document: ReportDocument) -> str:
     }}
     .kpi__value.is-warn .kpi__regime-dot {{ background: var(--warn); box-shadow: 0 0 0 3px var(--warn-soft); }}
 
-    .report-shell {{ max-width: 1540px; margin: 0 auto; padding: 16px 24px 40px; }}
+    .report-shell {{ max-width: var(--shell-max); margin: 0 auto; padding: 16px var(--content-pad) 40px; }}
     .report-alert {{
       margin: 0 0 16px;
       padding: 12px 14px; border-radius: var(--r-2);
@@ -156,7 +156,7 @@ def render_report_document(document: ReportDocument) -> str:
       background: var(--warning-bg); color: var(--warn);
     }}
     .report-alert ul {{ margin: 8px 0 0; padding-left: 18px; }}
-    .report-section {{ scroll-margin-top: 64px; margin-top: 32px; }}
+    .report-section {{ scroll-margin-top: calc(var(--app-bar-height) + 16px); margin-top: 32px; }}
     .report-section:first-of-type {{ margin-top: 0; }}
     .report-section__header {{ margin-bottom: 12px; display: flex; align-items: baseline; justify-content: space-between; gap: 16px; }}
     .report-section__title {{ margin: 0; font-family: var(--font-sans); font-size: 18px; font-weight: 700; }}

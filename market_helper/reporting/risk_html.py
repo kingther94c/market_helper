@@ -1701,10 +1701,12 @@ def render_risk_report_styles() -> str:
     .report-table--country-sector-heatmap .heatmap-footer th, .report-table--country-sector-heatmap .heatmap-footer td {
       border-top:2px solid #0f172a;
     }
-    @media (max-width: 720px) {
+    /* Aligned to framework breakpoint 768. `.segmented-control { width: 100% }`
+       lives in `_design_tokens._RESPONSIVE_FRAMEWORK_CSS` now; risk no longer
+       redeclares it. */
+    @media (max-width: 768px) {
       .control-row { align-items:flex-start; flex-direction:column; }
       .control-label { min-width:0; }
-      .segmented-control { width:100%; }
     }
     """
 

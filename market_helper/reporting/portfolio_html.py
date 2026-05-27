@@ -340,8 +340,8 @@ def _render_regime_unavailable_card(state: RegimeArtifactState) -> str:
 
 
 _REGIME_RIBBON_STYLES = """
-.regime-ribbon { position: sticky; top: 49px; z-index: 20; background: var(--surface); border-bottom: 1px solid var(--panel-border); }
-.regime-ribbon__row { max-width: 1540px; margin: 0 auto; padding: 8px 24px; display: flex; align-items: center; gap: 20px; font-size: 13px; flex-wrap: wrap; }
+.regime-ribbon { position: sticky; top: var(--app-bar-height); z-index: 20; background: var(--surface); border-bottom: 1px solid var(--panel-border); }
+.regime-ribbon__row { max-width: var(--shell-max); margin: 0 auto; padding: 8px var(--content-pad); display: flex; align-items: center; gap: 20px; font-size: 13px; flex-wrap: wrap; }
 .regime-ribbon__pill { display: inline-flex; align-items: center; gap: 8px; padding: 4px 10px; border-radius: 999px; background: var(--accent-soft); color: var(--accent-ink); font-weight: 700; font-size: 12px; letter-spacing: 0.02em; }
 .regime-ribbon__pill--unavailable { background: var(--warning-bg); color: var(--warn); }
 .regime-ribbon__pill--unavailable .regime-ribbon__dot { background: var(--warn); }

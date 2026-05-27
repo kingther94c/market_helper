@@ -23,13 +23,15 @@ def add_dashboard_styles() -> None:
           body { background: var(--bg); color: var(--ink); font-family: var(--font-ui); font-size: 14px; line-height: 1.45; -webkit-font-smoothing: antialiased; }
           .pm-shell { gap: 16px; }
 
-          /* Sticky app-bar — mirrors the report's `.app-bar` so the iframe seam closes. */
+          /* Sticky app-bar — mirrors the report's `.app-bar` so the iframe seam closes.
+             Padding uses `--content-pad` so mobile gutter automatically follows the
+             framework override in `_design_tokens._RESPONSIVE_FRAMEWORK_CSS`. */
           .pm-app-bar {
             position: sticky; top: 0; z-index: 30;
             background: rgba(255,255,255,0.85);
             backdrop-filter: saturate(140%) blur(8px);
             border-bottom: 1px solid var(--panel-border);
-            padding: 12px 24px;
+            padding: 12px var(--content-pad);
             display: flex; align-items: center; gap: 20px;
             flex-wrap: wrap;
           }
@@ -69,13 +71,19 @@ def add_dashboard_styles() -> None:
           .pm-static-tab-panel { width: 100%; }
           .pm-static-tab-panel[hidden] { display: none !important; }
 
-          /* KpiCard-style status card (replaces the slate-50 card chrome). */
+          /* KpiCard-style status card (replaces the slate-50 card chrome).
+             Desktop keeps the `min-width: 180px` floor so paired cards in the
+             toolbar look balanced; mobile (≤768px) drops it via the @media block
+             below so the card can collapse to full-width without overflowing. */
           .pm-status-card { background: var(--surface); border: 1px solid var(--border-soft); border-radius: var(--r-2); padding: 12px 14px; box-shadow: var(--shadow-1); display: flex; flex-direction: column; gap: 4px; min-width: 180px; }
           .pm-status-card__title { font-size: 11px; letter-spacing: 0.04em; text-transform: uppercase; color: var(--muted-ink); font-weight: 600; }
           .pm-status-card__value { font-size: 14px; font-weight: 600; color: var(--ink); }
           .pm-status-card__detail { font-size: 11px; color: var(--muted-ink); font-variant-numeric: tabular-nums; }
 
-          /* Embedded report iframe — bleeds into the dashboard chrome via solid surface bg. */
+          /* Embedded report iframe — bleeds into the dashboard chrome via solid surface bg.
+             On mobile we drop the corner radius (the iframe goes edge-to-edge so the
+             radius would carve into already-tight content) and grow the min-height a
+             notch so the report doesn't compete with the address-bar collapse. */
           .pm-report-iframe { width: 100%; min-height: 78vh; border: 0; border-radius: var(--r-3); background: var(--surface); }
 
           /* P7 — operate drawer (slides over the right edge so /portfolio first-paint stays clean) */
@@ -111,12 +119,15 @@ def add_dashboard_styles() -> None:
           .pm-drawer__body { padding: 16px 18px; display: flex; flex-direction: column; gap: 14px; }
           .pm-drawer__section-title { font-size: 11px; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; color: var(--muted-ink); margin: 4px 0; }
 
-          /* P8 — sticky progress strip directly under the app-bar while a job runs. */
-          .pm-progress-strip { position: sticky; top: 49px; z-index: 25; background: var(--surface); border-bottom: 1px solid var(--border-soft); }
-          .pm-progress-strip__row { max-width: 1600px; margin: 0 auto; padding: 6px 24px 4px; display: flex; align-items: baseline; justify-content: space-between; gap: 16px; font-size: 12px; }
+          /* P8 — sticky progress strip directly under the app-bar while a job runs.
+             `top` follows the shared `--app-bar-height` var so any future change to
+             the app-bar height ripples through; mobile lifts to the mobile var via
+             the responsive framework. */
+          .pm-progress-strip { position: sticky; top: var(--app-bar-height); z-index: 25; background: var(--surface); border-bottom: 1px solid var(--border-soft); }
+          .pm-progress-strip__row { max-width: var(--shell-max); margin: 0 auto; padding: 6px var(--content-pad) 4px; display: flex; align-items: baseline; justify-content: space-between; gap: 16px; font-size: 12px; flex-wrap: wrap; }
           .pm-progress-strip__label { font-weight: 600; color: var(--ink); }
           .pm-progress-strip__detail { color: var(--muted-ink); font-variant-numeric: tabular-nums; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-          .pm-progress-strip__bar { height: 3px; max-width: 1600px; margin: 0 auto; }
+          .pm-progress-strip__bar { height: 3px; max-width: var(--shell-max); margin: 0 auto; }
 
           /* P10/P10.3 — light Quasar input/field overrides to align focus colour
              with the token system. Full ui.input → ui.element('input') swap is
@@ -136,6 +147,53 @@ def add_dashboard_styles() -> None:
           .pm-history__duration { font-family: var(--font-num); font-size: 11px; color: var(--muted-ink); }
           .pm-history__message { margin: 0 0 0 90px; }
           .pm-history__link, .pm-history__path { margin: 0 0 8px 90px; display: inline-block; }
+
+          /* === Dashboard chrome — mobile (≤ 768px) ===========================
+             Co-located with the shared framework so all `.pm-*` mobile rules live
+             in one place. Anything that reuses `.pm-app-bar`, `.pm-status-card`,
+             `.pm-drawer__body`, `.pm-history__row`, or the progress strip inherits
+             these defaults — new dashboard surfaces don't need their own @media. */
+          @media (max-width: 768px) {
+            /* App-bar: keep spacer + actions on the natural flex row so actions
+               are pushed to the right edge automatically. Meta sentence is hidden
+               (the toolbar's "Report Data" card already surfaces `status_message`)
+               so we avoid burning a third row on phones. */
+            .pm-app-bar {
+              padding: 8px var(--content-pad-mobile);
+              gap: 12px;
+              row-gap: 8px;
+            }
+            .pm-app-bar__meta { display: none; }
+            .pm-app-bar__primary, .pm-app-bar__operate { padding: 8px 12px; }
+            /* When actions wrap to a second row (brand + spacer + actions can't
+               fit on 360px), the spacer stays on row 1 so without `margin-left:
+               auto` actions land at the left edge of row 2 — visually broken.
+               This pin keeps them right-aligned regardless of wrap. */
+            .pm-app-bar__actions { margin-left: auto; }
+
+            .pm-progress-strip { top: var(--app-bar-height-mobile); }
+            .pm-progress-strip__row { padding: 6px var(--content-pad-mobile) 4px; }
+
+            /* Stack status-card rows full-width — drops the desktop 180px floor. */
+            .pm-status-card { min-width: 0; flex-basis: 100%; }
+
+            /* Drawer body — collapse the NiceGUI `ui.grid(columns=N)` containers
+               (artifact paths / live form / flex form / regime form / reference
+               form) to a single column. `.nicegui-grid` is the class
+               nicegui.ui.grid emits; no inline-style attribute fallback so we
+               don't accidentally rewrite future inline-styled elements. */
+            .pm-drawer__body .nicegui-grid {
+              grid-template-columns: 1fr !important;
+            }
+            .pm-history__row { grid-template-columns: 70px 1fr; row-gap: 4px; }
+            .pm-history__duration { grid-column: 2; justify-self: end; }
+            .pm-history__message,
+            .pm-history__link,
+            .pm-history__path { margin-left: 0; }
+
+            .pm-shell { gap: 12px; }
+            .pm-report-iframe { min-height: 70vh; border-radius: 0; }
+          }
         </style>
         """
     )

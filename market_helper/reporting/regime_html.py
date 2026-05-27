@@ -1570,7 +1570,9 @@ def regime_section_styles() -> str:
     .transition-row__arrow { color: var(--muted-2); margin: 0 4px; }
     .transition-row__meta { text-align: right; }
 
-    @media (max-width: 760px) {
+    /* Aligned to the framework breakpoint 768 so the regime section transitions
+       in lock-step with the report shell + perf/risk sections. */
+    @media (max-width: 768px) {
       .regime-section__header { grid-template-columns: 1fr; }
       .regime-v2-hero { grid-template-columns: 1fr; }
       .status-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
