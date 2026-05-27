@@ -148,6 +148,22 @@ Recent landed work (one-liners; full detail in
   reach the dashboard. Loopback-only bind + Tailscale Serve removes
   that vector entirely. Subsequent services can mount at sub-paths
   (`--set-path=/foo`) under the same tailnet hostname.
+- **Dashboard auto-starts on user login (Windows)** via a Startup-folder
+  shortcut. Wrapper `scripts\launch_ui_startup.bat` is tracked in git;
+  the .lnk itself lives in the user profile and isn't tracked. To
+  recreate on a clean machine:
+  ```pwsh
+  $target  = 'C:\git_projects\market_helper\scripts\launch_ui_startup.bat'
+  $workdir = 'C:\git_projects\market_helper'
+  $shortcut = Join-Path ([Environment]::GetFolderPath('Startup')) 'Market Helper Dashboard.lnk'
+  $ws = New-Object -ComObject WScript.Shell
+  $sc = $ws.CreateShortcut($shortcut)
+  $sc.TargetPath = $target; $sc.WorkingDirectory = $workdir
+  $sc.WindowStyle = 7  # Minimized
+  $sc.Save()
+  ```
+  Combined with Tailscale Serve's persistent tunnel, the dashboard is
+  reachable from any tailnet device any time the user is logged in.
 - **Default port 8080 → 18080**. 8080 is the most frequently-claimed
   port on dev machines (Tomcat / Jenkins / Spring Boot / Docker port
   maps all default there); 18080 is in the same memorability bucket

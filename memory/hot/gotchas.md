@@ -152,6 +152,17 @@ specific reason.
 admin console (one toggle, free tier supports it). The CLI surfaces a
 personal one-click link when it's not yet enabled.
 
+**Auto-start at login (Windows)**: a Startup-folder shortcut at
+`%APPDATA%\Microsoft\Windows\Start Menu\Programs\Startup\Market Helper Dashboard.lnk`
+runs `scripts\launch_ui_startup.bat` (minimized) on user login.
+The wrapper sets `AUTO_OPEN=0` so no browser tab pops at every login —
+the dashboard just listens quietly on `127.0.0.1:18080` while Tailscale
+Serve continues tunnelling. Closing the minimized cmd window kills the
+dashboard. To re-create the shortcut from a clean machine, see the
+PowerShell snippet stamped in `plan/current.md` under the login
+auto-start landing entry. The shortcut itself isn't tracked in git (it
+lives in the user profile); only the wrapper bat is.
+
 ## NiceGUI "Your browser does not support ES modules" fallback
 
 If the dashboard shows this message persistently, **it is not a browser-age
