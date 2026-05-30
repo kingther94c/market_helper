@@ -11,6 +11,17 @@ context is in `memory/archive/` (gitignored, not read by default).
 
 Recent landed work (one-liners; full detail in
 `memory/archive/landed/portfolio_monitor_landed.md`):
+- **Flex Web Service hardening (HTTP-timeout retry + token redaction).** The
+  dashboard "Report Data" / Flex refresh failed outright on a single IBKR
+  SendRequest HTTP timeout. `FlexWebServiceClient._download` now retries
+  transient HTTP-layer failures (timeout / connection / 5xx `DownloadError`)
+  with exponential backoff (`http_max_attempts=3`,
+  `http_retry_backoff_seconds=2.0`, injectable `sleep`); Flex *protocol*
+  "pending" errors are unaffected — they arrive as XML HTTP 200 and still flow
+  through `fetch_statement`'s polling, never as `DownloadError`. Separately,
+  the loader's `_redact_url_secrets` now masks the Flex token (`t=` / `token=`)
+  alongside `api_key=`, so the token no longer leaks into the
+  "Timeout while requesting …" error message / logs / dashboard warning surface.
 - **Report restructure (Regime own tab + Performance merge + slim Overview +
   clearer wording).** Regime's 11 deep panels moved out of the Overview dump
   into a dedicated **Regime** top-level tab with an in-section chip sub-nav

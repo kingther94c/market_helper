@@ -89,7 +89,15 @@ def _request_bytes(
 
 
 def _redact_url_secrets(url: str) -> str:
-    return re.sub(r"([?&]api_key=)[^&]+", r"\1<redacted>", url)
+    # Redact credential-bearing query params so error messages / logs never leak
+    # secrets: FRED / Alpha Vantage `api_key`/`apikey` and the IBKR Flex Web
+    # Service token (`t=` / `token=`). Non-secret params (Flex query id `q`,
+    # date bounds `fd`/`td`) are intentionally preserved for debuggability.
+    return re.sub(
+        r"([?&](?:api_key|apikey|apiKey|token|t)=)[^&]+",
+        r"\1<redacted>",
+        url,
+    )
 
 
 def download_text(

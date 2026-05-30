@@ -170,6 +170,28 @@ class DownloadTests(unittest.TestCase):
             "2026-03-24T12:30:00+00:00",
         )
 
+    def test_redact_url_secrets_hides_flex_token(self) -> None:
+        from market_helper.data_library.loader import _redact_url_secrets
+
+        url = (
+            "https://ndcdyn.interactivebrokers.com/AccountManagement/"
+            "FlexWebService/SendRequest?t=SUPERSECRETTOKEN&q=1462703&v=3"
+            "&fd=20260101&td=20260529"
+        )
+        redacted = _redact_url_secrets(url)
+        self.assertNotIn("SUPERSECRETTOKEN", redacted)
+        self.assertIn("t=<redacted>", redacted)
+        # Non-credential params stay for debuggability.
+        self.assertIn("q=1462703", redacted)
+        self.assertIn("fd=20260101", redacted)
+        self.assertIn("td=20260529", redacted)
+        # FRED / Alpha Vantage keys and an explicit token param are masked too.
+        self.assertEqual(
+            _redact_url_secrets("https://x/d?api_key=ABC&z=1"),
+            "https://x/d?api_key=<redacted>&z=1",
+        )
+        self.assertNotIn("XYZ", _redact_url_secrets("https://x/d?token=XYZ"))
+
 
 if __name__ == "__main__":
     unittest.main()

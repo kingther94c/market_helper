@@ -7,7 +7,7 @@ import time
 from typing import Callable
 import xml.etree.ElementTree as ET
 
-from market_helper.data_sources.base import build_url, download_text
+from market_helper.data_sources.base import DownloadError, build_url, download_text
 
 DEFAULT_IBKR_FLEX_BASE_URL = "https://ndcdyn.interactivebrokers.com/AccountManagement/FlexWebService"
 DEFAULT_IBKR_FLEX_API_VERSION = "3"
@@ -15,6 +15,12 @@ DEFAULT_IBKR_FLEX_POLL_INTERVAL_SECONDS = 5.0
 DEFAULT_IBKR_FLEX_SEND_REQUEST_RETRY_SECONDS = 10.0
 DEFAULT_IBKR_FLEX_WAIT_TIMEOUT_SECONDS = 60.0
 DEFAULT_IBKR_FLEX_MAX_ATTEMPTS = int(DEFAULT_IBKR_FLEX_WAIT_TIMEOUT_SECONDS / DEFAULT_IBKR_FLEX_POLL_INTERVAL_SECONDS) + 1
+# Transient HTTP-layer resilience for SendRequest/GetStatement: IBKR Flex
+# occasionally times out or drops the connection — independent of the Flex
+# *protocol* "pending" errors, which arrive as XML with HTTP 200. Retry the raw
+# HTTP call a few times with exponential backoff before surfacing a failure.
+DEFAULT_IBKR_FLEX_HTTP_MAX_ATTEMPTS = 3
+DEFAULT_IBKR_FLEX_HTTP_RETRY_BACKOFF_SECONDS = 2.0
 
 
 def _resolve_default_flex_http_timeout() -> int:
@@ -94,6 +100,8 @@ class FlexWebServiceClient:
     timeout: int = DEFAULT_FLEX_HTTP_TIMEOUT_SECONDS
     api_version: str = DEFAULT_IBKR_FLEX_API_VERSION
     sleep: Callable[[float], None] = time.sleep
+    http_max_attempts: int = DEFAULT_IBKR_FLEX_HTTP_MAX_ATTEMPTS
+    http_retry_backoff_seconds: float = DEFAULT_IBKR_FLEX_HTTP_RETRY_BACKOFF_SECONDS
 
     def send_request(
         self,
@@ -208,9 +216,23 @@ class FlexWebServiceClient:
             base=self.base_url.rstrip("/"),
             path=path.lstrip("/"),
         )
-        if self.downloader is not None:
-            return str(self.downloader(build_url(url, params)))
-        return download_text(url, params=params, timeout=self.timeout)
+        attempts = max(1, self.http_max_attempts)
+        last_error: DownloadError | None = None
+        for index in range(attempts):
+            try:
+                if self.downloader is not None:
+                    return str(self.downloader(build_url(url, params)))
+                return download_text(url, params=params, timeout=self.timeout)
+            except DownloadError as error:
+                # Only genuine HTTP-layer failures (timeout / connection / 5xx)
+                # reach here — real Flex protocol errors (bad token, statement
+                # still generating) come back as XML with HTTP 200 and are
+                # handled by fetch_statement's polling, not retried blindly.
+                last_error = error
+                if index < attempts - 1:
+                    self.sleep(self.http_retry_backoff_seconds * (2 ** index))
+        assert last_error is not None
+        raise last_error
 
 
 def _parse_status_response(payload: str) -> FlexStatusResponse | None:

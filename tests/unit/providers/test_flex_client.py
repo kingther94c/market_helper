@@ -337,6 +337,59 @@ def test_flex_web_service_default_timeout_budget_is_one_minute() -> None:
     assert client_module.DEFAULT_IBKR_FLEX_MAX_ATTEMPTS == 13
 
 
+def test_flex_client_retries_transient_http_timeout_then_succeeds() -> None:
+    """A transient HTTP-layer DownloadError (e.g. a SendRequest timeout) is
+    retried with exponential backoff rather than failing the whole action."""
+    from market_helper.data_sources.base import DownloadError
+
+    sleeps: list[float] = []
+    calls: list[int] = []
+
+    def downloader(_url: str) -> str:
+        calls.append(1)
+        if len(calls) < 3:
+            raise DownloadError("Timeout while requesting https://flex/SendRequest?t=<redacted>")
+        return (
+            "<FlexStatementResponse><Status>Success</Status>"
+            "<ReferenceCode>REF999</ReferenceCode></FlexStatementResponse>"
+        )
+
+    client = FlexWebServiceClient(
+        token="secret-token",
+        downloader=downloader,
+        sleep=sleeps.append,
+        http_max_attempts=3,
+        http_retry_backoff_seconds=2.0,
+    )
+
+    assert client.send_request("1462703") == "REF999"
+    assert len(calls) == 3  # failed twice, succeeded on the third attempt
+    assert sleeps == [2.0, 4.0]  # exponential backoff between attempts
+
+
+def test_flex_client_reraises_after_exhausting_http_retries() -> None:
+    """A persistent HTTP-layer failure surfaces the DownloadError after the
+    configured number of attempts (so the action still fails loudly)."""
+    from market_helper.data_sources.base import DownloadError
+
+    sleeps: list[float] = []
+
+    def downloader(_url: str) -> str:
+        raise DownloadError("Timeout while requesting https://flex/SendRequest")
+
+    client = FlexWebServiceClient(
+        token="secret-token",
+        downloader=downloader,
+        sleep=sleeps.append,
+        http_max_attempts=3,
+        http_retry_backoff_seconds=1.0,
+    )
+
+    with pytest.raises(DownloadError):
+        client.send_request("1462703")
+    assert sleeps == [1.0, 2.0]  # slept between the three attempts (two gaps)
+
+
 def test_flex_web_service_client_send_request_raises_non_retryable_error() -> None:
     client = FlexWebServiceClient(
         token="secret-token",
