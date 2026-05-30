@@ -1,0 +1,3 @@
+internal_id,is_active,asset_class,canonical_symbol,display_ticker,display_name,currency,primary_exchange,multiplier,ibkr_sec_type,ibkr_symbol,ibkr_exchange,ibkr_conid,yahoo_symbol,eq_sector_proxy,dir_exposure,fi_mod_duration,fi_tenor,cm_sector,lookup_status,last_verified_at
+STK:SPY:SMART,true,EQ,SPY,SPY,SPDR S&P 500 ETF,USD,ARCA,1,STK,SPY,SMART,756733,SPY,,L,,,,verified,2024-01-01T00:00:00+00:00
+FUT:NG:NYMEX,true,CM,NG,NG,Natural Gas,USD,NYMEX,1,FUT,NG,NYMEX,,NG=F,,L,,,EN,seeded,

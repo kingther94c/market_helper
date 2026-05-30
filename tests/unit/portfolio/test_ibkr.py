@@ -1,3 +1,5 @@
+from pathlib import Path
+
 import pytest
 
 from market_helper.portfolio import (
@@ -5,6 +7,18 @@ from market_helper.portfolio import (
     normalize_ibkr_latest_prices,
     normalize_ibkr_positions,
 )
+
+# Tiny committed curated fixture (just SPY) so these tests stay hermetic instead
+# of depending on the generated, git-ignored
+# data/artifacts/portfolio_monitor/security_reference.csv. The futures / option
+# identities the tests assert are *inferred* by normalize_ibkr_positions; only
+# SPY needs to be pre-curated (the equity match + the option-underlying
+# resolution), so a one-row fixture is enough.
+_SECURITY_REFERENCE_FIXTURE = Path(__file__).parent / "_fixtures" / "security_reference.csv"
+
+
+def _curated_reference_table() -> SecurityReferenceTable:
+    return SecurityReferenceTable.from_csv(_SECURITY_REFERENCE_FIXTURE)
 
 
 class FakeIbkrRow:
@@ -14,7 +28,7 @@ class FakeIbkrRow:
 
 
 def test_normalize_ibkr_positions_matches_curated_equity_row() -> None:
-    table = SecurityReferenceTable.from_default_csv()
+    table = _curated_reference_table()
     positions = normalize_ibkr_positions(
         [
             {
@@ -38,7 +52,7 @@ def test_normalize_ibkr_positions_matches_curated_equity_row() -> None:
 
 
 def test_normalize_ibkr_positions_matches_futures_family_alias() -> None:
-    table = SecurityReferenceTable.from_default_csv()
+    table = _curated_reference_table()
     positions = normalize_ibkr_positions(
         [
             {
@@ -64,7 +78,7 @@ def test_normalize_ibkr_positions_matches_futures_family_alias() -> None:
 
 
 def test_normalize_ibkr_positions_uses_contract_specific_identity_for_commodity_futures() -> None:
-    table = SecurityReferenceTable.from_default_csv()
+    table = _curated_reference_table()
     positions = normalize_ibkr_positions(
         [
             {
@@ -147,7 +161,7 @@ def test_normalize_ibkr_positions_repairs_cached_generic_commodity_future_mappin
 
 
 def test_normalize_ibkr_latest_prices_uses_fallback_price_fields() -> None:
-    table = SecurityReferenceTable.from_default_csv()
+    table = _curated_reference_table()
     normalize_ibkr_positions(
         [
             {
@@ -175,7 +189,7 @@ def test_normalize_ibkr_latest_prices_uses_fallback_price_fields() -> None:
 
 
 def test_normalize_ibkr_positions_accepts_camel_case_and_object_payload() -> None:
-    table = SecurityReferenceTable.from_default_csv()
+    table = _curated_reference_table()
     positions = normalize_ibkr_positions(
         [
             FakeIbkrRow(
@@ -203,7 +217,7 @@ def test_normalize_ibkr_positions_accepts_camel_case_and_object_payload() -> Non
 
 
 def test_normalize_ibkr_positions_marks_options_outside_scope() -> None:
-    table = SecurityReferenceTable.from_default_csv()
+    table = _curated_reference_table()
     positions = normalize_ibkr_positions(
         [
             {
@@ -227,7 +241,7 @@ def test_normalize_ibkr_positions_marks_options_outside_scope() -> None:
 
 
 def test_normalize_ibkr_positions_attaches_option_delta_exposure() -> None:
-    table = SecurityReferenceTable.from_default_csv()
+    table = _curated_reference_table()
     positions = normalize_ibkr_positions(
         [
             {
@@ -259,7 +273,7 @@ def test_normalize_ibkr_positions_attaches_option_delta_exposure() -> None:
 
 
 def test_normalize_ibkr_positions_keeps_option_contract_ids_distinct() -> None:
-    table = SecurityReferenceTable.from_default_csv()
+    table = _curated_reference_table()
     positions = normalize_ibkr_positions(
         [
             {
@@ -296,7 +310,7 @@ def test_normalize_ibkr_positions_keeps_option_contract_ids_distinct() -> None:
 
 
 def test_normalize_ibkr_positions_flips_option_delta_exposure_for_short_quantity() -> None:
-    table = SecurityReferenceTable.from_default_csv()
+    table = _curated_reference_table()
     positions = normalize_ibkr_positions(
         [
             {
@@ -322,7 +336,7 @@ def test_normalize_ibkr_positions_flips_option_delta_exposure_for_short_quantity
 
 
 def test_normalize_ibkr_positions_marks_futures_options_outside_scope() -> None:
-    table = SecurityReferenceTable.from_default_csv()
+    table = _curated_reference_table()
     positions = normalize_ibkr_positions(
         [
             {
@@ -346,7 +360,7 @@ def test_normalize_ibkr_positions_marks_futures_options_outside_scope() -> None:
 
 
 def test_normalize_ibkr_positions_marks_unmapped_instruments() -> None:
-    table = SecurityReferenceTable.from_default_csv()
+    table = _curated_reference_table()
     positions = normalize_ibkr_positions(
         [
             {
@@ -372,7 +386,7 @@ def test_normalize_ibkr_positions_marks_unmapped_instruments() -> None:
 
 
 def test_normalize_ibkr_positions_prefers_primary_exchange_and_unique_symbol_match() -> None:
-    table = SecurityReferenceTable.from_default_csv()
+    table = _curated_reference_table()
     positions = normalize_ibkr_positions(
         [
             {
@@ -394,7 +408,7 @@ def test_normalize_ibkr_positions_prefers_primary_exchange_and_unique_symbol_mat
 
 
 def test_normalize_ibkr_latest_prices_accepts_market_price_alias() -> None:
-    table = SecurityReferenceTable.from_default_csv()
+    table = _curated_reference_table()
     normalize_ibkr_positions(
         [
             {
@@ -418,7 +432,7 @@ def test_normalize_ibkr_latest_prices_accepts_market_price_alias() -> None:
 
 
 def test_normalize_ibkr_latest_prices_raises_when_no_price_fields() -> None:
-    table = SecurityReferenceTable.from_default_csv()
+    table = _curated_reference_table()
     normalize_ibkr_positions(
         [
             {
