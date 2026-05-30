@@ -324,3 +324,17 @@ Detail: `docs/architecture/devplans/regime_engine.md`.
 Canonical layered-memory layout landed in ADR
 [0003](../docs/decisions/0003-layered-memory-canonical-homes.md). See
 [`AGENTS.md`](../AGENTS.md) for governance rules and reading order.
+
+- **Agent skills + memory consolidation (2026-05-30)**: collapsed three skill
+  trees to two canonical homes — `.claude/skills/` (Claude) + `.agents/skills/`
+  (Codex) — and deleted the redundant root `skills/` mirror, whose symlinks
+  were dead text-stubs under `core.symlinks=false` on Windows.
+  `repo-onboarding-skill` became a real file under `.agents/skills/`; the
+  misleading `conventional-commit` skill (Copilot boilerplate) was pruned.
+  Migrated durable conda/env-setup facts (two roots, invocation patterns,
+  Anaconda `defaults` ToS accept, `.condarc` D-drive pinning) into
+  `memory/hot/operations.md`; distilled the personal auto-memory notes to tight
+  pointers (~6.2 KB dup → one 27-line block). Untracked the leaked
+  `.claude/worktrees/intelligent-shannon` gitlink. `lookthrough-researcher`
+  stays a deliberate Claude/Codex copy-mirror — keep in sync, do **not**
+  symlink (that is what just broke on Windows).

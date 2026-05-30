@@ -11,6 +11,33 @@ Always use the Conda env `py313` (Python 3.13). **Never `conda base`.**
 conda activate py313
 ```
 
+### Conda invocation in agent shells (Claude / Codex)
+
+Bare `conda` is **not on PATH** in agent shells on this Windows host. Two
+roots — do not conflate: install `D:\ProgramData\miniconda3` (holds
+`Scripts\conda.exe`), env `D:\conda\envs\py313`. The user's `.condarc` pins
+`pkgs_dirs`/`envs_dirs` to `D:\conda\*` so nothing bulky lands on the C drive.
+
+```powershell
+& "D:\ProgramData\miniconda3\Scripts\conda.exe" run -n py313 python -m ...  # full conda wrapper
+& "D:\conda\envs\py313\python.exe" -m ...                                   # direct: faster, preferred for one-offs
+```
+
+Prefer the direct `python.exe` for one-off scripts and `-c` snippets — no
+wrapper startup, and it sidesteps the intermittent `CONDA_NO_PLUGINS` errors
+seen when two `conda run` calls overlap.
+
+**Env rebuild:** the Anaconda `defaults` channel needs a one-time, machine-wide
+ToS accept or `conda env create` fails with `CondaToSNonInteractiveError`:
+
+```powershell
+$c = "D:\ProgramData\miniconda3\Scripts\conda.exe"
+& $c tos accept --override-channels --channel https://repo.anaconda.com/pkgs/main   # repeat for /pkgs/r and /pkgs/msys2
+```
+
+Then rebuild via `CONDA_BIN="D:/ProgramData/miniconda3/Scripts/conda.exe" bash scripts/setup_python_env.sh`
+(removes + recreates `py313`, then `playwright install chromium`).
+
 ## Per-machine env vars
 
 `MARKET_HELPER_GDRIVE_ROOT` drives report mirroring + `local.env` discovery
