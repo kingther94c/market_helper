@@ -11,6 +11,15 @@ context is in `memory/archive/` (gitignored, not read by default).
 
 Recent landed work (one-liners; full detail in
 `memory/archive/landed/portfolio_monitor_landed.md`):
+- **FRED fetch resilience (configurable 60s timeout + backoff).** The regime
+  refresh failed on a transient FRED `UNRATE` timeout — the report still showed
+  the cached regime + a warning (graceful via the `engine_error`-with-data
+  state), but the failure was avoidable. FRED API + fredgraph CSV fetches now
+  default to a 60s HTTP timeout (was the global 20s), overridable via
+  `FRED_HTTP_TIMEOUT_SECONDS`, with 2s/4s exponential backoff across the 3 API
+  attempts. Monthly series (e.g. UNRATE) frequently fall through the
+  empty-incremental-window CSV path to the API, so the API timeout is the one
+  that matters in practice.
 - **Flex Web Service hardening (HTTP-timeout retry + token redaction).** The
   dashboard "Report Data" / Flex refresh failed outright on a single IBKR
   SendRequest HTTP timeout. `FlexWebServiceClient._download` now retries

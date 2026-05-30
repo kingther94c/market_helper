@@ -239,6 +239,59 @@ def test_sync_series_uses_fred_csv_before_api(
     assert synced["value"].tolist() == [1.0, 2.0]
 
 
+def test_resolve_fred_http_timeout_respects_env_override(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.delenv("FRED_HTTP_TIMEOUT_SECONDS", raising=False)
+    assert mp._resolve_fred_http_timeout() == 60
+    monkeypatch.setenv("FRED_HTTP_TIMEOUT_SECONDS", "120")
+    assert mp._resolve_fred_http_timeout() == 120
+    # Garbage / non-positive values fall back to the safe 60s default.
+    monkeypatch.setenv("FRED_HTTP_TIMEOUT_SECONDS", "not-a-number")
+    assert mp._resolve_fred_http_timeout() == 60
+
+
+def test_sync_series_passes_http_timeout_and_backs_off_on_api_retry(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The CSV + API fetches carry the resolved (generous) HTTP timeout, and a
+    transient API timeout is retried with exponential backoff rather than
+    failing the whole macro sync (which would fail the regime refresh)."""
+    api_calls: List[dict] = []
+    sleeps: List[float] = []
+
+    def _fake_download_csv(series_id: str, **kwargs):
+        # Narrow incremental window with no new obs -> force the API path.
+        assert kwargs.get("timeout") == mp.DEFAULT_FRED_HTTP_TIMEOUT_SECONDS
+        raise mp.DownloadError("FRED CSV response did not include usable observations")
+
+    def _fake_download(series_id: str, api_key: str, **kwargs):
+        api_calls.append({"series_id": series_id, **kwargs})
+        if len(api_calls) < 3:
+            raise mp.DownloadError("api timed out")
+        return EconomicSeries(
+            series_id=series_id,
+            title=series_id,
+            units="lin",
+            frequency="m",
+            observations=[Observation(date="2020-01-01", value=1.0)],
+        )
+
+    monkeypatch.setattr(mp, "download_fred_series_csv", _fake_download_csv)
+    monkeypatch.setattr(mp, "download_fred_series", _fake_download)
+    monkeypatch.setattr(mp.time, "sleep", lambda seconds: sleeps.append(seconds))
+
+    spec = SeriesSpec(series_id="UNRATE", axis="growth", transform="level")
+    synced = sync_series(spec, "key", cache_dir=tmp_path)
+
+    assert synced["value"].tolist() == [1.0]
+    assert len(api_calls) == 3  # failed twice, succeeded on the third attempt
+    assert all(
+        call.get("timeout") == mp.DEFAULT_FRED_HTTP_TIMEOUT_SECONDS for call in api_calls
+    )
+    assert sleeps == [2.0, 4.0]  # exponential backoff between the three attempts
+
+
 # ---------------------------------------------------------------------------
 # Panel construction
 # ---------------------------------------------------------------------------

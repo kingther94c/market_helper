@@ -15,6 +15,7 @@ columns ``_axis:{series_id}`` (not stored) exposed via :func:`load_series_meta`.
 """
 from __future__ import annotations
 
+import os
 import time
 from dataclasses import dataclass
 from pathlib import Path
@@ -35,6 +36,28 @@ DEFAULT_CACHE_DIR = Path("data/interim/fred")
 DEFAULT_PANEL_FILENAME = "macro_panel.feather"
 DEFAULT_META_FILENAME = "macro_panel_meta.yml"
 FRESHNESS_AGE_COLUMN_PREFIX = "_age_bdays:"
+
+
+def _resolve_fred_http_timeout() -> int:
+    """HTTP timeout (seconds) for FRED API + fredgraph CSV fetches.
+
+    The global 20s default is tight when the network to api.stlouisfed.org is
+    momentarily slow — the regime refresh then fails (and falls back to the
+    cached macro panel). Default to 60s, overridable via
+    ``FRED_HTTP_TIMEOUT_SECONDS`` so operators on a slow link can widen it.
+    """
+    override = os.environ.get("FRED_HTTP_TIMEOUT_SECONDS")
+    if override:
+        try:
+            value = int(float(override))
+        except ValueError:
+            return 60
+        if value > 0:
+            return value
+    return 60
+
+
+DEFAULT_FRED_HTTP_TIMEOUT_SECONDS = _resolve_fred_http_timeout()
 
 _ALLOWED_TRANSFORMS = {
     "level",
@@ -382,6 +405,7 @@ def _download_series_for_sync(
             spec.series_id,
             title=spec.title,
             observation_start=observation_start,
+            timeout=DEFAULT_FRED_HTTP_TIMEOUT_SECONDS,
         )
     except (DownloadError, ValueError) as exc:
         csv_error = exc
@@ -395,12 +419,15 @@ def _download_series_for_sync(
                 api_key=api_key,
                 title=spec.title,
                 observation_start=observation_start,
+                timeout=DEFAULT_FRED_HTTP_TIMEOUT_SECONDS,
             )
         except (DownloadError, TimeoutError, OSError) as exc:
             last_error = exc
             if attempt >= attempts:
                 break
-            time.sleep(float(attempt))
+            # Exponential backoff (2s, 4s) to ride out a transient slow patch on
+            # api.stlouisfed.org rather than re-hitting it on a fixed cadence.
+            time.sleep(2.0 * attempt)
     raise RuntimeError(
         f"FRED download failed for {spec.series_id} after CSV fallback and "
         f"{attempts} API attempts. CSV error: {csv_error}. Last API error: {last_error}"
