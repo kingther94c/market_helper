@@ -161,9 +161,9 @@ def build_regime_ribbon_html(state: RegimeArtifactState) -> str:
         )
     crisis_class = "regime-ribbon__crisis is-on" if view_model.crisis_flag else "regime-ribbon__crisis"
     if view_model.schema == "regime-engine-v2":
-        crisis_label = "Risk overlay on" if view_model.crisis_flag else "Risk overlay off"
+        crisis_label = "Overlay active" if view_model.crisis_flag else "Overlay inactive"
         if view_model.crisis_flag and view_model.crisis_intensity is not None:
-            crisis_label = f"Risk overlay on · {view_model.crisis_intensity:.2f}"
+            crisis_label = f"Overlay active · {view_model.crisis_intensity:.2f}"
     else:
         crisis_label = "Crisis on" if view_model.crisis_flag else "Crisis off"
         if view_model.crisis_flag and view_model.crisis_intensity is not None:

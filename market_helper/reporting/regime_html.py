@@ -719,7 +719,12 @@ def _render_status_cards(view_model: RegimeHtmlViewModel) -> str:
     if _is_v2_view_model(view_model):
         cards.extend(
             [
-                ("Risk Overlay", _format_bool(view_model.crisis_flag)),
+                # "Overlay" (is the crisis overlay actively adjusting the
+                # regime?) is a different axis from "Risk State" (the computed
+                # risk posture). Rendering the first as on/off next to a
+                # "Risk On" posture read as contradictory, so it is an explicit
+                # Active / Inactive.
+                ("Overlay", "Active" if view_model.crisis_flag else "Inactive"),
                 ("Risk State", view_model.risk_state or "n/a"),
             ]
         )
@@ -757,7 +762,7 @@ def _render_v2_disagreement(view_model: RegimeHtmlViewModel) -> str:
     ):
         return ""
     tone = "is-on" if view_model.disagreement_flag else "is-off"
-    label = "Disagreement: Yes" if view_model.disagreement_flag else "Disagreement: No"
+    label = "Method disagreement: Yes" if view_model.disagreement_flag else "Method disagreement: No"
     summary = view_model.disagreement_summary or (
         "Layer outputs are aligned enough for the current ensemble."
     )
@@ -805,8 +810,13 @@ def _render_v2_axis_disagreement_breakdown(
         )
     return (
         "<div class='regime-v2-axis-disagreement'>"
+        "<p class='regime-v2-axis-disagreement__note'>"
+        "Per-axis macro-layer vs market-layer alignment — a finer view than the "
+        "overall verdict above. An axis can diverge here while the ensemble as a "
+        "whole still agrees."
+        "</p>"
         "<table>"
-        "<thead><tr><th>Axis</th><th>Macro</th><th>Market</th><th></th></tr></thead>"
+        "<thead><tr><th>Axis</th><th>Macro</th><th>Market</th><th>Macro vs Market</th></tr></thead>"
         f"<tbody>{''.join(body_rows)}</tbody>"
         "</table>"
         "</div>"
@@ -949,7 +959,10 @@ def _render_v2_risk_overlay(view_model: RegimeHtmlViewModel) -> str:
     if risk is None:
         return ""
     state = risk.risk_state or "n/a"
-    overlay = _format_bool(risk.risk_overlay_on)
+    # "Active"/"Inactive" rather than on/off: an inactive overlay sitting next
+    # to a "Risk On" *posture* (State) is not a contradiction — they measure
+    # different things, which on/off next to "Risk On" obscured.
+    overlay = "Active" if risk.risk_overlay_on else "Inactive"
     metrics = [
         ("Overlay", overlay),
         ("State", state),
@@ -967,7 +980,7 @@ def _render_v2_risk_overlay(view_model: RegimeHtmlViewModel) -> str:
         "<section class='panel regime-v2-risk'>"
         "<header class='regime-panel__header'>"
         "<h2>Independent Risk Overlay</h2>"
-        "<span class='regime-panel__meta'>risk is shown separately from growth and inflation</span>"
+        "<span class='regime-panel__meta'>a separate overlay — it only adjusts the regime label when Active</span>"
         "</header>"
         "<div class='regime-v2-risk__grid'>"
         + "".join(
@@ -1550,6 +1563,7 @@ def regime_section_styles() -> str:
       color: var(--muted-ink);
     }
     .regime-group:first-of-type .regime-group__eyebrow { margin-top: 4px; padding-top: 0; border-top: 0; }
+    .regime-v2-axis-disagreement__note { margin: 4px 0 10px; font-size: 12px; color: var(--muted-ink); max-width: 760px; }
     .regime-v2-hero {
       display: grid; grid-template-columns: minmax(0, 1fr) minmax(320px, 460px);
       gap: 16px; align-items: stretch; padding: 20px 0 8px;

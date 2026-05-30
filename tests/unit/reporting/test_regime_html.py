@@ -112,7 +112,7 @@ def test_build_regime_html_view_model_accepts_v2_payload(tmp_path: Path) -> None
     assert "Independent Risk Overlay" in fragment
     assert "Risk Overlay Score" in fragment
     assert "Layer-State Heat Strip" in fragment
-    assert "Disagreement: Yes" in fragment
+    assert "Method disagreement: Yes" in fragment
     assert "data mode: market only; missing macro_nowcast" in fragment
     assert "credit spreads: +0.42" in fragment
     assert "Crisis Intensity" not in fragment

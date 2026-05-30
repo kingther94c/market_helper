@@ -11,6 +11,37 @@ context is in `memory/archive/` (gitignored, not read by default).
 
 Recent landed work (one-liners; full detail in
 `memory/archive/landed/portfolio_monitor_landed.md`):
+- **Report restructure (Regime own tab + Performance merge + slim Overview +
+  clearer wording).** Regime's 11 deep panels moved out of the Overview dump
+  into a dedicated **Regime** top-level tab with an in-section chip sub-nav
+  (Verdict & Disagreement / Axes & Layers / Risk Overlay / Contributors /
+  History) over anchored, eyebrow-labelled groups; Overview keeps only a
+  compact regime *summary* (hero + status cards) with a "View full regime
+  analysis →" deep-link, so the deep panels render exactly once (no
+  double-render — the trap that retired the previous standalone Regime tab).
+  `regime_html` split into `render_regime_overview_summary` (hero) +
+  `render_regime_detail_section` (grouped panels + sub-nav);
+  `render_regime_section_body` kept as the full hero+detail body for the
+  standalone CLI artifact (`render_regime_html_report`). The duplicate,
+  non-sticky topline KPI strip was dropped (`build_topline_html` +
+  `_regime_kpi_cell` removed) — the Overview KPI grid is the single headline
+  row (regime cell dropped; ribbon + summary carry regime). **Performance USD /
+  SGD** collapsed from two identical top-level sections into one **Performance**
+  section with a USD/SGD `.segmented-control` toggle
+  (`build_performance_section_body`); both charts init on load (unique
+  `perf-plot-{usd,sgd}` ids) and the initially-hidden SGD chart is
+  `__marketHelperResizePerformancePlots`-resized on first show. Nav 6→5 tabs
+  (Overview / Regime / Performance / Risk / Artifacts), fixing mobile
+  nav-truncation. **Wording:** disagreement panel → "Method disagreement: …"
+  with a per-axis "macro-layer vs market-layer alignment — a finer view than
+  the overall verdict" note + a "Macro vs Market" column, so the overall
+  verdict no longer reads as contradicting a per-axis "disagrees"; the
+  crisis/overlay status reads **Overlay Active/Inactive** (hero card, risk
+  overlay panel, and ribbon) instead of "Risk overlay on/off" sitting next to a
+  "Risk State: Risk On" posture. Tests: `test_combined_html` (#regime present,
+  merged-performance toggle, Overview summary vs full card) + new perf-merge
+  test; `test_regime_html` "Method disagreement" assertion. Full unit suite
+  green.
 - **Mobile / responsive framework centralised in `_design_tokens.py`** —
   every HTML surface (dashboard chrome, combined report shell, regime ribbon,
   perf/risk/regime sections) consumes one shared `--app-bar-height{,-mobile}`
