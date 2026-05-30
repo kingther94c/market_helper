@@ -44,6 +44,32 @@ def test_render_performance_tab_contains_plots_and_tables() -> None:
     assert ("cdn.plot.ly/plotly" in assets) or ("plotly.js v" in assets)
 
 
+def test_performance_section_merges_usd_sgd_with_currency_toggle(tmp_path: Path) -> None:
+    """The two Performance USD / SGD sections collapse into one section whose
+    segmented control flips currency. Both currency bodies render (with their
+    unique plot ids) and the SGD pane starts hidden."""
+    from market_helper.reporting.portfolio_html import build_performance_section_body
+
+    usd_vm = build_performance_report_view_model(
+        _demo_history_frame(), primary_currency="USD", secondary_currency=None
+    )
+    sgd_vm = build_performance_report_view_model(
+        _demo_history_frame(), primary_currency="SGD", secondary_currency=None
+    )
+    body = build_performance_section_body(usd_vm, sgd_vm)
+
+    assert "perf-currency-switch" in body
+    assert "data-perf-currency-btn='usd'" in body
+    assert "data-perf-currency-btn='sgd'" in body
+    assert "data-perf-currency='usd'" in body
+    # SGD pane starts hidden; the toggle resizes it when first shown.
+    assert "data-perf-currency='sgd' hidden" in body
+    assert "__marketHelperResizePerformancePlots" in body
+    # Both charts init (unique plot ids), so neither currency collides.
+    assert "perf-plot-usd" in body
+    assert "perf-plot-sgd" in body
+
+
 def test_generate_combined_html_report_writes_direct_html_and_mirrors_artifact(
     monkeypatch, tmp_path: Path
 ) -> None:
@@ -206,8 +232,13 @@ def test_render_portfolio_report_builds_html_shell_without_nicegui_refs(tmp_path
     # geomean_1m_3m key).
     assert "Ex-ante Vol" in rendered
     assert "Target Vol" not in rendered
-    assert "href='#performance-usd'" in rendered or 'href="#performance-usd"' in rendered
-    assert "Performance USD" in rendered
+    # Performance USD / SGD are merged into one nav tab with a currency toggle.
+    assert "href='#performance'" in rendered or 'href="#performance"' in rendered
+    assert ">Performance<" in rendered
+    assert "data-perf-currency-btn='usd'" in rendered
+    assert "data-perf-currency-btn='sgd'" in rendered
+    assert "Performance USD" not in rendered
+    assert "Performance SGD" not in rendered
     assert "Risk" in rendered
     assert "Artifacts" in rendered
     assert "report-table" in rendered

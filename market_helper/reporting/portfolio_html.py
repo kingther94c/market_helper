@@ -369,6 +369,77 @@ _OVERVIEW_STYLES = """
 """
 
 
+def build_performance_section_body(
+    usd_view_model: PerformanceReportViewModel,
+    sgd_view_model: PerformanceReportViewModel,
+) -> str:
+    """One Performance section with a USD / SGD currency toggle.
+
+    Replaces the previous two top-level ‟Performance USD" / ‟Performance SGD"
+    sections (identical layouts, doubled nav) with a single section whose
+    segmented control flips between the two currency bodies. Both perf charts
+    init on load — their plot ids (``perf-plot-usd`` / ``perf-plot-sgd``) are
+    already unique — and the initially-hidden SGD chart is resized the first
+    time it is shown so Plotly picks up the real container width.
+    """
+    control = (
+        "<div class='perf-currency-switch'>"
+        "<span class='perf-currency-switch__label'>Currency</span>"
+        "<div class='segmented-control' role='tablist' aria-label='Performance currency'>"
+        "<button type='button' class='segmented-control__button is-active'"
+        " data-perf-currency-btn='usd' role='tab' aria-selected='true'>USD</button>"
+        "<button type='button' class='segmented-control__button'"
+        " data-perf-currency-btn='sgd' role='tab' aria-selected='false'>SGD</button>"
+        "</div>"
+        "</div>"
+    )
+    usd_pane = (
+        "<div class='perf-currency-pane' data-perf-currency='usd'>"
+        f"{render_performance_tab(usd_view_model)}"
+        "</div>"
+    )
+    sgd_pane = (
+        "<div class='perf-currency-pane' data-perf-currency='sgd' hidden>"
+        f"{render_performance_tab(sgd_view_model)}"
+        "</div>"
+    )
+    styles = (
+        "<style>"
+        ".perf-currency-switch { display: flex; align-items: center; gap: 12px; margin: 0 0 18px; }"
+        ".perf-currency-switch__label { font-size: 12px; font-weight: 800; letter-spacing: 0.08em;"
+        " text-transform: uppercase; color: var(--muted-ink); }"
+        ".perf-currency-pane[hidden] { display: none; }"
+        "</style>"
+    )
+    toggle_js = """<script>
+(function(){
+  var btns = Array.prototype.slice.call(document.querySelectorAll('[data-perf-currency-btn]'));
+  var panes = Array.prototype.slice.call(document.querySelectorAll('.perf-currency-pane'));
+  if (!btns.length || !panes.length) { return; }
+  function show(cur){
+    panes.forEach(function(p){
+      if (p.getAttribute('data-perf-currency') === cur) { p.removeAttribute('hidden'); }
+      else { p.setAttribute('hidden', ''); }
+    });
+    btns.forEach(function(b){
+      var on = b.getAttribute('data-perf-currency-btn') === cur;
+      b.classList.toggle('is-active', on);
+      b.setAttribute('aria-selected', on ? 'true' : 'false');
+    });
+    if (window.__marketHelperResizePerformancePlots) {
+      window.__marketHelperResizePerformancePlots(
+        document.querySelector('.perf-currency-pane[data-perf-currency="' + cur + '"]')
+      );
+    }
+  }
+  btns.forEach(function(b){
+    b.addEventListener('click', function(){ show(b.getAttribute('data-perf-currency-btn')); });
+  });
+})();
+</script>"""
+    return styles + control + usd_pane + sgd_pane + toggle_js
+
+
 def build_portfolio_report_document(report_data: "PortfolioReportData") -> ReportDocument:
     sections = [
         ReportSection(
@@ -384,16 +455,13 @@ def build_portfolio_report_document(report_data: "PortfolioReportData") -> Repor
             body_html=build_regime_section_body(report_data),
         ),
         ReportSection(
-            key="performance-usd",
-            title="Performance USD",
-            summary="Primary time-weighted performance in USD with improved tables and interactive chart windows.",
-            body_html=render_performance_tab(report_data.performance_usd_view_model),
-        ),
-        ReportSection(
-            key="performance-sgd",
-            title="Performance SGD",
-            summary="Secondary performance view translated into SGD for local reporting and monitoring.",
-            body_html=render_performance_tab(report_data.performance_sgd_view_model),
+            key="performance",
+            title="Performance",
+            summary="Time-weighted performance with a USD / SGD currency toggle, interactive chart windows, and horizon + benchmark tables.",
+            body_html=build_performance_section_body(
+                report_data.performance_usd_view_model,
+                report_data.performance_sgd_view_model,
+            ),
         ),
         ReportSection(
             key="risk",
