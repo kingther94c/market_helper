@@ -21,7 +21,8 @@ from market_helper.reporting.performance_html import (
 )
 from market_helper.reporting.regime_html import (
     regime_section_styles,
-    render_regime_section_body,
+    render_regime_detail_section,
+    render_regime_overview_summary,
 )
 from market_helper.reporting.report_document import ReportDocument, ReportSection, render_report_document
 from market_helper.reporting.risk_html import (
@@ -114,111 +115,6 @@ def _kpi_cell(label: str, value_html: str, sub_html: str = "", *, value_class: s
         f"<span class='kpi__label'>{html.escape(label)}</span>"
         f"<span class='kpi__value{html.escape(value_class)}'>{value_html}</span>"
         f"<span class='kpi__sub'>{sub_html}</span>"
-        "</div>"
-    )
-
-
-def _regime_kpi_cell(state: RegimeArtifactState) -> str:
-    """Regime summary cell: regime label with an agreement + risk-overlay sub-line.
-
-    Renders parallel ‟unavailable" presentations for missing / engine_error
-    states so the KPI strip always has six cells instead of going blank.
-    """
-    view_model = state.view_model
-    if view_model is None:
-        sub = (
-            "engine error — see Regime section"
-            if state.state == "engine_error"
-            else "no regime artifact — click Refresh Regime"
-        )
-        return _kpi_cell(
-            "Regime",
-            "<span class='kpi__regime'><span class='kpi__regime-dot' aria-hidden='true'></span>Unavailable</span>",
-            html.escape(sub),
-            value_class=" is-warn",
-        )
-    sub_parts: list[str] = []
-    if view_model.method_agreement is not None:
-        sub_parts.append(f"Agreement {view_model.method_agreement:.0%}")
-    if view_model.crisis_flag is not None:
-        if view_model.schema == "regime-engine-v2":
-            sub_parts.append("Risk overlay on" if view_model.crisis_flag else "Risk overlay off")
-        else:
-            sub_parts.append("Crisis on" if view_model.crisis_flag else "Crisis off")
-    if state.state == "stale":
-        sub_parts.append("stale vs trading day T-1")
-    value_class = " is-warn" if view_model.crisis_flag else ""
-    value_html = (
-        "<span class='kpi__regime'>"
-        "<span class='kpi__regime-dot' aria-hidden='true'></span>"
-        f"{html.escape(view_model.regime)}"
-        "</span>"
-    )
-    return _kpi_cell("Regime", value_html, html.escape(" · ".join(sub_parts)), value_class=value_class)
-
-
-def build_topline_html(report_data: "PortfolioReportData") -> str:
-    """Build the KPI summary strip rendered above the section content.
-
-    Pulls from the existing performance + risk + regime view-models — no new
-    computation. Cells that can't be sourced render as `—`.
-    """
-    risk = report_data.risk_view_model
-    summary = risk.summary if risk is not None else None
-    perf_sgd = report_data.performance_sgd_view_model
-
-    mtd_sgd = _horizon_row(perf_sgd, "MTD")
-    ytd_sgd = _horizon_row(perf_sgd, "YTD")
-
-    nav_usd = summary.funded_aum_usd if summary is not None else None
-    nav_sgd = summary.funded_aum_sgd if summary is not None else None
-
-    # Ex-ante Vol: the portfolio's forward-looking vol under the *user's
-    # currently-selected* vol method (Fast / Long-Term / Forward-Looking) at
-    # the report's correlation snapshot. The displayed method name follows
-    # `risk.vol_method` so the topline matches the Risk tab's segmented control
-    # rather than hard-coding "Fast".
-    ex_ante_vol = _ex_ante_vol_value(risk)
-    ex_ante_label = _ex_ante_vol_label(risk)
-    ex_ante_sub = (
-        f"{risk.vol_method} · {risk.inter_asset_corr} corr"
-        if risk is not None and ex_ante_vol is not None
-        else ""
-    )
-
-    cells = [
-        _kpi_cell(
-            "NAV (USD)",
-            html.escape(_format_money_usd(nav_usd)),
-        ),
-        _kpi_cell(
-            "NAV (SGD)",
-            html.escape(_format_money_usd(nav_sgd)),
-        ),
-        _kpi_cell(
-            "Return MTD (SGD)",
-            html.escape(_format_pct(mtd_sgd.twr_return if mtd_sgd else None, signed=True)),
-            value_class=_delta_class(mtd_sgd.twr_return if mtd_sgd else None),
-        ),
-        _kpi_cell(
-            "Return YTD (SGD)",
-            html.escape(_format_pct(ytd_sgd.twr_return if ytd_sgd else None, signed=True)),
-            value_class=_delta_class(ytd_sgd.twr_return if ytd_sgd else None),
-        ),
-        _kpi_cell(
-            f"Ex-ante Vol ({ex_ante_label})" if ex_ante_label else "Ex-ante Vol",
-            html.escape(_format_pct(ex_ante_vol)),
-            html.escape(ex_ante_sub),
-        ),
-        _regime_kpi_cell(report_data.regime_state),
-    ]
-    cell_count = len(cells)
-    grid_style = f"grid-template-columns: repeat({cell_count}, minmax(0, 1fr));"
-    return (
-        "<div class='kpi-strip-wrap'>"
-        f"<div class='kpi-strip' style='{grid_style}'>"
-        f"{''.join(cells)}"
-        "</div>"
         "</div>"
     )
 
@@ -365,14 +261,14 @@ _REGIME_RIBBON_STYLES = """
 
 
 def build_overview_section_body(report_data: "PortfolioReportData") -> str:
-    """Landing-tab body: headline KPIs (incl. YTD $ PNL SGD) + the regime body.
+    """Landing-tab body: headline KPIs (incl. YTD $ PNL SGD) + a regime summary.
 
-    Reuses the same KPI grid styles as the sticky topline strip but adds one
-    cell — the dollar-denominated YTD P&L in SGD — that the topline strip
-    doesn't carry, so a user opening the report can see both percentage and
-    absolute YTD performance side-by-side without scrolling tabs. The regime
-    section body is embedded inline (same renderer as the dedicated Regime
-    tab) so the at-a-glance view is genuinely one-stop.
+    The KPI grid carries NAV, returns, the dollar-denominated YTD P&L in SGD,
+    and ex-ante vol so a reader sees both percentage and absolute performance
+    at a glance. Below it, a *compact* regime summary (hero + status cards, no
+    deep panels) deep-links to the dedicated Regime tab, where the full
+    growth / inflation / overlay analysis lives — so the landing view stays
+    short and the regime detail has one navigable home.
     """
     risk = report_data.risk_view_model
     summary = risk.summary if risk is not None else None
@@ -418,7 +314,6 @@ def build_overview_section_body(report_data: "PortfolioReportData") -> str:
             html.escape(_format_pct(ex_ante_vol)),
             html.escape(ex_ante_sub),
         ),
-        _regime_kpi_cell(report_data.regime_state),
     ]
     grid_style = f"grid-template-columns: repeat({len(cells)}, minmax(0, 1fr));"
     kpi_block = (
@@ -430,7 +325,7 @@ def build_overview_section_body(report_data: "PortfolioReportData") -> str:
     )
     regime_block = (
         "<div class='overview-regime'>"
-        + _render_regime_section_body_for_state(
+        + _render_regime_summary_for_state(
             report_data.regime_state,
             parent_as_of=report_data.as_of,
         )
@@ -463,7 +358,14 @@ _OVERVIEW_STYLES = """
 .overview-kpis .kpi__label { font-size: 11px; letter-spacing: 0.04em; text-transform: uppercase; color: var(--muted-ink); font-weight: 600; }
 .overview-kpis .kpi__value { font-size: 21px; font-weight: 700; line-height: 1.15; font-variant-numeric: tabular-nums; }
 .overview-kpis .kpi__sub { font-size: 11px; color: var(--muted-ink); font-variant-numeric: tabular-nums; min-height: 14px; }
-.overview-regime > .regime-v2-hero { margin-top: 0; }
+.overview-regime .regime-summary .regime-v2-hero,
+.overview-regime .regime-summary .regime-section__header { margin-top: 0; padding-top: 0; }
+.regime-summary--unavailable {
+  border: 1px dashed var(--warning-border); background: var(--warning-bg);
+  border-radius: var(--r-3); padding: 16px 18px;
+}
+.regime-summary__status { margin: 0; font-size: 18px; font-weight: 700; color: var(--warn); }
+.regime-summary__hint { margin: 0; font-size: 13px; color: var(--ink-2); }
 """
 
 
@@ -472,8 +374,14 @@ def build_portfolio_report_document(report_data: "PortfolioReportData") -> Repor
         ReportSection(
             key="overview",
             title="Overview",
-            summary="Headline NAV, returns, ex-ante vol, and the regime section in one place — the report's landing view.",
+            summary="Headline NAV, returns, ex-ante vol, and a regime summary in one place — the report's landing view.",
             body_html=build_overview_section_body(report_data),
+        ),
+        ReportSection(
+            key="regime",
+            title="Regime",
+            summary="Growth / inflation axes, layer detail, risk overlay, contributors, and history from the regime engine — grouped and jump-navigable.",
+            body_html=build_regime_section_body(report_data),
         ),
         ReportSection(
             key="performance-usd",
@@ -494,10 +402,10 @@ def build_portfolio_report_document(report_data: "PortfolioReportData") -> Repor
             body_html=render_risk_tab(report_data.risk_view_model),
         ),
     ]
-    # Regime body lives inside the Overview section (the report's landing
-    # view); no separate Regime tab — the previous layout rendered the same
-    # body twice (Overview AND a standalone Regime section), which was
-    # visually noisy. Ribbon + KPI cell are the cross-tab summaries.
+    # The Overview shows only a compact regime *summary* (hero + status cards);
+    # the deep regime panels live once on the dedicated Regime tab above. This
+    # gives regime its own nav entry + in-section sub-nav without the
+    # double-render that retired the previous standalone Regime tab.
     sections.append(
         ReportSection(
             key="artifacts",
@@ -522,30 +430,87 @@ def build_portfolio_report_document(report_data: "PortfolioReportData") -> Repor
         warning_messages=tuple(report_data.warnings),
         head_html="".join(head_html_pieces),
         body_end_html=render_risk_report_script(),
-        topline_html=build_topline_html(report_data),
+        topline_html="",
         ribbon_html=build_regime_ribbon_html(report_data.regime_state),
         as_of_freshness_note=report_data.as_of_freshness_note,
     )
 
 
-def _render_regime_section_body_for_state(
+def _render_regime_summary_for_state(
     state: RegimeArtifactState,
     *,
     parent_as_of: str,
 ) -> str:
-    """Dispatch the regime section body based on the provider's tagged state.
+    """Compact regime summary for the Overview landing (hero + deep-link).
 
-    Single switch instead of the previous five scattered ``view_model is None``
-    branches. ``ok``/``stale`` get the full v2 body (with the existing
-    parent-vs-regime stale tag); ``missing``/``engine_error`` get the
-    actionable unavailable card.
+    ``ok``/``stale`` render the hero via :func:`render_regime_overview_summary`
+    with a deep-link to the dedicated Regime tab; ``missing``/``engine_error``
+    render a short unavailable note that links to the same tab (where the full
+    actionable explainer card lives).
     """
     if state.view_model is not None:
-        return render_regime_section_body(
+        return render_regime_overview_summary(
             state.view_model,
             parent_as_of=parent_as_of,
+            detail_anchor="#regime",
+        )
+    return _render_regime_unavailable_summary(state)
+
+
+def build_regime_section_body(report_data: "PortfolioReportData") -> str:
+    """Body for the dedicated Regime tab: grouped deep panels + chip sub-nav.
+
+    The growth/inflation axes, layer detail, concept contributions, risk
+    overlay, contributors, and history that used to be dumped undivided into
+    the Overview now live here, organised into navigable groups. Missing /
+    engine-error states render the actionable explainer card.
+    """
+    return _render_regime_detail_for_state(
+        report_data.regime_state,
+        parent_as_of=report_data.as_of,
+    )
+
+
+def _render_regime_detail_for_state(
+    state: RegimeArtifactState,
+    *,
+    parent_as_of: str,
+) -> str:
+    """Deep regime panels for the dedicated Regime tab.
+
+    ``ok``/``stale`` render the grouped panels + sub-nav via
+    :func:`render_regime_detail_section`; ``missing``/``engine_error`` render
+    the actionable unavailable explainer card (the single place ‟regime
+    missing" is fully explained).
+    """
+    if state.view_model is not None:
+        return render_regime_detail_section(
+            state.view_model,
+            parent_as_of=parent_as_of,
+            with_subnav=True,
         )
     return _render_regime_unavailable_card(state)
+
+
+def _render_regime_unavailable_summary(state: RegimeArtifactState) -> str:
+    """Short Overview-summary stand-in when no regime view-model is available.
+
+    The full explainer (state, last run, fix steps) lives in the Regime tab's
+    unavailable card; here we just flag it and link there.
+    """
+    hint = (
+        "engine error — see the Regime tab"
+        if state.state == "engine_error"
+        else "no regime snapshot yet — see the Regime tab"
+    )
+    return (
+        "<div class='regime-summary regime-summary--unavailable'>"
+        "<p class='regime-eyebrow'>Regime Engine</p>"
+        "<p class='regime-summary__status'>Regime unavailable</p>"
+        f"<p class='regime-summary__hint'>{html.escape(hint)}</p>"
+        "<a class='regime-summary__more' href='#regime'>View regime details &rarr;</a>"
+        "</div>"
+    )
 
 
 def render_portfolio_report(report_data: "PortfolioReportData") -> str:

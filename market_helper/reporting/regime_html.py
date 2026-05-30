@@ -161,20 +161,82 @@ def render_regime_section_body(
     *,
     parent_as_of: str | None = None,
 ) -> str:
-    """Render the regime section as a body fragment.
+    """Render the full regime body (hero + detail panels) as a fragment.
 
-    Used both by the standalone CLI artifact (wrapped in a minimal HTML shell by
-    :func:`render_regime_html_report`) and by the combined portfolio report
-    (embedded directly as a `ReportSection.body_html`). When `parent_as_of` is
-    supplied and the regime view-model's `as_of` lags by more than one day, a
-    small `regime stale` tag is appended to the headline so the reader knows the
-    regime call may not match the report's positions/perf as-of (P3).
+    Used by the standalone CLI artifact (wrapped in a minimal HTML shell by
+    :func:`render_regime_html_report`). The combined portfolio report instead
+    splits this into :func:`render_regime_overview_summary` (the hero, shown on
+    the Overview landing) and :func:`render_regime_detail_section` (the grouped
+    detail panels + sub-nav, shown on the dedicated Regime tab), so the deep
+    panels live in one navigable place instead of one long undivided dump.
+
+    When `parent_as_of` is supplied and the regime view-model's `as_of` lags by
+    more than one day, a small `regime stale` tag is appended to the headline so
+    the reader knows the regime call may not match the report's as-of (P3).
     """
-    stale_tag = ""
-    if _regime_is_stale(view_model.as_of, parent_as_of):
-        stale_tag = " <span class='tag tag--warning regime-stale-tag'>regime stale</span>"
+    stale_tag = _stale_tag(view_model, parent_as_of)
     if _is_v2_view_model(view_model):
-        return _render_v2_regime_section_body(view_model, stale_tag=stale_tag)
+        return _render_v2_hero(view_model, stale_tag=stale_tag) + _render_v2_detail(
+            view_model, with_subnav=False
+        )
+    return _render_v1_hero(view_model, stale_tag=stale_tag) + _render_v1_detail(
+        view_model, with_subnav=False
+    )
+
+
+def render_regime_overview_summary(
+    view_model: RegimeHtmlViewModel,
+    *,
+    parent_as_of: str | None = None,
+    detail_anchor: str | None = None,
+) -> str:
+    """Compact regime summary for the report's Overview landing tab.
+
+    Renders the hero (headline + base regime + status cards) without the deep
+    detail panels, plus an optional deep-link to the full Regime tab. Keeping
+    only the hero here means the 11 detail panels render exactly once (on the
+    Regime tab), avoiding the double-render that retired the old Regime tab.
+    """
+    stale_tag = _stale_tag(view_model, parent_as_of)
+    hero = (
+        _render_v2_hero(view_model, stale_tag=stale_tag)
+        if _is_v2_view_model(view_model)
+        else _render_v1_hero(view_model, stale_tag=stale_tag)
+    )
+    more = ""
+    if detail_anchor:
+        more = (
+            f"<a class='regime-summary__more' href='{html.escape(detail_anchor, quote=True)}'>"
+            "View full regime analysis &rarr;</a>"
+        )
+    return f"<div class='regime-summary'>{hero}{more}</div>"
+
+
+def render_regime_detail_section(
+    view_model: RegimeHtmlViewModel,
+    *,
+    parent_as_of: str | None = None,
+    with_subnav: bool = True,
+) -> str:
+    """The deep regime panels for the dedicated Regime tab.
+
+    Groups the panels into navigable clusters (Verdict / Axes & Layers / Risk
+    Overlay / Contributors / History) with an in-section chip sub-nav so the
+    long regime content is organised and jump-navigable. No hero here — the
+    Regime section's own header plus the sticky ribbon carry the headline.
+    """
+    if _is_v2_view_model(view_model):
+        return _render_v2_detail(view_model, with_subnav=with_subnav)
+    return _render_v1_detail(view_model, with_subnav=with_subnav)
+
+
+def _stale_tag(view_model: RegimeHtmlViewModel, parent_as_of: str | None) -> str:
+    if _regime_is_stale(view_model.as_of, parent_as_of):
+        return " <span class='tag tag--warning regime-stale-tag'>regime stale</span>"
+    return ""
+
+
+def _render_v1_hero(view_model: RegimeHtmlViewModel, *, stale_tag: str) -> str:
     return (
         "<header class='regime-section__header'>"
         "<div>"
@@ -184,21 +246,27 @@ def render_regime_section_body(
         "</div>"
         f"{_render_status_cards(view_model)}"
         "</header>"
-        f"{_render_scores(view_model)}"
-        f"{_render_crisis_intensity_chart(view_model)}"
-        f"{_render_method_vote_strip(view_model)}"
-        f"{_render_transitions(view_model)}"
-        f"{_render_methods(view_model.methods)}"
-        f"{_render_timeline(view_model.timeline)}"
-        f"{_render_counts(view_model.regime_counts)}"
     )
 
 
-def _render_v2_regime_section_body(
-    view_model: RegimeHtmlViewModel,
-    *,
-    stale_tag: str,
-) -> str:
+def _render_v1_detail(view_model: RegimeHtmlViewModel, *, with_subnav: bool) -> str:
+    groups = [
+        ("scores", "Factor Scores", _render_scores(view_model)),
+        ("overlay", "Risk Overlay", _render_crisis_intensity_chart(view_model)),
+        (
+            "history",
+            "History",
+            _render_method_vote_strip(view_model)
+            + _render_transitions(view_model)
+            + _render_methods(view_model.methods)
+            + _render_timeline(view_model.timeline)
+            + _render_counts(view_model.regime_counts),
+        ),
+    ]
+    return _render_regime_groups(groups, with_subnav=with_subnav)
+
+
+def _render_v2_hero(view_model: RegimeHtmlViewModel, *, stale_tag: str) -> str:
     base_line = ""
     if view_model.base_regime:
         base_line = (
@@ -225,18 +293,67 @@ def _render_v2_regime_section_body(
         "</div>"
         f"{_render_status_cards(view_model)}"
         "</header>"
-        f"{_render_v2_disagreement(view_model)}"
-        f"{_render_v2_axis_panel(view_model)}"
-        f"{_render_v2_layer_detail(view_model)}"
-        f"{_render_v2_concept_panel(view_model)}"
-        f"{_render_v2_risk_overlay(view_model)}"
-        f"{_render_v2_top_contributors(view_model)}"
-        f"{_render_crisis_intensity_chart(view_model)}"
-        f"{_render_method_vote_strip(view_model)}"
-        f"{_render_transitions(view_model)}"
-        f"{_render_timeline(view_model.timeline, is_v2=True)}"
-        f"{_render_counts(view_model.regime_counts)}"
     )
+
+
+def _render_v2_detail(view_model: RegimeHtmlViewModel, *, with_subnav: bool) -> str:
+    groups = [
+        ("verdict", "Verdict & Disagreement", _render_v2_disagreement(view_model)),
+        (
+            "axes",
+            "Axes & Layers",
+            _render_v2_axis_panel(view_model)
+            + _render_v2_layer_detail(view_model)
+            + _render_v2_concept_panel(view_model),
+        ),
+        (
+            "overlay",
+            "Risk Overlay",
+            _render_v2_risk_overlay(view_model)
+            + _render_crisis_intensity_chart(view_model),
+        ),
+        ("contributors", "Contributors", _render_v2_top_contributors(view_model)),
+        (
+            "history",
+            "History",
+            _render_method_vote_strip(view_model)
+            + _render_transitions(view_model)
+            + _render_timeline(view_model.timeline, is_v2=True)
+            + _render_counts(view_model.regime_counts),
+        ),
+    ]
+    return _render_regime_groups(groups, with_subnav=with_subnav)
+
+
+def _render_regime_groups(
+    groups: list[tuple[str, str, str]], *, with_subnav: bool
+) -> str:
+    """Wrap regime panels into anchored groups, optionally with a chip sub-nav.
+
+    Empty panels (a renderer returns "" when its data is absent) are dropped so
+    the sub-nav never points at a blank group. Each group gets an
+    `id='regime-<gid>'` anchor and a small eyebrow label; the sub-nav chips
+    deep-link to those anchors.
+    """
+    populated = [(gid, label, panel) for gid, label, panel in groups if panel.strip()]
+    if not populated:
+        return ""
+    subnav = ""
+    if with_subnav and len(populated) > 1:
+        chips = "".join(
+            f"<a class='regime-subnav__chip' href='#regime-{gid}'>{html.escape(label)}</a>"
+            for gid, label, _ in populated
+        )
+        subnav = (
+            f"<nav class='regime-subnav' aria-label='Regime sections'>{chips}</nav>"
+        )
+    body_html = "".join(
+        f"<div class='regime-group' id='regime-{gid}'>"
+        f"<p class='regime-group__eyebrow'>{html.escape(label)}</p>"
+        f"{panel}</div>"
+        for gid, label, panel in populated
+    )
+    return subnav + body_html
 
 
 def _regime_is_stale(regime_as_of: str | None, parent_as_of: str | None) -> bool:
@@ -1411,6 +1528,28 @@ def regime_section_styles() -> str:
     .regime-headline { margin: 0; font-size: 28px; line-height: 1.1; font-weight: 700; }
     .regime-stale-tag { margin-left: 12px; font-size: 11px; vertical-align: middle; }
     .regime-meta { margin: 8px 0 0; font-size: 12px; color: var(--muted-ink); }
+    /* Overview-tab regime summary: hero + deep-link to the full Regime tab. */
+    .regime-summary { display: grid; gap: 10px; }
+    .regime-summary__more {
+      justify-self: start; display: inline-flex; align-items: center;
+      font-size: 13px; font-weight: 600; color: var(--accent); text-decoration: none;
+    }
+    .regime-summary__more:hover { text-decoration: underline; }
+    /* Regime-tab in-section sub-nav (chips) + anchored panel groups. */
+    .regime-subnav { display: flex; flex-wrap: wrap; gap: 6px; margin: 4px 0 8px; }
+    .regime-subnav__chip {
+      display: inline-flex; align-items: center; padding: 5px 12px; border-radius: 999px;
+      background: var(--surface-2); border: 1px solid var(--border-soft);
+      color: var(--ink-2); font-size: 12px; font-weight: 600; text-decoration: none;
+    }
+    .regime-subnav__chip:hover { background: rgba(15,23,42,0.05); color: var(--ink); }
+    .regime-group { scroll-margin-top: calc(var(--app-bar-height) + 16px); }
+    .regime-group__eyebrow {
+      margin: 28px 0 12px; padding-top: 16px; border-top: 1px solid var(--panel-border);
+      font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em;
+      color: var(--muted-ink);
+    }
+    .regime-group:first-of-type .regime-group__eyebrow { margin-top: 4px; padding-top: 0; border-top: 0; }
     .regime-v2-hero {
       display: grid; grid-template-columns: minmax(0, 1fr) minmax(320px, 460px);
       gap: 16px; align-items: stretch; padding: 20px 0 8px;

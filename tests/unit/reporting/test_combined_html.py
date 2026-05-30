@@ -218,11 +218,12 @@ def test_render_portfolio_report_builds_html_shell_without_nicegui_refs(tmp_path
     assert "regime-ribbon" in rendered
     assert "regime-ribbon__pill--unavailable" in rendered
     assert "Regime unavailable" in rendered
-    # Regime body lives inside the Overview section (the report's landing
-    # view) — no separate Regime tab. The Overview nav link is the way users
-    # reach the regime card.
+    # Regime now has its own top-level tab; the Overview shows only a compact
+    # summary that deep-links to it. The full actionable unavailable explainer
+    # card lives in the Regime tab (this fixture has no regime artifact).
     assert "href='#overview'" in rendered or 'href="#overview"' in rendered
-    assert "href='#regime'" not in rendered and 'href="#regime"' not in rendered
+    assert "href='#regime'" in rendered or 'href="#regime"' in rendered
+    assert ">Regime<" in rendered
     assert "regime-unavailable" in rendered
     assert "Refresh Regime" in rendered
     # B1 — the Artifacts table no longer leaks raw `<span class='tone-muted'>`
@@ -304,10 +305,11 @@ def test_render_portfolio_report_includes_regime_section_when_view_model_present
     assert "Goldilocks" in rendered
     assert "Crisis off" in rendered
     assert "Vol mult" not in rendered
-    # Regime body lives in the Overview section (single deep-link target);
-    # all four regime visuals must still render inside it.
+    # Regime now lives on its own tab; the deep visuals render there (not in
+    # Overview), grouped under a chip sub-nav.
     assert "href='#overview'" in rendered or 'href="#overview"' in rendered
-    assert "href='#regime'" not in rendered and 'href="#regime"' not in rendered
+    assert "href='#regime'" in rendered or 'href="#regime"' in rendered
+    assert "regime-subnav" in rendered
     assert "Factor Scores" in rendered
     assert "Crisis Intensity" in rendered
     assert "Method-Vote Heat Strip" in rendered
@@ -379,10 +381,10 @@ def test_regime_section_marks_stale_when_regime_as_of_lags_report(tmp_path: Path
     assert "regime-stale-tag" in rendered
 
 
-def test_overview_section_renders_kpi_grid_and_regime_body(tmp_path: Path) -> None:
-    """Overview is the landing tab — it must show the headline KPIs (including
-    the YTD $ PNL SGD that's exclusive to it) and embed the regime body so
-    users see status + portfolio together without tab-hopping."""
+def test_overview_section_renders_kpi_grid_and_regime_summary(tmp_path: Path) -> None:
+    """Overview is the landing tab — headline KPIs (including the YTD $ PNL SGD
+    that's exclusive to it) plus a *compact* regime summary that deep-links to
+    the dedicated Regime tab (the deep panels live there, not here)."""
     from market_helper.reporting.portfolio_html import build_overview_section_body
 
     base = _fake_report_data(tmp_path)
@@ -396,27 +398,34 @@ def test_overview_section_renders_kpi_grid_and_regime_body(tmp_path: Path) -> No
     assert "Target Vol" not in body
     # The fixture sets `vol_method="geomean_1m_3m"` → display label "Fast".
     assert "Ex-ante Vol (Fast)" in body
-    # Regime body is embedded inline (this fixture has no regime artifact,
-    # so the unavailable card is the expected presentation).
+    # Regime summary deep-links to the Regime tab. This fixture has no regime
+    # artifact, so the compact unavailable summary is shown here — but the
+    # *full* explainer card (regime-unavailable) lives on the Regime tab.
     assert "overview-regime" in body
-    assert "regime-unavailable" in body
+    assert "regime-summary--unavailable" in body
+    assert "Regime unavailable" in body
+    assert "href='#regime'" in body
+    assert "regime-unavailable" not in body
 
 
-def test_topline_strip_uses_dynamic_vol_method_label(tmp_path: Path) -> None:
-    """Topline KPI label tracks the resolved vol_method on the risk view-model
-    rather than hard-coding the geomean_1m_3m / Fast pairing."""
+def test_overview_kpi_uses_dynamic_vol_method_label(tmp_path: Path) -> None:
+    """The Overview Ex-ante Vol KPI label tracks the resolved vol_method on the
+    risk view-model rather than hard-coding the geomean_1m_3m / Fast pairing.
+
+    (The standalone topline strip was retired — its single KPI row duplicated
+    the Overview grid, which now owns the headline KPIs.)"""
     from dataclasses import replace as _replace
-    from market_helper.reporting.portfolio_html import build_topline_html
+    from market_helper.reporting.portfolio_html import build_overview_section_body
 
     base = _fake_report_data(tmp_path)
     long_term = _replace(base.risk_view_model, vol_method="5y_realized")
     swapped = _replace(base, risk_view_model=long_term)
 
-    topline = build_topline_html(swapped)
+    body = build_overview_section_body(swapped)
 
-    assert "Ex-ante Vol (Long-Term)" in topline
-    assert "Ex-ante Vol (Fast)" not in topline
-    assert "Target Vol" not in topline
+    assert "Ex-ante Vol (Long-Term)" in body
+    assert "Ex-ante Vol (Fast)" not in body
+    assert "Target Vol" not in body
 
 
 def _demo_history_frame() -> pd.DataFrame:
