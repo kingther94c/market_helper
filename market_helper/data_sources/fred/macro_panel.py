@@ -370,11 +370,19 @@ def sync_series(
 
     if force or cached.empty:
         start = observation_start
+        allow_empty = False
     else:
         last_date = cached["date"].max()
         start = (last_date + pd.Timedelta(days=1)).strftime("%Y-%m-%d")
+        # Incremental refresh: the window starts the day after the newest
+        # cached observation, so a monthly series whose latest print is already
+        # cached legitimately returns nothing until its next release. Treat that
+        # empty window as "already current" instead of a hard download failure.
+        allow_empty = True
 
-    series = _download_series_for_sync(spec, api_key, observation_start=start)
+    series = _download_series_for_sync(
+        spec, api_key, observation_start=start, allow_empty=allow_empty
+    )
     fresh = _series_to_frame(series)
 
     if cached.empty:
@@ -398,14 +406,21 @@ def _download_series_for_sync(
     api_key: str,
     *,
     observation_start: Optional[str],
+    allow_empty: bool = False,
 ) -> EconomicSeries:
     csv_error: Exception | None = None
     try:
+        # With ``allow_empty`` the CSV path returns an empty series (no-op) for
+        # an empty incremental window instead of raising, so we never fall
+        # through to the JSON API just because there's no new monthly print
+        # yet. The JSON fallback below is then reserved for genuine CSV
+        # transport failures.
         return download_fred_series_csv(
             spec.series_id,
             title=spec.title,
             observation_start=observation_start,
             timeout=DEFAULT_FRED_HTTP_TIMEOUT_SECONDS,
+            allow_empty=allow_empty,
         )
     except (DownloadError, ValueError) as exc:
         csv_error = exc

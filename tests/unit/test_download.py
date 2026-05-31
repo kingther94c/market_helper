@@ -97,6 +97,31 @@ class DownloadTests(unittest.TestCase):
         self.assertEqual(series.observations[0].value, 101.5)
         self.assertIn("fredgraph.csv?id=INDPRO", mock_run.call_args[0][0][-1])
 
+    @patch("market_helper.data_library.loader.subprocess.run")
+    def test_download_fred_series_csv_empty_window_respects_allow_empty(
+        self, mock_run
+    ) -> None:
+        from market_helper.data_library.loader import SourceParseError
+
+        # fredgraph returns the full history; an incremental filter past the
+        # last observation leaves nothing in range.
+        mock_run.return_value = SimpleNamespace(
+            stdout="observation_date,UNRATE\n2024-01-01,4.0\n2024-02-01,4.1\n"
+        )
+
+        # Default: an empty filtered window is an error — one-shot/initial
+        # callers genuinely expect data.
+        with self.assertRaises(SourceParseError):
+            download_fred_series_csv("UNRATE", observation_start="2024-02-02")
+
+        # allow_empty=True: an empty incremental window is a valid no-op and
+        # returns a series with no observations instead of raising.
+        series = download_fred_series_csv(
+            "UNRATE", observation_start="2024-02-02", allow_empty=True
+        )
+        self.assertEqual(series.series_id, "UNRATE")
+        self.assertEqual(series.observations, [])
+
     @patch("market_helper.data_library.loader.urlopen")
     def test_download_news_feed_parses_rss_items(self, mock_urlopen) -> None:
         mock_urlopen.return_value = FakeResponse(

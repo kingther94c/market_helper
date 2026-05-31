@@ -261,9 +261,12 @@ def test_sync_series_passes_http_timeout_and_backs_off_on_api_retry(
     sleeps: List[float] = []
 
     def _fake_download_csv(series_id: str, **kwargs):
-        # Narrow incremental window with no new obs -> force the API path.
+        # Simulate a genuine fredgraph transport failure (curl/connection
+        # error) so the API fallback (with retry + backoff) takes over. An
+        # *empty* incremental window is now a no-op (covered by the dedicated
+        # test below) and would NOT reach the API path.
         assert kwargs.get("timeout") == mp.DEFAULT_FRED_HTTP_TIMEOUT_SECONDS
-        raise mp.DownloadError("FRED CSV response did not include usable observations")
+        raise mp.DownloadError("fredgraph CSV fetch failed: connection reset")
 
     def _fake_download(series_id: str, api_key: str, **kwargs):
         api_calls.append({"series_id": series_id, **kwargs})
@@ -290,6 +293,61 @@ def test_sync_series_passes_http_timeout_and_backs_off_on_api_retry(
         call.get("timeout") == mp.DEFAULT_FRED_HTTP_TIMEOUT_SECONDS for call in api_calls
     )
     assert sleeps == [2.0, 4.0]  # exponential backoff between the three attempts
+
+
+def test_sync_series_incremental_empty_window_is_noop_without_api_call(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A monthly series whose latest print is already cached has no new
+    observations until the next release. The incremental CSV fetch then returns
+    an empty window, which must be treated as 'already current': keep the cache
+    and do NOT fall through to the JSON API.
+
+    Regression for the recurring mid-month breakage
+    ``Regime engine failed: FRED download failed for UNRATE ...`` — the empty
+    window was raised as a download error, which then hit the JSON API and
+    timed out, failing the whole regime refresh.
+    """
+    from market_helper.data_library import loader
+
+    # fredgraph returns the full history; the latest print (2026-04-01) is
+    # already cached, so the incremental window [2026-04-02, today] is empty.
+    full_rows = [
+        {"observation_date": "2026-02-01", "UNRATE": "4.0"},
+        {"observation_date": "2026-03-01", "UNRATE": "4.1"},
+        {"observation_date": "2026-04-01", "UNRATE": "4.2"},
+    ]
+    monkeypatch.setattr(
+        loader, "_download_fred_graph_csv_rows", lambda series_id, *, timeout: full_rows
+    )
+
+    api_calls: List[dict] = []
+
+    def _boom_api(series_id: str, api_key: str, **kwargs):
+        api_calls.append({"series_id": series_id, **kwargs})
+        raise AssertionError(
+            "JSON FRED API must not be hit for an empty incremental window"
+        )
+
+    monkeypatch.setattr(mp, "download_fred_series", _boom_api)
+
+    spec = SeriesSpec(
+        series_id="UNRATE", axis="growth", transform="level", frequency_hint="monthly"
+    )
+    seed = pd.DataFrame(
+        {
+            "date": pd.to_datetime(["2026-02-01", "2026-03-01", "2026-04-01"]),
+            "value": [4.0, 4.1, 4.2],
+        }
+    )
+    mp.write_cached_series(tmp_path, "UNRATE", seed)
+
+    synced = sync_series(spec, "key", cache_dir=tmp_path)
+
+    assert api_calls == []  # no JSON API call -> no timeout surface
+    assert synced["value"].tolist() == [4.0, 4.1, 4.2]  # cache preserved
+    reloaded = load_cached_series(tmp_path, "UNRATE")
+    assert reloaded["value"].tolist() == [4.0, 4.1, 4.2]
 
 
 # ---------------------------------------------------------------------------

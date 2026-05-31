@@ -147,7 +147,17 @@ def download_fred_series_csv(
     observation_start: Optional[str] = None,
     observation_end: Optional[str] = None,
     timeout: int = 30,
+    allow_empty: bool = False,
 ) -> EconomicSeries:
+    """Download a FRED series from the public fredgraph CSV endpoint.
+
+    ``allow_empty`` controls what happens when the (client-side) date filter
+    leaves no observations: when False (default) a :class:`SourceParseError`
+    is raised; when True an :class:`EconomicSeries` with no observations is
+    returned. Incremental syncs pass True so "no new prints since the last
+    cached observation" is treated as an up-to-date no-op rather than a
+    download failure.
+    """
     rows = _download_fred_graph_csv_rows(series_id, timeout=timeout)
     observations: List[Observation] = []
     for row in rows:
@@ -166,6 +176,20 @@ def download_fred_series_csv(
         observations.append(Observation(date=str(raw_date), value=numeric_value))
 
     if not observations:
+        # An empty *filtered* result is a valid no-op for incremental syncs:
+        # a monthly series (e.g. UNRATE) whose latest print is already cached
+        # has no new observations after ``observation_start`` until the next
+        # release. Only callers that genuinely expect data leave ``allow_empty``
+        # False, so a truly empty response still surfaces for them.
+        if allow_empty:
+            return EconomicSeries(
+                series_id=series_id,
+                title=title or series_id,
+                units="lin",
+                frequency="",
+                observations=[],
+                metadata={"source": "fred_graph_csv", "empty_window": "true"},
+            )
         raise SourceParseError(
             "FRED CSV response for {series_id} did not include usable observations".format(
                 series_id=series_id

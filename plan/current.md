@@ -11,6 +11,26 @@ context is in `memory/archive/` (gitignored, not read by default).
 
 Recent landed work (one-liners; full detail in
 `memory/archive/landed/portfolio_monitor_landed.md`):
+- **Regime FRED empty-window no-op (root-cause fix for the recurring
+  "Regime engine failed: FRED download failed for UNRATE" breakage).** The
+  incremental macro sync sets `observation_start = last_cached_obs + 1 day`, so
+  a monthly series (UNRATE, PAYEMS, CPIAUCSL, INDPRO) whose latest print is
+  already cached has *zero* new observations until next month's release — the
+  normal state for most of every month. The fredgraph CSV path raised "did not
+  include usable observations" on that empty window; being a `DownloadError` it
+  fell through to the JSON API, which then timed out → hard `RuntimeError` →
+  the whole regime refresh failed. Now an empty *incremental* window is treated
+  as "already current": `download_fred_series_csv(..., allow_empty=True)`
+  returns an empty series instead of raising, and `sync_series` passes
+  `allow_empty=True` only on the incremental branch (initial/forced full
+  fetches still surface a genuinely-empty response). The JSON API is never
+  touched for a no-op, so monthly series no longer depend on its timeout
+  mid-month at all. Verified end-to-end against the live
+  `refresh_data_and_run_regime_report` path on a temp cache copy: monthly
+  UNRATE no-ops at 2026-04-01, daily/weekly series advance, the panel rebuilds
+  fresh, and the engine runs `full_ensemble` (both primary layers available).
+  Tests: `test_download_fred_series_csv_empty_window_respects_allow_empty`,
+  `test_sync_series_incremental_empty_window_is_noop_without_api_call`.
 - **FRED fetch resilience (configurable 60s timeout + backoff).** The regime
   refresh failed on a transient FRED `UNRATE` timeout — the report still showed
   the cached regime + a warning (graceful via the `engine_error`-with-data
@@ -18,8 +38,9 @@ Recent landed work (one-liners; full detail in
   default to a 60s HTTP timeout (was the global 20s), overridable via
   `FRED_HTTP_TIMEOUT_SECONDS`, with 2s/4s exponential backoff across the 3 API
   attempts. Monthly series (e.g. UNRATE) frequently fall through the
-  empty-incremental-window CSV path to the API, so the API timeout is the one
-  that matters in practice.
+  empty-incremental-window CSV path to the API — now fixed at the root (see
+  *Regime FRED empty-window no-op* above), so this generous timeout/backoff is
+  the safety net for genuine transport failures, not the normal mid-month path.
 - **Flex Web Service hardening (HTTP-timeout retry + token redaction).** The
   dashboard "Report Data" / Flex refresh failed outright on a single IBKR
   SendRequest HTTP timeout. `FlexWebServiceClient._download` now retries
