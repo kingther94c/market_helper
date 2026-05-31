@@ -449,12 +449,6 @@ def build_portfolio_report_document(report_data: "PortfolioReportData") -> Repor
             body_html=build_overview_section_body(report_data),
         ),
         ReportSection(
-            key="regime",
-            title="Regime",
-            summary="Growth / inflation axes, layer detail, risk overlay, contributors, and history from the regime engine — grouped and jump-navigable.",
-            body_html=build_regime_section_body(report_data),
-        ),
-        ReportSection(
             key="performance",
             title="Performance",
             summary="Time-weighted performance with a USD / SGD currency toggle, interactive chart windows, and horizon + benchmark tables.",
@@ -469,11 +463,18 @@ def build_portfolio_report_document(report_data: "PortfolioReportData") -> Repor
             summary="Allocation, drift, breakdown, and position decomposition rendered as the canonical HTML report.",
             body_html=render_risk_tab(report_data.risk_view_model),
         ),
+        # Regime sits after Risk. The Overview still shows only a compact regime
+        # *summary* (hero + status cards) with a "View full regime analysis →"
+        # deep-link; the deep regime panels live exactly once here on their own
+        # nav entry + in-section sub-nav (no double-render — the trap that
+        # retired the previous standalone Regime tab).
+        ReportSection(
+            key="regime",
+            title="Regime",
+            summary="Growth / inflation axes, layer detail, risk overlay, contributors, and history from the regime engine — grouped and jump-navigable.",
+            body_html=build_regime_section_body(report_data),
+        ),
     ]
-    # The Overview shows only a compact regime *summary* (hero + status cards);
-    # the deep regime panels live once on the dedicated Regime tab above. This
-    # gives regime its own nav entry + in-section sub-nav without the
-    # double-render that retired the previous standalone Regime tab.
     sections.append(
         ReportSection(
             key="artifacts",

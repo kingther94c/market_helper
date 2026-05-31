@@ -72,8 +72,8 @@ Recent landed work (one-liners; full detail in
   (`build_performance_section_body`); both charts init on load (unique
   `perf-plot-{usd,sgd}` ids) and the initially-hidden SGD chart is
   `__marketHelperResizePerformancePlots`-resized on first show. Nav 6→5 tabs
-  (Overview / Regime / Performance / Risk / Artifacts), fixing mobile
-  nav-truncation. **Wording:** disagreement panel → "Method disagreement: …"
+  (Overview / Performance / Risk / Regime / Artifacts — regime later moved to
+  sit after Risk), fixing mobile nav-truncation. **Wording:** disagreement panel → "Method disagreement: …"
   with a per-axis "macro-layer vs market-layer alignment — a finer view than
   the overall verdict" note + a "Macro vs Market" column, so the overall
   verdict no longer reads as contradicting a per-axis "disagrees"; the
