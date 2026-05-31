@@ -179,9 +179,12 @@ def download_fred_series_csv(
         # An empty *filtered* result is a valid no-op for incremental syncs:
         # a monthly series (e.g. UNRATE) whose latest print is already cached
         # has no new observations after ``observation_start`` until the next
-        # release. Only callers that genuinely expect data leave ``allow_empty``
-        # False, so a truly empty response still surfaces for them.
-        if allow_empty:
+        # release. Require ``rows`` to be non-empty so the no-op only applies
+        # when fredgraph actually returned the series history (just nothing new
+        # in the window). A malformed / empty 200 body (no rows at all) still
+        # raises, so the API fallback can try rather than silently freezing the
+        # cache. Callers that genuinely expect data leave ``allow_empty`` False.
+        if allow_empty and rows:
             return EconomicSeries(
                 series_id=series_id,
                 title=title or series_id,

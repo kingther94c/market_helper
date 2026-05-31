@@ -122,6 +122,15 @@ class DownloadTests(unittest.TestCase):
         self.assertEqual(series.series_id, "UNRATE")
         self.assertEqual(series.observations, [])
 
+        # But a malformed / empty body (header only -> zero rows) still raises
+        # even with allow_empty, so the caller can fall back to the API instead
+        # of silently freezing the cache.
+        mock_run.return_value = SimpleNamespace(stdout="observation_date,UNRATE\n")
+        with self.assertRaises(SourceParseError):
+            download_fred_series_csv(
+                "UNRATE", observation_start="2024-02-02", allow_empty=True
+            )
+
     @patch("market_helper.data_library.loader.urlopen")
     def test_download_news_feed_parses_rss_items(self, mock_urlopen) -> None:
         mock_urlopen.return_value = FakeResponse(
