@@ -313,11 +313,13 @@ read-only and declared in `env.yml`.
    suggestions, registered so it appears in `/advisor` + Inbox with **zero
    advisor-specific UI** (the page just runs every registered advisor). 5 tests.
    *(Needs real held options — see the M6 portfolio-seeding item.)*
-5. **M5 — FX Hedging Advisor onto the interactive surface.** Fold the existing
-   FX Hedging Advisor (`071a188`) into the umbrella: detail view + on-demand
-   refresh over its shared artifact (the report side stays the cached ~30d
-   target allocation). Then add the **FX Carry Tilt** sub-module (futures-implied
-   / overnight-rate carry). First non-option advisor.
+5. ✅ **M5 — FX Hedging Advisor into the umbrella.** Adapter
+   (`trade_advisor.adapters.fx_hedge`) wraps the existing FX hedge engine,
+   **cached-by-default** (reads the shared artifact, no network; `refresh=True`
+   force-recomputes), emitting a hedge-target suggestion + a **FX Carry Tilt**
+   sub-module (rank ccys by overnight-rate carry). Third advisor, registered →
+   appears in `/advisor` + Inbox with zero advisor-specific UI; degrades to INFO
+   when no allocation is cached. 5 tests.
 6. **M6 — Trade Ideas (general) + extensibility hardening.** Firm up scope; make
    "add an advisor" a documented, low-friction path for the undecided ones.
 

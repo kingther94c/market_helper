@@ -44,10 +44,12 @@ def build_default_registry() -> AdvisorRegistry:
     Imports are local so registering one advisor never drags in another's heavy
     deps. FX-hedge / roll / ideas adapters register here as they land (M4–M6).
     """
+    from .adapters.fx_hedge import FxHedgeAdvisorPlugin
     from .adapters.option import OptionAdvisorPlugin
     from .adapters.roll import RollReminderPlugin
 
     registry = AdvisorRegistry()
     registry.register(OptionAdvisorPlugin())
     registry.register(RollReminderPlugin())
+    registry.register(FxHedgeAdvisorPlugin())
     return registry

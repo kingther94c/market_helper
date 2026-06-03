@@ -459,7 +459,14 @@ two component engines **built** — Option Advisor + FX Hedging Advisor.
   (live positions)"** toggle (default on) → Option + Roll run on the real book;
   degrades gracefully to a watchlist-only scan when no live CSV. Also fixed a
   latent run()-render arity bug from the M3 signature change. 2 tests; full
-  suite green (661). **Next:** M5 FX Hedging + carry tilt.
+  suite green (661).
+- **M5 landed** — **FX Hedging** advisor folded into the umbrella
+  (`trade_advisor/adapters/fx_hedge.py`): wraps the existing FX hedge engine,
+  cached-by-default (no network; on-demand `refresh=True` force-recomputes) →
+  emits a hedge-target suggestion + an **FX Carry Tilt** sub-module (rank ccys by
+  overnight-rate carry). Third advisor, zero advisor-specific UI; INFO fallback
+  when no allocation cached. 5 tests; full suite green (666). **Next:** M6 —
+  Trade Ideas advisor + CBOE response cache (#7) + how-to doc (#8) + polish.
 
 - **Plan** at [`docs/architecture/devplans/trade_advisor.md`](../docs/architecture/devplans/trade_advisor.md):
   a `market_helper/trade_advisor/` umbrella that turns portfolio + market +
