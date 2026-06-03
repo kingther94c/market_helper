@@ -53,6 +53,13 @@ These are fixed inputs to every milestone; everything else is open to design.
   ([ADR 0002](../../decisions/0002-html-deliverable-dashboard-entry.md)). New
   interactive pages register alongside `register_portfolio_page(...)`; static
   output embeds in the combined HTML report. **No new UI framework.**
+- **Bounded interaction — no free-form input.** There is **no AI/NLP layer** to
+  interpret arbitrary input, so **every control is a fixed option set or a
+  validated, bounded numeric field** (dropdown / toggle / chip / segmented
+  control / stepper / range-capped slider). No free-text prompts, no
+  natural-language "ask". The user explores **within rails**; invalid states are
+  unreachable by construction, and the compute engine only ever receives clean,
+  in-range inputs. (Free-form input is revisited only if/when an AI layer lands.)
 - **Honesty is mandatory.** Every idea carries a `data_mode` (live vs
   model/synthetic), a `PROCEED / MONITOR / REJECT` label, and an audit trail of
   why it was generated or filtered. Model-only ideas never reach `PROCEED`.
@@ -159,8 +166,17 @@ Reuse the established **action-card loop** (status badge → progress → last
 output) so running an advisor feels like the existing Live/Flex refresh:
 
 1. **Inputs** auto-seed from live state (holdings, regime, risk weights) and are
-   all user-overridable (watchlist add, AUM, IV/spot override, strategy toggles,
-   delta/DTE sliders, risk appetite).
+   overridable **only through bounded controls** — never free text:
+   - *Universe*: multi-select of current holdings + a **validated symbol picker**
+     (autocomplete against the security universe / contract search), not an
+     arbitrary text box.
+   - *AUM*: numeric field with a min + step (or auto from the portfolio).
+   - *Regime*: a **select** — auto from the engine; manual override chooses from
+     the known regime labels.
+   - *Strategies*: per-strategy **toggles**.
+   - *Risk targets* (delta / DTE): **range-capped sliders** (fixed min/max/step).
+   - *Overrides* (IV / spot): **steppers / capped sliders** within a validated
+     band (e.g. IV in [floor, cap]; spot within ±N% of live).
 2. **Run** streams progress (per-symbol, per-advisor) — never a frozen spinner.
 3. **Results** arrive as ranked cards, grouped by label, with a persistent
    **data-mode banner** (● live chain / ◐ live-anchored / ○ synthetic / ✎ your
@@ -193,10 +209,13 @@ Collapsed card = the headline; expanded = the full computed feedback.
 
 The load-bearing UX ideas:
 
-- **Live what-if.** Strike / expiry / quantity / IV / spot are controls, not
-  static text. Changing one recomputes payoff, Greeks, breakevens, and sizing
-  *in place* — the user explores the structure instead of reading a fixed
-  recommendation. (Cheap: the pricing math is already pure + fast.)
+- **Live what-if — all via bounded controls.** Strike and expiry are
+  **dropdowns populated from the actual chain** (discrete by nature); quantity is
+  a **stepper** capped by the sizing rule; IV / spot are **steppers or
+  range-capped sliders** within a validated band. Changing one recomputes payoff,
+  Greeks, breakevens, and sizing *in place* — so the user explores the structure
+  instead of reading a fixed recommendation, but can never enter an out-of-range
+  or unparseable value. (Cheap: the pricing math is already pure + fast.)
 - **Payoff as the centerpiece.** An interactive P&L-vs-spot chart with hover
   read-outs and breakeven/strike markers, optionally overlaid with a baseline
   (buy-and-hold / unhedged) so the *marginal* effect is visible.
