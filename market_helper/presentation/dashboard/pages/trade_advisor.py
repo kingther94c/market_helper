@@ -14,10 +14,15 @@ from __future__ import annotations
 
 import asyncio
 from dataclasses import dataclass, field
+from datetime import datetime
 
 from nicegui import ui
 
-from market_helper.application.trade_advisor import TradeAdvisorService
+from market_helper.application.trade_advisor import (
+    TradeAdvisorService,
+    default_decision_journal,
+    write_decision_snapshot,
+)
 from market_helper.domain.option_advisor.structures import whatif_from_detail
 from market_helper.trade_advisor.contracts import (
     LABEL_INFO,
@@ -27,6 +32,7 @@ from market_helper.trade_advisor.contracts import (
     AdvisorContext,
     Suggestion,
 )
+from market_helper.trade_advisor.journal import DecisionJournal, decision_from_suggestion
 
 # Bounded option sets — the universe is a fixed, validated list (no free text).
 LIQUID_UNIVERSE = [
@@ -160,7 +166,22 @@ def _render_option_whatif(detail: dict) -> None:
 # --------------------------------------------------------------------------- #
 
 
-def _render_card(s: Suggestion) -> None:
+def _render_inbox(box, journal: DecisionJournal) -> None:
+    """Cross-advisor Inbox: the journal's latest Proceed/Monitor decisions."""
+    box.clear()
+    with box:
+        items = journal.inbox()
+        with ui.card().classes("w-full pm-card"):
+            ui.label(f"Inbox · {len(items)} flagged (Proceed / Monitor)").classes("text-subtitle1")
+            if not items:
+                ui.label("Nothing flagged yet — run an advisor and Proceed/Monitor an idea.").classes("text-caption pm-muted")
+            for d in items[:25]:
+                note = f" — {d.note}" if d.note else ""
+                ui.label(f"[{d.decision}] {d.title} · {d.subject} · {d.ts[:16]}{note}").classes("text-caption")
+
+
+def _render_card(s: Suggestion, journal: DecisionJournal, on_decision) -> None:
+    latest = journal.latest_by_suggestion().get(s.suggestion_id) if journal else None
     with ui.card().classes("w-full pm-card"):
         with ui.row().classes("items-center justify-between w-full"):
             with ui.row().classes("items-center gap-2"):
@@ -196,9 +217,36 @@ def _render_card(s: Suggestion) -> None:
                 ui.label(f"{mark} [{entry.severity}] {entry.name}: {entry.detail}").classes("text-caption pm-muted")
             if s.rationale:
                 ui.label(s.rationale).classes("text-caption")
+        # Decision controls (always visible) — record to the journal. The note
+        # is a human memo, never interpreted (so it's not a free-form *control*).
+        with ui.row().classes("items-center gap-2 w-full wrap"):
+            note_in = ui.input(placeholder="note (optional)").props("dense").classes("grow")
+            decided = ui.label(
+                f"last: {latest.decision} · {latest.ts[:16]}" if latest else ""
+            ).classes("text-caption pm-muted")
+
+            def _record(decision_label: str) -> None:
+                journal.record(
+                    decision_from_suggestion(
+                        s,
+                        decision_label,
+                        ts=datetime.now().isoformat(timespec="seconds"),
+                        note=str(note_in.value or ""),
+                    )
+                )
+                decided.text = f"✓ {decision_label} recorded"
+                on_decision()
+                try:
+                    write_decision_snapshot(journal, as_of=s.as_of)  # refresh + mirror static snapshot
+                except Exception:  # noqa: BLE001 — snapshot/mirror is best-effort, never block a decision
+                    pass
+
+            ui.button("Proceed", color="positive", on_click=lambda: _record("PROCEED")).props("dense")
+            ui.button("Monitor", color="warning", on_click=lambda: _record("MONITOR")).props("dense")
+            ui.button("Reject", color="negative", on_click=lambda: _record("REJECT")).props("dense")
 
 
-def _render_results(box, run_result) -> None:
+def _render_results(box, run_result, journal: DecisionJournal, on_decision) -> None:
     box.clear()
     with box:
         modes = sorted({r.data_mode for r in run_result.results.values() if r.data_mode})
@@ -214,7 +262,7 @@ def _render_results(box, run_result) -> None:
             ui.label("No ideas generated for these inputs.").classes("text-caption")
             return
         for suggestion in ordered:
-            _render_card(suggestion)
+            _render_card(suggestion, journal, on_decision)
 
 
 def register_trade_advisor_page(*, registry=None) -> None:
@@ -231,6 +279,14 @@ def register_trade_advisor_page(*, registry=None) -> None:
         ui.label("Trade Advisor").classes("text-h5")
         ui.label("Read-only ideas, not orders. Explore within bounded controls.").classes("text-caption pm-muted")
         ui.link("← Portfolio dashboard", "/portfolio").classes("text-caption")
+
+        journal = default_decision_journal()
+        inbox_box = ui.column().classes("w-full")
+
+        def refresh_inbox() -> None:
+            _render_inbox(inbox_box, journal)
+
+        refresh_inbox()
 
         with ui.row().classes("w-full gap-4 items-start no-wrap"):
             with ui.card().classes("p-4").style("min-width: 300px"):

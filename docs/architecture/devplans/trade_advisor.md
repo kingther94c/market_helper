@@ -302,8 +302,12 @@ read-only and declared in `env.yml`.
    end-to-end on live CBOE data (9 SPY/QQQ ideas, `data mode: live_chain`; cards,
    payoff chart, audit all render); `what-if == engine` unit test. Proves the
    interaction model on the option advisor.
-3. **M3 — Static snapshot + decision journal.** Trade-advisor section in the
-   combined report; Proceed/Monitor/Reject persistence + Inbox.
+3. ✅ **M3 — Decision journal + static snapshot.** Append-only JSONL journal
+   (`trade_advisor.journal`); `/advisor` cards get Proceed/Monitor/Reject + note
+   controls feeding a cross-advisor **Inbox**; each decision regenerates a static
+   **snapshot HTML** (`reporting/trade_advisor_html`) written to
+   `data/artifacts/trade_advisor/` and mirrored cross-device via the existing
+   GDrive helper. Persist→inbox→snapshot pipeline unit + headless verified.
 4. **M4 — Roll Reminder.** Uses already-ingested held-option positions; first
    advisor that's *about the existing book*.
 5. **M5 — FX Hedging Advisor onto the interactive surface.** Fold the existing

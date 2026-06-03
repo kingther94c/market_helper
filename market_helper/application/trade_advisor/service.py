@@ -7,7 +7,9 @@ that advisor's result (graceful degradation, Acceptance-Bar item).
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from pathlib import Path
 
+from market_helper.app.paths import TRADE_ADVISOR_ARTIFACTS_DIR
 from market_helper.trade_advisor.contracts import (
     LABEL_MONITOR,
     LABEL_ORDER,
@@ -16,6 +18,7 @@ from market_helper.trade_advisor.contracts import (
     AdvisorResult,
     Suggestion,
 )
+from market_helper.trade_advisor.journal import DecisionJournal
 from market_helper.trade_advisor.registry import AdvisorRegistry, build_default_registry
 
 
@@ -73,3 +76,38 @@ class TradeAdvisorService:
                     warnings=[f"{type(exc).__name__}: {str(exc)[:200]}"],
                 )
         return TradeAdvisorRun(as_of=context.as_of, results=results)
+
+
+def default_decision_journal() -> DecisionJournal:
+    """The on-disk decision journal under ``data/artifacts/trade_advisor/``."""
+    return DecisionJournal(TRADE_ADVISOR_ARTIFACTS_DIR / "decision_journal.jsonl")
+
+
+def write_decision_snapshot(
+    journal: DecisionJournal | None = None,
+    *,
+    output_path: str | Path | None = None,
+    as_of: str = "",
+    mirror: bool = True,
+) -> Path:
+    """Render the flagged-ideas snapshot HTML, write it, and mirror cross-device.
+
+    Mirroring reuses the report artifact mirror (best-effort; a no-op if
+    ``MARKET_HELPER_GDRIVE_ROOT`` isn't configured). Returns the local path.
+    """
+    from market_helper.reporting.trade_advisor_html import render_trade_advisor_snapshot
+
+    journal = journal or default_decision_journal()
+    out = Path(output_path) if output_path else (TRADE_ADVISOR_ARTIFACTS_DIR / "trade_advisor_snapshot.html")
+    out.parent.mkdir(parents=True, exist_ok=True)
+    out.write_text(render_trade_advisor_snapshot(journal.inbox(), as_of=as_of), encoding="utf-8")
+    if mirror:
+        try:
+            from market_helper.domain.portfolio_monitor.pipelines.generate_portfolio_report import (
+                _mirror_artifact_if_configured,
+            )
+
+            _mirror_artifact_if_configured(out, target_name="trade_advisor_snapshot.html")
+        except Exception:  # noqa: BLE001 — mirror is best-effort, never fatal
+            pass
+    return out

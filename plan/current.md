@@ -439,7 +439,13 @@ two component engines **built** — Option Advisor + FX Hedging Advisor.
   failure). **Browser-verified** end-to-end on **live CBOE** data: 9 SPY/QQQ
   ideas, `data mode: live_chain`, cards + payoff chart + audit all render, no
   server errors. `what-if == engine` unit test passes. Full suite green (646).
-  **Next:** M3 static snapshot + decision journal.
+- **M3 landed** — decision journal (`trade_advisor/journal.py`, append-only JSONL
+  under `data/artifacts/trade_advisor/`): `/advisor` cards carry
+  Proceed/Monitor/Reject + note → persist → cross-advisor **Inbox**; each
+  decision regenerates a static **snapshot HTML**
+  (`reporting/trade_advisor_html.py`) written + mirrored cross-device via the
+  existing GDrive helper. Persist→inbox→snapshot verified end-to-end (unit +
+  headless). Full suite green (654). **Next:** M4 Roll Reminder advisor.
 
 - **Plan** at [`docs/architecture/devplans/trade_advisor.md`](../docs/architecture/devplans/trade_advisor.md):
   a `market_helper/trade_advisor/` umbrella that turns portfolio + market +
