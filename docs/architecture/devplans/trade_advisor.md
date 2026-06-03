@@ -82,7 +82,7 @@ Each is described at intent level; mechanics are each milestone's job.
 |---|---|---|
 | **Option Advisor** | "What option structures fit my holdings + regime + vol?" | ✅ built ([devplan](option_advisor.md)) — folds in as component #1 |
 | **Roll Reminder** | "Which of my *existing* option positions need attention (DTE, ITM/assignment, ex-div) and what's the roll?" | planned |
-| **FX Carry Tilt** | "Across my currency exposure, where is carry attractive vs vol, and how should the USD/SGD tilt lean?" | planned |
+| **FX Hedging Advisor** (+ **FX Carry Tilt** sub-module) | "What's the USD/SGD hedge target across CME FX futures — and which ccy to tilt by carry?" | ✅ built ([devplan](fx_hedge_advisor.md), [ADR 0006](../../decisions/0006-fx-hedge-regression-convention.md)); **spans both surfaces**. Carry-tilt sub-module planned |
 | **Trade Ideas** (general) | "Non-option moves worth considering: rebalance vs policy drift, regime-aligned sleeve tilts, relative-value pairs." | planned (scope to firm up) |
 | **(extensible)** | earnings-vol, tax-loss harvest, cash-deployment, … | open — a registry makes these additive |
 
@@ -91,6 +91,17 @@ all of the above produce the *same shape* of suggestion (label, category,
 thesis, why-now, rationale, drivers, audit, data_mode, sizing, decision hooks).
 That uniformity is what lets one GUI render all of them and lets "others not yet
 decided" drop in without UI work.
+
+**Two-surface advisors (worked example: FX Hedging Advisor).** Some advisors
+live on *both* surfaces over **one shared artifact**: the **report** side shows
+only the **target allocation**, refreshed on a slow **~30-day stale** cadence;
+the **interactive** side can **trigger a refresh on demand** (force-refresh) and
+shows the **full detail** (per-ccy hedge betas / R² / contracts / expiries /
+carry). Either refresh writes the same artifact, so the report always loads the
+latest. This is the concrete proof of §5.1's two-surface model and the template
+for any advisor that warrants both a glance and a workbench. The **FX Carry
+Tilt** sub-module hangs off this advisor (see §5.5) — it is **not** a standalone
+family member.
 
 ---
 
@@ -143,7 +154,7 @@ Regime. Inside it, a unified **Inbox** plus one sub-tab per advisor:
 ┌─ Market Helper ───────────────────────────── [Live Refresh] [Refresh Regime] ─┐
 │  Overview  Performance  Risk  Regime  ▸ ADVISOR ◂  Artifacts                   │
 ├───────────────────────────────────────────────────────────────────────────────┤
-│  Inbox │ Options │ Rolls │ FX Carry │ Ideas            data: ● live  ⟳ 14:32   │
+│  Inbox │ Options │ Rolls │ FX Hedge │ Ideas            data: ● live  ⟳ 14:32   │
 │  ┌──────────── Inputs ───────────┐  ┌──────────── Results (ranked) ─────────┐  │
 │  │ Universe: [holdings ✓][watch+]│  │ [PROCEED] HEDGE · Collar · SPY  0.91  │  │
 │  │ AUM:  [ 250,000 ]             │  │ [PROCEED] DIR  · CallSpd · QQQ  0.90  │  │
@@ -233,8 +244,12 @@ The load-bearing UX ideas:
   assignment / ex-div flags, and a suggested roll per row; row-expand reuses the
   same payoff/greeks/what-if panel comparing *current vs rolled*. "Snooze /
   monitor" instead of proceed.
-- **FX Carry Tilt:** a carry-vs-vol table across currencies with tilt bars
-  *relative to current FX exposure*; expand shows the carry decomposition and a
+- **FX Hedging Advisor:** the **report** card shows the target hedge allocation
+  (cached ~30d); the **interactive** view adds the full detail — per-ccy hedge
+  ratios (betas) + R², contract counts, expiries, indicative carry — plus a
+  **Refresh now** trigger (force-refresh the shared artifact). Its **FX Carry
+  Tilt** sub-module ranks currencies by **futures-implied carry** (or
+  overnight-rate carry) and suggests a tilt *on top of* the hedge, with a
   before/after exposure view. Decision = "adopt tilt / monitor / dismiss".
 - **Trade Ideas:** rebalance/relative-value cards; expand shows the drift-vs-
   policy or pair chart instead of an option payoff.
@@ -288,8 +303,11 @@ read-only and declared in `env.yml`.
    combined report; Proceed/Monitor/Reject persistence + Inbox.
 4. **M4 — Roll Reminder.** Uses already-ingested held-option positions; first
    advisor that's *about the existing book*.
-5. **M5 — FX Carry Tilt.** First non-option advisor; exercises the "different
-   body, same frame" claim.
+5. **M5 — FX Hedging Advisor onto the interactive surface.** Fold the existing
+   FX Hedging Advisor (`071a188`) into the umbrella: detail view + on-demand
+   refresh over its shared artifact (the report side stays the cached ~30d
+   target allocation). Then add the **FX Carry Tilt** sub-module (futures-implied
+   / overnight-rate carry). First non-option advisor.
 6. **M6 — Trade Ideas (general) + extensibility hardening.** Firm up scope; make
    "add an advisor" a documented, low-friction path for the undecided ones.
 

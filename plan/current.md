@@ -421,13 +421,14 @@ Detail: `docs/architecture/devplans/regime_engine.md`.
 
 ## Trade Advisor (umbrella)
 
-**State**: umbrella **planned**; first component (Option Advisor) **landed**.
+**State**: umbrella **planned**; two components already **built** — Option Advisor + FX Hedging Advisor.
 
 - **Plan** at [`docs/architecture/devplans/trade_advisor.md`](../docs/architecture/devplans/trade_advisor.md):
   a `market_helper/trade_advisor/` umbrella that turns portfolio + market +
   regime context into ranked, read-only trade *ideas* across a family of
-  advisors (Option [built], Roll Reminder, FX Carry Tilt, general Trade Ideas,
-  + a registry for more) behind **one shared suggestion contract** and **one
+  advisors (Option [built]; FX Hedging [built] — spans report + interactive,
+  with an FX Carry Tilt sub-module; Roll Reminder; general Trade Ideas; + a
+  registry for more) behind **one shared suggestion contract** and **one
   interactive GUI**. Goal-altitude: fixes objective / hard constraints / UI +
   interaction design; leaves mechanics to per-milestone passes. Key UX: an
   interactive NiceGUI "Advisor" page (inputs → run → ranked cards → **live
