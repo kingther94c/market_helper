@@ -428,7 +428,12 @@ two component engines **built** — Option Advisor + FX Hedging Advisor.
   `Suggestion`/`AdvisorResult`/`AdvisorContext` contracts, `AdvisorRegistry`, and
   the option-advisor adapter (registered in place, zero behavior change). The
   option engine now speaks the umbrella's uniform suggestion shape. 8 tests;
-  full unit suite green (635 passed). Next: **M2** interactive Advisor page.
+  full unit suite green (635 passed).
+- **M2 in progress** — `application/trade_advisor/` orchestration landed: runs
+  advisors over one shared context → cross-advisor **inbox** (sorted
+  PROCEED→MONITOR), with per-advisor failures captured as warnings (graceful, no
+  crash). Next: the interactive NiceGUI "Advisor" page (bounded controls → run →
+  cards → payoff/greeks → live what-if).
 
 - **Plan** at [`docs/architecture/devplans/trade_advisor.md`](../docs/architecture/devplans/trade_advisor.md):
   a `market_helper/trade_advisor/` umbrella that turns portfolio + market +
