@@ -419,6 +419,57 @@ Open near-term work:
 
 Detail: `docs/architecture/devplans/regime_engine.md`.
 
+## Trade Advisor (umbrella)
+
+**State**: umbrella **planned**; first component (Option Advisor) **landed**.
+
+- **Plan** at [`docs/architecture/devplans/trade_advisor.md`](../docs/architecture/devplans/trade_advisor.md):
+  a `market_helper/trade_advisor/` umbrella that turns portfolio + market +
+  regime context into ranked, read-only trade *ideas* across a family of
+  advisors (Option [built], Roll Reminder, FX Carry Tilt, general Trade Ideas,
+  + a registry for more) behind **one shared suggestion contract** and **one
+  interactive GUI**. Goal-altitude: fixes objective / hard constraints / UI +
+  interaction design; leaves mechanics to per-milestone passes. Key UX: an
+  interactive NiceGUI "Advisor" page (inputs → run → ranked cards → **live
+  what-if** payoff/greeks/sizing recompute → Proceed/Monitor/Reject journal)
+  plus a static snapshot in the combined report. Milestones M1–M6.
+
+### Option Advisor (component #1)
+
+**State**: MVP **landed and runnable** (M1+M2). Advisory-only, read-only.
+Design memo: [`docs/architecture/devplans/option_advisor.md`](../docs/architecture/devplans/option_advisor.md).
+
+- **Module** `market_helper/domain/option_advisor/`: pure-stdlib Black–Scholes
+  (`pricing.py`, `statistics.NormalDist` — **zero new deps**), frozen-dataclass
+  contracts, a multi-provider data layer (`providers.py`), and the
+  `signals → candidates → filters → ranking → service` pipeline. Runnable CLI:
+  `python -m market_helper.domain.option_advisor SYM... [--aum --hold SYM:QTY
+  --regime --override SYM:spot=..,iv=.. --json out.json]`. YAML rules at
+  `configs/option_advisor/advisor_rules.yaml` (no-code tuning, mirrors
+  `quadrant_policy.yml`).
+- **Real option-chain data, not just a fallback**: community research (15+
+  sources) + live IBKR probe. Primary = **CBOE delayed JSON** (free, no key,
+  full greeks+IV+OI via stdlib `urllib`) — verified live on SPY/QQQ/AAPL.
+  Fallback = yfinance (greeks computed locally). Final fallback = **synthetic
+  vol-surface** from spot + ATM IV with research-backed skew/term defaults
+  (skew ≈ −0.12 index, 1/√T decay); **user can override spot and IV**. IBKR
+  underlying snapshot (spot / ATM-IV / IV-rank) verified via MCP; in-repo
+  `ib_async` chain adapter is M5.
+- **Honesty tagging**: `data_mode` (live_chain / live_anchored / synthetic /
+  user_override); model-only ideas are capped at MONITOR and never PROCEED.
+  PROCEED/MONITOR/REJECT labels carry a per-idea filter audit trail; sizing caps
+  to a % of funded AUM (excludes options/futures, per the AUM gotcha).
+- 26 hermetic unit tests (pricing/greeks, synthetic skew, structure payoff,
+  filters/sizing, ranking, regime gate). **Full unit suite green (611 passed).**
+- **Scope**: [ADR 0007](../docs/decisions/0007-option-advisor-advisory-scope.md)
+  (advisory in scope; broker execution out, per ADR 0001) — **Accepted** on the
+  user's directive to build a runnable version. Read-only invariant intact: the
+  advisor only fetches public data and emits ideas, never orders.
+- **Next (M3+)**: combined-report HTML section + dashboard (ReportSection
+  wiring); M4 historical backtest vs buy-and-hold / covered-call / protective-put
+  baselines + cost/assignment sensitivity; M5 `ib_async` live chain + IV-rank
+  cache + earnings feed (then `MONITOR`→`PROCEED` on synthetic-only names).
+
 ## Repository governance
 
 Canonical layered-memory layout landed in ADR
