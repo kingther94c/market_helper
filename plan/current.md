@@ -450,9 +450,16 @@ two component engines **built** — Option Advisor + FX Hedging Advisor.
   reads `context.held_options` → DTE / ITM / short-ITM assignment flags + roll
   suggestions; registered so it shows up in `/advisor` + the Inbox with **zero
   advisor-specific UI** (page runs all registered advisors). Proves "adding an
-  advisor needs no UI work" (#5). 5 tests; full suite green (659). **Next:**
-  portfolio-seeding (real held stocks + options → context) so Option + Roll run
-  on the real book (#2), then M5 FX Hedging + carry tilt.
+  advisor needs no UI work" (#5). 5 tests; full suite green (659).
+- **Real-book seeding (#2) landed** — `context_from_positions_csv`
+  (`application/trade_advisor/portfolio.py`) derives real held stocks + held
+  options + funded AUM from the live positions CSV (classify by `internal_id`
+  prefix; AUM = stock + cash, excl. options/futures; held options parsed from
+  `option_*` cols + OSI `local_symbol`). `/advisor` gains a **"Use my portfolio
+  (live positions)"** toggle (default on) → Option + Roll run on the real book;
+  degrades gracefully to a watchlist-only scan when no live CSV. Also fixed a
+  latent run()-render arity bug from the M3 signature change. 2 tests; full
+  suite green (661). **Next:** M5 FX Hedging + carry tilt.
 
 - **Plan** at [`docs/architecture/devplans/trade_advisor.md`](../docs/architecture/devplans/trade_advisor.md):
   a `market_helper/trade_advisor/` umbrella that turns portfolio + market +

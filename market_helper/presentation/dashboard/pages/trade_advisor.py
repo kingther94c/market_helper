@@ -20,6 +20,7 @@ from nicegui import ui
 
 from market_helper.application.trade_advisor import (
     TradeAdvisorService,
+    context_from_positions_csv,
     default_decision_journal,
     write_decision_snapshot,
 )
@@ -298,6 +299,7 @@ def register_trade_advisor_page(*, registry=None) -> None:
                 conf_sel = ui.select(CONFIDENCE_OPTIONS, value="", label="Confidence").classes("w-full")
                 crisis_sw = ui.switch("Crisis overlay", value=False)
                 rv_sw = ui.switch("Fetch realized vol (slower)", value=False)
+                portfolio_sw = ui.switch("Use my portfolio (live positions)", value=True)
                 run_btn = ui.button("Run advisor")
                 status = ui.label("").classes("text-caption pm-muted")
 
@@ -319,7 +321,23 @@ def register_trade_advisor_page(*, registry=None) -> None:
                 status.text = "Pick at least one symbol."
                 run_btn.enable()
                 return
-            context = build_context(inp)
+            if portfolio_sw.value:
+                from dataclasses import replace as _replace
+
+                context = context_from_positions_csv(
+                    watchlist=inp.symbols, regime_label=inp.regime,
+                    regime_confidence=inp.confidence, crisis_flag=inp.crisis,
+                )
+                if context.aum is None:
+                    context = _replace(context, aum=inp.aum)
+                book_note = (
+                    f" · book: {len(context.holdings)} stk / {len(context.held_options)} opt"
+                    if (context.holdings or context.held_options)
+                    else " · no live positions found (watchlist only)"
+                )
+            else:
+                context = build_context(inp)
+                book_note = ""
             try:
                 run_result = await asyncio.to_thread(
                     _SERVICE.run, context, advisors=None, params_by_advisor=option_run_params(inp)
@@ -328,8 +346,8 @@ def register_trade_advisor_page(*, registry=None) -> None:
                 status.text = f"Failed: {type(exc).__name__}: {exc}"
                 run_btn.enable()
                 return
-            _render_results(results_box, run_result)
-            status.text = f"Done · {len(run_result.all_suggestions())} ideas"
+            _render_results(results_box, run_result, journal, refresh_inbox)
+            status.text = f"Done · {len(run_result.all_suggestions())} ideas{book_note}"
             run_btn.enable()
 
         run_btn.on_click(run)
