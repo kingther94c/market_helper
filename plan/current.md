@@ -424,7 +424,21 @@ Detail: `docs/architecture/devplans/regime_engine.md`.
 **State**: **M1–M6 all landed** — umbrella hosts **four** advisors (Option,
 Roll, FX Hedging + carry tilt, Trade Ideas) under one bounded-control UI;
 decision journal + Inbox + cross-device snapshot; real-book seeding; CBOE cache;
-how-to doc. Full unit suite green (672). See acceptance review below.
+how-to doc. Full unit suite green (672). Acceptance review:
+
+| # | Bar item | Status | Evidence |
+|---|---|---|---|
+| 1 | Open & understand, no docs | ✅ | `/advisor` → Run → ranked cards (label/economics/why-now); browser-verified on live CBOE |
+| 2 | Real book + live data; graceful | ✅ | "Use my portfolio" seeds held stk/opt + AUM; watchlist-only fallback w/ note; FX missing → actionable INFO |
+| 3 | Fully explained + what-if==engine | ✅ | full per-idea fields; live what-if re-price; `what-if==engine` unit test |
+| 4 | Decision journal → Inbox → snapshot | ✅ | Proceed persisted (JSONL), Inbox updated, snapshot HTML written — browser + headless |
+| 5 | All advisors, one UI, zero-UI-to-add | ✅ | Option/Roll/FX(+carry)/Ideas via registry; INFO cards render; 5th = adapter only |
+| 6 | Snapshot mirrors cross-device | ✅ | snapshot HTML + GDrive mirror helper; interactive stays localhost/Tailscale |
+| 7 | Responsive; suite green | ✅ | async (no freeze) + CBOE cache + 12s timeout; 672 passed / 1 skipped, 71 TA tests |
+| 8 | Docs current | ✅ | devplan + `docs/operations/trade_advisor_howto.md`; plan reflects reality |
+
+Non-goals respected: no order entry; bounded controls (no free-form/NLP); no
+opaque ML / optimizer; no new UI framework; single-operator; no tick infra.
 
 Earlier milestone notes (umbrella **M1 landed** = shared contract + registry + option adapter);
 two component engines **built** — Option Advisor + FX Hedging Advisor.

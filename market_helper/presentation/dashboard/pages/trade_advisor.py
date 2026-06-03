@@ -28,6 +28,7 @@ from market_helper.domain.option_advisor.structures import whatif_from_detail
 from market_helper.trade_advisor.contracts import (
     LABEL_INFO,
     LABEL_MONITOR,
+    LABEL_ORDER,
     LABEL_PROCEED,
     LABEL_REJECT,
     AdvisorContext,
@@ -258,7 +259,9 @@ def _render_results(box, run_result, journal: DecisionJournal, on_decision) -> N
                 ui.label("Warnings").classes("text-subtitle2")
                 for w in warnings[:10]:
                     ui.label(f"• {w}").classes("text-caption")
-        ordered = run_result.inbox() + [s for s in run_result.all_suggestions() if s.label == LABEL_REJECT]
+        # Render every advisor's output, PROCEED → MONITOR → INFO → REJECT, so the
+        # operator sees that each advisor ran (even when it has nothing actionable).
+        ordered = sorted(run_result.all_suggestions(), key=lambda s: (LABEL_ORDER.get(s.label, 9), -s.score))
         if not ordered:
             ui.label("No ideas generated for these inputs.").classes("text-caption")
             return
