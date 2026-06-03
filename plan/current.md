@@ -429,14 +429,17 @@ two component engines **built** — Option Advisor + FX Hedging Advisor.
   the option-advisor adapter (registered in place, zero behavior change). The
   option engine now speaks the umbrella's uniform suggestion shape. 8 tests;
   full unit suite green (635 passed).
-- **M2 in progress** — orchestration (`application/trade_advisor/`:
-  cross-advisor **inbox**, graceful per-advisor failure) + the interactive
-  **NiceGUI `/advisor` page** scaffolded: bounded-control inputs
-  (selects / number / switches — no free text) → Run → ranked idea cards →
-  expandable **Plotly payoff** + Greeks + sizing + audit; wired into
-  `create_app`. Pure helpers + route registration + app-boot unit-tested; full
-  suite green (641). **Next:** browser-verify the live render, then add **live
-  what-if** (bounded re-controls recompute payoff/Greeks; `what-if==engine` test).
+- **M2 landed** — interactive **NiceGUI `/advisor` page** (wired into
+  `create_app`): bounded-control inputs (selects / number / switches — **no free
+  text**) → Run → ranked idea cards (PROCEED→MONITOR→REJECT) → expandable
+  **Plotly payoff** + Greeks + sizing + full **audit trail** + **live what-if**
+  (bounded qty / IV / spot controls re-price via Black–Scholes;
+  `whatif`/`whatif_from_detail` in `option_advisor.structures`). Orchestration in
+  `application/trade_advisor/` (cross-advisor inbox, graceful per-advisor
+  failure). **Browser-verified** end-to-end on **live CBOE** data: 9 SPY/QQQ
+  ideas, `data mode: live_chain`, cards + payoff chart + audit all render, no
+  server errors. `what-if == engine` unit test passes. Full suite green (646).
+  **Next:** M3 static snapshot + decision journal.
 
 - **Plan** at [`docs/architecture/devplans/trade_advisor.md`](../docs/architecture/devplans/trade_advisor.md):
   a `market_helper/trade_advisor/` umbrella that turns portfolio + market +

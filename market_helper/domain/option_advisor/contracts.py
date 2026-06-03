@@ -322,6 +322,7 @@ class OptionIdea:
     drivers: list[tuple[str, float]] = field(default_factory=list)
     filters_applied: list[FilterOutcome] = field(default_factory=list)
     data_status: str = "model_only"    # "model_only" | "chain_validated"
+    spot: float | None = None          # underlying spot at generation (drives what-if)
 
 
 @dataclass(frozen=True)

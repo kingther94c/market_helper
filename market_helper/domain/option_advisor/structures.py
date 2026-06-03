@@ -19,6 +19,9 @@ Conventions
 
 from __future__ import annotations
 
+from dataclasses import replace
+
+from . import pricing
 from .contracts import (
     CATEGORY_DIRECTIONAL,
     CATEGORY_HEDGE,
@@ -199,6 +202,7 @@ def _idea(
     return OptionIdea(
         idea_id=f"{ctx.symbol}:{structure_type}:{expiry}",
         as_of=chain.as_of,
+        spot=chain.spot,
         underlying_id=ctx.internal_id,
         underlying_symbol=ctx.symbol,
         category=category,
@@ -332,3 +336,107 @@ def build_put_spread(chain, ctx, *, long_delta=0.40, short_delta=0.20, dte=40) -
         thesis=f"Defined-risk bearish/hedge view on {ctx.symbol} via a put debit spread.",
         why_now=f"Trend {ctx.trend_state}; {'crisis overlay; ' if ctx.crisis_flag else ''}capped-cost downside.",
     )
+
+
+# --------------------------------------------------------------------------- #
+# What-if recompute — the live-exploration engine (bounded inputs from the UI)
+# --------------------------------------------------------------------------- #
+
+_OVERLAY_STOCK = {
+    STRUCTURE_COVERED_CALL: MULT,
+    STRUCTURE_PROTECTIVE_PUT: MULT,
+    STRUCTURE_COLLAR: MULT,
+}
+
+
+def stock_shares_for(structure_type: str) -> int:
+    """Underlying shares implied by an overlay structure (0 for standalone)."""
+    return _OVERLAY_STOCK.get(structure_type, 0)
+
+
+def reprice_legs(
+    legs: list[OptionLeg],
+    spot: float,
+    *,
+    iv_shift: float = 0.0,
+    rate: float = 0.04,
+    dividend_yield: float = 0.0,
+) -> list[OptionLeg]:
+    """Re-price every leg at a new spot / shifted IV via Black–Scholes."""
+    out: list[OptionLeg] = []
+    for leg in legs:
+        t = max(leg.resolved_dte or 0, 0) / 365.0
+        iv = max((leg.est_iv or 0.0) + iv_shift, 1e-4)
+        g = pricing.bs_greeks(leg.right, spot, leg.resolved_strike or 0.0, t, rate, iv, dividend_yield)
+        out.append(
+            replace(
+                leg,
+                est_iv=iv,
+                est_price=round(g.price, 4),
+                est_delta=g.delta,
+                est_gamma=g.gamma,
+                est_theta=g.theta,
+                est_vega=g.vega,
+                quote_status="model",
+            )
+        )
+    return out
+
+
+def whatif(
+    structure_type: str,
+    legs: list[OptionLeg],
+    spot: float,
+    *,
+    iv_shift: float = 0.0,
+    spot_override: float | None = None,
+    qty_scale: int = 1,
+    rate: float = 0.04,
+    dividend_yield: float = 0.0,
+) -> dict:
+    """Recompute structure metrics under bounded what-if overrides.
+
+    With all overrides at their no-op defaults (``iv_shift=0``,
+    ``spot_override=None``, ``qty_scale=1``) this reproduces the engine's
+    original metrics for a model-priced structure — see the ``what-if == engine``
+    test. ``iv_shift`` is in vol points (0.05 = +5 vol); ``qty_scale`` multiplies
+    every leg and any overlay stock.
+    """
+    s = float(spot_override) if spot_override is not None else float(spot)
+    repriced = reprice_legs(legs, s, iv_shift=iv_shift, rate=rate, dividend_yield=dividend_yield)
+    scale = int(qty_scale)
+    if scale != 1:
+        repriced = [replace(leg, qty_ratio=leg.qty_ratio * scale) for leg in repriced]
+    shares = stock_shares_for(structure_type) * scale
+    return structure_metrics(repriced, s, stock_shares=shares, mult=MULT)
+
+
+def whatif_from_detail(detail: dict, **overrides) -> dict:
+    """What-if from a serialized idea ``detail`` (a ``Suggestion.detail`` dict).
+
+    Reconstructs ``OptionLeg`` objects so the UI can drive recompute without
+    holding engine objects. Raises ``ValueError`` if ``detail`` lacks a spot.
+    """
+    spot = detail.get("spot")
+    if spot is None:
+        raise ValueError("idea detail has no 'spot' — cannot run what-if")
+    legs = [
+        OptionLeg(
+            right=leg["right"],
+            action=leg["action"],
+            strike_rule=leg.get("strike_rule", ""),
+            expiry_rule=leg.get("expiry_rule", ""),
+            qty_ratio=int(leg.get("qty_ratio", 1)),
+            resolved_strike=leg.get("resolved_strike"),
+            resolved_expiry=leg.get("resolved_expiry"),
+            resolved_dte=leg.get("resolved_dte"),
+            est_iv=leg.get("est_iv"),
+            est_price=leg.get("est_price"),
+            est_delta=leg.get("est_delta"),
+            est_gamma=leg.get("est_gamma"),
+            est_theta=leg.get("est_theta"),
+            est_vega=leg.get("est_vega"),
+        )
+        for leg in (detail.get("legs") or [])
+    ]
+    return whatif(detail.get("structure_type", ""), legs, float(spot), **overrides)

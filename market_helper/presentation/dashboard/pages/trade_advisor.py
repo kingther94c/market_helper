@@ -18,6 +18,7 @@ from dataclasses import dataclass, field
 from nicegui import ui
 
 from market_helper.application.trade_advisor import TradeAdvisorService
+from market_helper.domain.option_advisor.structures import whatif_from_detail
 from market_helper.trade_advisor.contracts import (
     LABEL_INFO,
     LABEL_MONITOR,
@@ -79,18 +80,16 @@ def option_run_params(inp: AdvisorInputs) -> dict:
     return {"option": {"fetch_realized": bool(inp.fetch_realized)}}
 
 
-def payoff_figure(detail: dict):
-    """Plotly P&L-at-expiry figure from a suggestion's payoff curve."""
+def _payoff_fig(curve, breakevens):
     import plotly.graph_objects as go
 
-    curve = detail.get("est_payoff_curve") or []
     xs = [pt[0] for pt in curve]
     ys = [pt[1] for pt in curve]
     fig = go.Figure()
     fig.add_trace(go.Scatter(x=xs, y=ys, mode="lines", name="P&L @ expiry"))
     if xs:
         fig.add_hline(y=0.0, line_dash="dot", line_color="gray")
-    for be in detail.get("est_breakevens") or []:
+    for be in breakevens or []:
         fig.add_vline(x=be, line_dash="dash", line_color="orange")
     fig.update_layout(
         margin={"l": 40, "r": 10, "t": 10, "b": 36},
@@ -100,6 +99,60 @@ def payoff_figure(detail: dict):
         yaxis_title="P&L ($)",
     )
     return fig
+
+
+def payoff_figure(detail: dict):
+    """Plotly P&L-at-expiry figure from a suggestion's payoff curve."""
+    return _payoff_fig(detail.get("est_payoff_curve") or [], detail.get("est_breakevens") or [])
+
+
+def _render_option_whatif(detail: dict) -> None:
+    """Interactive payoff chart + bounded what-if controls (qty / IV / spot).
+
+    Chart starts at the engine curve; moving a control re-prices via Black–Scholes
+    (a *model* view, independent of live quotes) and updates in place.
+    """
+    chart = ui.plotly(payoff_figure(detail)).classes("w-full")
+    spot0 = float(detail.get("spot") or 0.0)
+    if spot0 <= 0:
+        return  # no spot anchor → static chart only
+
+    metrics = ui.label("").classes("text-caption")
+    ui.label("What-if · bounded · Black–Scholes re-price (model, independent of live quotes)").classes("text-caption pm-muted")
+    with ui.row().classes("items-center gap-4 w-full wrap"):
+        qty = ui.number("Contracts", value=1, min=1, max=20, step=1).props("dense").style("width: 110px")
+        with ui.column().classes("gap-0"):
+            ui.label("IV shift (vol pts)").classes("text-caption")
+            iv = ui.slider(min=-0.10, max=0.10, step=0.01, value=0.0).props("label-always").style("width: 150px")
+        with ui.column().classes("gap-0"):
+            ui.label("Spot").classes("text-caption")
+            step = max(round(spot0 * 0.005, 2), 0.01)
+            spot = ui.slider(
+                min=round(spot0 * 0.85, 2), max=round(spot0 * 1.15, 2), step=step, value=round(spot0, 2)
+            ).props("label-always").style("width: 170px")
+
+    def recompute(_e=None) -> None:
+        try:
+            m = whatif_from_detail(
+                detail,
+                iv_shift=float(iv.value or 0.0),
+                spot_override=float(spot.value or spot0),
+                qty_scale=int(qty.value or 1),
+            )
+        except Exception as exc:  # noqa: BLE001 — surface, don't crash the card
+            metrics.text = f"what-if error: {exc}"
+            return
+        g = m.get("net_greeks", {})
+        metrics.text = (
+            f"net {m['net_credit']:,.0f} · max loss {m['max_loss']:,.0f} · "
+            f"max gain {m['max_gain']:,.0f} · BE {m['breakevens']} · "
+            f"Δ {g.get('delta', 0.0):.1f}  vega {g.get('vega', 0.0):.1f}"
+        )
+        chart.figure = _payoff_fig(m["payoff_curve"], m["breakevens"])
+        chart.update()
+
+    for element in (qty, iv, spot):
+        element.on_value_change(recompute)
 
 
 # --------------------------------------------------------------------------- #
@@ -123,7 +176,7 @@ def _render_card(s: Suggestion) -> None:
         with ui.expansion("Detail · payoff · Greeks · audit").classes("w-full"):
             detail = s.detail or {}
             if s.body_kind == "option_payoff" and detail.get("est_payoff_curve"):
-                ui.plotly(payoff_figure(detail)).classes("w-full")
+                _render_option_whatif(detail)
             for leg in detail.get("legs") or []:
                 ui.label(
                     f"{str(leg.get('action', '')).upper()} {leg.get('right', '')}"

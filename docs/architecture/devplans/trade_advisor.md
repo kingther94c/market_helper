@@ -296,10 +296,12 @@ read-only and declared in `env.yml`.
    `Advisor` protocol, shared `Suggestion` / `AdvisorResult` / `AdvisorContext`
    contracts, `AdvisorRegistry`, and an option-advisor adapter (registered in
    place — **no behavior change**). 8 tests; full unit suite green (635).
-2. **M2 — Interactive shell + the one working advisor.** New NiceGUI "Advisor"
-   page with the inputs panel, ranked cards, the detail panel, and **live
-   what-if** wired to the option engine end-to-end. This proves the whole
-   interaction model on the component that already exists.
+2. ✅ **M2 — Interactive shell + live what-if.** NiceGUI `/advisor` page
+   (bounded controls → Run → ranked cards → Plotly payoff + Greeks + sizing +
+   audit + live what-if re-price), wired into `create_app`. **Browser-verified**
+   end-to-end on live CBOE data (9 SPY/QQQ ideas, `data mode: live_chain`; cards,
+   payoff chart, audit all render); `what-if == engine` unit test. Proves the
+   interaction model on the option advisor.
 3. **M3 — Static snapshot + decision journal.** Trade-advisor section in the
    combined report; Proceed/Monitor/Reject persistence + Inbox.
 4. **M4 — Roll Reminder.** Uses already-ingested held-option positions; first
