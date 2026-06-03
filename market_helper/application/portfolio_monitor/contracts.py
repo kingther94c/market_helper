@@ -6,6 +6,10 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Protocol
 
+from market_helper.domain.portfolio_monitor.services.fx_hedge_advisor import (
+    FxHedgeArtifactState,
+    FxHedgeMode,
+)
 from market_helper.domain.regime_detection.services.regime_report_provider import (
     RegimeArtifactState,
     RegimeMode,
@@ -36,6 +40,12 @@ class PortfolioReportInputs:
     # regime provider for data in this mode. Default refresh-if-stale keeps
     # cron + dashboard "always fresh" without per-call configuration.
     regime_mode: RegimeMode = "refresh-if-stale"
+    # FX Hedging Advisor (Risk → FX). Like regime, the report asks the provider
+    # for data in this mode; refresh-if-stale recomputes only when the cached
+    # allocation is missing or older than the configured max age (30 days).
+    fx_hedge_artifact_path: str | Path | None = None
+    fx_hedge_config_path: str | Path | None = None
+    fx_hedge_mode: FxHedgeMode = "refresh-if-stale"
 
     @classmethod
     def from_namespace(cls, args: argparse.Namespace) -> "PortfolioReportInputs":
@@ -59,6 +69,9 @@ class PortfolioReportInputs:
             allocation_policy_path=_optional_path(getattr(args, "allocation_policy", None)),
             vol_method=getattr(args, "vol_method", "geomean_1m_3m"),
             inter_asset_corr=getattr(args, "inter_asset_corr", "historical"),
+            fx_hedge_artifact_path=_optional_path(getattr(args, "fx_hedge_artifact", None)),
+            fx_hedge_config_path=_optional_path(getattr(args, "fx_hedge_config", None)),
+            fx_hedge_mode=getattr(args, "fx_hedge_mode", "refresh-if-stale"),
         )
 
 
@@ -101,6 +114,20 @@ def _empty_regime_state() -> RegimeArtifactState:
     )
 
 
+def _empty_fx_hedge_state() -> FxHedgeArtifactState:
+    """Missing-state sentinel for callers that build report data directly
+    without going through the FX hedge provider (keeps such paths network-free)."""
+    return FxHedgeArtifactState(
+        state="missing",
+        mode_used="cached",
+        allocation=None,
+        computed_fresh=False,
+        age_days=None,
+        last_run_at=None,
+        error_message="No FX hedge allocation configured.",
+    )
+
+
 @dataclass(frozen=True)
 class PortfolioReportData:
     as_of: str
@@ -113,6 +140,10 @@ class PortfolioReportData:
     # missing / engine_error). The combined report always renders the section,
     # choosing the body presentation from this state — no Optional-fan-out.
     regime_state: RegimeArtifactState = field(default_factory=_empty_regime_state)
+    # Always present: the FX hedge provider returns a tagged state (ok / stale /
+    # missing / error). The Risk → FX section always renders, choosing its body
+    # from this state.
+    fx_hedge_state: FxHedgeArtifactState = field(default_factory=_empty_fx_hedge_state)
     as_of_freshness_note: str | None = None
 
 
@@ -173,6 +204,9 @@ class GenerateCombinedReportInputs(PortfolioReportInputs):
             vol_method=base.vol_method,
             inter_asset_corr=base.inter_asset_corr,
             regime_mode=base.regime_mode,
+            fx_hedge_artifact_path=base.fx_hedge_artifact_path,
+            fx_hedge_config_path=base.fx_hedge_config_path,
+            fx_hedge_mode=base.fx_hedge_mode,
             output_path=_optional_path(getattr(args, "output", None)),
         )
 

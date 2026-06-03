@@ -1351,6 +1351,39 @@ def generate_combined_html_report(
     return written_path
 
 
+def generate_fx_hedge_report(
+    *,
+    output_path: str | Path | None = None,
+    config_path: str | Path | None = None,
+    mode: str = "force-refresh",
+    hedge_notional_usd: float | None = None,
+    spot_loader=None,
+):
+    """Compute (or load) the FX hedge allocation artifact and return its state.
+
+    Thin CLI/standalone facade over the provider in
+    ``domain.portfolio_monitor.services.fx_hedge_advisor``. ``force-refresh``
+    (the CLI default) always recomputes from live Yahoo spot; ``refresh-if-stale``
+    reuses a cached run <= 30 days old. The hedge notional defaults to the
+    configured ``default_hedge_notional_usd`` when not supplied.
+    """
+    from market_helper.domain.portfolio_monitor.services.fx_hedge_advisor import (
+        DEFAULT_FX_HEDGE_ARTIFACT_PATH,
+        provide_fx_hedge_allocation,
+    )
+
+    artifact_path = Path(output_path) if output_path is not None else DEFAULT_FX_HEDGE_ARTIFACT_PATH
+    source = "explicit_cli" if hedge_notional_usd is not None else "config_default"
+    return provide_fx_hedge_allocation(
+        artifact_path=artifact_path,
+        config_path=config_path,
+        mode=mode,  # type: ignore[arg-type]
+        hedge_notional_usd=hedge_notional_usd,
+        hedge_notional_source=source,
+        spot_loader=spot_loader,
+    )
+
+
 def _load_portfolio_report_data(inputs: PortfolioReportInputs):
     from market_helper.application.portfolio_monitor.services import PortfolioMonitorQueryService
 

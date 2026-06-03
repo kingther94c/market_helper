@@ -41,6 +41,13 @@ from market_helper.reporting.performance_html import (
     build_performance_report_view_model,
     load_nav_cashflow_history_frame,
 )
+from market_helper.domain.portfolio_monitor.services.fx_hedge_advisor import (
+    DEFAULT_FX_HEDGE_ARTIFACT_PATH,
+    DEFAULT_FX_HEDGE_CONFIG_PATH,
+    FxHedgeArtifactState,
+    FxHedgeMode,
+    provide_fx_hedge_allocation,
+)
 from market_helper.domain.regime_detection.services.regime_report_provider import (
     RegimeArtifactState,
     RegimeMode,
@@ -144,6 +151,21 @@ def _resolve_regime_input_path(source: PortfolioReportInputs) -> Path | None:
     return None
 
 
+def _resolve_fx_hedge_artifact_path(source: PortfolioReportInputs) -> Path | None:
+    """Resolve where the FX hedge allocation artifact is read from / written to.
+
+    Mirrors the regime resolver: the combined-report flow always returns a path
+    (so the provider can refresh-if-stale into it), while plain risk / report
+    inputs degrade to None — a standalone risk view never triggers a Yahoo
+    refresh as a side effect (keeps unit flows network-free).
+    """
+    if source.fx_hedge_artifact_path is not None:
+        return Path(source.fx_hedge_artifact_path)
+    if isinstance(source, GenerateCombinedReportInputs):
+        return DEFAULT_FX_HEDGE_ARTIFACT_PATH
+    return None
+
+
 def _benchmark_returns_need_fill(history: pd.DataFrame) -> bool:
     if history.empty:
         return False
@@ -203,6 +225,13 @@ class PortfolioMonitorQueryService:
             vol_method=source.vol_method,
             inter_asset_corr=source.inter_asset_corr,
             regime_mode=source.regime_mode,
+            fx_hedge_artifact_path=_resolve_fx_hedge_artifact_path(source),
+            fx_hedge_config_path=(
+                Path(source.fx_hedge_config_path)
+                if source.fx_hedge_config_path is not None
+                else DEFAULT_FX_HEDGE_CONFIG_PATH
+            ),
+            fx_hedge_mode=source.fx_hedge_mode,
         )
 
     def load_report_data(self, inputs: PortfolioReportInputs | None = None) -> PortfolioReportData:
@@ -249,6 +278,20 @@ class PortfolioMonitorQueryService:
             vol_method=resolved.vol_method,
             inter_asset_corr=resolved.inter_asset_corr,
         )
+        # FX Hedging Advisor (Risk → FX). Hedge the full USD AUM, defaulting the
+        # hedge notional to the risk view-model's funded AUM. Like regime, the
+        # provider never raises — non-ok states surface as warnings + an in-body
+        # explainer card.
+        funded_aum_usd = getattr(
+            getattr(risk_view_model, "summary", None), "funded_aum_usd", None
+        )
+        fx_hedge_state = self._load_fx_hedge_state(
+            artifact_path=resolved.fx_hedge_artifact_path,
+            config_path=resolved.fx_hedge_config_path,
+            mode=resolved.fx_hedge_mode,
+            hedge_notional_usd=funded_aum_usd,
+            warnings=warnings,
+        )
         performance_usd_view_model = perf_entry.usd_view_model
         performance_sgd_view_model = perf_entry.sgd_view_model
         positions_as_of = _read_positions_as_of(positions_path)
@@ -278,6 +321,7 @@ class PortfolioMonitorQueryService:
             artifact_metadata=metadata,
             warnings=warnings,
             regime_state=regime_state,
+            fx_hedge_state=fx_hedge_state,
             as_of_freshness_note=compute_as_of_freshness_note(report_as_of),
         )
 
@@ -319,6 +363,61 @@ class PortfolioMonitorQueryService:
         elif state.state == "engine_error":
             warnings.append(
                 f"Regime engine failed: {state.error_message or 'unknown error'}."
+            )
+        return state
+
+    @staticmethod
+    def _load_fx_hedge_state(
+        *,
+        artifact_path: str | Path | None,
+        config_path: str | Path | None,
+        mode: FxHedgeMode,
+        hedge_notional_usd: float | None,
+        warnings: list[str],
+    ) -> FxHedgeArtifactState:
+        """Delegate to the FX hedge provider; surface non-ok states as warnings.
+
+        The hedge notional defaults to the portfolio's funded USD AUM ("full AUM
+        exposure"); a non-positive AUM falls back to the configured default so a
+        bare/empty portfolio still produces hedge ratios. The provider never
+        raises — the Risk → FX section renders an explainer for missing/error.
+
+        A ``None`` artifact path means this flow does not own FX data (a plain
+        risk/report view, not the combined report) — return a missing sentinel
+        without touching the provider, so no Yahoo refresh fires as a side
+        effect (mirrors the regime resolver's None branch).
+        """
+        if artifact_path is None:
+            return FxHedgeArtifactState(
+                state="missing",
+                mode_used="cached",
+                allocation=None,
+                computed_fresh=False,
+                age_days=None,
+                last_run_at=None,
+                error_message="No FX hedge artifact path configured.",
+            )
+        if hedge_notional_usd is not None and hedge_notional_usd > 0:
+            notional: float | None = float(hedge_notional_usd)
+            source = "funded_aum_usd"
+        else:
+            notional = None
+            source = "config_default"
+        state = provide_fx_hedge_allocation(
+            artifact_path=Path(str(artifact_path)),
+            config_path=config_path,
+            mode=mode,
+            hedge_notional_usd=notional,
+            hedge_notional_source=source,
+        )
+        if state.state == "missing":
+            warnings.append(
+                "FX hedge allocation not found; it will be computed on the next "
+                "refresh, or run `python -m market_helper.cli.main fx-hedge-report`."
+            )
+        elif state.state == "error":
+            warnings.append(
+                f"FX hedge advisor failed: {state.error_message or 'unknown error'}."
             )
         return state
 

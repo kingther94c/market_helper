@@ -11,6 +11,34 @@ context is in `memory/archive/` (gitignored, not read by default).
 
 Recent landed work (one-liners; full detail in
 `memory/archive/landed/portfolio_monitor_landed.md`):
+- **FX Hedging Advisor (Risk → FX).** New advisor that converts a USD/SGD hedge
+  amount (default = funded USD AUM, "full AUM exposure") into a target FX
+  allocation across liquid CME FX futures (EUR/GBP/AUD/JPY/CNH vs USD). Weekly
+  (W-FRI) log-return OLS of the SGD/USD spot return on the instruments' spot
+  returns gives the hedge ratios (betas); these × notional → USD-per-contract →
+  whole contracts (halves away from zero), with front-IMM-quarter expiry and
+  indicative carry from configured ON rates. **Conventions** ([ADR 0006](../docs/decisions/0006-fx-hedge-regression-convention.md)):
+  value-in-USD price basis (USD per unit; the inverse of `fx_usdsgd_eod`), so a
+  positive beta ⇒ long the foreign future / short USD = the correct hedge for a
+  USD-overexposed SGD investor. Live validation: R²≈0.88, all betas positive,
+  CNH+EUR dominant (matches SGD's MAS basket). Yahoo has no long *daily* CNH
+  history, so onshore `CNY=X` proxies the CNH-future beta (traded instrument is
+  still the CME USD/CNH future). Owns a JSON artifact
+  (`data/artifacts/portfolio_monitor/fx_hedge/fx_hedge_allocation.json`) behind
+  a regime-style provider (`provide_fx_hedge_allocation`, modes cached /
+  refresh-if-stale[30d] / force-refresh); `computed_fresh` drives the
+  "Freshly computed / Loaded from cache (N days old)" badge. Renders as a card
+  under the **Risk** section (`reporting/fx_hedge_html.py`), always-on
+  (ok/stale/missing/error → explainer card), with an explicit conventions block.
+  New CLI `fx-hedge-report` (force-refresh default); plain risk/report flows
+  resolve the path to None and skip the provider (no side-effect Yahoo fetch).
+  Files: `domain/portfolio_monitor/services/fx_hedge_advisor.py`,
+  `reporting/fx_hedge_html.py`, `configs/portfolio_monitor/fx_hedge_advisor.yml`,
+  wiring in `contracts.py` / `application/.../services.py` / `portfolio_html.py`
+  / `cli/main.py` / `workflows/generate_report.py`. Devplan:
+  `docs/architecture/devplans/fx_hedge_advisor.md`. Tests: new
+  `test_fx_hedge_advisor.py` (24) + `test_fx_hedge_html.py` (4) + combined-html
+  FX assertions; full unit suite green (601 passed, 1 skipped).
 - **Regime FRED empty-window no-op (root-cause fix for the recurring
   "Regime engine failed: FRED download failed for UNRATE" breakage).** The
   incremental macro sync sets `observation_start = last_cached_obs + 1 day`, so
