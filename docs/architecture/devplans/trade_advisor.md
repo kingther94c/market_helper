@@ -292,9 +292,10 @@ read-only and declared in `env.yml`.
 
 ## 8. Milestones (each small, reviewable; sequenced for early proof)
 
-1. **M1 — Umbrella + shared contract.** `trade_advisor` package: advisor
-   protocol, common suggestion contract, registry, context bus. Register the
-   existing option advisor behind it — **no behavior change**, suite stays green.
+1. ✅ **M1 — Umbrella + shared contract.** `market_helper/trade_advisor/`:
+   `Advisor` protocol, shared `Suggestion` / `AdvisorResult` / `AdvisorContext`
+   contracts, `AdvisorRegistry`, and an option-advisor adapter (registered in
+   place — **no behavior change**). 8 tests; full unit suite green (635).
 2. **M2 — Interactive shell + the one working advisor.** New NiceGUI "Advisor"
    page with the inputs panel, ranked cards, the detail panel, and **live
    what-if** wired to the option engine end-to-end. This proves the whole

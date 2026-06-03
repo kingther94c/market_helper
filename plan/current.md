@@ -421,7 +421,14 @@ Detail: `docs/architecture/devplans/regime_engine.md`.
 
 ## Trade Advisor (umbrella)
 
-**State**: umbrella **planned**; two components already **built** — Option Advisor + FX Hedging Advisor.
+**State**: umbrella **M1 landed** (shared contract + registry + option adapter);
+two component engines **built** — Option Advisor + FX Hedging Advisor.
+
+- **M1 landed** — `market_helper/trade_advisor/`: `Advisor` protocol, shared
+  `Suggestion`/`AdvisorResult`/`AdvisorContext` contracts, `AdvisorRegistry`, and
+  the option-advisor adapter (registered in place, zero behavior change). The
+  option engine now speaks the umbrella's uniform suggestion shape. 8 tests;
+  full unit suite green (635 passed). Next: **M2** interactive Advisor page.
 
 - **Plan** at [`docs/architecture/devplans/trade_advisor.md`](../docs/architecture/devplans/trade_advisor.md):
   a `market_helper/trade_advisor/` umbrella that turns portfolio + market +
