@@ -322,7 +322,7 @@ def register_trade_advisor_page(*, registry=None) -> None:
             context = build_context(inp)
             try:
                 run_result = await asyncio.to_thread(
-                    _SERVICE.run, context, advisors=["option"], params_by_advisor=option_run_params(inp)
+                    _SERVICE.run, context, advisors=None, params_by_advisor=option_run_params(inp)
                 )
             except Exception as exc:  # noqa: BLE001 — surface, don't crash the page
                 status.text = f"Failed: {type(exc).__name__}: {exc}"

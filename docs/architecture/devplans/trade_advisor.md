@@ -308,8 +308,11 @@ read-only and declared in `env.yml`.
    **snapshot HTML** (`reporting/trade_advisor_html`) written to
    `data/artifacts/trade_advisor/` and mirrored cross-device via the existing
    GDrive helper. Persist→inbox→snapshot pipeline unit + headless verified.
-4. **M4 — Roll Reminder.** Uses already-ingested held-option positions; first
-   advisor that's *about the existing book*.
+4. ✅ **M4 — Roll Reminder.** Second advisor (`trade_advisor.adapters.roll`):
+   reads `context.held_options` → DTE / ITM / short-ITM assignment flags + roll
+   suggestions, registered so it appears in `/advisor` + Inbox with **zero
+   advisor-specific UI** (the page just runs every registered advisor). 5 tests.
+   *(Needs real held options — see the M6 portfolio-seeding item.)*
 5. **M5 — FX Hedging Advisor onto the interactive surface.** Fold the existing
    FX Hedging Advisor (`071a188`) into the umbrella: detail view + on-demand
    refresh over its shared artifact (the report side stays the cached ~30d

@@ -445,7 +445,14 @@ two component engines **built** — Option Advisor + FX Hedging Advisor.
   decision regenerates a static **snapshot HTML**
   (`reporting/trade_advisor_html.py`) written + mirrored cross-device via the
   existing GDrive helper. Persist→inbox→snapshot verified end-to-end (unit +
-  headless). Full suite green (654). **Next:** M4 Roll Reminder advisor.
+  headless). Full suite green (654).
+- **M4 landed** — **Roll Reminder** advisor (`trade_advisor/adapters/roll.py`):
+  reads `context.held_options` → DTE / ITM / short-ITM assignment flags + roll
+  suggestions; registered so it shows up in `/advisor` + the Inbox with **zero
+  advisor-specific UI** (page runs all registered advisors). Proves "adding an
+  advisor needs no UI work" (#5). 5 tests; full suite green (659). **Next:**
+  portfolio-seeding (real held stocks + options → context) so Option + Roll run
+  on the real book (#2), then M5 FX Hedging + carry tilt.
 
 - **Plan** at [`docs/architecture/devplans/trade_advisor.md`](../docs/architecture/devplans/trade_advisor.md):
   a `market_helper/trade_advisor/` umbrella that turns portfolio + market +
