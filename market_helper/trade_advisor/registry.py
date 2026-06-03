@@ -45,6 +45,7 @@ def build_default_registry() -> AdvisorRegistry:
     deps. FX-hedge / roll / ideas adapters register here as they land (M4–M6).
     """
     from .adapters.fx_hedge import FxHedgeAdvisorPlugin
+    from .adapters.ideas import TradeIdeasAdvisorPlugin
     from .adapters.option import OptionAdvisorPlugin
     from .adapters.roll import RollReminderPlugin
 
@@ -52,4 +53,5 @@ def build_default_registry() -> AdvisorRegistry:
     registry.register(OptionAdvisorPlugin())
     registry.register(RollReminderPlugin())
     registry.register(FxHedgeAdvisorPlugin())
+    registry.register(TradeIdeasAdvisorPlugin())
     return registry

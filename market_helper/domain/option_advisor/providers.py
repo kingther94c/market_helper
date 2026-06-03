@@ -22,6 +22,7 @@ from __future__ import annotations
 import datetime as _dt
 import json
 import math
+import time
 import urllib.error
 import urllib.request
 from dataclasses import replace
@@ -51,6 +52,16 @@ __all__ = [
 _INDEX_SYMBOLS = frozenset({"SPX", "VIX", "NDX", "RUT", "XSP", "DJX", "OEX", "VX"})
 _CBOE_URL = "https://cdn.cboe.com/api/global/delayed_quotes/options/{sym}.json"
 _USER_AGENT = "Mozilla/5.0 (market_helper option-advisor; read-only research)"
+
+# Short in-process cache for CBOE responses (data is ~15-min delayed anyway), so a
+# re-run returns instantly and a throttled CDN is hit at most once per window.
+_CBOE_TTL_SECONDS = 300.0
+_CBOE_CACHE: dict = {}
+
+
+def clear_cboe_cache() -> None:
+    """Drop the in-process CBOE cache (used in tests / forced refreshes)."""
+    _CBOE_CACHE.clear()
 
 
 class ChainError(RuntimeError):
@@ -137,10 +148,19 @@ def fetch_cboe_chain(
     moneyness: float | None = 0.25,
     rate: float = 0.04,
     dividend_yield: float = 0.0,
-    timeout: float = 25.0,
+    timeout: float = 12.0,
 ) -> ChainSnapshot:
-    """Fetch a live (≈15-min delayed) chain with greeks from CBOE's public JSON."""
+    """Fetch a live (≈15-min delayed) chain with greeks from CBOE's public JSON.
+
+    Cached in-process for ``_CBOE_TTL_SECONDS`` so re-runs return instantly and a
+    throttled CDN is only hit once per window; a tight ``timeout`` lets a slow CDN
+    fail fast into the fallback rather than hanging the run.
+    """
     sym = symbol.upper()
+    cache_key = (sym, dte_max, moneyness, round(rate, 4), round(dividend_yield, 4))
+    cached = _CBOE_CACHE.get(cache_key)
+    if cached is not None and (time.monotonic() - cached[0]) < _CBOE_TTL_SECONDS:
+        return cached[1]
     req_sym = ("_" + sym) if sym in _INDEX_SYMBOLS else sym
     url = _CBOE_URL.format(sym=req_sym)
     req = urllib.request.Request(url, headers={"User-Agent": _USER_AGENT})
@@ -185,7 +205,7 @@ def fetch_cboe_chain(
     if not quotes:
         raise ChainError(f"CBOE returned no contracts for {sym} within filters")
 
-    return ChainSnapshot(
+    snapshot = ChainSnapshot(
         underlying=sym,
         as_of=str(payload.get("timestamp") or _now_iso()),
         spot=spot,
@@ -196,6 +216,8 @@ def fetch_cboe_chain(
         data_mode=DATA_LIVE_CHAIN,
         source="cboe",
     )
+    _CBOE_CACHE[cache_key] = (time.monotonic(), snapshot)
+    return snapshot
 
 
 # --------------------------------------------------------------------------- #

@@ -320,8 +320,16 @@ read-only and declared in `env.yml`.
    sub-module (rank ccys by overnight-rate carry). Third advisor, registered →
    appears in `/advisor` + Inbox with zero advisor-specific UI; degrades to INFO
    when no allocation is cached. 5 tests.
-6. **M6 — Trade Ideas (general) + extensibility hardening.** Firm up scope; make
-   "add an advisor" a documented, low-friction path for the undecided ones.
+6. ✅ **M6 — Trade Ideas + responsiveness + docs.** 4th advisor
+   (`trade_advisor.adapters.ideas`): regime-aligned sleeve tilt reusing
+   `suggest.quadrant_policy` (advisory, ADR 0006). Plus a short-TTL **CBOE
+   response cache** + tighter timeout (#7 — re-runs return instantly, throttled
+   CDN fails fast into the fallback) and a **how-to doc**
+   ([`docs/operations/trade_advisor_howto.md`](../../operations/trade_advisor_howto.md), #8).
+
+**All milestones M0–M6 landed.** The umbrella hosts four advisors (Option, Roll,
+FX Hedging + carry tilt, Trade Ideas) under one bounded-control UI; adding a
+fifth needs only a registered adapter.
 
 Each milestone gets its own short design pass; scope-expanding ones get an ADR.
 

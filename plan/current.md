@@ -421,7 +421,12 @@ Detail: `docs/architecture/devplans/regime_engine.md`.
 
 ## Trade Advisor (umbrella)
 
-**State**: umbrella **M1 landed** (shared contract + registry + option adapter);
+**State**: **M1–M6 all landed** — umbrella hosts **four** advisors (Option,
+Roll, FX Hedging + carry tilt, Trade Ideas) under one bounded-control UI;
+decision journal + Inbox + cross-device snapshot; real-book seeding; CBOE cache;
+how-to doc. Full unit suite green (672). See acceptance review below.
+
+Earlier milestone notes (umbrella **M1 landed** = shared contract + registry + option adapter);
 two component engines **built** — Option Advisor + FX Hedging Advisor.
 
 - **M1 landed** — `market_helper/trade_advisor/`: `Advisor` protocol, shared
@@ -465,8 +470,12 @@ two component engines **built** — Option Advisor + FX Hedging Advisor.
   cached-by-default (no network; on-demand `refresh=True` force-recomputes) →
   emits a hedge-target suggestion + an **FX Carry Tilt** sub-module (rank ccys by
   overnight-rate carry). Third advisor, zero advisor-specific UI; INFO fallback
-  when no allocation cached. 5 tests; full suite green (666). **Next:** M6 —
-  Trade Ideas advisor + CBOE response cache (#7) + how-to doc (#8) + polish.
+  when no allocation cached. 5 tests; full suite green (666).
+- **M6 landed** — **Trade Ideas** advisor (4th; regime-aligned sleeve tilt via
+  `suggest.quadrant_policy`, advisory per ADR 0006) → all four advisors under one
+  UI. Plus #7 a short-TTL **CBOE response cache** + tighter timeout (re-runs
+  instant; throttled CDN fails fast to fallback) and #8 a **how-to doc**
+  (`docs/operations/trade_advisor_howto.md`). 6 tests; full suite green (672).
 
 - **Plan** at [`docs/architecture/devplans/trade_advisor.md`](../docs/architecture/devplans/trade_advisor.md):
   a `market_helper/trade_advisor/` umbrella that turns portfolio + market +
