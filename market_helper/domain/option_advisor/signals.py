@@ -9,7 +9,10 @@ on failure rather than blocking the advisor.
 
 from __future__ import annotations
 
-from .contracts import ChainSnapshot, RealizedVolMetrics, UnderlyingContext
+import datetime as _dt
+
+from . import earnings as _earnings
+from .contracts import ChainSnapshot, EventRisk, RealizedVolMetrics, UnderlyingContext
 
 
 def realized_vol_and_trend(symbol: str) -> dict | None:
@@ -67,9 +70,17 @@ def build_context(
     crisis_flag: bool = False,
     fetch_realized: bool = True,
     realized: RealizedVolMetrics | None = None,
+    fetch_events: bool = False,
+    event_risk: EventRisk | None = None,
+    event_override_date: str | None = None,
 ) -> UnderlyingContext:
-    """Assemble the context. ``realized`` can be injected (tests); otherwise it's
-    fetched best-effort when ``fetch_realized`` is set."""
+    """Assemble the context. ``realized`` / ``event_risk`` can be injected (tests);
+    otherwise they're fetched best-effort when their ``fetch_*`` flag is set.
+
+    Earnings precedence: an explicit ``event_risk`` wins, then a user-supplied
+    ``event_override_date`` (ISO ``YYYY-MM-DD``), then a best-effort feed pull
+    (only when ``fetch_events`` is set). Anything unavailable leaves it ``None``
+    (the filter then reads 'earnings unverified')."""
     rv = realized
     trend = "unknown"
     if rv is None and fetch_realized:
@@ -81,6 +92,16 @@ def build_context(
                 vol_6m=info["vol_6m"], vol_1y=info["vol_1y"],
             )
             trend = info["trend"]
+
+    er = event_risk
+    if er is None and event_override_date:
+        try:
+            od = _dt.date.fromisoformat(event_override_date)
+            er = _earnings.event_risk_from_dates(symbol, [od])
+        except ValueError:
+            er = None
+    if er is None and fetch_events:
+        er = _earnings.fetch_earnings(symbol)
 
     atm_iv = chain.atm_iv
     rv_ref = (rv.vol_1m if rv else None) or (chain.realized_vol)
@@ -105,4 +126,5 @@ def build_context(
         sector=sector,
         asset_class=asset_class,
         dir_exposure=dir_exposure,
+        event_risk=er,
     )

@@ -60,3 +60,24 @@ def test_runs_via_registry():
         _ctx(), overrides={"NVDA": {"spot": 120.0, "iv": 0.45}}, fetch_realized=False
     )
     assert result.advisor == "option" and result.suggestions
+
+
+def test_earnings_override_surfaces_in_headline_and_detail():
+    plugin = OptionAdvisorPlugin()
+    result = plugin.produce(
+        _ctx(),
+        overrides={"NVDA": {"spot": 120.0, "iv": 0.45, "earnings": "2099-08-20"}},
+        fetch_realized=False,
+        fetch_events=False,  # override wins; no feed pull
+    )
+    assert result.suggestions
+    # The earnings one-liner appears on the card and the EventRisk rides in detail.
+    assert any("earnings" in s.headline_metrics for s in result.suggestions)
+    for s in result.suggestions:
+        assert s.detail["event_risk"]["next_earnings_date"] == "2099-08-20"
+
+
+def test_idea_detail_carries_iv_skew_key():
+    # what-if skew-link reads detail["iv_skew"]; the projection must include it.
+    result = _run()
+    assert all("iv_skew" in s.detail for s in result.suggestions)

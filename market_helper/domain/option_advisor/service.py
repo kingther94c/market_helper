@@ -30,8 +30,10 @@ def advise_symbol(
     crisis_flag: bool = False,
     spot_override: float | None = None,
     iv_override: float | None = None,
+    event_override_date: str | None = None,
     prefer: tuple[str, ...] = ("cboe", "yfinance"),
     fetch_realized: bool = True,
+    fetch_events: bool = False,
 ) -> tuple[list[OptionIdea], str, list[str]]:
     """Return ``(ideas, data_mode, warnings)`` for a single underlying."""
     chain = providers.get_chain(
@@ -41,6 +43,7 @@ def advise_symbol(
         symbol, chain, held_qty=held_qty, weight=weight, sector=sector,
         regime_label=regime_label, regime_confidence=regime_confidence,
         crisis_flag=crisis_flag, fetch_realized=fetch_realized,
+        fetch_events=fetch_events, event_override_date=event_override_date,
     )
 
     # Inject AUM into the rules' filter block so sizing can read it (kept out of
@@ -67,15 +70,17 @@ def run_advisor(
     regime_label: str = "",
     regime_confidence: str = "",
     crisis_flag: bool = False,
-    overrides: dict[str, dict[str, float]] | None = None,
+    overrides: dict[str, dict] | None = None,
     prefer: tuple[str, ...] = ("cboe", "yfinance"),
     fetch_realized: bool = True,
+    fetch_events: bool = False,
     as_of: str | None = None,
 ) -> OptionAdvisoryResult:
     """Scan ``symbols`` and return one combined advisory result.
 
     ``holdings`` maps symbol → shares held (enables covered-call/hedge ideas).
-    ``overrides`` maps symbol → ``{"spot": ..., "iv": ...}`` user overrides.
+    ``overrides`` maps symbol → ``{"spot": ..., "iv": ..., "earnings": "YYYY-MM-DD"}``
+    user overrides (``earnings`` pins the next-earnings date for that symbol).
     """
     rules = load_rules(rules_path)
     holdings = holdings or {}
@@ -97,7 +102,8 @@ def run_advisor(
                 sector=sectors.get(sym, ""),
                 regime_label=regime_label, regime_confidence=regime_confidence, crisis_flag=crisis_flag,
                 spot_override=ov.get("spot"), iv_override=ov.get("iv"),
-                prefer=prefer, fetch_realized=fetch_realized,
+                event_override_date=ov.get("earnings"),
+                prefer=prefer, fetch_realized=fetch_realized, fetch_events=fetch_events,
             )
         except Exception as exc:  # noqa: BLE001 — one bad symbol must not sink the scan
             warnings.append(f"{sym}: {type(exc).__name__}: {str(exc)[:160]}")

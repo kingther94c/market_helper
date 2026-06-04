@@ -39,6 +39,9 @@ def _headline_metrics(idea: OptionIdea) -> dict[str, str]:
         m["max_gain"] = f"{idea.est_max_gain:,.0f}"
     if idea.est_breakevens:
         m["breakeven"] = ", ".join(f"{b:g}" for b in idea.est_breakevens)
+    er = idea.event_risk
+    if er is not None and er.event_status == "known" and er.days_to_earnings is not None:
+        m["earnings"] = f"{er.days_to_earnings}d"
     return m
 
 
@@ -76,10 +79,11 @@ class OptionAdvisorPlugin:
         context: AdvisorContext,
         *,
         symbols: list[str] | None = None,
-        overrides: dict[str, dict[str, float]] | None = None,
+        overrides: dict[str, dict] | None = None,
         rules_path: str | None = None,
         prefer: tuple[str, ...] = ("cboe", "yfinance"),
         fetch_realized: bool = False,
+        fetch_events: bool = False,
     ) -> AdvisorResult:
         syms = symbols if symbols is not None else context.symbols()
         result: OptionAdvisoryResult = option_service.run_advisor(
@@ -94,6 +98,7 @@ class OptionAdvisorPlugin:
             overrides=overrides,
             prefer=prefer,
             fetch_realized=fetch_realized,
+            fetch_events=fetch_events,
             as_of=context.as_of or None,
         )
         suggestions = [suggestion_from_idea(i, result.data_mode) for i in result.ideas]

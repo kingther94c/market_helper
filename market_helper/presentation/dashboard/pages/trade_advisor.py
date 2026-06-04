@@ -63,6 +63,7 @@ class AdvisorInputs:
     confidence: str = ""
     crisis: bool = False
     fetch_realized: bool = False
+    check_earnings: bool = False
 
 
 # --------------------------------------------------------------------------- #
@@ -85,7 +86,7 @@ def build_context(inp: AdvisorInputs) -> AdvisorContext:
 
 
 def option_run_params(inp: AdvisorInputs) -> dict:
-    return {"option": {"fetch_realized": bool(inp.fetch_realized)}}
+    return {"option": {"fetch_realized": bool(inp.fetch_realized), "fetch_events": bool(inp.check_earnings)}}
 
 
 def _payoff_fig(curve, breakevens):
@@ -316,6 +317,7 @@ def register_trade_advisor_page(*, registry=None) -> None:
                 conf_sel = ui.select(CONFIDENCE_OPTIONS, value="", label="Confidence").classes("w-full")
                 crisis_sw = ui.switch("Crisis overlay", value=False)
                 rv_sw = ui.switch("Fetch realized vol (slower)", value=False)
+                earnings_sw = ui.switch("Check earnings (slower)", value=False)
                 portfolio_sw = ui.switch("Use my portfolio (live positions)", value=True)
                 run_btn = ui.button("Run advisor")
                 status = ui.label("").classes("text-caption pm-muted")
@@ -333,6 +335,7 @@ def register_trade_advisor_page(*, registry=None) -> None:
                 confidence=conf_sel.value or "",
                 crisis=bool(crisis_sw.value),
                 fetch_realized=bool(rv_sw.value),
+                check_earnings=bool(earnings_sw.value),
             )
             if not inp.symbols:
                 status.text = "Pick at least one symbol."

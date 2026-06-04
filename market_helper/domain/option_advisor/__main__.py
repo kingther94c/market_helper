@@ -46,7 +46,10 @@ def _parse_kv_list(items: list[str] | None, value_cast) -> dict:
 
 
 def _parse_overrides(items: list[str] | None) -> dict:
-    """Parse ``SYM:spot=120,iv=0.45`` into {SYM: {"spot":120.0,"iv":0.45}}."""
+    """Parse ``SYM:spot=120,iv=0.45,earnings=2026-07-15`` into a per-symbol dict.
+
+    Numeric fields (spot/iv) cast to float; ``earnings`` stays an ISO date string.
+    """
     out: dict = {}
     for item in items or []:
         sym, _, rest = item.partition(":")
@@ -55,7 +58,8 @@ def _parse_overrides(items: list[str] | None) -> dict:
             if not pair.strip():
                 continue
             key, _, val = pair.partition("=")
-            fields[key.strip()] = float(val)
+            key, val = key.strip(), val.strip()
+            fields[key] = val if key == "earnings" else float(val)
         out[sym.upper()] = fields
     return out
 
@@ -102,6 +106,9 @@ def render_report(result) -> str:
                      f"breakeven {i.est_breakevens}")
         lines.append(f"    greeks    : Δ{_fmt(g.get('delta'),3)} Γ{_fmt(g.get('gamma'),4)} "
                      f"Θ{_fmt(g.get('theta'),1)} V{_fmt(g.get('vega'),1)}")
+        er = i.event_risk
+        if er and er.event_status == "known" and er.days_to_earnings is not None:
+            lines.append(f"    earnings  : in {er.days_to_earnings}d ({er.next_earnings_date})")
         if sz:
             lines.append(f"    sizing    : {sz.basis} max_contracts={sz.max_contracts} "
                          f"cap_at_risk={_fmt(sz.capital_at_risk_usd)} ({sz.notes})")
@@ -132,6 +139,7 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--rules", default=None, help="path to advisor_rules.yaml override")
     p.add_argument("--prefer", default="cboe,yfinance", help="provider order (comma-sep)")
     p.add_argument("--no-realized", action="store_true", help="skip yfinance realized-vol fetch")
+    p.add_argument("--events", action="store_true", help="fetch next-earnings dates (yfinance)")
     p.add_argument("--json", default=None, help="write ideas as JSON to this path")
     args = p.parse_args(argv)
 
@@ -147,6 +155,7 @@ def main(argv: list[str] | None = None) -> int:
         overrides=_parse_overrides(args.override),
         prefer=tuple(x.strip() for x in args.prefer.split(",") if x.strip()),
         fetch_realized=not args.no_realized,
+        fetch_events=args.events,
     )
 
     print(render_report(result))

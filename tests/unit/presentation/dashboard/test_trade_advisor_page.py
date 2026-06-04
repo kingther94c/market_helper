@@ -16,8 +16,8 @@ def test_build_context_maps_held_and_watchlist():
 
 
 def test_option_run_params_passthrough():
-    params = ta.option_run_params(ta.AdvisorInputs(fetch_realized=True))
-    assert params == {"option": {"fetch_realized": True}}
+    params = ta.option_run_params(ta.AdvisorInputs(fetch_realized=True, check_earnings=True))
+    assert params == {"option": {"fetch_realized": True, "fetch_events": True}}
 
 
 def test_payoff_figure_from_curve():
