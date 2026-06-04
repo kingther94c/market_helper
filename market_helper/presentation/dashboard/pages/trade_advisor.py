@@ -115,6 +115,84 @@ def payoff_figure(detail: dict):
     return _payoff_fig(detail.get("est_payoff_curve") or [], detail.get("est_breakevens") or [])
 
 
+# --- Body-specific table / fact builders (pure, unit-tested) --------------- #
+
+
+def _num(x, spec: str = "g") -> str:
+    """Format a number, or ``—`` when it's missing. Integer specs ('d') round."""
+    if x is None or x == "":
+        return "—"
+    try:
+        val = float(x)
+    except (TypeError, ValueError):
+        return str(x)
+    if spec.endswith("d"):
+        return format(int(round(val)), spec)
+    return format(val, spec)
+
+
+def _pct(x) -> str:
+    return "—" if x is None else f"{float(x) * 100:.2f}"
+
+
+def option_legs_lines(detail: dict) -> list[str]:
+    """One readable line per resolved option leg."""
+    out: list[str] = []
+    for leg in detail.get("legs") or []:
+        out.append(
+            f"{str(leg.get('action', '')).upper()} {leg.get('right', '')}"
+            f"{leg.get('resolved_strike', '')} @ {leg.get('est_price')} "
+            f"({leg.get('resolved_dte')}DTE)"
+        )
+    return out
+
+
+def fx_alloc_table(detail: dict) -> tuple[list[str], list[list[str]]]:
+    """Headers + formatted rows for an FX hedge allocation (``detail['fx_legs']``)."""
+    headers = ["Ccy", "Instrument", "Beta", "Contracts", "Notional $", "Carry bps", "ON %", "Expiry"]
+    rows = [
+        [
+            str(l.get("currency", "")),
+            str(l.get("instrument", "")),
+            _num(l.get("beta"), "+.3f"),
+            _num(l.get("target_contracts"), "+d"),
+            _num(l.get("target_notional_usd"), ",.0f"),
+            _num(l.get("carry_bps"), "+.0f"),
+            _pct(l.get("on_rate")),
+            str(l.get("expiry", "")),
+        ]
+        for l in (detail.get("fx_legs") or [])
+    ]
+    return headers, rows
+
+
+def fx_carry_table(detail: dict) -> tuple[list[str], list[list[str]]]:
+    """Headers + formatted rows for the FX carry ranking (``detail['ranking']``)."""
+    headers = ["Ccy", "Carry bps", "ON %"]
+    rows = [
+        [str(r.get("currency", "")), _num(r.get("carry_bps"), "+.0f"), _pct(r.get("on_rate"))]
+        for r in (detail.get("ranking") or [])
+    ]
+    return headers, rows
+
+
+def roll_facts(detail: dict) -> list[tuple[str, str]]:
+    """Label/value pairs describing a held option position for the Roll body."""
+    qty = detail.get("qty")
+    side = "short" if (qty is not None and qty < 0) else "long"
+    itm = detail.get("itm")
+    moneyness = "—" if itm is None else ("ITM" if itm else "OTM")
+    dte = detail.get("dte")
+    return [
+        ("Underlying", str(detail.get("underlying", "—"))),
+        ("Contract", f"{side} {detail.get('right', '')}{_num(detail.get('strike'))} {detail.get('expiry', '—')}"),
+        ("Quantity", _num(qty)),
+        ("DTE", "—" if dte is None else f"{dte}d"),
+        ("Moneyness", moneyness),
+        ("Underlying px", _num(detail.get("underlying_price"))),
+    ]
+
+
 def _render_option_whatif(detail: dict) -> None:
     """Interactive payoff chart + bounded what-if controls (qty / IV / spot).
 
@@ -197,6 +275,81 @@ def _render_inbox(box, journal: DecisionJournal) -> None:
                 ui.label(f"[{d.decision}] {d.title} · {d.subject} · {d.ts[:16]}{note}").classes("text-caption")
 
 
+# Per-body expansion titles (so an FX/Roll card doesn't say "payoff · Greeks").
+_BODY_TITLE = {
+    "option_payoff": "Detail · payoff · Greeks · audit",
+    "fx_alloc": "Detail · hedge legs · audit",
+    "fx_carry": "Detail · carry ranking · audit",
+    "roll": "Detail · position · audit",
+}
+
+
+def _ui_table(headers: list[str], rows: list[list[str]]) -> None:
+    columns = [{"name": f"c{i}", "label": h, "field": f"c{i}", "align": "left"} for i, h in enumerate(headers)]
+    ui_rows = [{f"c{i}": v for i, v in enumerate(r)} for r in rows]
+    ui.table(columns=columns, rows=ui_rows).props("dense flat bordered").classes("w-full")
+
+
+def _render_greeks(detail: dict) -> None:
+    greeks = detail.get("net_greeks") or {}
+    if greeks:
+        ui.label("Greeks: " + "  ".join(f"{k} {float(v):.3f}" for k, v in greeks.items())).classes("text-caption")
+
+
+def _render_option_body(detail: dict) -> None:
+    if detail.get("est_payoff_curve"):
+        _render_option_whatif(detail)
+    for line in option_legs_lines(detail):
+        ui.label(line).classes("text-caption")
+    _render_greeks(detail)
+
+
+def _render_fx_alloc_body(detail: dict) -> None:
+    headers, rows = fx_alloc_table(detail)
+    if rows:
+        _ui_table(headers, rows)
+    else:
+        ui.label("No hedge legs in this allocation.").classes("text-caption pm-muted")
+    totals = detail.get("totals") or {}
+    if totals:
+        ui.label("Totals: " + "   ".join(f"{k}: {v}" for k, v in totals.items())).classes("text-caption pm-muted")
+
+
+def _render_fx_carry_body(detail: dict) -> None:
+    headers, rows = fx_carry_table(detail)
+    if rows:
+        _ui_table(headers, rows)
+    else:
+        ui.label("No carry ranking available.").classes("text-caption pm-muted")
+
+
+def _render_roll_body(detail: dict) -> None:
+    with ui.grid(columns=2).classes("gap-x-6 gap-y-1"):
+        for label, value in roll_facts(detail):
+            ui.label(label).classes("text-caption pm-muted")
+            ui.label(value).classes("text-caption")
+
+
+def _render_generic_body(detail: dict) -> None:
+    for line in option_legs_lines(detail):
+        ui.label(line).classes("text-caption")
+    _render_greeks(detail)
+
+
+def _render_detail_body(s: Suggestion, detail: dict) -> None:
+    """Dispatch the body-specific detail renderer by ``body_kind``."""
+    if s.body_kind == "option_payoff":
+        _render_option_body(detail)
+    elif s.body_kind == "fx_alloc":
+        _render_fx_alloc_body(detail)
+    elif s.body_kind == "fx_carry":
+        _render_fx_carry_body(detail)
+    elif s.body_kind == "roll":
+        _render_roll_body(detail)
+    else:
+        _render_generic_body(detail)
+
+
 def _render_card(s: Suggestion, journal: DecisionJournal, on_decision) -> None:
     latest = journal.latest_by_suggestion().get(s.suggestion_id) if journal else None
     with ui.card().classes("w-full pm-card"):
@@ -211,19 +364,9 @@ def _render_card(s: Suggestion, journal: DecisionJournal, on_decision) -> None:
             ui.label(s.thesis).classes("text-body2")
         if s.why_now:
             ui.label(f"Why now: {s.why_now}").classes("text-caption pm-muted")
-        with ui.expansion("Detail · payoff · Greeks · audit").classes("w-full"):
+        with ui.expansion(_BODY_TITLE.get(s.body_kind, "Detail · audit")).classes("w-full"):
             detail = s.detail or {}
-            if s.body_kind == "option_payoff" and detail.get("est_payoff_curve"):
-                _render_option_whatif(detail)
-            for leg in detail.get("legs") or []:
-                ui.label(
-                    f"{str(leg.get('action', '')).upper()} {leg.get('right', '')}"
-                    f"{leg.get('resolved_strike', '')} @ {leg.get('est_price')} "
-                    f"({leg.get('resolved_dte')}DTE)"
-                ).classes("text-caption")
-            greeks = detail.get("net_greeks") or {}
-            if greeks:
-                ui.label("Greeks: " + "  ".join(f"{k} {float(v):.3f}" for k, v in greeks.items())).classes("text-caption")
+            _render_detail_body(s, detail)
             if s.sizing:
                 ui.label(
                     f"Sizing: {s.sizing.basis} · max {s.sizing.max_units} · "
