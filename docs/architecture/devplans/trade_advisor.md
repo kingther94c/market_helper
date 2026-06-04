@@ -331,6 +331,19 @@ read-only and declared in `env.yml`.
 FX Hedging + carry tilt, Trade Ideas) under one bounded-control UI; adding a
 fifth needs only a registered adapter.
 
+**Polish pass (post-M6, 2026-06-04).** Four reviewable increments:
+- *What-if spot ↔ chain skew* — ideas carry `ChainSnapshot.atm_skew` →
+  `OptionIdea.iv_skew`; the spot slider moves leg IV along the chain skew
+  (sticky-moneyness, default on, toggle for flat-vol). `iv_skew=0` keeps the
+  `what-if == engine` invariant.
+- *Earnings feed → `EventRisk`* — `option_advisor/earnings.py` (pure core +
+  graceful yfinance) wired through signals/service/adapter/CLI; surfaces in the
+  card headline, the `event_risk` audit filter, and ranking event-safety.
+- *Dedicated FX/Roll detail bodies* — card detail dispatches on `body_kind`
+  (fixes FX/Roll cards opening empty); pure table/fact builders unit-tested.
+- *Coverage + review* — +35 tests incl. an adapter→body contract test; review
+  confirmed the layering is sound (no large refactor warranted).
+
 Each milestone gets its own short design pass; scope-expanding ones get an ADR.
 
 ---

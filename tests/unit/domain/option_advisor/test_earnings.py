@@ -8,7 +8,9 @@ from __future__ import annotations
 
 import datetime as _dt
 
-from market_helper.domain.option_advisor import earnings, filters, signals, structures
+from dataclasses import replace
+
+from market_helper.domain.option_advisor import earnings, filters, ranking, signals, structures
 from market_helper.domain.option_advisor.contracts import EventRisk
 from market_helper.domain.option_advisor.providers import build_synthetic_chain
 from market_helper.domain.option_advisor.service import run_advisor
@@ -114,6 +116,14 @@ def test_build_context_no_event_when_flags_off():
     assert ctx.event_risk is None
 
 
+def test_build_context_injected_event_risk_beats_override():
+    injected = EventRisk("ABC", next_earnings_date="2030-01-01", event_status="known")
+    ctx = signals.build_context(
+        "ABC", _chain(), fetch_realized=False, event_risk=injected, event_override_date="2099-01-15",
+    )
+    assert ctx.event_risk is injected  # injected wins over the override date
+
+
 def test_build_context_bad_override_date_is_ignored():
     ctx = signals.build_context("ABC", _chain(), fetch_realized=False, event_override_date="not-a-date")
     assert ctx.event_risk is None
@@ -164,3 +174,24 @@ def test_run_advisor_earnings_override_flows_to_ideas():
         assert idea.event_risk is not None
         assert idea.event_risk.event_status == "known"
         assert idea.event_risk.next_earnings_date == "2099-03-15"
+
+
+# --------------------------------------------------------------------------- #
+# Ranking event-safety: a known earnings inside the trade penalizes the score
+# --------------------------------------------------------------------------- #
+
+
+def _idea():
+    chain = _chain(40)
+    ctx = signals.build_context("ABC", chain, fetch_realized=False)
+    return structures.build_call_spread(chain, ctx, long_delta=0.45, short_delta=0.25, dte=40)
+
+
+def test_event_safety_penalizes_near_earnings():
+    idea = _idea()
+    near = replace(idea, event_risk=EventRisk("ABC", "x", days_to_earnings=5, event_status="known"))
+    far = replace(idea, event_risk=EventRisk("ABC", "x", days_to_earnings=30, event_status="known"))
+    none = replace(idea, event_risk=EventRisk("ABC", event_status="none"))
+    assert ranking.score_components(near)[0]["event_penalty"] == 0.5
+    assert ranking.score_components(far)[0]["event_penalty"] == 0.9
+    assert ranking.score_components(none)[0]["event_penalty"] == 1.0

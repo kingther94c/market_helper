@@ -17,8 +17,11 @@ There's also a CLI for the option engine alone:
 
 ```bash
 python -m market_helper.domain.option_advisor SPY QQQ --aum 250000 --hold SPY:200
-# fallback when you have no live chain — override spot + IV:
-python -m market_helper.domain.option_advisor NVDA --override NVDA:spot=120,iv=0.45 --no-realized
+# pull next-earnings dates (flags ideas whose expiry spans them):
+python -m market_helper.domain.option_advisor AAPL --events
+# fallback when you have no live chain — override spot + IV (and pin earnings):
+python -m market_helper.domain.option_advisor NVDA \
+    --override NVDA:spot=120,iv=0.45,earnings=2026-07-30 --no-realized
 ```
 
 ## Run an advisor
@@ -28,7 +31,8 @@ python -m market_helper.domain.option_advisor NVDA --override NVDA:spot=120,iv=0
      stocks + options + funded AUM from the live positions report. Off → use the
      manual Universe / Held / AUM controls instead.
    - *Universe* (multi-select), *Treat as held*, *AUM*, *Regime* / *Confidence*,
-     *Crisis overlay*, *Fetch realized vol*.
+     *Crisis overlay*, *Fetch realized vol*, *Check earnings* (pulls each name's
+     next-earnings date so ideas whose expiry spans it are flagged).
 2. Click **Run advisor**. All advisors run together:
    - **Option** — covered call / CSP / protective put / collar / verticals on
      your names, using live CBOE chains (or a synthetic vol-surface fallback).
@@ -42,13 +46,24 @@ python -m market_helper.domain.option_advisor NVDA --override NVDA:spot=120,iv=0
 ## Read a card
 
 Each card shows the label, category, structure, score, key economics (net
-credit/debit, max loss/gain, breakeven), thesis, and "why now". Expand
-**Detail** for the interactive **payoff chart**, Greeks, sizing, liquidity, and
-the **audit trail** (every filter that passed/failed, and why).
+credit/debit, max loss/gain, breakeven, and — when known — days-to-earnings),
+thesis, and "why now". Expand **Detail** for a body tailored to the advisor:
+
+- **Option** — the interactive **payoff chart**, Greeks, sizing, liquidity.
+- **FX Hedging** — a **hedge-legs table** (currency / instrument / beta /
+  contracts / notional / carry bps / overnight rate / expiry) + totals.
+- **FX Carry Tilt** — a **carry-ranking table** (currency / carry bps / ON %).
+- **Roll Reminder** — a **position facts grid** (underlying / contract / qty /
+  DTE / moneyness / underlying price).
+
+Every body ends with the **audit trail** (each filter that passed/failed, and
+why) and the rationale.
 
 - **What-if** (option cards): drag the bounded **Contracts / IV shift / Spot**
-  controls to re-price the payoff & Greeks in place (a Black–Scholes *model*
-  view, independent of live quotes).
+  controls to re-price the payoff & Greeks in place (Black–Scholes). When the
+  idea carries a chain skew, **Link IV to chain skew** (on by default) makes
+  spot moves track the chain's observed skew (sticky-moneyness); toggle it off
+  for a flat-vol model view.
 
 ## Decide & track
 

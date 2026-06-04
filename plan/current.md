@@ -440,6 +440,30 @@ how-to doc. Full unit suite green (672). Acceptance review:
 Non-goals respected: no order entry; bounded controls (no free-form/NLP); no
 opaque ML / optimizer; no new UI framework; single-operator; no tick infra.
 
+**Polish pass (2026-06-04)** — four reviewable increments on top of M1–M6:
+- **What-if spot ↔ chain skew (sticky-moneyness).** Each idea carries the
+  chain's observed skew (`ChainSnapshot.atm_skew` → `OptionIdea.iv_skew`); a
+  bounded "Link IV to chain skew" toggle (default on) makes the spot slider move
+  each leg's IV along that skew (`Δiv = iv_skew·ln(base/spot)`) instead of holding
+  it flat. `iv_skew=0` preserves the load-bearing `what-if == engine` invariant.
+- **Earnings feed → EventRisk.** `domain/option_advisor/earnings.py` (pure
+  `event_risk_from_dates` core + graceful yfinance wrapper) finally populates the
+  long-dormant `EventRisk`; wired through `signals`/`service`/adapter with a
+  `fetch_events` flag, a per-symbol `earnings=` override, a dashboard "Check
+  earnings" switch, and a `--events` CLI flag. Surfaces in the card headline
+  (days-to-earnings), the `event_risk` audit filter, and the ranking event-safety
+  term.
+- **Dedicated detail bodies for FX / Roll.** Card detail now dispatches on
+  `body_kind`: FX alloc → hedge-legs table + totals; FX carry → ranking table;
+  Roll → position facts grid; option → existing payoff/Greeks. Previously FX/Roll
+  cards opened to an empty body (the generic loop only read option `legs`). Pure
+  row/fact builders are unit-tested; ui.* wrappers stay thin.
+- **Coverage + review.** +35 tests (skew, earnings incl. ranking event-safety,
+  body builders, an adapter→body **contract** test pinning detail keys). Code
+  review found the structure already well-layered — no large refactor needed;
+  fixed a `_num` integer-spec sign-drop bug found while adding the FX table.
+  Full unit suite green.
+
 Earlier milestone notes (umbrella **M1 landed** = shared contract + registry + option adapter);
 two component engines **built** — Option Advisor + FX Hedging Advisor.
 
@@ -537,7 +561,10 @@ Design memo: [`docs/architecture/devplans/option_advisor.md`](../docs/architectu
 - **Next (M3+)**: combined-report HTML section + dashboard (ReportSection
   wiring); M4 historical backtest vs buy-and-hold / covered-call / protective-put
   baselines + cost/assignment sensitivity; M5 `ib_async` live chain + IV-rank
-  cache + earnings feed (then `MONITOR`→`PROCEED` on synthetic-only names).
+  cache. **Earnings feed landed** (polish pass, 2026-06-04): a best-effort
+  yfinance next-earnings lookup populates `EventRisk` → audit + ranking
+  event-safety; the synthetic-only `MONITOR`→`PROCEED` promotion remains a
+  deliberate honesty gate (model data never auto-proceeds).
 
 ## Repository governance
 
