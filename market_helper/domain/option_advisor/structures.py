@@ -19,6 +19,7 @@ Conventions
 
 from __future__ import annotations
 
+import math
 from dataclasses import replace
 
 from . import pricing
@@ -199,6 +200,7 @@ def _idea(
         return None
     m = structure_metrics(legs, chain.spot, stock_shares=stock_shares)
     expiry = legs[0].resolved_expiry or "?"
+    skew = chain.atm_skew(expiry) if expiry != "?" else None
     return OptionIdea(
         idea_id=f"{ctx.symbol}:{structure_type}:{expiry}",
         as_of=chain.as_of,
@@ -220,6 +222,7 @@ def _idea(
         liquidity=_liquidity(legs),
         event_risk=ctx.event_risk,
         data_status="chain_validated" if chain.data_mode in ("live_chain",) else "model_only",
+        iv_skew=skew,
     )
 
 
@@ -359,14 +362,28 @@ def reprice_legs(
     spot: float,
     *,
     iv_shift: float = 0.0,
+    iv_skew: float = 0.0,
+    base_spot: float | None = None,
     rate: float = 0.04,
     dividend_yield: float = 0.0,
 ) -> list[OptionLeg]:
-    """Re-price every leg at a new spot / shifted IV via Black–Scholes."""
+    """Re-price every leg at a new spot / shifted IV via Black–Scholes.
+
+    ``iv_skew`` (the chain's ``∂IV/∂log-moneyness``) plus ``base_spot`` enable a
+    **sticky-moneyness** vol response: moving spot from ``base_spot`` to ``spot``
+    shifts every leg's moneyness by ``ln(base_spot/spot)``, so its IV moves by
+    ``iv_skew · ln(base_spot/spot)`` — IV tracks the chain skew instead of staying
+    flat. With ``iv_skew=0`` (the default) this is a pure flat re-price.
+    """
+    skew_dm = (
+        iv_skew * math.log(base_spot / spot)
+        if (iv_skew and base_spot and base_spot > 0 and spot > 0)
+        else 0.0
+    )
     out: list[OptionLeg] = []
     for leg in legs:
         t = max(leg.resolved_dte or 0, 0) / 365.0
-        iv = max((leg.est_iv or 0.0) + iv_shift, 1e-4)
+        iv = max((leg.est_iv or 0.0) + iv_shift + skew_dm, 1e-4)
         g = pricing.bs_greeks(leg.right, spot, leg.resolved_strike or 0.0, t, rate, iv, dividend_yield)
         out.append(
             replace(
@@ -389,6 +406,7 @@ def whatif(
     spot: float,
     *,
     iv_shift: float = 0.0,
+    iv_skew: float = 0.0,
     spot_override: float | None = None,
     qty_scale: int = 1,
     rate: float = 0.04,
@@ -396,14 +414,18 @@ def whatif(
 ) -> dict:
     """Recompute structure metrics under bounded what-if overrides.
 
-    With all overrides at their no-op defaults (``iv_shift=0``,
+    With all overrides at their no-op defaults (``iv_shift=0``, ``iv_skew=0``,
     ``spot_override=None``, ``qty_scale=1``) this reproduces the engine's
     original metrics for a model-priced structure — see the ``what-if == engine``
-    test. ``iv_shift`` is in vol points (0.05 = +5 vol); ``qty_scale`` multiplies
-    every leg and any overlay stock.
+    test. ``iv_shift`` is in vol points (0.05 = +5 vol); ``iv_skew`` links IV to
+    the chain skew as spot moves off ``spot`` (sticky-moneyness); ``qty_scale``
+    multiplies every leg and any overlay stock.
     """
     s = float(spot_override) if spot_override is not None else float(spot)
-    repriced = reprice_legs(legs, s, iv_shift=iv_shift, rate=rate, dividend_yield=dividend_yield)
+    repriced = reprice_legs(
+        legs, s, iv_shift=iv_shift, iv_skew=iv_skew, base_spot=float(spot),
+        rate=rate, dividend_yield=dividend_yield,
+    )
     scale = int(qty_scale)
     if scale != 1:
         repriced = [replace(leg, qty_ratio=leg.qty_ratio * scale) for leg in repriced]

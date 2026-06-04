@@ -15,6 +15,7 @@ Two layers live here:
 
 from __future__ import annotations
 
+import math
 from dataclasses import dataclass, field
 
 # --------------------------------------------------------------------------- #
@@ -184,6 +185,35 @@ class ChainSnapshot:
             return None
         return min(candidates, key=lambda q: abs(q.strike - target_strike))
 
+    def atm_skew(self, expiry: str, *, width: float = 0.12) -> float | None:
+        """Least-squares ``∂IV/∂(log-moneyness)`` near ATM for one expiry.
+
+        This is the chain's *observed* skew slope — the empirical signature a
+        synthetic surface only assumes. It drives the sticky-moneyness what-if:
+        when the operator shifts spot, each leg's IV moves along this slope
+        (``Δiv = skew · Δm``) instead of staying flat. Returns ``None`` when
+        fewer than two distinct near-the-money strikes carry a usable IV.
+        """
+        if self.spot <= 0:
+            return None
+        pts = [
+            (math.log(q.strike / self.spot), q.iv)
+            for q in self.quotes
+            if q.expiry == expiry and q.iv and q.iv > 0 and q.strike > 0
+            and abs(math.log(q.strike / self.spot)) <= width
+        ]
+        if len({round(m, 6) for m, _ in pts}) < 2:
+            return None
+        n = len(pts)
+        sx = sum(m for m, _ in pts)
+        sy = sum(v for _, v in pts)
+        sxx = sum(m * m for m, _ in pts)
+        sxy = sum(m * v for m, v in pts)
+        denom = n * sxx - sx * sx
+        if abs(denom) < 1e-12:
+            return None
+        return (n * sxy - sx * sy) / denom
+
 
 @dataclass(frozen=True)
 class RealizedVolMetrics:
@@ -323,6 +353,7 @@ class OptionIdea:
     filters_applied: list[FilterOutcome] = field(default_factory=list)
     data_status: str = "model_only"    # "model_only" | "chain_validated"
     spot: float | None = None          # underlying spot at generation (drives what-if)
+    iv_skew: float | None = None       # chain ∂IV/∂log-moneyness near ATM (sticky-moneyness what-if)
 
 
 @dataclass(frozen=True)

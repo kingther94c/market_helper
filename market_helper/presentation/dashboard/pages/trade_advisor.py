@@ -118,15 +118,18 @@ def _render_option_whatif(detail: dict) -> None:
     """Interactive payoff chart + bounded what-if controls (qty / IV / spot).
 
     Chart starts at the engine curve; moving a control re-prices via Black–Scholes
-    (a *model* view, independent of live quotes) and updates in place.
+    and updates in place. When the idea carries a chain skew (``iv_skew``), the
+    *Link IV to chain skew* toggle (default on) makes spot moves track the chain's
+    observed skew (sticky-moneyness) rather than holding IV flat.
     """
     chart = ui.plotly(payoff_figure(detail)).classes("w-full")
     spot0 = float(detail.get("spot") or 0.0)
     if spot0 <= 0:
         return  # no spot anchor → static chart only
 
+    chain_skew = detail.get("iv_skew")
     metrics = ui.label("").classes("text-caption")
-    ui.label("What-if · bounded · Black–Scholes re-price (model, independent of live quotes)").classes("text-caption pm-muted")
+    ui.label("What-if · bounded · Black–Scholes re-price (model view)").classes("text-caption pm-muted")
     with ui.row().classes("items-center gap-4 w-full wrap"):
         qty = ui.number("Contracts", value=1, min=1, max=20, step=1).props("dense").style("width: 110px")
         with ui.column().classes("gap-0"):
@@ -138,12 +141,21 @@ def _render_option_whatif(detail: dict) -> None:
             spot = ui.slider(
                 min=round(spot0 * 0.85, 2), max=round(spot0 * 1.15, 2), step=step, value=round(spot0, 2)
             ).props("label-always").style("width: 170px")
+        link_skew = None
+        if chain_skew is not None:
+            link_skew = ui.switch("Link IV to chain skew", value=True).props("dense")
+            link_skew.tooltip(
+                f"As spot moves, leg IV follows the chain skew ∂IV/∂lnK ≈ {float(chain_skew):+.2f} "
+                "(sticky-moneyness). Off = flat-vol model view."
+            )
 
     def recompute(_e=None) -> None:
+        use_skew = bool(link_skew.value) if link_skew is not None else False
         try:
             m = whatif_from_detail(
                 detail,
                 iv_shift=float(iv.value or 0.0),
+                iv_skew=(float(chain_skew) if (use_skew and chain_skew is not None) else 0.0),
                 spot_override=float(spot.value or spot0),
                 qty_scale=int(qty.value or 1),
             )
@@ -151,16 +163,18 @@ def _render_option_whatif(detail: dict) -> None:
             metrics.text = f"what-if error: {exc}"
             return
         g = m.get("net_greeks", {})
+        skew_note = " · IV tracks chain skew" if use_skew else ""
         metrics.text = (
             f"net {m['net_credit']:,.0f} · max loss {m['max_loss']:,.0f} · "
             f"max gain {m['max_gain']:,.0f} · BE {m['breakevens']} · "
-            f"Δ {g.get('delta', 0.0):.1f}  vega {g.get('vega', 0.0):.1f}"
+            f"Δ {g.get('delta', 0.0):.1f}  vega {g.get('vega', 0.0):.1f}{skew_note}"
         )
         chart.figure = _payoff_fig(m["payoff_curve"], m["breakevens"])
         chart.update()
 
-    for element in (qty, iv, spot):
-        element.on_value_change(recompute)
+    for element in (qty, iv, spot, link_skew):
+        if element is not None:
+            element.on_value_change(recompute)
 
 
 # --------------------------------------------------------------------------- #
