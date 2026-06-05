@@ -24,6 +24,8 @@ data/external/regime_detection/*.bak-*
 data/interim/fred/**
 data/interim/market_regime/**
 data/processed/*.json
+# Research harness raw-vendor caches (regenerable; keep the .json/.md/.csv records)
+data/research_artifacts/_*_cache/
 notebooks/dev_lab/**
 !notebooks/dev_lab/.gitkeep
 memory/archive/

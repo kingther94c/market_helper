@@ -385,11 +385,57 @@ Open near-term work:
      captures *rate*, not *acceleration*. A separate "deceleration" signal
      (velocity vs YoY divergence) could improve 2024 disinflation further.
 
-3. **Standing guardrail** — Keep ML layers (`macro_truth_ml`,
-   `return_truth_ml`) unavailable / zero-weight until model artifacts and
-   feature schemas are explicit. Do not emit fake ML outputs.
+3. **ML layers → unified `ML predictor` (new track).** The two gated SVM slots
+   (`macro_truth_ml`, `return_truth_ml`) are superseded by a single **ML
+   predictor at the allocation layer** — see *Regime-Aware Policy-Expert
+   Allocation Model* below. Until that predictor's feature schema + trained
+   artifacts are explicit, keep both slots unavailable / zero-weight and emit no
+   fake ML outputs; the new track is what legitimately un-gates them.
 
 Detail: `docs/architecture/devplans/regime_engine.md`.
+
+## Regime-Aware Policy-Expert Allocation Model (research, new track)
+
+**State**: spec'd. **Phase 1–2 rebuilt this session (clean-room)** — the prior
+session's harnesses were deliberately NOT reused; only the task + lessons were
+kept. Phases 3–6 (forward labels · ex-ante ML predictor · dynamic allocation ·
+OOS eval) not built. Full spec carried via the session goal + auto-memory
+(`inflation_tilt_v0_research.md`).
+
+**Idea**: 4 economically-interpretable **policy experts** from the Growth×Inflation
+quadrants (Goldilocks / Reflation / Stagflation / Recession), then an **ML
+predictor** that forecasts which expert outperforms forward (3/6/12M) from ex-ante
+macro+market features → soft allocation across experts. The oracle regime study is
+the **teacher / expert-discovery** step, not the tradable strategy; target =
+expert attractiveness, not regime naming. Sleeves EQ/CM/FI/MACRO/CASH; FI & MACRO
+as futures excess overlays (`R = cash·100% + Σ exposure·(sleeve−cash)`); portfolio
+vol ≤ 30% **cap** (not floor).
+
+**Lessons (do not rediscover)**: use **consensus-dated** regimes (the project
+engine's growth score lags/inverts — do not use its labels here); directional
+priors validated independently this session — Goldilocks EQ+long-dur, Reflation
+EQ+CM/low-FI, **Stagflation zero-EQ + CM + short-FI + trend** (NOT cash; the
+uniform **p10-floor** max-mean rule keeps CM), Recession low-EQ + long-dur + trend;
+MACRO trend is crisis alpha (EQ-diversifying in stress); **select on p10 across
+boundary-perturbed windows** (directional picks not date-overfit, only magnitudes
+shrink); **stagflation is data-thin** (2022 + 1990; no 1970s in 1985+ data) →
+heaviest caveat / most shrinkage.
+
+**ML predictor** = realization of the gated `macro_truth_ml` + `return_truth_ml`
+slots collapsed into one allocation-layer predictor (uses macro AND market/return
+features; predicts expert attractiveness, not regime truth; engine
+`macro_nowcast` / `market_implied` axes feed it as features). Reuse
+`engine_v2.py` / `ml.py` / `regime_engine.yml`; arch choice (a) third blended
+axis-layer vs (b) level-up allocation driver — spec points to **(b)**. Build at the
+Phase-4 milestone.
+
+**Artifacts (this session, clean-room)**: `scripts/research/policy_expert_data.py`
+(monthly EQ/CM/FI/MACRO/CASH panel + synthetic-10Y FI + TSMOM MACRO + futures-excess
+accounting) and `policy_expert_study.py` (consensus regimes + oracle + 400-draw
+boundary-perturbation robustness + uniform p10-floor expert selection → stagflation
+lands on the attack template). Records in
+`data/research_artifacts/policy_experts.{json,md}`; the 4 experts' full-sample
+monthly return series (the Phase-3 input) in `policy_expert_returns.csv`.
 
 ## Trade Advisor (integration)
 

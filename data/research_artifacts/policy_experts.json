@@ -1,0 +1,295 @@
+{
+  "meta": {
+    "sample": "1989-02 .. 2026-05 (448 months)",
+    "n_draws": 400,
+    "shift_months": 6,
+    "seed": 20260605,
+    "vol_cap_pct": 30.0,
+    "fi_smooth_cap": 150.0,
+    "selection_rule": "max mean s.t. p10 >= median p10 (uniform across regimes)",
+    "normal_ranges": {
+      "EQ": [
+        60,
+        100,
+        5
+      ],
+      "CM": [
+        0,
+        15,
+        5
+      ],
+      "MACRO": [
+        5,
+        10,
+        2.5
+      ],
+      "FI": [
+        50,
+        200,
+        5
+      ]
+    },
+    "stag_ranges": {
+      "EQ": [
+        0,
+        100,
+        5
+      ],
+      "CM": [
+        0,
+        15,
+        5
+      ],
+      "MACRO": [
+        5,
+        10,
+        2.5
+      ],
+      "FI": [
+        -100,
+        200,
+        5
+      ]
+    }
+  },
+  "experts": {
+    "Goldilocks": {
+      "EQ": 100.0,
+      "CM": 0.0,
+      "MACRO": 10.0,
+      "FI": 150.0
+    },
+    "Reflation": {
+      "EQ": 100.0,
+      "CM": 15.0,
+      "MACRO": 10.0,
+      "FI": 50.0
+    },
+    "Stagflation": {
+      "EQ": 0.0,
+      "CM": 15.0,
+      "MACRO": 10.0,
+      "FI": -100.0
+    },
+    "Recession": {
+      "EQ": 60.0,
+      "CM": 0.0,
+      "MACRO": 10.0,
+      "FI": 150.0
+    }
+  },
+  "regimes": {
+    "Goldilocks": {
+      "gi": "G\u2191 I\u2193",
+      "windows": [
+        [
+          "1995-01",
+          "1999-12"
+        ],
+        [
+          "2013-01",
+          "2019-09"
+        ]
+      ],
+      "sleeve_excess": {
+        "n_months": 141,
+        "EQ": 16.9,
+        "CM": -5.8,
+        "FI": 2.3,
+        "MACRO": 7.2,
+        "CASH_ann_pct": 2.6,
+        "corr_eq_fi": 0.05,
+        "corr_eq_cm": 0.27,
+        "corr_eq_macro": 0.31
+      },
+      "robust_corner": {
+        "EQ": 100.0,
+        "CM": 0.0,
+        "MACRO": 10.0,
+        "FI": 200.0,
+        "gross": 310.0,
+        "mean_ret_pct": 24.03,
+        "p10_ret_pct": 21.01,
+        "min_ret_pct": 15.97,
+        "mean_vol_pct": 17.29
+      },
+      "p10_floor_pct": 16.29,
+      "template": {
+        "EQ": 100.0,
+        "CM": 0.0,
+        "MACRO": 10.0,
+        "FI": 150.0
+      },
+      "template_full_sample": {
+        "gross": 260.0,
+        "leverage": 160.0,
+        "ann_return_pct": 15.79,
+        "ann_vol_pct": 17.35,
+        "max_dd_pct": -42.37
+      }
+    },
+    "Reflation": {
+      "gi": "G\u2191 I\u2191",
+      "windows": [
+        [
+          "2003-04",
+          "2006-06"
+        ],
+        [
+          "2009-04",
+          "2010-04"
+        ],
+        [
+          "2020-06",
+          "2021-11"
+        ]
+      ],
+      "sleeve_excess": {
+        "n_months": 70,
+        "EQ": 23.5,
+        "CM": 32.0,
+        "FI": -2.8,
+        "MACRO": 3.3,
+        "CASH_ann_pct": 1.3,
+        "corr_eq_fi": -0.0,
+        "corr_eq_cm": 0.2,
+        "corr_eq_macro": 0.05
+      },
+      "robust_corner": {
+        "EQ": 100.0,
+        "CM": 15.0,
+        "MACRO": 10.0,
+        "FI": 50.0,
+        "gross": 175.0,
+        "mean_ret_pct": 25.26,
+        "p10_ret_pct": 20.33,
+        "min_ret_pct": 13.49,
+        "mean_vol_pct": 13.88
+      },
+      "p10_floor_pct": 13.54,
+      "template": {
+        "EQ": 100.0,
+        "CM": 15.0,
+        "MACRO": 10.0,
+        "FI": 50.0
+      },
+      "template_full_sample": {
+        "gross": 175.0,
+        "leverage": 75.0,
+        "ann_return_pct": 13.7,
+        "ann_vol_pct": 15.94,
+        "max_dd_pct": -49.79
+      }
+    },
+    "Stagflation": {
+      "gi": "G\u2193 I\u2191",
+      "windows": [
+        [
+          "2022-01",
+          "2022-10"
+        ],
+        [
+          "1990-07",
+          "1990-10"
+        ]
+      ],
+      "sleeve_excess": {
+        "n_months": 14,
+        "EQ": -28.2,
+        "CM": 40.1,
+        "FI": -17.5,
+        "MACRO": 20.5,
+        "CASH_ann_pct": 3.3,
+        "corr_eq_fi": 0.44,
+        "corr_eq_cm": -0.02,
+        "corr_eq_macro": -0.46
+      },
+      "robust_corner": {
+        "EQ": 0.0,
+        "CM": 15.0,
+        "MACRO": 10.0,
+        "FI": -100.0,
+        "gross": -75.0,
+        "mean_ret_pct": 21.83,
+        "p10_ret_pct": 7.69,
+        "min_ret_pct": -7.22,
+        "mean_vol_pct": 10.23
+      },
+      "p10_floor_pct": -19.98,
+      "template": {
+        "EQ": 0.0,
+        "CM": 15.0,
+        "MACRO": 10.0,
+        "FI": -100.0
+      },
+      "template_full_sample": {
+        "gross": -75.0,
+        "leverage": -175.0,
+        "ann_return_pct": 1.14,
+        "ann_vol_pct": 7.56,
+        "max_dd_pct": -46.25
+      }
+    },
+    "Recession": {
+      "gi": "G\u2193 I\u2193",
+      "windows": [
+        [
+          "1990-11",
+          "1991-03"
+        ],
+        [
+          "2001-03",
+          "2001-11"
+        ],
+        [
+          "2008-07",
+          "2009-03"
+        ],
+        [
+          "2015-07",
+          "2016-02"
+        ],
+        [
+          "2020-02",
+          "2020-04"
+        ]
+      ],
+      "sleeve_excess": {
+        "n_months": 34,
+        "EQ": -16.4,
+        "CM": -54.7,
+        "FI": 14.8,
+        "MACRO": 9.8,
+        "CASH_ann_pct": 2.1,
+        "corr_eq_fi": -0.04,
+        "corr_eq_cm": 0.56,
+        "corr_eq_macro": -0.44
+      },
+      "robust_corner": {
+        "EQ": 60.0,
+        "CM": 0.0,
+        "MACRO": 10.0,
+        "FI": 200.0,
+        "gross": 270.0,
+        "mean_ret_pct": 16.41,
+        "p10_ret_pct": 7.7,
+        "min_ret_pct": 1.11,
+        "mean_vol_pct": 19.96
+      },
+      "p10_floor_pct": -7.46,
+      "template": {
+        "EQ": 60.0,
+        "CM": 0.0,
+        "MACRO": 10.0,
+        "FI": 150.0
+      },
+      "template_full_sample": {
+        "gross": 220.0,
+        "leverage": 120.0,
+        "ann_return_pct": 12.5,
+        "ann_vol_pct": 12.81,
+        "max_dd_pct": -37.51
+      }
+    }
+  }
+}
