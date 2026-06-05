@@ -554,11 +554,27 @@ def _render_regime_detail_for_state(
     """
     if state.view_model is not None:
         return render_regime_detail_section(
-            state.view_model,
+            _attach_policy_allocation(state.view_model),
             parent_as_of=parent_as_of,
             with_subnav=True,
         )
     return _render_regime_unavailable_card(state)
+
+
+def _attach_policy_allocation(view_model):
+    """Attach the advisory policy-expert ML allocation overlay for the dashboard
+    Regime tab (spec architecture (b): an allocation-layer driver one level up from
+    the regime engine, not a blended axis-layer). Fully graceful -- any failure
+    leaves the view-model unchanged, so the panel is simply omitted.
+    """
+    try:
+        import dataclasses
+
+        from market_helper.regimes.policy_expert_predictor import predict_latest
+
+        return dataclasses.replace(view_model, policy_allocation=predict_latest())
+    except Exception:  # noqa: BLE001 -- advisory overlay must never break the report
+        return view_model
 
 
 def _render_regime_unavailable_summary(state: RegimeArtifactState) -> str:

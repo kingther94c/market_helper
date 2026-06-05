@@ -7,10 +7,13 @@ import json
 from collections import Counter
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from market_helper.common.datetime_display import format_local_datetime
 from market_helper.reporting._design_tokens import design_tokens_css
+
+if TYPE_CHECKING:  # annotation only -- avoids a reporting<->regimes import at runtime
+    from market_helper.regimes.policy_expert_predictor import PolicyExpertPrediction
 
 
 @dataclass(frozen=True)
@@ -140,6 +143,9 @@ class RegimeHtmlViewModel:
     data_mode: str | None = None
     available_primary_layers: list[str] = field(default_factory=list)
     missing_primary_layers: list[str] = field(default_factory=list)
+    # Allocation-layer overlay (spec choice (b)); attached only on the combined
+    # dashboard path. None => panel omitted (standalone CLI / tests).
+    policy_allocation: "PolicyExpertPrediction | None" = None
 
 
 def build_regime_html_view_model(
@@ -296,6 +302,57 @@ def _render_v2_hero(view_model: RegimeHtmlViewModel, *, stale_tag: str) -> str:
     )
 
 
+def _render_policy_allocation_panel(view_model: RegimeHtmlViewModel) -> str:
+    """Allocation-layer ML overlay: a soft mix across the 4 policy experts + the
+    resulting target sleeve exposures, from ex-ante macro+market features. Advisory /
+    read-only. Returns "" when not attached (standalone CLI / tests). When attached but
+    the model artifact is unavailable, renders an explainer (never a fake number)."""
+    pred = view_model.policy_allocation
+    if pred is None:
+        return ""
+    if not getattr(pred, "available", False):
+        return (
+            "<section class='panel regime-v2-alloc regime-alloc-unavailable'>"
+            "<header class='regime-panel__header'>"
+            "<h2>Policy-Expert Allocation (ML)</h2>"
+            "<span class='regime-panel__meta'>advisory &middot; read-only</span></header>"
+            f"<p class='regime-alloc__note'>Predictor unavailable ({html.escape(str(pred.reason))}). "
+            "Re-run <code>scripts/research/policy_expert_model.py</code> to refresh the "
+            "model artifact and feature panel.</p></section>"
+        )
+    experts = sorted(pred.expert_allocation.items(), key=lambda kv: -kv[1])
+    expert_cells = "".join(
+        f"<div class='mini-stat'><span>{html.escape(k)}</span>"
+        f"<strong>{v * 100:.0f}%</strong></div>"
+        for k, v in experts
+    )
+    sleeve_cells = "".join(
+        f"<div class='mini-stat'><span>{s}{' (dur)' if s == 'FI' else ''}</span>"
+        f"<strong>{pred.sleeve_weights.get(s, 0.0):+.0f}</strong></div>"
+        for s in ("EQ", "CM", "FI", "MACRO")
+    )
+    return (
+        "<section class='panel regime-v2-alloc'>"
+        "<header class='regime-panel__header'>"
+        "<h2>Policy-Expert Allocation (ML)</h2>"
+        f"<span class='regime-panel__meta'>{html.escape(pred.model_name)} &middot; "
+        f"as of {html.escape(pred.as_of)} &middot; {pred.horizon_months}M horizon</span>"
+        "</header>"
+        f"<p class='regime-alloc__lead'>Leaning toward the <b>{html.escape(pred.top_expert)}</b> "
+        f"expert ({pred.confidence * 100:.0f}% weight). Soft mixture across the four "
+        "Growth&times;Inflation policy experts predicted from ex-ante macro + market "
+        "features.</p>"
+        "<h3>Expert mixture</h3>"
+        f"<div class='regime-v2-alloc__grid'>{expert_cells}</div>"
+        "<h3>Target sleeve exposure (%)</h3>"
+        f"<div class='regime-v2-alloc__grid'>{sleeve_cells}</div>"
+        "<p class='regime-alloc__note'>Advisory only &mdash; read-only with respect to the "
+        "broker (no order entry). FI &amp; MACRO are futures excess-return overlays; "
+        "verdict MONITOR (see the policy-expert research report).</p>"
+        "</section>"
+    )
+
+
 def _render_v2_detail(view_model: RegimeHtmlViewModel, *, with_subnav: bool) -> str:
     groups = [
         ("verdict", "Verdict & Disagreement", _render_v2_disagreement(view_model)),
@@ -305,6 +362,11 @@ def _render_v2_detail(view_model: RegimeHtmlViewModel, *, with_subnav: bool) -> 
             _render_v2_axis_panel(view_model)
             + _render_v2_layer_detail(view_model)
             + _render_v2_concept_panel(view_model),
+        ),
+        (
+            "allocation",
+            "Policy-Expert Allocation (ML)",
+            _render_policy_allocation_panel(view_model),
         ),
         (
             "overlay",
@@ -1670,6 +1732,11 @@ def regime_section_styles() -> str:
     .num-muted { color: var(--muted-ink); font-family: var(--font-num); font-size: 12px; margin-left: 6px; }
 
     .regime-v2-risk__grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 10px; }
+    .regime-v2-alloc__grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 10px; margin-bottom: 6px; }
+    .regime-v2-alloc h3 { font-size: 12px; text-transform: uppercase; letter-spacing: 0.04em; color: var(--muted-ink); margin: 12px 0 6px; }
+    .regime-alloc__lead { margin: 4px 0 8px; color: var(--ink-2); }
+    .regime-alloc__note { margin-top: 10px; font-size: 12px; color: var(--muted-ink); }
+    .regime-alloc-unavailable { border-left: 4px solid var(--border-soft); }
     .mini-stat { border: 1px solid var(--border-soft); border-radius: 8px; padding: 10px 12px; background: var(--surface); }
     .mini-stat span { display: block; color: var(--muted-ink); font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em; }
     .mini-stat strong { display: block; margin-top: 4px; font-size: 17px; font-weight: 700; font-variant-numeric: tabular-nums; }

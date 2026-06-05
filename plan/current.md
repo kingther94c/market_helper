@@ -407,9 +407,17 @@ P6 = walk-forward backtest vs 9 baselines + **HTML research report**
 (`policy_expert_report.html`). **Verdict: MONITOR** — MoE Sharpe 0.69 vs 0.61
 best-static & maxDD −27% vs −42% (beats 6/8 classic baselines), but a simple
 cash-in-stagflation rule (0.82) is competitive → ML's edge is risk-adjusted
-crisis-tilting, advisory-only. **Phase 7 (productionize the ML predictor into the
-dashboard Regime section)** pending — the goal's second deliverable. Full spec via the
-session goal + auto-memory (`inflation_tilt_v0_research.md`).
+crisis-tilting, advisory-only. **Phase 7 DONE** — the ML predictor runs live in the
+**dashboard Regime tab**: a new "Policy-Expert Allocation (ML)" panel (allocation-layer
+overlay, spec choice (b)) via `portfolio_html._attach_policy_allocation` →
+`market_helper/regimes/policy_expert_predictor.predict_latest` (pure-Python, graceful,
+advisory / read-only; the dormant `macro_truth_ml` / `return_truth_ml` slots are left
+gated — see ADR 0006). **Both goal deliverables shipped**: `policy_expert_report.html`
+(research report) + the live dashboard panel (preview:
+`policy_expert_dashboard_preview.html`). **Verdict: MONITOR.** Optional follow-ups:
+futures-financing/transaction-cost audit; live feature refresh on a schedule; reassess
+vs the simple cash-in-stagflation rule. Full spec via the session goal + auto-memory
+(`inflation_tilt_v0_research.md`).
 
 **Idea**: 4 economically-interpretable **policy experts** from the Growth×Inflation
 quadrants (Goldilocks / Reflation / Stagflation / Recession), then an **ML

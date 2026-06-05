@@ -393,3 +393,47 @@ def test_v2_heat_strip_maps_neutral_mixed_states_to_regime_classes(tmp_path: Pat
     assert "title='2026-05-04 · Up / Neutral/Mixed'" in fragment
     assert "regime-cell--stagflation" in fragment
     assert "regime-cell--goldilocks" in fragment
+
+
+def _minimal_v2_vm(**overrides):
+    from market_helper.reporting.regime_html import RegimeHtmlViewModel
+
+    base = dict(
+        schema="regime-engine-v2", as_of="2026-05", regime="Goldilocks",
+        scores={"GROWTH": 0.3, "INFLATION": -0.05}, method_agreement=None,
+        crisis_flag=False, crisis_intensity=None, duration_days=None,
+        methods=[], timeline=[], regime_counts={},
+    )
+    base.update(overrides)
+    return RegimeHtmlViewModel(**base)
+
+
+def test_policy_allocation_panel_renders_when_attached() -> None:
+    from market_helper.regimes.policy_expert_predictor import PolicyExpertPrediction
+
+    pred = PolicyExpertPrediction(
+        available=True, as_of="2026-05", model_name="ridge", horizon_months=6,
+        top_expert="Stagflation", confidence=0.42,
+        expert_allocation={"Goldilocks": 0.2, "Reflation": 0.18,
+                           "Stagflation": 0.42, "Recession": 0.2},
+        sleeve_weights={"EQ": 30.0, "CM": 12.0, "FI": -40.0, "MACRO": 10.0},
+    )
+    fragment = render_regime_section_body(_minimal_v2_vm(policy_allocation=pred))
+    assert "Policy-Expert Allocation (ML)" in fragment
+    assert "Stagflation" in fragment
+    assert "Target sleeve exposure" in fragment
+    assert "read-only with respect to the broker" in fragment
+
+
+def test_policy_allocation_panel_omitted_when_absent() -> None:
+    fragment = render_regime_section_body(_minimal_v2_vm())
+    assert "Policy-Expert Allocation" not in fragment
+
+
+def test_policy_allocation_panel_unavailable_card_is_graceful() -> None:
+    from market_helper.regimes.policy_expert_predictor import PolicyExpertPrediction
+
+    pred = PolicyExpertPrediction(False, reason="model artifact not found")
+    fragment = render_regime_section_body(_minimal_v2_vm(policy_allocation=pred))
+    assert "Policy-Expert Allocation (ML)" in fragment
+    assert "unavailable" in fragment.lower()

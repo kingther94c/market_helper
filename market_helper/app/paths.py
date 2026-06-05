@@ -16,3 +16,10 @@ ARTIFACTS_DIR = DATA_DIR / "artifacts"
 PORTFOLIO_ARTIFACTS_DIR = ARTIFACTS_DIR / "portfolio_monitor"
 REGIME_ARTIFACTS_DIR = ARTIFACTS_DIR / "regime_detection"
 INTEGRATION_ARTIFACTS_DIR = ARTIFACTS_DIR / "integration"
+
+# Research artifacts (committed, tracked). The policy-expert ML predictor reads its
+# trained model + the latest ex-ante feature row from here to render the dashboard's
+# allocation-layer panel (no live network in the render path).
+RESEARCH_ARTIFACTS_DIR = DATA_DIR / "research_artifacts"
+POLICY_EXPERT_MODEL_ARTIFACT_PATH = RESEARCH_ARTIFACTS_DIR / "policy_expert_model_artifact.json"
+POLICY_EXPERT_FEATURES_PATH = RESEARCH_ARTIFACTS_DIR / "policy_expert_features.csv"
