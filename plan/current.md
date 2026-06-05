@@ -419,27 +419,21 @@ Open near-term work:
 
 Detail: `docs/architecture/devplans/regime_engine.md`.
 
-## Trade Advisor (integration)
+## Trade Advisor (LLM `advise` experiment — reviewed, not adopted)
 
-**State**: MVP landed. Read-only (no order entry).
-
-- **`advise` CLI → markdown advisory.** New `market_helper.cli.main advise`
-  command reads the latest position report CSV + (optional) regime snapshot
-  JSON, asks an OpenAI-compatible advisor endpoint (a local OpenClaw gateway
-  backed by Codex/ChatGPT OAuth, model `openclaw/trade-advisor`) for a
-  structured advisory (thesis / biggest risk / drift / actionable
-  considerations), and writes a markdown artifact. Thin facade
-  `workflows/generate_trade_advisory.py` → domain service
-  `domain/integration/services/trade_advisor.py`. The network boundary is
-  `post_chat_completion` (stdlib `urllib`, no new dependency), monkeypatched
-  in tests. The prompt tells the model to use only the provided
-  portfolio/regime and ignore remembered account facts (mitigates ChatGPT
-  account-memory bleed into advisories). Token resolves arg → `OPENCLAW_GATEWAY_TOKEN` env → local.env;
-  endpoint defaults to `http://127.0.0.1:18789/v1`; `--model` selects the
-  shared (`openclaw/trade-advisor`) or isolated/panel
-  (`openclaw/trade-advisor-panel`) agent; `--session-key` opts into
-  server-side memory continuity. Tests: `tests/unit/cli/test_advise_command.py`,
-  `tests/unit/domain/integration/services/test_trade_advisor.py`.
+A paused experiment (`e91d3ea`, openclaw_thinking_partner) added an `advise`
+CLI that POSTed a positions+regime prompt to an external **LLM endpoint** (a
+local OpenClaw gateway, Codex/ChatGPT OAuth) and wrote a free-form markdown
+advisory. On review it was **removed** (`market_helper/domain/integration/
+services/trade_advisor.py`, `workflows/generate_trade_advisory.py`, the `advise`
+CLI command, the `OPENCLAW_GATEWAY_TOKEN` env, and their tests): an opaque LLM
+advisory is the **opposite** of this umbrella's deliberate design — rule-based,
+explainable, bounded controls, no AI/NLP free-form (a standing hard constraint
+and an explicit Non-goal). Its one design-aligned kernel — *use the live regime
+snapshot as context* — was **salvaged the rule-based way** as
+`application/trade_advisor/regime_seed.py` (see the umbrella polish-pass notes
+below), which defaults the `/advisor` regime controls from the engine's own
+fields with no model in the loop.
 
 ## Trade Advisor (umbrella)
 

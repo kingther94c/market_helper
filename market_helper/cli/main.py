@@ -25,11 +25,6 @@ from market_helper.workflows.generate_report import (
     generate_security_reference_sync,
 )
 from market_helper.workflows.generate_regime_html import generate_regime_html_report
-from market_helper.workflows.generate_trade_advisory import (
-    DEFAULT_ENDPOINT_BASE_URL,
-    DEFAULT_MODEL,
-    generate_trade_advisory,
-)
 from market_helper.workflows.generate_regime import run_regime_engine_v2_detection
 from market_helper.workflows.regime_calibration import run_regime_v2_calibration
 from market_helper.workflows.run_regime_report import (
@@ -491,43 +486,6 @@ def build_parser() -> argparse.ArgumentParser:
         help="Path to output security-reference CSV seed.",
     )
 
-    advise = subparsers.add_parser(
-        "advise",
-        help="Generate an LLM trade advisory (markdown) from a position CSV + regime snapshot via the OpenClaw advisor endpoint.",
-    )
-    advise.add_argument("--positions-csv", required=True, help="Path to position report CSV.")
-    advise.add_argument(
-        "--regime",
-        required=False,
-        default="data/artifacts/regime_detection/regime_snapshots.json",
-        help="Optional regime snapshots JSON path. A missing file is tolerated.",
-    )
-    advise.add_argument("--output", required=True, help="Path to output markdown advisory.")
-    advise.add_argument(
-        "--advisor-endpoint",
-        required=False,
-        default=DEFAULT_ENDPOINT_BASE_URL,
-        help=f"OpenAI-compatible advisor endpoint base URL. Defaults to {DEFAULT_ENDPOINT_BASE_URL}.",
-    )
-    advise.add_argument(
-        "--model",
-        required=False,
-        default=DEFAULT_MODEL,
-        help=f"Advisor model/agent id (e.g. openclaw/trade-advisor or openclaw/trade-advisor-panel). Defaults to {DEFAULT_MODEL}.",
-    )
-    advise.add_argument(
-        "--session-key",
-        required=False,
-        default=None,
-        help="Optional x-openclaw-session-key for server-side memory continuity.",
-    )
-    advise.add_argument(
-        "--advisor-token",
-        required=False,
-        default=None,
-        help="Optional bearer token. Falls back to OPENCLAW_GATEWAY_TOKEN env var or local.env.",
-    )
-
     return parser
 
 
@@ -849,23 +807,6 @@ def main(argv: Sequence[str] | None = None) -> int:
         except (FileNotFoundError, ValueError) as exc:
             print(f"regime-html-report: {exc}", file=sys.stderr)
             return 2
-        return 0
-
-    if args.command == "advise":
-        try:
-            advisory_path = generate_trade_advisory(
-                positions_csv_path=Path(args.positions_csv),
-                regime_path=Path(args.regime) if args.regime else None,
-                output_path=Path(args.output),
-                endpoint_base_url=args.advisor_endpoint,
-                model=args.model,
-                session_key=args.session_key,
-                advisor_token=args.advisor_token,
-            )
-        except (FileNotFoundError, ValueError, RuntimeError) as exc:
-            print(f"advise: {exc}", file=sys.stderr)
-            return 2
-        print(f"advisory={advisory_path}")
         return 0
 
     parser.error(f"Unsupported command: {args.command}")
