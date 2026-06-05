@@ -11,6 +11,34 @@ context is in `memory/archive/` (gitignored, not read by default).
 
 Recent landed work (one-liners; full detail in
 `memory/archive/landed/portfolio_monitor_landed.md`):
+- **FX Hedging Advisor (Risk → FX).** New advisor that converts a USD/SGD hedge
+  amount (default = funded USD AUM, "full AUM exposure") into a target FX
+  allocation across liquid CME FX futures (EUR/GBP/AUD/JPY/CNH vs USD). Weekly
+  (W-FRI) log-return OLS of the SGD/USD spot return on the instruments' spot
+  returns gives the hedge ratios (betas); these × notional → USD-per-contract →
+  whole contracts (halves away from zero), with front-IMM-quarter expiry and
+  indicative carry from configured ON rates. **Conventions** ([ADR 0006](../docs/decisions/0006-fx-hedge-regression-convention.md)):
+  value-in-USD price basis (USD per unit; the inverse of `fx_usdsgd_eod`), so a
+  positive beta ⇒ long the foreign future / short USD = the correct hedge for a
+  USD-overexposed SGD investor. Live validation: R²≈0.88, all betas positive,
+  CNH+EUR dominant (matches SGD's MAS basket). Yahoo has no long *daily* CNH
+  history, so onshore `CNY=X` proxies the CNH-future beta (traded instrument is
+  still the CME USD/CNH future). Owns a JSON artifact
+  (`data/artifacts/portfolio_monitor/fx_hedge/fx_hedge_allocation.json`) behind
+  a regime-style provider (`provide_fx_hedge_allocation`, modes cached /
+  refresh-if-stale[30d] / force-refresh); `computed_fresh` drives the
+  "Freshly computed / Loaded from cache (N days old)" badge. Renders as a card
+  under the **Risk** section (`reporting/fx_hedge_html.py`), always-on
+  (ok/stale/missing/error → explainer card), with an explicit conventions block.
+  New CLI `fx-hedge-report` (force-refresh default); plain risk/report flows
+  resolve the path to None and skip the provider (no side-effect Yahoo fetch).
+  Files: `domain/portfolio_monitor/services/fx_hedge_advisor.py`,
+  `reporting/fx_hedge_html.py`, `configs/portfolio_monitor/fx_hedge_advisor.yml`,
+  wiring in `contracts.py` / `application/.../services.py` / `portfolio_html.py`
+  / `cli/main.py` / `workflows/generate_report.py`. Devplan:
+  `docs/architecture/devplans/fx_hedge_advisor.md`. Tests: new
+  `test_fx_hedge_advisor.py` (24) + `test_fx_hedge_html.py` (4) + combined-html
+  FX assertions; full unit suite green (601 passed, 1 skipped).
 - **Regime FRED empty-window no-op (root-cause fix for the recurring
   "Regime engine failed: FRED download failed for UNRATE" breakage).** The
   incremental macro sync sets `observation_start = last_cached_obs + 1 day`, so
@@ -412,6 +440,160 @@ Detail: `docs/architecture/devplans/regime_engine.md`.
   (`openclaw/trade-advisor-panel`) agent; `--session-key` opts into
   server-side memory continuity. Tests: `tests/unit/cli/test_advise_command.py`,
   `tests/unit/domain/integration/services/test_trade_advisor.py`.
+
+## Trade Advisor (umbrella)
+
+**State**: **M1–M6 all landed** — umbrella hosts **four** advisors (Option,
+Roll, FX Hedging + carry tilt, Trade Ideas) under one bounded-control UI;
+decision journal + Inbox + cross-device snapshot; real-book seeding; CBOE cache;
+how-to doc. Full unit suite green (672). Acceptance review:
+
+| # | Bar item | Status | Evidence |
+|---|---|---|---|
+| 1 | Open & understand, no docs | ✅ | `/advisor` → Run → ranked cards (label/economics/why-now); browser-verified on live CBOE |
+| 2 | Real book + live data; graceful | ✅ | "Use my portfolio" seeds held stk/opt + AUM; watchlist-only fallback w/ note; FX missing → actionable INFO |
+| 3 | Fully explained + what-if==engine | ✅ | full per-idea fields; live what-if re-price; `what-if==engine` unit test |
+| 4 | Decision journal → Inbox → snapshot | ✅ | Proceed persisted (JSONL), Inbox updated, snapshot HTML written — browser + headless |
+| 5 | All advisors, one UI, zero-UI-to-add | ✅ | Option/Roll/FX(+carry)/Ideas via registry; INFO cards render; 5th = adapter only |
+| 6 | Snapshot mirrors cross-device | ✅ | snapshot HTML + GDrive mirror helper; interactive stays localhost/Tailscale |
+| 7 | Responsive; suite green | ✅ | async (no freeze) + CBOE cache + 12s timeout; 672 passed / 1 skipped, 71 TA tests |
+| 8 | Docs current | ✅ | devplan + `docs/operations/trade_advisor_howto.md`; plan reflects reality |
+
+Non-goals respected: no order entry; bounded controls (no free-form/NLP); no
+opaque ML / optimizer; no new UI framework; single-operator; no tick infra.
+
+**Polish pass (2026-06-04)** — four reviewable increments on top of M1–M6:
+- **What-if spot ↔ chain skew (sticky-moneyness).** Each idea carries the
+  chain's observed skew (`ChainSnapshot.atm_skew` → `OptionIdea.iv_skew`); a
+  bounded "Link IV to chain skew" toggle (default on) makes the spot slider move
+  each leg's IV along that skew (`Δiv = iv_skew·ln(base/spot)`) instead of holding
+  it flat. `iv_skew=0` preserves the load-bearing `what-if == engine` invariant.
+- **Earnings feed → EventRisk.** `domain/option_advisor/earnings.py` (pure
+  `event_risk_from_dates` core + graceful yfinance wrapper) finally populates the
+  long-dormant `EventRisk`; wired through `signals`/`service`/adapter with a
+  `fetch_events` flag, a per-symbol `earnings=` override, a dashboard "Check
+  earnings" switch, and a `--events` CLI flag. Surfaces in the card headline
+  (days-to-earnings), the `event_risk` audit filter, and the ranking event-safety
+  term.
+- **Dedicated detail bodies for FX / Roll.** Card detail now dispatches on
+  `body_kind`: FX alloc → hedge-legs table + totals; FX carry → ranking table;
+  Roll → position facts grid; option → existing payoff/Greeks. Previously FX/Roll
+  cards opened to an empty body (the generic loop only read option `legs`). Pure
+  row/fact builders are unit-tested; ui.* wrappers stay thin.
+- **Coverage + review.** +35 tests (skew, earnings incl. ranking event-safety,
+  body builders, an adapter→body **contract** test pinning detail keys). Code
+  review found the structure already well-layered — no large refactor needed;
+  fixed a `_num` integer-spec sign-drop bug found while adding the FX table.
+  Full unit suite green.
+- **Regime auto-seed (`application/trade_advisor/regime_seed.py`).**
+  `current_regime_seed()` reads the latest regime snapshot and defaults the
+  `/advisor` *Regime* / *Confidence* / *Crisis* controls (`base_regime` →
+  dropdown, `confidence` → High/Medium/Low, `risk_overlay_on` → crisis), still
+  user-overridable. Rule-based, no model in the loop — the explainable
+  counterpart to "have the LLM read the regime". Best-effort: missing/malformed
+  artifact or an unrecognised label → empty seed (manual entry). 7 tests.
+
+Earlier milestone notes (umbrella **M1 landed** = shared contract + registry + option adapter);
+two component engines **built** — Option Advisor + FX Hedging Advisor.
+
+- **M1 landed** — `market_helper/trade_advisor/`: `Advisor` protocol, shared
+  `Suggestion`/`AdvisorResult`/`AdvisorContext` contracts, `AdvisorRegistry`, and
+  the option-advisor adapter (registered in place, zero behavior change). The
+  option engine now speaks the umbrella's uniform suggestion shape. 8 tests;
+  full unit suite green (635 passed).
+- **M2 landed** — interactive **NiceGUI `/advisor` page** (wired into
+  `create_app`): bounded-control inputs (selects / number / switches — **no free
+  text**) → Run → ranked idea cards (PROCEED→MONITOR→REJECT) → expandable
+  **Plotly payoff** + Greeks + sizing + full **audit trail** + **live what-if**
+  (bounded qty / IV / spot controls re-price via Black–Scholes;
+  `whatif`/`whatif_from_detail` in `option_advisor.structures`). Orchestration in
+  `application/trade_advisor/` (cross-advisor inbox, graceful per-advisor
+  failure). **Browser-verified** end-to-end on **live CBOE** data: 9 SPY/QQQ
+  ideas, `data mode: live_chain`, cards + payoff chart + audit all render, no
+  server errors. `what-if == engine` unit test passes. Full suite green (646).
+- **M3 landed** — decision journal (`trade_advisor/journal.py`, append-only JSONL
+  under `data/artifacts/trade_advisor/`): `/advisor` cards carry
+  Proceed/Monitor/Reject + note → persist → cross-advisor **Inbox**; each
+  decision regenerates a static **snapshot HTML**
+  (`reporting/trade_advisor_html.py`) written + mirrored cross-device via the
+  existing GDrive helper. Persist→inbox→snapshot verified end-to-end (unit +
+  headless). Full suite green (654).
+- **M4 landed** — **Roll Reminder** advisor (`trade_advisor/adapters/roll.py`):
+  reads `context.held_options` → DTE / ITM / short-ITM assignment flags + roll
+  suggestions; registered so it shows up in `/advisor` + the Inbox with **zero
+  advisor-specific UI** (page runs all registered advisors). Proves "adding an
+  advisor needs no UI work" (#5). 5 tests; full suite green (659).
+- **Real-book seeding (#2) landed** — `context_from_positions_csv`
+  (`application/trade_advisor/portfolio.py`) derives real held stocks + held
+  options + funded AUM from the live positions CSV (classify by `internal_id`
+  prefix; AUM = stock + cash, excl. options/futures; held options parsed from
+  `option_*` cols + OSI `local_symbol`). `/advisor` gains a **"Use my portfolio
+  (live positions)"** toggle (default on) → Option + Roll run on the real book;
+  degrades gracefully to a watchlist-only scan when no live CSV. Also fixed a
+  latent run()-render arity bug from the M3 signature change. 2 tests; full
+  suite green (661).
+- **M5 landed** — **FX Hedging** advisor folded into the umbrella
+  (`trade_advisor/adapters/fx_hedge.py`): wraps the existing FX hedge engine,
+  cached-by-default (no network; on-demand `refresh=True` force-recomputes) →
+  emits a hedge-target suggestion + an **FX Carry Tilt** sub-module (rank ccys by
+  overnight-rate carry). Third advisor, zero advisor-specific UI; INFO fallback
+  when no allocation cached. 5 tests; full suite green (666).
+- **M6 landed** — **Trade Ideas** advisor (4th; regime-aligned sleeve tilt via
+  `suggest.quadrant_policy`, advisory per ADR 0006) → all four advisors under one
+  UI. Plus #7 a short-TTL **CBOE response cache** + tighter timeout (re-runs
+  instant; throttled CDN fails fast to fallback) and #8 a **how-to doc**
+  (`docs/operations/trade_advisor_howto.md`). 6 tests; full suite green (672).
+
+- **Plan** at [`docs/architecture/devplans/trade_advisor.md`](../docs/architecture/devplans/trade_advisor.md):
+  a `market_helper/trade_advisor/` umbrella that turns portfolio + market +
+  regime context into ranked, read-only trade *ideas* across a family of
+  advisors (Option [built]; FX Hedging [built] — spans report + interactive,
+  with an FX Carry Tilt sub-module; Roll Reminder; general Trade Ideas; + a
+  registry for more) behind **one shared suggestion contract** and **one
+  interactive GUI**. Goal-altitude: fixes objective / hard constraints / UI +
+  interaction design; leaves mechanics to per-milestone passes. Key UX: an
+  interactive NiceGUI "Advisor" page (inputs → run → ranked cards → **live
+  what-if** payoff/greeks/sizing recompute → Proceed/Monitor/Reject journal)
+  plus a static snapshot in the combined report. Milestones M1–M6.
+
+### Option Advisor (component #1)
+
+**State**: MVP **landed and runnable** (M1+M2). Advisory-only, read-only.
+Design memo: [`docs/architecture/devplans/option_advisor.md`](../docs/architecture/devplans/option_advisor.md).
+
+- **Module** `market_helper/domain/option_advisor/`: pure-stdlib Black–Scholes
+  (`pricing.py`, `statistics.NormalDist` — **zero new deps**), frozen-dataclass
+  contracts, a multi-provider data layer (`providers.py`), and the
+  `signals → candidates → filters → ranking → service` pipeline. Runnable CLI:
+  `python -m market_helper.domain.option_advisor SYM... [--aum --hold SYM:QTY
+  --regime --override SYM:spot=..,iv=.. --json out.json]`. YAML rules at
+  `configs/option_advisor/advisor_rules.yaml` (no-code tuning, mirrors
+  `quadrant_policy.yml`).
+- **Real option-chain data, not just a fallback**: community research (15+
+  sources) + live IBKR probe. Primary = **CBOE delayed JSON** (free, no key,
+  full greeks+IV+OI via stdlib `urllib`) — verified live on SPY/QQQ/AAPL.
+  Fallback = yfinance (greeks computed locally). Final fallback = **synthetic
+  vol-surface** from spot + ATM IV with research-backed skew/term defaults
+  (skew ≈ −0.12 index, 1/√T decay); **user can override spot and IV**. IBKR
+  underlying snapshot (spot / ATM-IV / IV-rank) verified via MCP; in-repo
+  `ib_async` chain adapter is M5.
+- **Honesty tagging**: `data_mode` (live_chain / live_anchored / synthetic /
+  user_override); model-only ideas are capped at MONITOR and never PROCEED.
+  PROCEED/MONITOR/REJECT labels carry a per-idea filter audit trail; sizing caps
+  to a % of funded AUM (excludes options/futures, per the AUM gotcha).
+- 26 hermetic unit tests (pricing/greeks, synthetic skew, structure payoff,
+  filters/sizing, ranking, regime gate). **Full unit suite green (611 passed).**
+- **Scope**: [ADR 0007](../docs/decisions/0007-option-advisor-advisory-scope.md)
+  (advisory in scope; broker execution out, per ADR 0001) — **Accepted** on the
+  user's directive to build a runnable version. Read-only invariant intact: the
+  advisor only fetches public data and emits ideas, never orders.
+- **Next (M3+)**: combined-report HTML section + dashboard (ReportSection
+  wiring); M4 historical backtest vs buy-and-hold / covered-call / protective-put
+  baselines + cost/assignment sensitivity; M5 `ib_async` live chain + IV-rank
+  cache. **Earnings feed landed** (polish pass, 2026-06-04): a best-effort
+  yfinance next-earnings lookup populates `EventRisk` → audit + ranking
+  event-safety; the synthetic-only `MONITOR`→`PROCEED` promotion remains a
+  deliberate honesty gate (model data never auto-proceeds).
 
 ## Repository governance
 

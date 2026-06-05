@@ -1,0 +1,111 @@
+# FX Hedging Advisor configuration.
+#
+# Estimates a target FX hedge allocation for an SGD-base investor whose AUM is
+# USD-denominated. The investor is long USD vs SGD (their SGD wealth rises when
+# USD strengthens). There is no liquid SGD future, so the USD/SGD exposure is
+# hedged with a basket of liquid CME FX futures (EUR/GBP/AUD/JPY/CNH vs USD),
+# whose weights come from a weekly-return regression of the SGD/USD spot return
+# on the candidate instruments' spot returns.
+#
+# CONVENTIONS (load-bearing — keep explicit):
+#   * Every spot series is normalised to USD per 1 unit of the foreign currency
+#     (the currency's *value in USD*). `invert: true` flips a Yahoo quote that
+#     is expressed the other way (e.g. SGD=X is USDSGD = SGD per USD, so we
+#     invert to USD per SGD). This differs from `fx_usdsgd_eod` (SGD per USD)
+#     elsewhere in the repo — the value-in-USD basis makes futures notional
+#     math and hedge direction natural.
+#   * Returns are weekly log returns on the resampled (Friday-close) series.
+#   * Positive beta => the foreign currency co-moves with SGD against USD =>
+#     hedging the USD/SGD exposure means going LONG that foreign future
+#     (equivalently, short USD). Notionals are signed (long +, short -).
+#
+# Contract sizes are CME spec. EUR/GBP/AUD/JPY futures are sized in units of the
+# foreign currency (USD notional per contract = size x spot USD/unit). The
+# Standard-Size USD/CNH future is sized directly in USD (usd_sized: true), so its
+# USD notional per contract is fixed at the contract size regardless of spot.
+
+fx_hedge_advisor:
+  base_currency: SGD
+
+  target:
+    pair: "USD/SGD"            # display label for the hedged exposure
+    currency: SGD
+    yahoo_symbol: "SGD=X"      # Yahoo SGD=X == USDSGD (SGD per USD)
+    invert: true               # -> USD per SGD (value of SGD in USD)
+
+  return_convention:
+    price_basis: usd_per_unit  # all spot normalised to USD per 1 unit of currency
+    frequency: "W-FRI"         # weekly, Friday close (pandas offset alias)
+    overlapping: false         # false = non-overlapping calendar weeks (honest SEs)
+    return_method: log         # log returns
+    lookback_weeks: 156        # ~3 years of weekly observations
+    min_observations: 52       # refuse to fit on fewer than ~1y of weeks
+
+  cache:
+    max_age_days: 30           # reuse a cached run <= 30 days old; else recompute
+
+  # Fallback hedge notional (USD) when the live funded AUM is unavailable. The
+  # combined report passes the risk view-model's funded_aum_usd; this is only
+  # used for standalone runs with no portfolio context.
+  default_hedge_notional_usd: 1000000.0
+
+  # Indicative overnight (ON) financing rates per currency, annualised decimals.
+  # Carry is SHOWN, not optimised (V1 non-goal). These are configured indicative
+  # values — edit `as_of` and the rates when you refresh them. Expected annual
+  # carry of a long-foreign / short-USD leg ~= notional_usd x (on_rate - USD ON).
+  on_rates:
+    as_of: "2026-05-01"
+    source: "configured (indicative overnight rates; edit in fx_hedge_advisor.yml)"
+    USD: 0.043
+
+  instruments:
+    - currency: EUR
+      label: "EUR/USD (6E)"
+      futures_root: "6E"
+      yahoo_symbol: "EURUSD=X"   # USD per EUR
+      invert: false
+      contract_size: 125000
+      contract_size_currency: EUR
+      usd_sized: false
+      on_rate: 0.025
+    - currency: GBP
+      label: "GBP/USD (6B)"
+      futures_root: "6B"
+      yahoo_symbol: "GBPUSD=X"   # USD per GBP
+      invert: false
+      contract_size: 62500
+      contract_size_currency: GBP
+      usd_sized: false
+      on_rate: 0.045
+    - currency: AUD
+      label: "AUD/USD (6A)"
+      futures_root: "6A"
+      yahoo_symbol: "AUDUSD=X"   # USD per AUD
+      invert: false
+      contract_size: 100000
+      contract_size_currency: AUD
+      usd_sized: false
+      on_rate: 0.035
+    - currency: JPY
+      label: "JPY/USD (6J)"
+      futures_root: "6J"
+      yahoo_symbol: "JPY=X"      # Yahoo JPY=X == USDJPY (JPY per USD)
+      invert: true               # -> USD per JPY
+      contract_size: 12500000
+      contract_size_currency: JPY
+      usd_sized: false
+      on_rate: 0.005
+    - currency: CNH
+      label: "USD/CNH (CNH)"
+      futures_root: "CNH"
+      # Return-estimation feed. Yahoo serves no long *daily* history for the
+      # offshore CNH tickers (CNH=X / USDCNH=X are intraday-only). Onshore
+      # CNY=X (USDCNY, CNY per USD) has history back to 2001 and tracks CNH
+      # spot returns very closely, so it proxies the CNH-future beta. The
+      # *traded* instrument is still the CME Standard-Size USD/CNH future.
+      yahoo_symbol: "CNY=X"      # USDCNY (CNY per USD); proxy for offshore CNH
+      invert: true               # -> USD per CNY
+      contract_size: 100000      # Standard-Size USD/CNH is sized in USD
+      contract_size_currency: USD
+      usd_sized: true
+      on_rate: 0.018

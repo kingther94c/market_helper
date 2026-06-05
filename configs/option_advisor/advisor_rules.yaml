@@ -1,0 +1,36 @@
+# Option Advisor rules — YAML-driven, merged over in-code DEFAULT_RULES
+# (market_helper/domain/option_advisor/config.py). Edit here to retune strategy
+# enablement, strike/DTE targets, filter thresholds, ranking weights, and regime
+# gates WITHOUT changing code. See docs/architecture/devplans/option_advisor.md.
+
+version: "1"
+
+strategies:
+  covered_call:      { enabled: true,  target_delta: 0.30, dte: 35, min_round_lots: 1 }
+  cash_secured_put:  { enabled: true,  target_delta: 0.27, dte: 35 }
+  protective_put:    { enabled: true,  target_delta: 0.15, dte: 75, hedge_weight_trigger: 0.08 }
+  collar:            { enabled: true,  put_delta: 0.20, call_delta: 0.25, dte: 60 }
+  call_spread:       { enabled: true,  long_delta: 0.40, short_delta: 0.20, dte: 40 }
+  put_spread:        { enabled: true,  long_delta: 0.40, short_delta: 0.20, dte: 40 }
+
+filters:
+  min_premium_over_costs: 1.5    # net credit must clear (commission + half-spread) x this
+  commission_per_contract: 0.65
+  max_notional_pct_aum: 0.05     # sizing cap on FUNDED AUM (excludes options/futures)
+  max_spread_pct: 0.15           # hard reject above this worst-leg bid/ask spread
+  thin_oi: 50                    # soft flag below this minimum open interest
+  earnings_block_days: 7         # soft flag if a known event falls within the trade
+
+ranking:
+  weights:
+    yield_or_efficiency: 0.40
+    regime_align: 0.25
+    liquidity_conf: 0.20
+    event_penalty: 0.15
+  max_proceed: 8                 # top-N PROCEED; the rest become MONITOR
+
+regime_gates:
+  # Don't sell upside (covered calls / CSPs) when strongly risk-on.
+  suppress_income_when: ["Goldilocks:High"]
+  # Bias toward hedges in defensive/crisis regimes (suppresses bullish call spreads).
+  hedge_bias_when: ["crisis_flag", "Deflationary Slowdown", "Stagflation"]

@@ -14,6 +14,7 @@ from market_helper.application.portfolio_monitor.contracts import (
 from market_helper.workflows.generate_report import (
     generate_combined_html_report,
     generate_etf_sector_sync,
+    generate_fx_hedge_report,
     generate_ibkr_flex_performance_report,
     generate_ibkr_position_report,
     generate_live_ibkr_position_report,
@@ -177,6 +178,35 @@ def build_parser() -> argparse.ArgumentParser:
         default="historical",
         choices=["historical", "corr_0", "corr_1"],
         help="Inter-asset-class correlation assumption used to aggregate asset-class loadings into portfolio vol.",
+    )
+
+    fx_hedge_report = subparsers.add_parser(
+        "fx-hedge-report",
+        help="Compute the SGD-base FX hedge allocation (Risk → FX) into a JSON artifact.",
+    )
+    fx_hedge_report.add_argument(
+        "--output",
+        required=False,
+        help="Optional artifact path. Defaults to data/artifacts/portfolio_monitor/fx_hedge/fx_hedge_allocation.json.",
+    )
+    fx_hedge_report.add_argument(
+        "--config",
+        required=False,
+        help="Optional FX hedge advisor YAML config path.",
+    )
+    fx_hedge_report.add_argument(
+        "--mode",
+        required=False,
+        default="force-refresh",
+        choices=["cached", "refresh-if-stale", "force-refresh"],
+        help="cached = load only; refresh-if-stale = recompute when >30d old; force-refresh (default) = always recompute.",
+    )
+    fx_hedge_report.add_argument(
+        "--hedge-notional",
+        required=False,
+        type=float,
+        default=None,
+        help="USD notional to hedge. Defaults to the configured default_hedge_notional_usd.",
     )
 
     security_reference_sync = subparsers.add_parser(
@@ -638,6 +668,30 @@ def main(argv: Sequence[str] | None = None) -> int:
             vol_method=inputs.vol_method,
             inter_asset_corr=inputs.inter_asset_corr,
         )
+        return 0
+    if args.command == "fx-hedge-report":
+        state = generate_fx_hedge_report(
+            output_path=Path(args.output) if args.output else None,
+            config_path=Path(args.config) if args.config else None,
+            mode=args.mode,
+            hedge_notional_usd=args.hedge_notional,
+        )
+        if state.allocation is None:
+            print(f"FX hedge allocation unavailable ({state.state}): {state.error_message}")
+            return 1
+        alloc = state.allocation
+        print(f"FX hedge allocation - {alloc.hedge_target_pair} [{state.source_label}]")
+        print(
+            f"  notional=${alloc.hedge_notional_usd:,.0f} ({alloc.hedge_notional_source})"
+            f"  R2={alloc.regression.get('r_squared', 0.0):.3f}"
+            f"  window={alloc.data_window.get('start')} to {alloc.data_window.get('end')}"
+        )
+        for leg in alloc.legs:
+            print(
+                f"  {leg.instrument:<16} beta={leg.beta:+.3f}  "
+                f"target=${leg.target_notional_usd:,.0f}  contracts={leg.target_contracts:+d}  "
+                f"expiry={leg.expiry}"
+            )
         return 0
     if args.command == "security-reference-sync":
         generate_security_reference_sync(

@@ -17,6 +17,7 @@ from market_helper.application.portfolio_monitor import (
     PortfolioMonitorQueryService,
 )
 from market_helper.presentation.dashboard.pages.portfolio import register_portfolio_page
+from market_helper.presentation.dashboard.pages.trade_advisor import register_trade_advisor_page
 
 _ROOT_REGISTERED = False
 _PROCESS_POOL_PATCHED = False
@@ -42,6 +43,7 @@ def create_app(
     global _ROOT_REGISTERED
 
     register_portfolio_page(query_service=query_service, action_service=action_service)
+    register_trade_advisor_page()
     if not _ROOT_REGISTERED:
         @nicegui_app.get("/")
         async def root_redirect() -> RedirectResponse:
