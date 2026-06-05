@@ -26,6 +26,10 @@ python -m market_helper.domain.option_advisor NVDA \
 
 ## Run an advisor
 
+The `/advisor` page has two parallel tabs you select between: **Rule-based** (the
+default, always-on, zero-AI surface described here) and **AI+** (an optional
+synthesis layer — see below). The rule-based tab:
+
 1. **Inputs** (all bounded controls — there's no free-text/AI box):
    - *Use my portfolio (live positions)* — on by default: seeds your real held
      stocks + options + funded AUM from the live positions report. Off → use the
@@ -42,6 +46,27 @@ python -m market_helper.domain.option_advisor NVDA \
 3. Results come back as **ranked cards**, grouped **PROCEED → MONITOR → REJECT**,
    with a **data-mode banner** (live / synthetic / cached) so you always know how
    real the numbers are.
+
+## AI+ tab (optional)
+
+The **AI+** tab is a *parallel, opt-in* layer over the rule-based engine — it
+never replaces it. It takes the same bounded inputs (your book + regime), **runs
+the rule-based advisors**, then sends the portfolio + regime + those ideas to
+your **local OpenClaw gateway** for a synthesized read (positioning, which ideas
+matter most, the biggest risk, what the rules miss). Output is display-only
+**analysis, never orders**.
+
+- **Enable it**: set `OPENCLAW_GATEWAY_TOKEN` (process env or
+  `configs/portfolio_monitor/local.env`) and start the OpenClaw gateway. Without
+  a token the tab shows a "disabled" explainer; the rule-based tab is unaffected.
+  Endpoint/model default to `http://127.0.0.1:18789/v1` / `openclaw/trade-advisor`
+  (override via `OPENCLAW_GATEWAY_URL` / `OPENCLAW_TRADE_ADVISOR_MODEL` or the
+  bounded **AI model** select).
+- **Controls stay bounded** (no free-text prompt box): Universe / Held / AUM /
+  Regime, an *AI model* select, and an *Include rule-based ideas as context*
+  switch. Click **Generate AI advisory**.
+- It's a *second opinion* on the deterministic ideas — the rule-based cards
+  remain the explainable source of truth.
 
 ## Read a card
 
@@ -77,7 +102,11 @@ static **snapshot** that mirrors cross-device (review-only, no controls).
   triage, recorded as notes — nothing is sent to the broker.
 - Model-only data (synthetic chain / overrides) is **capped at MONITOR** and the
   banner says so; it never masquerades as a live quote.
-- Rule-based and explainable — no opaque ML, no optimizer.
+- The **Rule-based** tab is explainable — no opaque ML, no optimizer; it's the
+  default and source of truth. The **AI+** tab is an *opt-in, clearly-labelled*
+  second opinion that synthesizes those rule-based ideas via your own local
+  OpenClaw gateway; it's analysis-only (never orders), display-only (the model's
+  text is shown, not executed), and off unless you set `OPENCLAW_GATEWAY_TOKEN`.
 - Sizing is a share of **funded AUM** (stock-like + cash; excludes
   options/futures).
 - If a data source is slow/unavailable the run degrades gracefully (cached or

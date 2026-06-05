@@ -419,21 +419,38 @@ Open near-term work:
 
 Detail: `docs/architecture/devplans/regime_engine.md`.
 
-## Trade Advisor (LLM `advise` experiment — reviewed, not adopted)
+## Trade Advisor (AI+ — opt-in parallel layer)
 
-A paused experiment (`e91d3ea`, openclaw_thinking_partner) added an `advise`
-CLI that POSTed a positions+regime prompt to an external **LLM endpoint** (a
-local OpenClaw gateway, Codex/ChatGPT OAuth) and wrote a free-form markdown
-advisory. On review it was **removed** (`market_helper/domain/integration/
-services/trade_advisor.py`, `workflows/generate_trade_advisory.py`, the `advise`
-CLI command, the `OPENCLAW_GATEWAY_TOKEN` env, and their tests): an opaque LLM
-advisory is the **opposite** of this umbrella's deliberate design — rule-based,
-explainable, bounded controls, no AI/NLP free-form (a standing hard constraint
-and an explicit Non-goal). Its one design-aligned kernel — *use the live regime
-snapshot as context* — was **salvaged the rule-based way** as
-`application/trade_advisor/regime_seed.py` (see the umbrella polish-pass notes
-below), which defaults the `/advisor` regime controls from the engine's own
-fields with no model in the loop.
+**State**: landed (`market_helper/trade_advisor/ai/` + `/advisor` AI+ tab).
+
+History: a first LLM `advise` **CLI** experiment (`e91d3ea`,
+openclaw_thinking_partner) was reviewed and **removed** — a bare LLM advisory
+bolted on as a CLI clashed with the umbrella's design (rule-based, explainable,
+bounded controls). Its one design-aligned kernel — *use the live regime snapshot
+as context* — was salvaged the rule-based way as
+`application/trade_advisor/regime_seed.py` (no model in the loop).
+
+On the operator's direction, AI was then **re-introduced the right way**: a
+*parallel, opt-in* layer, never replacing the rule-based engine, selectable via a
+**tab** on `/advisor`.
+- `trade_advisor/ai/gateway.py` — OpenAI-compatible OpenClaw client (network
+  boundary `post_chat_completion`, stdlib urllib). Config from env (defaults
+  `http://127.0.0.1:18789/v1`, `openclaw/trade-advisor`); token resolves
+  explicit → `OPENCLAW_GATEWAY_TOKEN` env → local.env, **never logged / never in
+  a URL**. `GatewayAuthMissing` keeps AI+ off until a token is set.
+- `trade_advisor/ai/advisor.py` — summarizes the **rule-based ideas** + book +
+  regime into a prompt (pinned to provided data, forbids order output) →
+  `request_ai_advisory` → `AiAdvisory`. So AI+ is "+": it synthesizes the
+  deterministic engine's output, which remains the source of truth.
+- `/advisor` now has **Rule-based** (default) and **AI+** tabs. AI+ reuses the
+  shared `build_run_context`, runs the rule-based advisors, then renders the
+  gateway's advisory (`ui.markdown`, display-only) with model/token metadata and
+  an "analysis only, not orders" banner. Graceful: no token / unreachable
+  gateway → explainer card; the rule-based tab is unaffected. Controls stay
+  bounded (model select + include-ideas switch; no free-text prompt).
+- Tests: `tests/unit/trade_advisor/ai/` (gateway token precedence, bearer-not-in-
+  URL, transport errors, prompt guards, advisory parse) + `build_run_context` /
+  `AI_MODELS` page tests.
 
 ## Trade Advisor (umbrella)
 
