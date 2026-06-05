@@ -1,0 +1,48 @@
+<!doctype html><html><head><meta charset='utf-8'><meta name='viewport' content='width=device-width,initial-scale=1'><title>Regime-Aware Policy-Expert Allocation</title><style>
+body{font:15px/1.55 -apple-system,Segoe UI,Roboto,Arial,sans-serif;color:#1c2330;
+ max-width:1040px;margin:0 auto;padding:28px 22px;background:#fafbfc}
+h1{font-size:25px;margin:.2em 0}h2{font-size:19px;margin-top:1.7em;border-bottom:2px solid #e6e9ee;padding-bottom:5px}
+h3{font-size:15px;margin-top:1.2em;color:#34405a}
+.sub{color:#6b7488;margin-top:-.4em}
+table{border-collapse:collapse;width:100%;margin:.6em 0;font-size:13.5px}
+th,td{border:1px solid #e2e6ec;padding:5px 9px;text-align:right}
+th{background:#f0f3f7;text-align:right}td:first-child,th:first-child{text-align:left}
+.tag{display:inline-block;padding:1px 8px;border-radius:10px;font-size:12px;font-weight:600}
+.good{background:#e3f5ea;color:#1d7a44}.warn{background:#fdf3df;color:#9a6a12}.bad{background:#fde6e6;color:#b3322c}
+.verdict{border-left:5px solid #d99a2b;background:#fffaf0;padding:14px 18px;margin:1em 0;border-radius:0 6px 6px 0}
+.note{color:#6b7488;font-size:13px}.mono{font-family:ui-monospace,Menlo,Consolas,monospace}
+.best{font-weight:700;background:#eef7f0}
+ul{margin:.4em 0}li{margin:.2em 0}
+</style></head><body>
+<h1>Regime-Aware Policy-Expert Allocation &mdash; Research Report</h1>
+<p class='sub'>Economically-interpretable policy experts from Growth&times;Inflation regimes, an ex-ante ML predictor of which expert outperforms, and a soft mixture-of-experts allocation. Walk-forward, vs investable baselines.</p>
+<div class='verdict'><b>Verdict: <span class='tag warn'>MONITOR</span></b><br>The ML mixture-of-experts improves risk-adjusted return over standard investable baselines (Sharpe 0.69 vs 0.61 for the best single static expert; max-drawdown -27.49% vs -42.37%), with the edge concentrated in crisis de-risking (2008, 2022). But a simple <i>cash-in-stagflation</i> heuristic achieves a comparable/better Sharpe (0.82), so the ML's marginal value over a well-chosen rule is modest. Deploy as an <b>advisory</b> signal, track live, reassess vs the simple rule. Read-only with respect to the broker.</div>
+<h2>1. Data &amp; accounting</h2>
+<p>Monthly, 1989-02 .. 2026-05 (448 months). Sleeves: EQ = S&amp;P 500 TR (<span class='mono'>^SP500TR</span>), CM = S&amp;P GSCI (<span class='mono'>^SPGSCI</span>), FI = synthetic constant-maturity 10Y from FRED <span class='mono'>GS10</span> (par-bond duration/convexity), CASH = <span class='mono'>TB3MS</span>, MACRO = TSMOM trend proxy (vol-scaled ~10%). FI &amp; MACRO are futures excess-return overlays. Accounting: <span class='mono'>R = cash&middot;100% + &Sigma; exposure&middot;(sleeve&minus;cash)</span>.</p>
+<h2>2. The four policy experts (oracle teacher step)</h2>
+<p class='note'>Consensus-dated regimes (the project regime engine's lagging growth score is deliberately not used). Robust selection = max mean s.t. p10 &ge; median p10 over 400 boundary-perturbed windows, the <b>same rule in every regime</b> &mdash; so stagflation lands on the attack template (short duration + commodities + trend), not cash-insurance. Smoothed to round, defensible exposures.</p>
+<table><thead><tr><th>Expert (G&amp;times;I)</th><th>EQ</th><th>CM</th><th>MACRO</th><th>FI (dur)</th></tr></thead><tbody><tr><td>Goldilocks</td><td>100.0</td><td>0.0</td><td>10.0</td><td>150.0</td></tr><tr><td>Reflation</td><td>100.0</td><td>15.0</td><td>10.0</td><td>50.0</td></tr><tr><td>Stagflation</td><td>0.0</td><td>15.0</td><td>10.0</td><td>-100.0</td></tr><tr><td>Recession</td><td>60.0</td><td>0.0</td><td>10.0</td><td>150.0</td></tr></tbody></table>
+<h2>3. Labels &amp; 4. Ex-ante predictor</h2>
+<p>Forward expert returns at 3 / <b>6 (primary)</b> / 12 months &rarr; four label families (winner / winner-with-margin / softmax / direct cross-sectional excess). Predictor: <b>22 ex-ante features</b> (point-in-time; macro lagged +1 month) across inflation / growth / policy / rates / credit / risk / momentum / stress / trend. Multi-output Ridge predicting forward expert returns; alpha by an <b>embargoed time-series CV</b> (heavy shrinkage is essential &mdash; a naive low-alpha fit overfits the autocorrelated overlapping targets and goes negative).</p>
+<h3>Out-of-sample skill (walk-forward, [&#x27;2000-06&#x27;, &#x27;2025-10&#x27;])</h3>
+<table><thead><tr><th>metric</th><th>value</th></tr></thead><tbody><tr><td>months</td><td>305</td></tr><tr><td>pooled rank IC</td><td>0.198</td></tr><tr><td>top-1 accuracy (4 classes)</td><td>0.318</td></tr><tr><td>predicted-best beats equal-weight</td><td>63%</td></tr><tr><td>excess captured (predicted-best)</td><td>1.62%</td></tr><tr><td>baseline: always-Goldilocks</td><td>2.03%</td></tr><tr><td>best possible (perfect foresight)</td><td>6.95%</td></tr></tbody></table>
+<p class='note'>Genuine positive cross-sectional skill (IC &approx;0.20), but always-Goldilocks is a strong sample baseline &mdash; the predictor's value is risk-adjusted, not raw capture.</p>
+<h2>5. Allocation &amp; backtest vs baselines</h2>
+<p>Soft mixture-of-experts: W<sub>sleeve</sub> = &Sigma;<sub>k</sub> alloc<sub>k</sub> &middot; expert<sub>k</sub>, with turnover smoothing (EWMA), vol targeting (15% target, 30% cap), and cash-on-low-confidence. Walk-forward [&#x27;2000-06&#x27;, &#x27;2025-10&#x27;].</p>
+<table><thead><tr><th>strategy</th><th>ret %</th><th>vol %</th><th>Sharpe</th><th>maxDD %</th><th>Calmar</th><th>turnover %</th></tr></thead><tbody><tr><td>Cash-in-stagflation</td><td>13.76</td><td>14.62</td><td>0.82</td><td>-23.73</td><td>0.58</td><td>10.3</td></tr><tr><td>Risk parity</td><td>5.84</td><td>5.6</td><td>0.72</td><td>-11.96</td><td>0.49</td><td>1.9</td></tr><tr class="best"><td>MoE (this model)</td><td>8.89</td><td>10.25</td><td>0.69</td><td>-27.49</td><td>0.32</td><td>6.0</td></tr><tr><td>MoE no-MACRO</td><td>8.44</td><td>10.2</td><td>0.65</td><td>-28.13</td><td>0.3</td><td>5.9</td></tr><tr><td>MoE no-leverage</td><td>5.99</td><td>6.58</td><td>0.63</td><td>-21.27</td><td>0.28</td><td>2.9</td></tr><tr><td>Equal-weight experts</td><td>8.52</td><td>10.72</td><td>0.62</td><td>-31.16</td><td>0.27</td><td>0.0</td></tr><tr><td>Best static (Goldilocks)</td><td>12.14</td><td>16.89</td><td>0.61</td><td>-42.37</td><td>0.29</td><td>0.0</td></tr><tr><td>All-weather</td><td>5.75</td><td>6.67</td><td>0.59</td><td>-21.05</td><td>0.27</td><td>0.0</td></tr><tr><td>Static SAA (80/5/15)</td><td>7.68</td><td>12.46</td><td>0.47</td><td>-42.94</td><td>0.18</td><td>0.0</td></tr><tr><td>Simple trend (MACRO)</td><td>6.83</td><td>10.54</td><td>0.47</td><td>-26.98</td><td>0.25</td><td>0.0</td></tr></tbody></table>
+<h3>Stress-episode attribution (MoE vs always-Goldilocks, total return)</h3>
+<table><thead><tr><th>episode</th><th>MoE</th><th>Goldilocks</th></tr></thead><tbody><tr><td>2008 GFC</td><td>-14.7%</td><td>-17.5%</td></tr><tr><td>2020 COVID</td><td>+10.1%</td><td>+17.1%</td></tr><tr><td>2022 Stagflation</td><td>-19.3%</td><td>-31.1%</td></tr></tbody></table>
+<p class='note'>The MoE protects in 2008 and especially 2022 (stagflation tilt); it gives up upside in the 2020 V-recovery (de-risked into the vol spike) &mdash; the honest cost of risk management.</p>
+<h2>6. Robustness &amp; limitations</h2><ul>
+<li><b>Experts are full-sample oracle templates</b> (the teacher step) &mdash; static vectors, but their regime dating is in-sample; only the predictor is walk-forward. Raw MoE return therefore inherits some in-sample optimism.</li>
+<li><b>Heavy shrinkage required</b>: the predictor only has positive skill with strong regularization (embargoed-CV alpha &asymp;1000-3000); low alpha overfits.</li>
+<li><b>Stagflation is data-thin</b> (2022 + 1990; the 1970s predate tradable data) &mdash; the most fragile conclusion; carries the heaviest caveat.</li>
+<li><b>A simple cash-in-stagflation rule is competitive</b> &mdash; much of the ML's value is automating crisis de-risking a heuristic also captures.</li>
+<li><b>Frictionless</b>: futures financing spread / transaction costs not yet charged (turnover is modest, ~6%/mo for the MoE).</li></ul>
+<h2>7. What is robust vs tentative</h2><ul>
+<li><span class='tag good'>robust directional</span> inflation-up shorts duration / favors commodities + trend; growth drives EQ. MACRO trend is crisis alpha.</li>
+<li><span class='tag warn'>tentative template</span> the exact expert exposure sizes (in-sample ceilings shrunk to round numbers).</li>
+<li><span class='tag warn'>statistically-supported signal</span> the predictor's cross-sectional IC (&approx;0.198) with heavy shrinkage.</li>
+<li><span class='tag bad'>not yet implementation-ready</span> deploy advisory-only; add cost/financing audit and live tracking before any capital decision.</li></ul>
+<p class='note'>Generated from committed artifacts: policy_experts.json, policy_expert_model.json, policy_expert_backtest.json. Reproduce via scripts/research/policy_expert_*.py. No execution; read-only re the broker.</p>
+</body></html>
