@@ -21,6 +21,7 @@ from nicegui import ui
 from market_helper.application.trade_advisor import (
     TradeAdvisorService,
     context_from_positions_csv,
+    current_regime_seed,
     default_decision_journal,
     write_decision_snapshot,
 )
@@ -456,9 +457,16 @@ def register_trade_advisor_page(*, registry=None) -> None:
                 sym_sel = ui.select(LIQUID_UNIVERSE, value=["SPY", "QQQ"], multiple=True, label="Universe").props("use-chips").classes("w-full")
                 held_sel = ui.select(LIQUID_UNIVERSE, value=["SPY"], multiple=True, label="Treat as held (100 sh)").props("use-chips").classes("w-full")
                 aum_in = ui.number("AUM (USD)", value=250_000, min=0, step=10_000, format="%.0f").classes("w-full")
-                regime_sel = ui.select(REGIME_OPTIONS, value="", label="Regime").classes("w-full")
-                conf_sel = ui.select(CONFIDENCE_OPTIONS, value="", label="Confidence").classes("w-full")
-                crisis_sw = ui.switch("Crisis overlay", value=False)
+                seed = current_regime_seed()  # default the regime controls to the live snapshot (overridable)
+                regime_sel = ui.select(REGIME_OPTIONS, value=seed.regime, label="Regime").classes("w-full")
+                conf_sel = ui.select(CONFIDENCE_OPTIONS, value=seed.confidence, label="Confidence").classes("w-full")
+                crisis_sw = ui.switch("Crisis overlay", value=seed.crisis)
+                if seed.is_seeded:
+                    ui.label(
+                        f"Regime auto-seeded from latest snapshot: {seed.regime}"
+                        f"{' · ' + seed.confidence if seed.confidence else ''}"
+                        f"{' · stress overlay' if seed.crisis else ''} (override above)"
+                    ).classes("text-caption pm-muted")
                 rv_sw = ui.switch("Fetch realized vol (slower)", value=False)
                 earnings_sw = ui.switch("Check earnings (slower)", value=False)
                 portfolio_sw = ui.switch("Use my portfolio (live positions)", value=True)

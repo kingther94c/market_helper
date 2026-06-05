@@ -463,6 +463,13 @@ opaque ML / optimizer; no new UI framework; single-operator; no tick infra.
   review found the structure already well-layered — no large refactor needed;
   fixed a `_num` integer-spec sign-drop bug found while adding the FX table.
   Full unit suite green.
+- **Regime auto-seed (`application/trade_advisor/regime_seed.py`).**
+  `current_regime_seed()` reads the latest regime snapshot and defaults the
+  `/advisor` *Regime* / *Confidence* / *Crisis* controls (`base_regime` →
+  dropdown, `confidence` → High/Medium/Low, `risk_overlay_on` → crisis), still
+  user-overridable. Rule-based, no model in the loop — the explainable
+  counterpart to "have the LLM read the regime". Best-effort: missing/malformed
+  artifact or an unrecognised label → empty seed (manual entry). 7 tests.
 
 Earlier milestone notes (umbrella **M1 landed** = shared contract + registry + option adapter);
 two component engines **built** — Option Advisor + FX Hedging Advisor.

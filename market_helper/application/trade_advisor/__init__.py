@@ -6,6 +6,7 @@ concerns out of the domain engines (mirrors ``application/portfolio_monitor``).
 """
 
 from .portfolio import context_from_positions_csv
+from .regime_seed import RegimeSeed, current_regime_seed
 from .service import (
     TradeAdvisorRun,
     TradeAdvisorService,
@@ -19,4 +20,6 @@ __all__ = [
     "default_decision_journal",
     "write_decision_snapshot",
     "context_from_positions_csv",
+    "RegimeSeed",
+    "current_regime_seed",
 ]
