@@ -26,6 +26,13 @@ from market_helper.application.trade_advisor import (
     write_decision_snapshot,
 )
 from market_helper.domain.option_advisor.structures import whatif_from_detail
+from market_helper.trade_advisor.ai import (
+    GatewayAuthMissing,
+    GatewayConfig,
+    GatewayError,
+    request_ai_advisory,
+    resolve_gateway_token,
+)
 from market_helper.trade_advisor.contracts import (
     LABEL_INFO,
     LABEL_MONITOR,
@@ -44,6 +51,8 @@ LIQUID_UNIVERSE = [
 ]
 REGIME_OPTIONS = ["", "Goldilocks", "Reflation", "Stagflation", "Deflationary Slowdown"]
 CONFIDENCE_OPTIONS = ["", "High", "Medium", "Low"]
+# AI+ tab: bounded model choices (the OpenClaw gateway routes these ids to personas).
+AI_MODELS = ["openclaw/trade-advisor", "openclaw/trade-advisor-panel"]
 _LABEL_COLOR = {
     LABEL_PROCEED: "positive",
     LABEL_MONITOR: "warning",
@@ -88,6 +97,32 @@ def build_context(inp: AdvisorInputs) -> AdvisorContext:
 
 def option_run_params(inp: AdvisorInputs) -> dict:
     return {"option": {"fetch_realized": bool(inp.fetch_realized), "fetch_events": bool(inp.check_earnings)}}
+
+
+def build_run_context(inp: AdvisorInputs, *, use_portfolio: bool) -> tuple[AdvisorContext, str]:
+    """Resolve the advisor context (+ a short book note) from bounded inputs.
+
+    ``use_portfolio`` seeds held stock/options + funded AUM from the live
+    positions CSV (degrading to a watchlist-only scan when none is found);
+    otherwise the manual Universe / Held / AUM controls are used. Shared by the
+    rule-based and AI+ tabs so both see the same book.
+    """
+    if use_portfolio:
+        from dataclasses import replace as _replace
+
+        context = context_from_positions_csv(
+            watchlist=inp.symbols, regime_label=inp.regime,
+            regime_confidence=inp.confidence, crisis_flag=inp.crisis,
+        )
+        if context.aum is None:
+            context = _replace(context, aum=inp.aum)
+        book_note = (
+            f" · book: {len(context.holdings)} stk / {len(context.held_options)} opt"
+            if (context.holdings or context.held_options)
+            else " · no live positions found (watchlist only)"
+        )
+        return context, book_note
+    return build_context(inp), ""
 
 
 def _payoff_fig(curve, breakevens):
@@ -428,6 +463,176 @@ def _render_results(box, run_result, journal: DecisionJournal, on_decision) -> N
             _render_card(suggestion, journal, on_decision)
 
 
+def _render_ai_unavailable(box, message: str) -> None:
+    box.clear()
+    with box:
+        with ui.card().classes("w-full pm-card"):
+            ui.label("AI+ unavailable").classes("text-subtitle1")
+            ui.label(message).classes("text-caption pm-muted")
+
+
+def _render_ai_advisory(box, advisory, *, book_note: str = "", n_ideas: int = 0) -> None:
+    box.clear()
+    with box:
+        with ui.card().classes("w-full pm-card"):
+            with ui.row().classes("items-center gap-2"):
+                ui.badge("AI+", color="purple")
+                ui.label("AI-generated synthesis · analysis only, not orders").classes("text-caption pm-muted")
+            meta = f"model {advisory.model}"
+            if advisory.prompt_tokens is not None:
+                meta += f" · tokens {advisory.prompt_tokens}+{advisory.completion_tokens or 0}"
+            meta += f" · {n_ideas} rule-based ideas in context{book_note}"
+            ui.label(meta).classes("text-caption pm-muted")
+            # Display-only rendering of the gateway's own output (no execution).
+            ui.markdown(advisory.advice).classes("w-full")
+
+
+def _render_rule_based_tab(journal: DecisionJournal, refresh_inbox) -> None:
+    """The deterministic, no-AI advisor surface (inputs → run → ranked cards)."""
+    with ui.row().classes("w-full gap-4 items-start no-wrap"):
+        with ui.card().classes("p-4").style("min-width: 300px"):
+            ui.label("Inputs").classes("text-subtitle1")
+            sym_sel = ui.select(LIQUID_UNIVERSE, value=["SPY", "QQQ"], multiple=True, label="Universe").props("use-chips").classes("w-full")
+            held_sel = ui.select(LIQUID_UNIVERSE, value=["SPY"], multiple=True, label="Treat as held (100 sh)").props("use-chips").classes("w-full")
+            aum_in = ui.number("AUM (USD)", value=250_000, min=0, step=10_000, format="%.0f").classes("w-full")
+            seed = current_regime_seed()  # default the regime controls to the live snapshot (overridable)
+            regime_sel = ui.select(REGIME_OPTIONS, value=seed.regime, label="Regime").classes("w-full")
+            conf_sel = ui.select(CONFIDENCE_OPTIONS, value=seed.confidence, label="Confidence").classes("w-full")
+            crisis_sw = ui.switch("Crisis overlay", value=seed.crisis)
+            if seed.is_seeded:
+                ui.label(
+                    f"Regime auto-seeded from latest snapshot: {seed.regime}"
+                    f"{' · ' + seed.confidence if seed.confidence else ''}"
+                    f"{' · stress overlay' if seed.crisis else ''} (override above)"
+                ).classes("text-caption pm-muted")
+            rv_sw = ui.switch("Fetch realized vol (slower)", value=False)
+            earnings_sw = ui.switch("Check earnings (slower)", value=False)
+            portfolio_sw = ui.switch("Use my portfolio (live positions)", value=True)
+            run_btn = ui.button("Run advisor")
+            status = ui.label("").classes("text-caption pm-muted")
+
+        results_box = ui.column().classes("grow gap-3")
+
+    async def run() -> None:
+        run_btn.disable()
+        status.text = "Running…"
+        inp = AdvisorInputs(
+            symbols=list(sym_sel.value or []),
+            held=list(held_sel.value or []),
+            aum=float(aum_in.value or 0),
+            regime=regime_sel.value or "",
+            confidence=conf_sel.value or "",
+            crisis=bool(crisis_sw.value),
+            fetch_realized=bool(rv_sw.value),
+            check_earnings=bool(earnings_sw.value),
+        )
+        if not inp.symbols:
+            status.text = "Pick at least one symbol."
+            run_btn.enable()
+            return
+        context, book_note = build_run_context(inp, use_portfolio=bool(portfolio_sw.value))
+        try:
+            run_result = await asyncio.to_thread(
+                _SERVICE.run, context, advisors=None, params_by_advisor=option_run_params(inp)
+            )
+        except Exception as exc:  # noqa: BLE001 — surface, don't crash the page
+            status.text = f"Failed: {type(exc).__name__}: {exc}"
+            run_btn.enable()
+            return
+        _render_results(results_box, run_result, journal, refresh_inbox)
+        status.text = f"Done · {len(run_result.all_suggestions())} ideas{book_note}"
+        run_btn.enable()
+
+    run_btn.on_click(run)
+
+
+def _render_ai_tab() -> None:
+    """The opt-in AI+ surface: rule-based context + ideas → OpenClaw synthesis.
+
+    Parallel to (never replacing) the rule-based tab. Read-only — analysis text
+    only. Degrades to an explainer when the gateway token is unset/unreachable.
+    """
+    token_present = bool(resolve_gateway_token())
+    with ui.row().classes("w-full gap-4 items-start no-wrap"):
+        with ui.card().classes("p-4").style("min-width: 300px"):
+            ui.label("AI+ inputs").classes("text-subtitle1")
+            ui.label(
+                "Synthesizes the rule-based ideas + your book + regime via the local "
+                "OpenClaw gateway. Analysis only — never orders."
+            ).classes("text-caption pm-muted")
+            sym_sel = ui.select(LIQUID_UNIVERSE, value=["SPY", "QQQ"], multiple=True, label="Universe").props("use-chips").classes("w-full")
+            held_sel = ui.select(LIQUID_UNIVERSE, value=["SPY"], multiple=True, label="Treat as held (100 sh)").props("use-chips").classes("w-full")
+            aum_in = ui.number("AUM (USD)", value=250_000, min=0, step=10_000, format="%.0f").classes("w-full")
+            seed = current_regime_seed()
+            regime_sel = ui.select(REGIME_OPTIONS, value=seed.regime, label="Regime").classes("w-full")
+            conf_sel = ui.select(CONFIDENCE_OPTIONS, value=seed.confidence, label="Confidence").classes("w-full")
+            crisis_sw = ui.switch("Crisis overlay", value=seed.crisis)
+            portfolio_sw = ui.switch("Use my portfolio (live positions)", value=True)
+            model_sel = ui.select(AI_MODELS, value=AI_MODELS[0], label="AI model").classes("w-full")
+            include_ideas_sw = ui.switch("Include rule-based ideas as context", value=True)
+            gen_btn = ui.button("Generate AI advisory")
+            status = ui.label(
+                "" if token_present
+                else "AI+ disabled — set OPENCLAW_GATEWAY_TOKEN and start the OpenClaw gateway."
+            ).classes("text-caption pm-muted")
+
+        out_box = ui.column().classes("grow gap-3")
+
+    async def generate() -> None:
+        gen_btn.disable()
+        status.text = "Thinking…"
+        out_box.clear()
+        inp = AdvisorInputs(
+            symbols=list(sym_sel.value or []),
+            held=list(held_sel.value or []),
+            aum=float(aum_in.value or 0),
+            regime=regime_sel.value or "",
+            confidence=conf_sel.value or "",
+            crisis=bool(crisis_sw.value),
+        )
+        if not inp.symbols:
+            status.text = "Pick at least one symbol."
+            gen_btn.enable()
+            return
+        context, book_note = build_run_context(inp, use_portfolio=bool(portfolio_sw.value))
+        suggestions: list[Suggestion] = []
+        if include_ideas_sw.value:
+            try:
+                run_result = await asyncio.to_thread(_SERVICE.run, context, advisors=None)
+                suggestions = run_result.all_suggestions()
+            except Exception:  # noqa: BLE001 — AI can still run on context alone
+                suggestions = []
+        config = GatewayConfig.from_env(model=str(model_sel.value or AI_MODELS[0]))
+        try:
+            advisory = await asyncio.to_thread(
+                request_ai_advisory, context=context, suggestions=suggestions, config=config,
+            )
+        except GatewayAuthMissing:
+            _render_ai_unavailable(
+                out_box,
+                "AI+ needs OPENCLAW_GATEWAY_TOKEN. Set it in the environment or local.env, "
+                "then start the OpenClaw gateway.",
+            )
+            status.text = "AI+ disabled (no token)."
+            gen_btn.enable()
+            return
+        except GatewayError as exc:
+            _render_ai_unavailable(out_box, f"Could not reach the OpenClaw gateway: {exc}")
+            status.text = "Gateway error."
+            gen_btn.enable()
+            return
+        except Exception as exc:  # noqa: BLE001 — never crash the page
+            _render_ai_unavailable(out_box, f"AI+ failed: {type(exc).__name__}: {exc}")
+            status.text = "Failed."
+            gen_btn.enable()
+            return
+        _render_ai_advisory(out_box, advisory, book_note=book_note, n_ideas=len(suggestions))
+        status.text = f"Done · {advisory.model}{book_note}"
+        gen_btn.enable()
+
+    gen_btn.on_click(generate)
+
+
 def register_trade_advisor_page(*, registry=None) -> None:
     """Register the /advisor interactive page (idempotent)."""
     global _REGISTERED, _SERVICE
@@ -451,74 +656,13 @@ def register_trade_advisor_page(*, registry=None) -> None:
 
         refresh_inbox()
 
-        with ui.row().classes("w-full gap-4 items-start no-wrap"):
-            with ui.card().classes("p-4").style("min-width: 300px"):
-                ui.label("Inputs").classes("text-subtitle1")
-                sym_sel = ui.select(LIQUID_UNIVERSE, value=["SPY", "QQQ"], multiple=True, label="Universe").props("use-chips").classes("w-full")
-                held_sel = ui.select(LIQUID_UNIVERSE, value=["SPY"], multiple=True, label="Treat as held (100 sh)").props("use-chips").classes("w-full")
-                aum_in = ui.number("AUM (USD)", value=250_000, min=0, step=10_000, format="%.0f").classes("w-full")
-                seed = current_regime_seed()  # default the regime controls to the live snapshot (overridable)
-                regime_sel = ui.select(REGIME_OPTIONS, value=seed.regime, label="Regime").classes("w-full")
-                conf_sel = ui.select(CONFIDENCE_OPTIONS, value=seed.confidence, label="Confidence").classes("w-full")
-                crisis_sw = ui.switch("Crisis overlay", value=seed.crisis)
-                if seed.is_seeded:
-                    ui.label(
-                        f"Regime auto-seeded from latest snapshot: {seed.regime}"
-                        f"{' · ' + seed.confidence if seed.confidence else ''}"
-                        f"{' · stress overlay' if seed.crisis else ''} (override above)"
-                    ).classes("text-caption pm-muted")
-                rv_sw = ui.switch("Fetch realized vol (slower)", value=False)
-                earnings_sw = ui.switch("Check earnings (slower)", value=False)
-                portfolio_sw = ui.switch("Use my portfolio (live positions)", value=True)
-                run_btn = ui.button("Run advisor")
-                status = ui.label("").classes("text-caption pm-muted")
-
-            results_box = ui.column().classes("grow gap-3")
-
-        async def run() -> None:
-            run_btn.disable()
-            status.text = "Running…"
-            inp = AdvisorInputs(
-                symbols=list(sym_sel.value or []),
-                held=list(held_sel.value or []),
-                aum=float(aum_in.value or 0),
-                regime=regime_sel.value or "",
-                confidence=conf_sel.value or "",
-                crisis=bool(crisis_sw.value),
-                fetch_realized=bool(rv_sw.value),
-                check_earnings=bool(earnings_sw.value),
-            )
-            if not inp.symbols:
-                status.text = "Pick at least one symbol."
-                run_btn.enable()
-                return
-            if portfolio_sw.value:
-                from dataclasses import replace as _replace
-
-                context = context_from_positions_csv(
-                    watchlist=inp.symbols, regime_label=inp.regime,
-                    regime_confidence=inp.confidence, crisis_flag=inp.crisis,
-                )
-                if context.aum is None:
-                    context = _replace(context, aum=inp.aum)
-                book_note = (
-                    f" · book: {len(context.holdings)} stk / {len(context.held_options)} opt"
-                    if (context.holdings or context.held_options)
-                    else " · no live positions found (watchlist only)"
-                )
-            else:
-                context = build_context(inp)
-                book_note = ""
-            try:
-                run_result = await asyncio.to_thread(
-                    _SERVICE.run, context, advisors=None, params_by_advisor=option_run_params(inp)
-                )
-            except Exception as exc:  # noqa: BLE001 — surface, don't crash the page
-                status.text = f"Failed: {type(exc).__name__}: {exc}"
-                run_btn.enable()
-                return
-            _render_results(results_box, run_result, journal, refresh_inbox)
-            status.text = f"Done · {len(run_result.all_suggestions())} ideas{book_note}"
-            run_btn.enable()
-
-        run_btn.on_click(run)
+        # Two parallel surfaces, selectable via tab: the deterministic rule-based
+        # advisor (default) and the opt-in AI+ synthesis layer.
+        with ui.tabs().classes("w-full") as tabs:
+            rb_tab = ui.tab("Rule-based")
+            ai_tab = ui.tab("AI+")
+        with ui.tab_panels(tabs, value=rb_tab).classes("w-full"):
+            with ui.tab_panel(rb_tab):
+                _render_rule_based_tab(journal, refresh_inbox)
+            with ui.tab_panel(ai_tab):
+                _render_ai_tab()

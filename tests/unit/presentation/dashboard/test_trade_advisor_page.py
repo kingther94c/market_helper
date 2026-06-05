@@ -20,6 +20,40 @@ def test_option_run_params_passthrough():
     assert params == {"option": {"fetch_realized": True, "fetch_events": True}}
 
 
+def test_ai_models_are_bounded_openclaw_ids():
+    assert ta.AI_MODELS and all(m.startswith("openclaw/") for m in ta.AI_MODELS)
+
+
+def test_build_run_context_manual():
+    inp = ta.AdvisorInputs(symbols=["SPY", "QQQ"], held=["SPY"], aum=300_000)
+    ctx, note = ta.build_run_context(inp, use_portfolio=False)
+    assert ctx.holdings == {"SPY": 100.0} and ctx.watchlist == ["QQQ"]
+    assert ctx.aum == 300_000 and note == ""
+
+
+def test_build_run_context_portfolio_seeds_book(monkeypatch):
+    from market_helper.trade_advisor.contracts import AdvisorContext
+
+    monkeypatch.setattr(
+        ta, "context_from_positions_csv",
+        lambda **k: AdvisorContext(holdings={"NVDA": 100.0}, aum=500_000.0,
+                                   held_options=[{"x": 1}], watchlist=k.get("watchlist") or []),
+    )
+    ctx, note = ta.build_run_context(ta.AdvisorInputs(symbols=["NVDA"], aum=250_000), use_portfolio=True)
+    assert ctx.holdings == {"NVDA": 100.0} and "1 stk" in note and "1 opt" in note
+
+
+def test_build_run_context_portfolio_falls_back_to_manual_aum(monkeypatch):
+    from market_helper.trade_advisor.contracts import AdvisorContext
+
+    monkeypatch.setattr(
+        ta, "context_from_positions_csv",
+        lambda **k: AdvisorContext(holdings={}, aum=None, held_options=[], watchlist=k.get("watchlist") or []),
+    )
+    ctx, note = ta.build_run_context(ta.AdvisorInputs(symbols=["NVDA"], aum=250_000), use_portfolio=True)
+    assert "no live positions" in note and ctx.aum == 250_000  # manual AUM fills in when CSV has none
+
+
 def test_payoff_figure_from_curve():
     detail = {"est_payoff_curve": [[90.0, -500.0], [100.0, 0.0], [110.0, 500.0]], "est_breakevens": [100.0]}
     fig = ta.payoff_figure(detail)
