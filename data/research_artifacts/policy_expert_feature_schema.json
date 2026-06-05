@@ -1,0 +1,134 @@
+{
+  "infl_yoy": {
+    "source": "FRED",
+    "transform": "CPIAUCSL YoY %",
+    "lag_months": 1,
+    "group": "inflation"
+  },
+  "infl_accel": {
+    "source": "FRED",
+    "transform": "CPI YoY 6m change",
+    "lag_months": 1,
+    "group": "inflation"
+  },
+  "core_infl_yoy": {
+    "source": "FRED",
+    "transform": "core PCE YoY %",
+    "lag_months": 1,
+    "group": "inflation"
+  },
+  "unrate": {
+    "source": "FRED",
+    "transform": "UNRATE level",
+    "lag_months": 1,
+    "group": "growth"
+  },
+  "unrate_chg6": {
+    "source": "FRED",
+    "transform": "UNRATE 6m change",
+    "lag_months": 1,
+    "group": "growth"
+  },
+  "payems_yoy": {
+    "source": "FRED",
+    "transform": "payrolls YoY %",
+    "lag_months": 1,
+    "group": "growth"
+  },
+  "indpro_yoy": {
+    "source": "FRED",
+    "transform": "industrial prod YoY %",
+    "lag_months": 1,
+    "group": "growth"
+  },
+  "policy_rate": {
+    "source": "FRED",
+    "transform": "fed funds level",
+    "lag_months": 1,
+    "group": "policy"
+  },
+  "policy_rate_chg6": {
+    "source": "FRED",
+    "transform": "fed funds 6m change",
+    "lag_months": 1,
+    "group": "policy"
+  },
+  "real_yield": {
+    "source": "FRED",
+    "transform": "GS10 - CPI YoY",
+    "lag_months": 1,
+    "group": "rates"
+  },
+  "curve_slope": {
+    "source": "FRED",
+    "transform": "GS10 - GS2",
+    "lag_months": 1,
+    "group": "rates"
+  },
+  "credit_spread": {
+    "source": "FRED",
+    "transform": "BAA - AAA",
+    "lag_months": 1,
+    "group": "credit"
+  },
+  "vix": {
+    "source": "market",
+    "transform": "VIX monthly close level",
+    "lag_months": 0,
+    "group": "risk"
+  },
+  "eq_mom12": {
+    "source": "market",
+    "transform": "EQ trailing 12m return %",
+    "lag_months": 0,
+    "group": "momentum"
+  },
+  "cm_mom12": {
+    "source": "market",
+    "transform": "CM trailing 12m return %",
+    "lag_months": 0,
+    "group": "momentum"
+  },
+  "fi_mom12": {
+    "source": "market",
+    "transform": "FI trailing 12m return %",
+    "lag_months": 0,
+    "group": "momentum"
+  },
+  "usd_mom12": {
+    "source": "market",
+    "transform": "USD (DXY) trailing 12m %",
+    "lag_months": 0,
+    "group": "momentum"
+  },
+  "eq_drawdown": {
+    "source": "market",
+    "transform": "EQ drawdown %",
+    "lag_months": 0,
+    "group": "stress"
+  },
+  "fi_drawdown": {
+    "source": "market",
+    "transform": "FI drawdown %",
+    "lag_months": 0,
+    "group": "stress"
+  },
+  "move_proxy": {
+    "source": "market",
+    "transform": "FI 3m realized vol %% (MOVE proxy)",
+    "lag_months": 0,
+    "group": "stress"
+  },
+  "eqfi_corr12": {
+    "source": "market",
+    "transform": "rolling 12m corr(EQ,FI)",
+    "lag_months": 0,
+    "group": "cross"
+  },
+  "trend_breadth": {
+    "source": "market",
+    "transform": "n positive 12m trends (-3..3)",
+    "lag_months": 0,
+    "group": "trend"
+  }
+}

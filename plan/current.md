@@ -396,11 +396,14 @@ Detail: `docs/architecture/devplans/regime_engine.md`.
 
 ## Regime-Aware Policy-Expert Allocation Model (research, new track)
 
-**State**: spec'd. **Phase 1–2 rebuilt this session (clean-room)** — the prior
-session's harnesses were deliberately NOT reused; only the task + lessons were
-kept. Phases 3–6 (forward labels · ex-ante ML predictor · dynamic allocation ·
-OOS eval) not built. Full spec carried via the session goal + auto-memory
-(`inflation_tilt_v0_research.md`).
+**State**: **Phases 1–4 built this session (clean-room)** — prior-session harnesses
+deliberately NOT reused; only task + lessons kept. P1–2 = monthly panel + 4 robust
+experts; P3 = forward labels (3/6/12M; winner / margin / softmax / direct excess);
+P4 = ex-ante ML predictor (21 ex-ante features, walk-forward, embargoed-CV Ridge →
+**OOS rank-IC +0.20 at 6M**, predicted-best beats equal-weight 63%; heavy shrinkage
+essential — naive low-alpha overfits). Phases 5–7 (soft mixture-of-experts allocation ·
+walk-forward eval + HTML report · dashboard productionization) pending. Full spec via
+the session goal + auto-memory (`inflation_tilt_v0_research.md`).
 
 **Idea**: 4 economically-interpretable **policy experts** from the Growth×Inflation
 quadrants (Goldilocks / Reflation / Stagflation / Recession), then an **ML

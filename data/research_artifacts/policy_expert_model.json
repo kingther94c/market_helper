@@ -1,0 +1,42 @@
+{
+  "config": {
+    "horizon": 6,
+    "min_train": 120,
+    "alphas": [
+      10.0,
+      30.0,
+      100.0,
+      300.0,
+      1000.0,
+      3000.0
+    ],
+    "softmax_temp": 0.03,
+    "n_features": 22,
+    "complete_case_rows": 430,
+    "complete_case_span": [
+      "1990-01",
+      "2025-10"
+    ]
+  },
+  "oos_metrics": {
+    "n_oos_months": 305,
+    "oos_span": [
+      "2000-06",
+      "2025-10"
+    ],
+    "pooled_rank_ic": 0.198,
+    "top1_accuracy": 0.318,
+    "predicted_best_beats_equalweight_rate": 0.626,
+    "mean_excess_captured_pct": 1.62,
+    "soft_alloc_captured_pct": 0.93,
+    "mean_excess_best_possible_pct": 6.95,
+    "baseline_always_goldilocks_pct": 2.03,
+    "winner_base_rates": {
+      "Goldilocks": 99,
+      "Reflation": 92,
+      "Stagflation": 60,
+      "Recession": 54
+    }
+  },
+  "final_alpha": 3000.0
+}

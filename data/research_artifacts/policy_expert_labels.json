@@ -1,0 +1,48 @@
+{
+  "experts": [
+    "Goldilocks",
+    "Reflation",
+    "Stagflation",
+    "Recession"
+  ],
+  "horizons": [
+    3,
+    6,
+    12
+  ],
+  "primary_h": 6,
+  "margin": 0.025,
+  "softmax_temp": 0.05,
+  "distributions": {
+    "3m": {
+      "n_labeled": 445,
+      "winner_counts": {
+        "Goldilocks": 160,
+        "Reflation": 93,
+        "Stagflation": 126,
+        "Recession": 66
+      },
+      "winner_margin_neutral": 280
+    },
+    "6m": {
+      "n_labeled": 442,
+      "winner_counts": {
+        "Goldilocks": 174,
+        "Reflation": 108,
+        "Stagflation": 95,
+        "Recession": 65
+      },
+      "winner_margin_neutral": 198
+    },
+    "12m": {
+      "n_labeled": 436,
+      "winner_counts": {
+        "Goldilocks": 189,
+        "Reflation": 136,
+        "Stagflation": 54,
+        "Recession": 57
+      },
+      "winner_margin_neutral": 119
+    }
+  }
+}

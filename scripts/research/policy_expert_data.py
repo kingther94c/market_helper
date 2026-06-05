@@ -63,8 +63,8 @@ def _fred_monthly(series_id: str) -> pd.Series:
     return d.set_index("date")["val"].astype(float).sort_index()
 
 
-def _yahoo_monthly_total_return(symbol: str) -> pd.Series:
-    """Monthly simple total return from Yahoo monthly adjusted-close bars."""
+def yahoo_monthly_level(symbol: str) -> pd.Series:
+    """Monthly adjusted-close LEVEL series (month-end), cached to feather."""
     CACHE_DIR.mkdir(parents=True, exist_ok=True)
     safe = symbol.replace("^", "_").replace("=", "_")
     cache = CACHE_DIR / f"yahoo_{safe}.feather"
@@ -78,8 +78,12 @@ def _yahoo_monthly_total_return(symbol: str) -> pd.Series:
         d["date"] = pd.to_datetime(d["timestamp"], unit="s").dt.normalize()
         d = d[["date", "adjclose"]].dropna().sort_values("date").reset_index(drop=True)
         d.to_feather(cache)
-    px = d.set_index("date")["adjclose"].astype(float).resample("ME").last()
-    return px.pct_change()
+    return d.set_index("date")["adjclose"].astype(float).resample("ME").last()
+
+
+def _yahoo_monthly_total_return(symbol: str) -> pd.Series:
+    """Monthly simple total return from Yahoo monthly adjusted-close bars."""
+    return yahoo_monthly_level(symbol).pct_change()
 
 
 # ---------------------------------------------------------------------------
