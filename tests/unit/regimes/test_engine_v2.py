@@ -16,7 +16,6 @@ from market_helper.regimes.engine_v2 import (
     run_regime_engine_v2,
 )
 from market_helper.regimes.methods.market_regime import MarketRegimeConfig, MarketSignalSpec
-from market_helper.regimes.ml import ConfiguredRegimeModelSelector
 from market_helper.cli.main import main
 
 
@@ -108,8 +107,6 @@ def test_risk_overlay_does_not_change_growth_or_inflation_scores() -> None:
             layers={
                 "macro_nowcast": LayerConfig(enabled=True, weight_growth=1.0, weight_inflation=1.0),
                 "market_implied": LayerConfig(enabled=False),
-                "macro_truth_ml": LayerConfig(enabled=False, model_type="svm"),
-                "return_truth_ml": LayerConfig(enabled=False, model_type="svm"),
             }
         ),
         "macro_panel": _macro_panel((1.0, 1.0), n=90),
@@ -132,8 +129,6 @@ def test_risk_overlay_remains_available_with_risk_only_market_inputs() -> None:
             layers={
                 "macro_nowcast": LayerConfig(enabled=True, weight_growth=1.0, weight_inflation=1.0),
                 "market_implied": LayerConfig(enabled=False),
-                "macro_truth_ml": LayerConfig(enabled=False, model_type="svm"),
-                "return_truth_ml": LayerConfig(enabled=False, model_type="svm"),
             }
         ),
         macro_panel=_macro_panel((1.0, 1.0), n=90),
@@ -148,7 +143,7 @@ def test_risk_overlay_remains_available_with_risk_only_market_inputs() -> None:
     assert "Stress Overlay" in latest.final_regime
 
 
-def test_disabled_ml_layers_and_missing_contributors_do_not_break_output() -> None:
+def test_missing_contributors_do_not_break_output() -> None:
     out = run_regime_engine_v2(
         config=RegimeEngineConfig(),
         macro_panel=_macro_panel(),
@@ -160,9 +155,8 @@ def test_disabled_ml_layers_and_missing_contributors_do_not_break_output() -> No
     latest = out[-1].to_dict()
     assert latest["version"] == "regime-engine-v2"
     layer_status = {layer["layer_name"]: layer for layer in latest["layer_outputs"]}
-    assert layer_status["macro_truth_ml"]["growth_state"] == "Disabled"
-    assert layer_status["return_truth_ml"]["inflation_state"] == "Disabled"
-    assert latest["ml_macro_growth_score"] is None
+    assert "macro_nowcast" in layer_status
+    assert "market_implied" in layer_status
 
 
 def test_data_mode_marks_market_only_when_macro_ends_before_market_data() -> None:
@@ -187,49 +181,11 @@ def test_data_mode_marks_market_only_when_macro_ends_before_market_data() -> Non
     assert first_full.data_mode == DATA_MODE_FULL_ENSEMBLE
 
 
-def test_enabled_ml_without_model_artifact_is_not_available() -> None:
-    cfg = RegimeEngineConfig(
-        layers={
-            "macro_nowcast": LayerConfig(enabled=True, weight_growth=1.0, weight_inflation=1.0),
-            "market_implied": LayerConfig(enabled=False),
-            "macro_truth_ml": LayerConfig(enabled=True, model_type="svm", weight_growth=0.0, weight_inflation=0.0),
-            "return_truth_ml": LayerConfig(enabled=False, model_type="svm"),
-        }
-    )
-    latest = run_regime_engine_v2(
-        config=cfg,
-        macro_panel=_macro_panel(),
-        macro_specs=_macro_specs(),
-        macro_concepts=_macro_concepts(),
-    )[-1]
-    ml = {layer.layer_name: layer for layer in latest.layer_outputs}["macro_truth_ml"]
-    assert ml.enabled is True
-    assert ml.available is False
-    assert "model_artifact not configured" in ml.diagnostics["reason"]
-
-
-def test_model_selector_picks_existing_svm_artifact(tmp_path: Path) -> None:
-    artifact = tmp_path / "svm.pkl"
-    artifact.write_bytes(b"not-loaded-by-selector")
-
-    result = ConfiguredRegimeModelSelector().select_model(
-        layer_name="macro_truth_ml",
-        config={"model_type": "svm", "model_artifact": str(artifact), "feature_schema": ["SPY"]},
-        available_features=("SPY",),
-    )
-
-    assert result.available is True
-    assert result.selected is not None
-    assert result.selected.model_type == "svm"
-
-
 def test_disagreement_and_confidence_penalty_are_exposed() -> None:
     cfg = RegimeEngineConfig(
         layers={
             "macro_nowcast": LayerConfig(enabled=True, weight_growth=0.5, weight_inflation=0.5),
             "market_implied": LayerConfig(enabled=True, weight_growth=0.5, weight_inflation=0.5),
-            "macro_truth_ml": LayerConfig(enabled=False, model_type="svm"),
-            "return_truth_ml": LayerConfig(enabled=False, model_type="svm"),
         }
     )
     latest = run_regime_engine_v2(
@@ -252,8 +208,6 @@ def test_neutral_layer_difference_is_not_strong_disagreement() -> None:
         layers={
             "macro_nowcast": LayerConfig(enabled=True, weight_growth=0.5, weight_inflation=0.5),
             "market_implied": LayerConfig(enabled=True, weight_growth=0.5, weight_inflation=0.5),
-            "macro_truth_ml": LayerConfig(enabled=False, model_type="svm"),
-            "return_truth_ml": LayerConfig(enabled=False, model_type="svm"),
         }
     )
     latest = run_regime_engine_v2(
@@ -273,8 +227,6 @@ def test_weights_and_zero_weight_layers_control_final_scores() -> None:
         layers={
             "macro_nowcast": LayerConfig(enabled=True, weight_growth=1.0, weight_inflation=1.0),
             "market_implied": LayerConfig(enabled=True, weight_growth=0.0, weight_inflation=0.0),
-            "macro_truth_ml": LayerConfig(enabled=False, model_type="svm"),
-            "return_truth_ml": LayerConfig(enabled=False, model_type="svm"),
         }
     )
     latest = run_regime_engine_v2(
@@ -305,7 +257,6 @@ def test_config_loader_accepts_v2_yaml(tmp_path: Path) -> None:
     cfg = load_regime_engine_config(path)
     assert cfg.version == 2
     assert cfg.layers["market_implied"].weight_growth == 0.25
-    assert cfg.layers["macro_truth_ml"].weight_growth == 0.0
 
 
 def test_cli_regime_detect_v2_writes_schema(tmp_path: Path) -> None:

@@ -141,8 +141,6 @@ def _build_config(base_cfg: RegimeEngineConfig, params: dict) -> RegimeEngineCon
     """Clone base config and apply grid parameters. Market-only: macro + ML disabled."""
     layers = dict(base_cfg.layers)
     layers["macro_nowcast"] = LayerConfig(enabled=False)
-    layers["macro_truth_ml"] = LayerConfig(enabled=False, model_type="svm")
-    layers["return_truth_ml"] = LayerConfig(enabled=False, model_type="svm")
     new_risk = replace(
         base_cfg.risk_overlay,
         enter_threshold=float(params["risk_enter_threshold"]),

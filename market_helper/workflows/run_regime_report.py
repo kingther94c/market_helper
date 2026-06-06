@@ -25,7 +25,7 @@ DEFAULT_FRED_CACHE_DIR = Path("data/interim/fred")
 DEFAULT_FRED_SERIES_CONFIG = Path("configs/regime_detection/fred_series.yml")
 DEFAULT_MARKET_REGIME_CONFIG = Path("configs/regime_detection/market_regime.yml")
 DEFAULT_REGIME_ENGINE_CONFIG = Path("configs/regime_detection/regime_engine.yml")
-ALL_METHODS = ("macro_nowcast", "market_implied", "macro_truth_ml", "return_truth_ml")
+ALL_METHODS = ("macro_nowcast", "market_implied")
 
 
 @dataclass(frozen=True)

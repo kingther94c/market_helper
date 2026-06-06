@@ -84,8 +84,6 @@ def test_liberation_day_style_window_surfaces_market_stagflation_dislocation() -
         layers={
             "macro_nowcast": LayerConfig(enabled=True, weight_growth=0.5, weight_inflation=0.5),
             "market_implied": LayerConfig(enabled=True, weight_growth=0.5, weight_inflation=0.5),
-            "macro_truth_ml": LayerConfig(enabled=False, model_type="svm"),
-            "return_truth_ml": LayerConfig(enabled=False, model_type="svm"),
         },
         risk_overlay=RiskOverlayConfig(
             enabled=True,
@@ -228,8 +226,6 @@ def test_summarize_anchor_periods_reports_missing_windows() -> None:
         layers={
             "macro_nowcast": LayerConfig(enabled=True, weight_growth=1.0, weight_inflation=1.0),
             "market_implied": LayerConfig(enabled=False),
-            "macro_truth_ml": LayerConfig(enabled=False, model_type="svm"),
-            "return_truth_ml": LayerConfig(enabled=False, model_type="svm"),
         }
     )
     results = run_regime_engine_v2(
@@ -252,8 +248,6 @@ def test_summarize_anchor_periods_exposes_layer_coverage_limits() -> None:
         layers={
             "macro_nowcast": LayerConfig(enabled=True, weight_growth=1.0, weight_inflation=1.0),
             "market_implied": LayerConfig(enabled=False),
-            "macro_truth_ml": LayerConfig(enabled=False, model_type="svm"),
-            "return_truth_ml": LayerConfig(enabled=False, model_type="svm"),
         }
     )
     results = run_regime_engine_v2(

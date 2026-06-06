@@ -1008,11 +1008,6 @@ def test_load_regime_summary_accepts_v2_payload(tmp_path: Path) -> None:
                             "inflation_state": "Up",
                             "confidence": 0.6,
                         },
-                        {
-                            "layer_name": "macro_truth_ml",
-                            "enabled": False,
-                            "available": False,
-                        },
                     ],
                     "risk_output": {"risk_state": "Stress"},
                 }
@@ -1084,13 +1079,13 @@ def test_derive_regime_summary_from_view_model_projects_all_fields() -> None:
                 confidence="0.62",
             ),
             SimpleNamespace(
-                layer_name="macro_truth_ml",
-                enabled=False,
-                available=False,
-                status="Disabled",
-                growth_state=None,
-                inflation_state=None,
-                confidence=None,
+                layer_name="market_implied",
+                enabled=True,
+                available=True,
+                status="Available",
+                growth_state="Down",
+                inflation_state="Up",
+                confidence="0.55",
             ),
         ],
     )
@@ -1113,8 +1108,8 @@ def test_derive_regime_summary_from_view_model_projects_all_fields() -> None:
     assert len(summary.per_method) == 2
     assert summary.per_method[0]["method"] == "macro_nowcast"
     assert summary.per_method[0]["quadrant"] == "Up / Up"
-    assert summary.per_method[1]["method"] == "macro_truth_ml"
-    assert summary.per_method[1]["quadrant"] == "Disabled"
+    assert summary.per_method[1]["method"] == "market_implied"
+    assert summary.per_method[1]["quadrant"] == "Down / Up"
 
 
 def test_derive_regime_summary_from_view_model_handles_none() -> None:

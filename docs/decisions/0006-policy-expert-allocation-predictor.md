@@ -4,6 +4,15 @@
 `return_truth_ml` ML slots as a single allocation-layer predictor, surfaced as an
 advisory panel on the dashboard Regime tab.
 
+**Update (2026-06-06, goal v2 — Section A):** the two dead SVM slots are now **fully
+removed** (deleted from `engine_v2.py`, `ml.py`, `regime_engine.yml`, the snapshot
+schema, `ALL_METHODS`, and all referencing tests) rather than left gated — the
+macro/market ensemble + verdict are unchanged (the slots had weight 0). Sections B–E
+of goal v2 then upgrade the predictor (rigorous model selection + 30-day lazy retrain),
+move it to a **peer card alongside the macro/market regime layers** with a
+feature-attribution breakdown, and add a separate descriptive **Policy-Expert Trending**
+panel. This ADR will be superseded by a consolidated ADR once that lands.
+
 ## Context
 
 The regime engine (`engine_v2.py`) has carried two dormant ML layer slots —

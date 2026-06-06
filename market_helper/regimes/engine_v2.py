@@ -23,10 +23,6 @@ from market_helper.regimes.methods.market_regime import (
     MarketRegimeMethod,
     compute_market_risk_overlay_states,
 )
-from market_helper.regimes.ml import (
-    ConfiguredRegimeModelSelector,
-    RegimeModelSelector,
-)
 
 STATE_UP = "Up"
 STATE_DOWN = "Down"
@@ -105,8 +101,6 @@ class RegimeEngineConfig:
         default_factory=lambda: {
             "macro_nowcast": LayerConfig(enabled=True, weight_growth=0.45, weight_inflation=0.40),
             "market_implied": LayerConfig(enabled=True, weight_growth=0.55, weight_inflation=0.60),
-            "macro_truth_ml": LayerConfig(enabled=False, weight_growth=0.0, weight_inflation=0.0, model_type="svm"),
-            "return_truth_ml": LayerConfig(enabled=False, weight_growth=0.0, weight_inflation=0.0, model_type="svm"),
         }
     )
     risk_overlay: RiskOverlayConfig = field(default_factory=RiskOverlayConfig)
@@ -170,10 +164,6 @@ class FinalRegimeResult:
     macro_inflation_score: float | None
     market_growth_score: float | None
     market_inflation_score: float | None
-    ml_macro_growth_score: float | None
-    ml_macro_inflation_score: float | None
-    ml_return_growth_score: float | None
-    ml_return_inflation_score: float | None
     layer_outputs: list[RegimeLayerResult]
     risk_output: RiskOverlayResult
     data_mode: str = DATA_MODE_NO_PRIMARY_LAYER
@@ -286,10 +276,8 @@ def run_regime_engine_v2(
     macro_method_config: MacroRegimeConfig | None = None,
     market_panel: pd.DataFrame | None = None,
     market_config: MarketRegimeConfig | None = None,
-    model_selector: RegimeModelSelector | None = None,
 ) -> list[FinalRegimeResult]:
     cfg = config or RegimeEngineConfig()
-    selector = model_selector or ConfiguredRegimeModelSelector()
     layer_series: dict[str, dict[str, RegimeLayerResult]] = {}
     layer_status: dict[str, RegimeLayerResult] = {}
 
@@ -329,29 +317,6 @@ def run_regime_engine_v2(
             }
     else:
         layer_status["market_implied"] = _disabled_layer("market_implied")
-
-    feature_names = _available_feature_names(macro_panel, market_panel)
-    for layer_name in ("macro_truth_ml", "return_truth_ml"):
-        layer_cfg = cfg.layers.get(layer_name, LayerConfig(enabled=False, model_type="svm"))
-        if not layer_cfg.enabled:
-            layer_status[layer_name] = _disabled_layer(layer_name)
-            continue
-        selection = selector.select_model(
-            layer_name=layer_name,
-            config=layer_cfg.to_model_config(),
-            available_features=feature_names,
-        )
-        if not selection.available:
-            layer_status[layer_name] = _unavailable_layer(
-                layer_name,
-                selection.unavailable_reason or "model unavailable",
-            )
-            continue
-        layer_status[layer_name] = _unavailable_layer(
-            layer_name,
-            "model selected but inference is not implemented in this pass",
-            diagnostics={"model": selection.selected.diagnostics if selection.selected else {}},
-        )
 
     risk_by_date = _risk_outputs_by_date(
         market_panel=market_panel,
@@ -426,10 +391,6 @@ def run_regime_engine_v2(
                 macro_inflation_score=_score_for(layer_outputs, "macro_nowcast", "inflation"),
                 market_growth_score=_score_for(layer_outputs, "market_implied", "growth"),
                 market_inflation_score=_score_for(layer_outputs, "market_implied", "inflation"),
-                ml_macro_growth_score=_score_for(layer_outputs, "macro_truth_ml", "growth"),
-                ml_macro_inflation_score=_score_for(layer_outputs, "macro_truth_ml", "inflation"),
-                ml_return_growth_score=_score_for(layer_outputs, "return_truth_ml", "growth"),
-                ml_return_inflation_score=_score_for(layer_outputs, "return_truth_ml", "inflation"),
                 layer_outputs=layer_outputs,
                 risk_output=risk_output,
                 data_mode=data_mode,
@@ -751,18 +712,6 @@ def _score_for(layers: Sequence[RegimeLayerResult], layer_name: str, axis: str) 
         if layer.layer_name == layer_name and layer.available:
             return layer.growth_score if axis == "growth" else layer.inflation_score
     return None
-
-
-def _available_feature_names(
-    macro_panel: pd.DataFrame | None,
-    market_panel: pd.DataFrame | None,
-) -> tuple[str, ...]:
-    names: set[str] = set()
-    if macro_panel is not None:
-        names.update(str(col) for col in macro_panel.columns if col != "date")
-    if market_panel is not None:
-        names.update(str(col) for col in market_panel.columns if col != "date")
-    return tuple(sorted(names))
 
 
 def _safe_float(value: Any) -> float:

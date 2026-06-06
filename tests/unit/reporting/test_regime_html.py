@@ -65,13 +65,6 @@ def test_build_regime_html_view_model_accepts_v2_payload(tmp_path: Path) -> None
                             "inflation_state": "Up",
                             "confidence": "Medium",
                         },
-                        {
-                            "layer_name": "macro_truth_ml",
-                            "enabled": False,
-                            "available": False,
-                            "growth_state": "Disabled",
-                            "inflation_state": "Disabled",
-                        },
                     ],
                     "risk_output": {
                         "risk_score": 0.8,
@@ -97,9 +90,7 @@ def test_build_regime_html_view_model_accepts_v2_payload(tmp_path: Path) -> None
     assert [layer.layer_name for layer in view_model.layers] == [
         "macro_nowcast",
         "market_implied",
-        "macro_truth_ml",
     ]
-    assert view_model.layers[2].status == "Disabled"
     assert view_model.risk_overlay is not None
     assert view_model.risk_overlay.risk_overlay_on is True
     assert view_model.data_mode == "market_only"
@@ -206,10 +197,6 @@ def _q5_v2_payload_with_concepts() -> list[dict]:
             "macro_inflation_score": -0.30,
             "market_growth_score": -0.30,
             "market_inflation_score": 0.40,
-            "ml_macro_growth_score": None,
-            "ml_macro_inflation_score": None,
-            "ml_return_growth_score": None,
-            "ml_return_inflation_score": None,
             "risk_output": {
                 "risk_score": 0.10,
                 "risk_overlay_on": False,
@@ -439,19 +426,3 @@ def test_policy_allocation_panel_unavailable_card_is_graceful() -> None:
     assert "unavailable" in fragment.lower()
 
 
-def test_layer_detail_hides_dormant_ml_slots() -> None:
-    from market_helper.reporting.regime_html import RegimeHtmlLayerRow
-
-    real = RegimeHtmlLayerRow(
-        layer_name="macro_nowcast", enabled=True, available=True, status="Available",
-        growth_score=0.3, inflation_score=-0.1, growth_state="Up", inflation_state="Down",
-    )
-    dormant = RegimeHtmlLayerRow(
-        layer_name="macro_truth_ml", enabled=True, available=False, status="Not available",
-        growth_score=None, inflation_score=None, growth_state="Not available",
-        inflation_state="Not available",
-    )
-    fragment = render_regime_section_body(_minimal_v2_vm(layers=[real, dormant]))
-    assert "macro_nowcast" in fragment          # enabled + available layer still shows
-    assert "macro_truth_ml" not in fragment     # dormant gated ML slot suppressed
-    assert "return_truth_ml" not in fragment

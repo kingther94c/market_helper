@@ -385,12 +385,14 @@ Open near-term work:
      captures *rate*, not *acceleration*. A separate "deceleration" signal
      (velocity vs YoY divergence) could improve 2024 disinflation further.
 
-3. **ML layers → unified `ML predictor` (new track).** The two gated SVM slots
-   (`macro_truth_ml`, `return_truth_ml`) are superseded by a single **ML
-   predictor at the allocation layer** — see *Regime-Aware Policy-Expert
-   Allocation Model* below. Until that predictor's feature schema + trained
-   artifacts are explicit, keep both slots unavailable / zero-weight and emit no
-   fake ML outputs; the new track is what legitimately un-gates them.
+3. **ML layers → REMOVED (2026-06-06), replaced by the allocation-layer `ML
+   predictor`.** The two dead gated SVM slots (`macro_truth_ml`, `return_truth_ml`)
+   are **fully deleted** from `engine_v2.py` (layer set + scoring + the 4
+   `ml_*_score` snapshot fields), `ml.py` (deleted), `regime_engine.yml`,
+   `run_regime_report.py` `ALL_METHODS`, and all referencing tests. The
+   macro(0.60)+market(0.40) ensemble + verdict are bit-for-bit unchanged (the slots
+   had weight 0). The allocation-layer ML predictor (policy-expert track below) is
+   their conceptual replacement.
 
 Detail: `docs/architecture/devplans/regime_engine.md`.
 

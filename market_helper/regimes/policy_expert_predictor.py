@@ -7,8 +7,8 @@ sleeve exposures. Pure-Python application (json + csv + math) -- no sklearn / nu
 network in the render path; the FRED/Yahoo pulls happen offline in the research harness.
 
 This is the realization of the spec's allocation-layer "ML predictor" (architecture
-choice (b)): it sits ONE LEVEL UP from the regime engine's axis-layers and does NOT
-touch the gated ``macro_truth_ml`` / ``return_truth_ml`` slots. Read-only; advisory.
+choice (b)): it sits ONE LEVEL UP from the regime engine's axis-layers and replaces the
+removed ``macro_truth_ml`` / ``return_truth_ml`` SVM slots. Read-only; advisory.
 
 Graceful degradation: every failure path returns ``PolicyExpertPrediction(available=
 False, reason=...)`` -- never a fake number, never an exception to the caller.

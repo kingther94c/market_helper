@@ -51,8 +51,6 @@ def _run_market_only(fixture_filename: str) -> dict[str, object]:
     cfg = load_regime_engine_config(REGIME_ENGINE_CONFIG)
     # Market-only: macro panel not in git, ML layers are placeholders.
     cfg.layers["macro_nowcast"] = LayerConfig(enabled=False)
-    cfg.layers["macro_truth_ml"] = LayerConfig(enabled=False, model_type="svm")
-    cfg.layers["return_truth_ml"] = LayerConfig(enabled=False, model_type="svm")
     market_cfg = load_market_regime_config(MARKET_REGIME_CONFIG)
     results = run_regime_engine_v2(config=cfg, market_panel=panel, market_config=market_cfg)
     return {str(r.date)[:10]: r for r in results}
