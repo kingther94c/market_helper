@@ -451,6 +451,11 @@ On the operator's direction, AI was then **re-introduced the right way**: a
 - Tests: `tests/unit/trade_advisor/ai/` (gateway token precedence, bearer-not-in-
   URL, transport errors, prompt guards, advisory parse) + `build_run_context` /
   `AI_MODELS` page tests.
+- **Live-verified** against the running OpenClaw gateway (loopback:18789, model
+  `openclaw/trade-advisor`): a real advisory came back synthesizing the
+  rule-based ideas + book + regime (positioning / which ideas matter / biggest
+  risk / what the rules miss). Token read from the gateway's own config in
+  the operator's machine; never persisted to the repo.
 
 ## Trade Advisor (umbrella)
 
