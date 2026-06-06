@@ -54,6 +54,7 @@ def main() -> int:
     model = load("policy_expert_model.json")
     bt = load("policy_expert_backtest.json")
     schema = load("policy_expert_feature_schema.json")
+    modsel = load("policy_expert_model_selection.json")
     m = model["oos_metrics"]
 
     P = []
@@ -125,6 +126,19 @@ def main() -> int:
     w("<p class='note'>Genuine positive cross-sectional skill (IC &approx;0.20), but "
       "always-Goldilocks is a strong sample baseline &mdash; the predictor's value is "
       "risk-adjusted, not raw capture.</p>")
+
+    w("<h3>Model selection (embargoed time-series CV)</h3>")
+    msrows = [[c["model"], f"{c['excess_captured_pct']}%", c["rank_ic"], c["top1_acc"],
+               "yes" if c.get("dynamic") else "STATIC-collapse",
+               "pure-Python" if c["deployable_pure_python"] else "tree"]
+              for c in modsel["candidates"]]
+    w(tbl(["model", "captured", "rank IC", "top-1", "dynamic", "deploy"], msrows))
+    w(f"<p class='note'>Production model: <b>{escape(str(modsel['winner_deployable']))}</b> "
+      "(Ridge, embargoed-CV &alpha;&asymp;1000) &mdash; the best DYNAMIC, pure-Python "
+      "model. ElasticNet(&alpha;=1) shows higher raw capture but <b>collapses to a static "
+      "mix</b> (L1 zeroes every coefficient), so it is excluded; trees underperform linear "
+      "on the autocorrelated targets. The production artifact is dated and lazily retrained "
+      "every 30 days on all data.</p>")
 
     # 5 backtest
     w("<h2>5. Allocation &amp; backtest vs baselines</h2>")

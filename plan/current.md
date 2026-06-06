@@ -497,8 +497,9 @@ table**), backward-momentum, distinct from the forward forecast. Both attached o
 combined-report path (`portfolio_html._attach_policy_allocation`), graceful when
 unavailable. **Model note**: ElasticNet(α=1) degenerates (zeroes all coef → static
 collapse, flagged in the study); **Ridge (embargoed-CV α=1000)** is the production model
-— dynamic (88/88 non-zero coef) + interpretable. Goal v2 functionally complete pending
-final ADR consolidation.
+— dynamic (88/88 non-zero coef) + interpretable. **Goal v2 COMPLETE** — see
+**ADR 0007** (supersedes 0006); model-selection table added to the HTML research report.
+Suite green (602). Not merged to main yet.
 
 ## Trade Advisor (integration)
 
