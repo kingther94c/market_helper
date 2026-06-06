@@ -74,8 +74,12 @@ REGIME_WINDOWS = [
 
 # Absolute-exposure ranges (lo, hi, step). Normal regimes keep EQ long & FI long;
 # Stagflation relaxes EQ down to 0 and lets FI go short.
-NORMAL_RANGES = {"EQ": (60, 100, 5), "CM": (0, 15, 5), "MACRO": (5, 10, 2.5), "FI": (50, 200, 5)}
-STAG_RANGES = {"EQ": (0, 100, 5), "CM": (0, 15, 5), "MACRO": (5, 10, 2.5), "FI": (-100, 200, 5)}
+# MACRO removed (2026-06-06): it was a uniform +10 overlay across all four experts
+# (the trend sleeve is positive in every regime), so it does not differentiate them
+# and cancels in the cross-sectional allocation. Forced to 0 here -> 3-sleeve experts
+# (EQ/CM/FI). Trade-off: loses a small crisis-diversifying return (see backtest).
+NORMAL_RANGES = {"EQ": (60, 100, 5), "CM": (0, 15, 5), "MACRO": (0, 0, 2.5), "FI": (50, 200, 5)}
+STAG_RANGES = {"EQ": (0, 100, 5), "CM": (0, 15, 5), "MACRO": (0, 0, 2.5), "FI": (-100, 200, 5)}
 
 
 def _grid(lo, hi, step):

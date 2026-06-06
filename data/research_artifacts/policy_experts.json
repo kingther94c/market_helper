@@ -19,8 +19,8 @@
         5
       ],
       "MACRO": [
-        5,
-        10,
+        0,
+        0,
         2.5
       ],
       "FI": [
@@ -41,8 +41,8 @@
         5
       ],
       "MACRO": [
-        5,
-        10,
+        0,
+        0,
         2.5
       ],
       "FI": [
@@ -56,25 +56,25 @@
     "Goldilocks": {
       "EQ": 100.0,
       "CM": 0.0,
-      "MACRO": 10.0,
+      "MACRO": 0.0,
       "FI": 150.0
     },
     "Reflation": {
       "EQ": 100.0,
       "CM": 15.0,
-      "MACRO": 10.0,
+      "MACRO": 0.0,
       "FI": 50.0
     },
     "Stagflation": {
       "EQ": 0.0,
       "CM": 15.0,
-      "MACRO": 10.0,
+      "MACRO": 0.0,
       "FI": -100.0
     },
     "Recession": {
       "EQ": 60.0,
       "CM": 0.0,
-      "MACRO": 10.0,
+      "MACRO": 0.0,
       "FI": 150.0
     }
   },
@@ -105,27 +105,27 @@
       "robust_corner": {
         "EQ": 100.0,
         "CM": 0.0,
-        "MACRO": 10.0,
+        "MACRO": 0.0,
         "FI": 200.0,
-        "gross": 310.0,
-        "mean_ret_pct": 24.03,
-        "p10_ret_pct": 21.01,
-        "min_ret_pct": 15.97,
-        "mean_vol_pct": 17.29
+        "gross": 300.0,
+        "mean_ret_pct": 23.22,
+        "p10_ret_pct": 20.29,
+        "min_ret_pct": 15.46,
+        "mean_vol_pct": 16.98
       },
-      "p10_floor_pct": 16.29,
+      "p10_floor_pct": 15.74,
       "template": {
         "EQ": 100.0,
         "CM": 0.0,
-        "MACRO": 10.0,
+        "MACRO": 0.0,
         "FI": 150.0
       },
       "template_full_sample": {
-        "gross": 260.0,
-        "leverage": 160.0,
-        "ann_return_pct": 15.79,
-        "ann_vol_pct": 17.35,
-        "max_dd_pct": -42.37
+        "gross": 250.0,
+        "leverage": 150.0,
+        "ann_return_pct": 15.09,
+        "ann_vol_pct": 17.23,
+        "max_dd_pct": -42.92
       }
     },
     "Reflation": {
@@ -158,27 +158,27 @@
       "robust_corner": {
         "EQ": 100.0,
         "CM": 15.0,
-        "MACRO": 10.0,
+        "MACRO": 0.0,
         "FI": 50.0,
-        "gross": 175.0,
-        "mean_ret_pct": 25.26,
-        "p10_ret_pct": 20.33,
-        "min_ret_pct": 13.49,
-        "mean_vol_pct": 13.88
+        "gross": 165.0,
+        "mean_ret_pct": 24.59,
+        "p10_ret_pct": 19.47,
+        "min_ret_pct": 12.89,
+        "mean_vol_pct": 13.64
       },
-      "p10_floor_pct": 13.54,
+      "p10_floor_pct": 13.03,
       "template": {
         "EQ": 100.0,
         "CM": 15.0,
-        "MACRO": 10.0,
+        "MACRO": 0.0,
         "FI": 50.0
       },
       "template_full_sample": {
-        "gross": 175.0,
-        "leverage": 75.0,
-        "ann_return_pct": 13.7,
-        "ann_vol_pct": 15.94,
-        "max_dd_pct": -49.79
+        "gross": 165.0,
+        "leverage": 65.0,
+        "ann_return_pct": 13.01,
+        "ann_vol_pct": 15.83,
+        "max_dd_pct": -51.07
       }
     },
     "Stagflation": {
@@ -207,27 +207,27 @@
       "robust_corner": {
         "EQ": 0.0,
         "CM": 15.0,
-        "MACRO": 10.0,
+        "MACRO": 0.0,
         "FI": -100.0,
-        "gross": -75.0,
-        "mean_ret_pct": 21.83,
-        "p10_ret_pct": 7.69,
-        "min_ret_pct": -7.22,
-        "mean_vol_pct": 10.23
+        "gross": -85.0,
+        "mean_ret_pct": 20.07,
+        "p10_ret_pct": 7.05,
+        "min_ret_pct": -6.1,
+        "mean_vol_pct": 9.23
       },
-      "p10_floor_pct": -19.98,
+      "p10_floor_pct": -21.34,
       "template": {
         "EQ": 0.0,
         "CM": 15.0,
-        "MACRO": 10.0,
+        "MACRO": 0.0,
         "FI": -100.0
       },
       "template_full_sample": {
-        "gross": -75.0,
-        "leverage": -175.0,
-        "ann_return_pct": 1.14,
-        "ann_vol_pct": 7.56,
-        "max_dd_pct": -46.25
+        "gross": -85.0,
+        "leverage": -185.0,
+        "ann_return_pct": 0.51,
+        "ann_vol_pct": 7.55,
+        "max_dd_pct": -48.83
       }
     },
     "Recession": {
@@ -268,27 +268,27 @@
       "robust_corner": {
         "EQ": 60.0,
         "CM": 0.0,
-        "MACRO": 10.0,
+        "MACRO": 0.0,
         "FI": 200.0,
-        "gross": 270.0,
-        "mean_ret_pct": 16.41,
-        "p10_ret_pct": 7.7,
-        "min_ret_pct": 1.11,
-        "mean_vol_pct": 19.96
+        "gross": 260.0,
+        "mean_ret_pct": 15.44,
+        "p10_ret_pct": 6.75,
+        "min_ret_pct": -0.16,
+        "mean_vol_pct": 19.9
       },
-      "p10_floor_pct": -7.46,
+      "p10_floor_pct": -8.29,
       "template": {
         "EQ": 60.0,
         "CM": 0.0,
-        "MACRO": 10.0,
+        "MACRO": 0.0,
         "FI": 150.0
       },
       "template_full_sample": {
-        "gross": 220.0,
-        "leverage": 120.0,
-        "ann_return_pct": 12.5,
-        "ann_vol_pct": 12.81,
-        "max_dd_pct": -37.51
+        "gross": 210.0,
+        "leverage": 110.0,
+        "ann_return_pct": 11.82,
+        "ann_vol_pct": 12.67,
+        "max_dd_pct": -38.0
       }
     }
   }

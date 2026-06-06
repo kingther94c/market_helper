@@ -29,20 +29,20 @@
       "winner_counts": {
         "Goldilocks": 174,
         "Reflation": 108,
-        "Stagflation": 95,
-        "Recession": 65
+        "Stagflation": 96,
+        "Recession": 64
       },
-      "winner_margin_neutral": 198
+      "winner_margin_neutral": 197
     },
     "12m": {
       "n_labeled": 436,
       "winner_counts": {
-        "Goldilocks": 189,
+        "Goldilocks": 190,
         "Reflation": 136,
         "Stagflation": 54,
-        "Recession": 57
+        "Recession": 56
       },
-      "winner_margin_neutral": 119
+      "winner_margin_neutral": 120
     }
   }
 }

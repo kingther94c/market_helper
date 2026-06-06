@@ -24,12 +24,12 @@
       "2000-06",
       "2025-10"
     ],
-    "pooled_rank_ic": 0.198,
-    "top1_accuracy": 0.318,
-    "predicted_best_beats_equalweight_rate": 0.626,
-    "mean_excess_captured_pct": 1.62,
-    "soft_alloc_captured_pct": 0.93,
-    "mean_excess_best_possible_pct": 6.95,
+    "pooled_rank_ic": 0.2,
+    "top1_accuracy": 0.321,
+    "predicted_best_beats_equalweight_rate": 0.63,
+    "mean_excess_captured_pct": 1.67,
+    "soft_alloc_captured_pct": 0.94,
+    "mean_excess_best_possible_pct": 6.94,
     "baseline_always_goldilocks_pct": 2.03,
     "winner_base_rates": {
       "Goldilocks": 99,
@@ -38,5 +38,5 @@
       "Recession": 54
     }
   },
-  "final_alpha": 3000.0
+  "final_alpha": 1000.0
 }

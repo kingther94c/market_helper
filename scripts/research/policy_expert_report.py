@@ -84,9 +84,14 @@ def main() -> int:
     w(f"<p>Monthly, {escape(experts['meta']['sample'])}. Sleeves: EQ = S&amp;P 500 TR "
       "(<span class='mono'>^SP500TR</span>), CM = S&amp;P GSCI (<span class='mono'>^SPGSCI</span>), "
       "FI = synthetic constant-maturity 10Y from FRED <span class='mono'>GS10</span> "
-      "(par-bond duration/convexity), CASH = <span class='mono'>TB3MS</span>, MACRO = TSMOM "
-      "trend proxy (vol-scaled ~10%). FI &amp; MACRO are futures excess-return overlays. "
-      "Accounting: <span class='mono'>R = cash&middot;100% + &Sigma; exposure&middot;(sleeve&minus;cash)</span>.</p>")
+      "(par-bond duration/convexity), CASH = <span class='mono'>TB3MS</span>. FI is a "
+      "futures excess-return overlay. Accounting: "
+      "<span class='mono'>R = cash&middot;100% + &Sigma; exposure&middot;(sleeve&minus;cash)</span>. "
+      "A MACRO (TSMOM trend) sleeve was analysed (positive crisis-alpha every regime, see "
+      "&sect;2) but <b>removed from the final experts</b>: it was a uniform +10 overlay "
+      "across all four, so it does not differentiate them and cancels in the "
+      "cross-sectional allocation. Dropping it costs a small crisis-diversifying return "
+      "(MoE Sharpe 0.69&rarr;0.65) but makes the experts directly implementable in EQ/CM/FI.</p>")
 
     # 2 experts
     w("<h2>2. The four policy experts (oracle teacher step)</h2>")

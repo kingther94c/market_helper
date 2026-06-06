@@ -135,7 +135,6 @@ def main() -> int:
 
     strategies: dict[str, pd.DataFrame] = {
         "MoE (this model)": moe,
-        "MoE no-MACRO": moe.assign(MACRO=0.0),
         "MoE no-leverage": moe.div((moe.abs().sum(axis=1) / 100).clip(lower=1.0), axis=0),
         "Equal-weight experts": const_expo(
             idx, *[float(np.mean([experts[k][s] for k in EXPERTS])) for s in SLEEVES]),

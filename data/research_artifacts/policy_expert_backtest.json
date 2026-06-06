@@ -11,43 +11,35 @@
   },
   "strategies": {
     "MoE (this model)": {
-      "ann_return_pct": 8.89,
-      "ann_vol_pct": 10.25,
-      "sharpe": 0.69,
-      "max_dd_pct": -27.49,
-      "calmar": 0.32,
-      "avg_monthly_turnover_pct": 6.0
-    },
-    "MoE no-MACRO": {
-      "ann_return_pct": 8.44,
+      "ann_return_pct": 8.42,
       "ann_vol_pct": 10.2,
       "sharpe": 0.65,
       "max_dd_pct": -28.13,
       "calmar": 0.3,
-      "avg_monthly_turnover_pct": 5.9
+      "avg_monthly_turnover_pct": 5.8
     },
     "MoE no-leverage": {
-      "ann_return_pct": 5.99,
-      "ann_vol_pct": 6.58,
-      "sharpe": 0.63,
-      "max_dd_pct": -21.27,
-      "calmar": 0.28,
+      "ann_return_pct": 5.93,
+      "ann_vol_pct": 6.87,
+      "sharpe": 0.6,
+      "max_dd_pct": -22.77,
+      "calmar": 0.26,
       "avg_monthly_turnover_pct": 2.9
     },
     "Equal-weight experts": {
-      "ann_return_pct": 8.52,
-      "ann_vol_pct": 10.72,
-      "sharpe": 0.62,
-      "max_dd_pct": -31.16,
-      "calmar": 0.27,
+      "ann_return_pct": 7.95,
+      "ann_vol_pct": 10.67,
+      "sharpe": 0.57,
+      "max_dd_pct": -32.39,
+      "calmar": 0.25,
       "avg_monthly_turnover_pct": 0.0
     },
     "Best static (Goldilocks)": {
-      "ann_return_pct": 12.14,
-      "ann_vol_pct": 16.89,
-      "sharpe": 0.61,
-      "max_dd_pct": -42.37,
-      "calmar": 0.29,
+      "ann_return_pct": 11.56,
+      "ann_vol_pct": 16.84,
+      "sharpe": 0.58,
+      "max_dd_pct": -42.92,
+      "calmar": 0.27,
       "avg_monthly_turnover_pct": 0.0
     },
     "Static SAA (80/5/15)": {
@@ -83,26 +75,26 @@
       "avg_monthly_turnover_pct": 0.0
     },
     "Cash-in-stagflation": {
-      "ann_return_pct": 13.76,
-      "ann_vol_pct": 14.62,
-      "sharpe": 0.82,
-      "max_dd_pct": -23.73,
-      "calmar": 0.58,
-      "avg_monthly_turnover_pct": 10.3
+      "ann_return_pct": 13.27,
+      "ann_vol_pct": 14.54,
+      "sharpe": 0.79,
+      "max_dd_pct": -24.74,
+      "calmar": 0.54,
+      "avg_monthly_turnover_pct": 9.9
     }
   },
   "stress_episode_attribution": {
     "2008 GFC": {
-      "MoE_total_ret_pct": -14.7,
-      "Goldilocks_total_ret_pct": -17.5
+      "MoE_total_ret_pct": -14.4,
+      "Goldilocks_total_ret_pct": -17.9
     },
     "2020 COVID": {
-      "MoE_total_ret_pct": 10.1,
-      "Goldilocks_total_ret_pct": 17.1
+      "MoE_total_ret_pct": 10.4,
+      "Goldilocks_total_ret_pct": 17.5
     },
     "2022 Stagflation": {
-      "MoE_total_ret_pct": -19.3,
-      "Goldilocks_total_ret_pct": -31.1
+      "MoE_total_ret_pct": -19.6,
+      "Goldilocks_total_ret_pct": -31.5
     }
   },
   "caveat": "Experts are full-sample oracle templates (teacher step); only the predictor is walk-forward. Raw return ~ always-Goldilocks; the edge is risk-adjusted (drawdown/Sharpe)."

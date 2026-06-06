@@ -330,6 +330,7 @@ def _render_policy_allocation_panel(view_model: RegimeHtmlViewModel) -> str:
         f"<div class='mini-stat'><span>{s}{' (dur)' if s == 'FI' else ''}</span>"
         f"<strong>{pred.sleeve_weights.get(s, 0.0):+.0f}</strong></div>"
         for s in ("EQ", "CM", "FI", "MACRO")
+        if abs(pred.sleeve_weights.get(s, 0.0)) > 1e-9  # hide unused sleeves (e.g. MACRO=0)
     )
     return (
         "<section class='panel regime-v2-alloc'>"
@@ -347,8 +348,8 @@ def _render_policy_allocation_panel(view_model: RegimeHtmlViewModel) -> str:
         "<h3>Target sleeve exposure (%)</h3>"
         f"<div class='regime-v2-alloc__grid'>{sleeve_cells}</div>"
         "<p class='regime-alloc__note'>Advisory only &mdash; read-only with respect to the "
-        "broker (no order entry). FI &amp; MACRO are futures excess-return overlays; "
-        "verdict MONITOR (see the policy-expert research report).</p>"
+        "broker (no order entry). FI is a duration (Treasury-futures) excess-return "
+        "overlay; verdict MONITOR (see the policy-expert research report).</p>"
         "</section>"
     )
 

@@ -21,20 +21,20 @@ Sample 1989-02 .. 2026-05 (448 months). Sleeves EQ=^SP500TR, CM=^SPGSCI, FI=synt
 
 | regime | robust corner (EQ/CM/MACRO/FI) | mean / p10 / min | vol | **smoothed template** | full-sample ret / vol / maxDD |
 |---|---|--:|--:|---|--:|
-| **Goldilocks** (G↑ I↓) | 100/0/10/+200 | +24.03/+21.01/+15.97% | 17% | **EQ100/CM0/MACRO10/FI+150** | +15.79% / 17% / -42.37% |
-| **Reflation** (G↑ I↑) | 100/15/10/+50 | +25.26/+20.33/+13.49% | 14% | **EQ100/CM15/MACRO10/FI+50** | +13.7% / 16% / -49.79% |
-| **Stagflation** (G↓ I↑) | 0/15/10/-100 | +21.83/+7.69/-7.22% | 10% | **EQ0/CM15/MACRO10/FI-100** | +1.14% / 8% / -46.25% |
-| **Recession** (G↓ I↓) | 60/0/10/+200 | +16.41/+7.7/+1.11% | 20% | **EQ60/CM0/MACRO10/FI+150** | +12.5% / 13% / -37.51% |
+| **Goldilocks** (G↑ I↓) | 100/0/0/+200 | +23.22/+20.29/+15.46% | 17% | **EQ100/CM0/MACRO0/FI+150** | +15.09% / 17% / -42.92% |
+| **Reflation** (G↑ I↑) | 100/15/0/+50 | +24.59/+19.47/+12.89% | 14% | **EQ100/CM15/MACRO0/FI+50** | +13.01% / 16% / -51.07% |
+| **Stagflation** (G↓ I↑) | 0/15/0/-100 | +20.07/+7.05/-6.1% | 9% | **EQ0/CM15/MACRO0/FI-100** | +0.51% / 8% / -48.83% |
+| **Recession** (G↓ I↓) | 60/0/0/+200 | +15.44/+6.75/-0.16% | 20% | **EQ60/CM0/MACRO0/FI+150** | +11.82% / 13% / -38.0% |
 
 *Smoothing: EQ/CM/MACRO -> nearest 5; |FI| capped at 150 then -> nearest 25 (defensible duration leverage). Full-sample = the static template applied to EVERY month 1989+ (context; not the in-regime ceiling).*
 
 
 ## The four policy experts
 
-- **Goldilocks** (G↑ I↓): EQ 100 / CM 0 / MACRO 10 / FI +150 (duration via futures, excess)
-- **Reflation** (G↑ I↑): EQ 100 / CM 15 / MACRO 10 / FI +50 (duration via futures, excess)
-- **Stagflation** (G↓ I↑): EQ 0 / CM 15 / MACRO 10 / FI -100 (duration via futures, excess)
-- **Recession** (G↓ I↓): EQ 60 / CM 0 / MACRO 10 / FI +150 (duration via futures, excess)
+- **Goldilocks** (G↑ I↓): EQ 100 / CM 0 / MACRO 0 / FI +150 (duration via futures, excess)
+- **Reflation** (G↑ I↑): EQ 100 / CM 15 / MACRO 0 / FI +50 (duration via futures, excess)
+- **Stagflation** (G↓ I↑): EQ 0 / CM 15 / MACRO 0 / FI -100 (duration via futures, excess)
+- **Recession** (G↓ I↓): EQ 60 / CM 0 / MACRO 0 / FI +150 (duration via futures, excess)
 
 
 ## Robust directional insight vs tentative template

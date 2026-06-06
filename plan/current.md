@@ -403,11 +403,15 @@ P4 = ex-ante ML predictor (21 ex-ante features, walk-forward, embargoed-CV Ridge
 **OOS rank-IC +0.20 at 6M**, predicted-best beats equal-weight 63%; heavy shrinkage
 essential — naive low-alpha overfits); P5 = soft mixture-of-experts allocation
 (blend → sleeves, turnover smoothing, vol-target ≤30% cap, cash-on-low-confidence);
-P6 = walk-forward backtest vs 9 baselines + **HTML research report**
-(`policy_expert_report.html`). **Verdict: MONITOR** — MoE Sharpe 0.69 vs 0.61
-best-static & maxDD −27% vs −42% (beats 6/8 classic baselines), but a simple
-cash-in-stagflation rule (0.82) is competitive → ML's edge is risk-adjusted
-crisis-tilting, advisory-only. **Phase 7 DONE** — the ML predictor runs live in the
+P6 = walk-forward backtest vs 8 baselines + **HTML research report**
+(`policy_expert_report.html`). **Verdict: MONITOR** — MoE Sharpe 0.65 vs 0.58
+best-static (beats 6/7 baselines), but a simple cash-in-stagflation rule (0.79) is
+competitive → ML's edge is risk-adjusted crisis-tilting, advisory-only. **MACRO sleeve
+removed from the experts (2026-06-06, user request)** — it was a uniform +10 overlay
+(trend is positive every regime), so it does not differentiate the experts and cancels
+in the cross-sectional allocation (mixture + predictor skill unchanged: IC +0.20).
+Experts are now EQ/CM/FI; dropping MACRO lowered every expert-based strategy uniformly
+(MoE Sharpe 0.69→0.65) while preserving the ranking + verdict. **Phase 7 DONE** — the ML predictor runs live in the
 **dashboard Regime tab**: a new "Policy-Expert Allocation (ML)" panel (allocation-layer
 overlay, spec choice (b)) via `portfolio_html._attach_policy_allocation` →
 `market_helper/regimes/policy_expert_predictor.predict_latest` (pure-Python, graceful,
