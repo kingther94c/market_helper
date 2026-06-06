@@ -19,6 +19,7 @@ import csv
 import json
 import math
 from dataclasses import dataclass, field
+from datetime import date
 from pathlib import Path
 
 from market_helper.app.paths import (
@@ -42,6 +43,7 @@ class PolicyExpertPrediction:
     confidence: float = 0.0                       # max allocation weight (0..1)
     expert_allocation: dict[str, float] = field(default_factory=dict)  # expert -> weight
     sleeve_weights: dict[str, float] = field(default_factory=dict)     # sleeve -> exposure %
+    feature_contributions: dict[str, list] = field(default_factory=dict)  # expert -> top feats
 
 
 def _softmax(values: list[float], temp: float) -> list[float]:
@@ -65,18 +67,49 @@ def _latest_feature_row(features_path: Path, names: list[str]) -> tuple[str, lis
     return None
 
 
+def _artifact_age_days(artifact_path: Path) -> int | None:
+    """Days since the artifact was trained, or None if missing/unstamped/unreadable."""
+    try:
+        stamp = json.loads(artifact_path.read_text(encoding="utf-8")).get("trained_at")
+        return (date.today() - date.fromisoformat(str(stamp))).days if stamp else None
+    except Exception:  # noqa: BLE001
+        return None
+
+
+def _maybe_retrain(artifact_path: Path, *, max_age_days: int) -> None:
+    """Lazy 30-day retrain: if the production artifact is missing, unstamped, or older
+    than ``max_age_days``, rebuild it on ALL available data (best-effort). Network +
+    sklearn run HERE only -- the common fresh-artifact path stays pure-Python. Any failure
+    leaves the existing artifact untouched (graceful; never raises to the caller)."""
+    age = _artifact_age_days(artifact_path)
+    if artifact_path.exists() and age is not None and age <= max_age_days:
+        return
+    try:
+        from market_helper.regimes.policy_expert_training import train
+        train(write=True)
+    except Exception:  # noqa: BLE001 -- keep the stale artifact on any failure
+        pass
+
+
 def predict_latest(
     *,
     artifact_path: Path | None = None,
     features_path: Path | None = None,
+    max_age_days: int = 30,
+    allow_retrain: bool = True,
 ) -> PolicyExpertPrediction:
     """Apply the trained linear model to the latest ex-ante feature row.
 
     fwd_hat_k = intercept_k + coef_k . standardize(x);  attractiveness = demean(fwd_hat);
     allocation = softmax(attractiveness / temp);  sleeve = sum_k alloc_k * expert_k.
+
+    On the default production paths, first runs the lazy 30-day retrain (see
+    ``_maybe_retrain``); pass explicit paths or ``allow_retrain=False`` to skip it.
     """
     art_p = Path(artifact_path) if artifact_path else POLICY_EXPERT_MODEL_ARTIFACT_PATH
     feat_p = Path(features_path) if features_path else POLICY_EXPERT_FEATURES_PATH
+    if allow_retrain and artifact_path is None and features_path is None:
+        _maybe_retrain(art_p, max_age_days=max_age_days)
     if not art_p.exists():
         return PolicyExpertPrediction(False, reason="model artifact not found")
     try:
@@ -106,6 +139,17 @@ def predict_latest(
             s: round(sum(alloc[k] * float(exposures[experts[k]][s]) for k in range(len(experts))), 1)
             for s in SLEEVES
         }
+        schema = art.get("feature_schema", {})
+        contribs: dict[str, list] = {}        # linear attribution: coef_k[i] * standardized x[i]
+        for k in range(len(experts)):
+            pairs = sorted(
+                ((names[i], (schema.get(names[i]) or {}).get("group", ""), coef[k][i] * xs[i])
+                 for i in range(len(names))),
+                key=lambda p: -abs(p[2]),
+            )[:4]
+            contribs[experts[k]] = [
+                {"feature": f, "group": g, "contribution": round(float(c), 4)} for f, g, c in pairs
+            ]
         top_k = max(range(len(experts)), key=lambda k: alloc[k])
         return PolicyExpertPrediction(
             available=True,
@@ -116,6 +160,7 @@ def predict_latest(
             confidence=round(alloc[top_k], 4),
             expert_allocation=alloc_map,
             sleeve_weights=sleeves,
+            feature_contributions=contribs,
         )
     except Exception as exc:  # noqa: BLE001 -- advisory surface must never raise
         return PolicyExpertPrediction(False, reason=f"predictor error: {type(exc).__name__}")

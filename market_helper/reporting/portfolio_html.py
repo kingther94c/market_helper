@@ -562,17 +562,22 @@ def _render_regime_detail_for_state(
 
 
 def _attach_policy_allocation(view_model):
-    """Attach the advisory policy-expert ML allocation overlay for the dashboard
-    Regime tab (spec architecture (b): an allocation-layer driver one level up from
-    the regime engine, not a blended axis-layer). Fully graceful -- any failure
-    leaves the view-model unchanged, so the panel is simply omitted.
+    """Attach the policy-expert overlays for the dashboard Regime tab: the forward ML
+    forecast (peer to the macro/market layers) and the backward EW-momentum Trending
+    panel. Allocation-layer driver one level up from the regime engine (spec choice (b)).
+    Fully graceful -- any failure leaves the view-model unchanged (panels omitted).
     """
     try:
         import dataclasses
 
         from market_helper.regimes.policy_expert_predictor import predict_latest
+        from market_helper.regimes.policy_expert_trending import compute_trending
 
-        return dataclasses.replace(view_model, policy_allocation=predict_latest())
+        return dataclasses.replace(
+            view_model,
+            policy_allocation=predict_latest(),
+            policy_trending=compute_trending(),
+        )
     except Exception:  # noqa: BLE001 -- advisory overlay must never break the report
         return view_model
 

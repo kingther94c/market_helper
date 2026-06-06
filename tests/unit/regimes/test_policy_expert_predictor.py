@@ -79,9 +79,42 @@ def test_predict_latest_missing_features_is_graceful(tmp_path: Path) -> None:
 
 
 def test_predict_latest_on_committed_artifact_is_sane() -> None:
-    """The real committed artifact + features produce a valid allocation."""
-    pred = predict_latest()
+    """The real committed artifact + features produce a valid allocation.
+
+    allow_retrain=False so the unit test never triggers a network retrain.
+    """
+    pred = predict_latest(allow_retrain=False)
     assert pred.available is True
     assert pred.top_expert in {"Goldilocks", "Reflation", "Stagflation", "Recession"}
     assert abs(sum(pred.expert_allocation.values()) - 1.0) < 1e-3
     assert set(pred.sleeve_weights) == {"EQ", "CM", "MACRO", "FI"}
+
+
+def test_lazy_retrain_fires_only_when_stale(tmp_path, monkeypatch) -> None:
+    """The 30-day lazy retrain triggers on a stale/unstamped/missing artifact and is a
+    no-op when fresh; the train() call is best-effort (failures are swallowed)."""
+    import datetime
+
+    from market_helper.regimes import policy_expert_predictor as pep
+
+    calls = {"n": 0}
+
+    def fake_train(write: bool = True) -> None:
+        calls["n"] += 1
+
+    monkeypatch.setattr("market_helper.regimes.policy_expert_training.train", fake_train)
+
+    stale = tmp_path / "stale.json"
+    stale.write_text(json.dumps({"trained_at": "2000-01-01"}), encoding="utf-8")
+    assert pep._artifact_age_days(stale) > 30
+    pep._maybe_retrain(stale, max_age_days=30)
+    assert calls["n"] == 1                      # stale -> retrain
+
+    fresh = tmp_path / "fresh.json"
+    fresh.write_text(json.dumps({"trained_at": datetime.date.today().isoformat()}), encoding="utf-8")
+    assert pep._artifact_age_days(fresh) == 0
+    pep._maybe_retrain(fresh, max_age_days=30)
+    assert calls["n"] == 1                      # fresh -> no retrain
+
+    pep._maybe_retrain(tmp_path / "missing.json", max_age_days=30)
+    assert calls["n"] == 2                      # missing -> retrain

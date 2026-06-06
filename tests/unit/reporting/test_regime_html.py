@@ -406,7 +406,7 @@ def test_policy_allocation_panel_renders_when_attached() -> None:
         sleeve_weights={"EQ": 30.0, "CM": 12.0, "FI": -40.0, "MACRO": 10.0},
     )
     fragment = render_regime_section_body(_minimal_v2_vm(policy_allocation=pred))
-    assert "Policy-Expert Allocation (ML)" in fragment
+    assert "Policy-Expert Forecast (ML)" in fragment
     assert "Stagflation" in fragment
     assert "Target sleeve exposure" in fragment
     assert "read-only with respect to the broker" in fragment
@@ -414,7 +414,8 @@ def test_policy_allocation_panel_renders_when_attached() -> None:
 
 def test_policy_allocation_panel_omitted_when_absent() -> None:
     fragment = render_regime_section_body(_minimal_v2_vm())
-    assert "Policy-Expert Allocation" not in fragment
+    assert "Policy-Expert Forecast" not in fragment
+    assert "Policy-Expert Trending" not in fragment
 
 
 def test_policy_allocation_panel_unavailable_card_is_graceful() -> None:
@@ -422,7 +423,50 @@ def test_policy_allocation_panel_unavailable_card_is_graceful() -> None:
 
     pred = PolicyExpertPrediction(False, reason="model artifact not found")
     fragment = render_regime_section_body(_minimal_v2_vm(policy_allocation=pred))
-    assert "Policy-Expert Allocation (ML)" in fragment
+    assert "Policy-Expert Forecast (ML)" in fragment
+    assert "unavailable" in fragment.lower()
+
+
+def test_policy_forecast_feature_breakdown_renders() -> None:
+    from market_helper.regimes.policy_expert_predictor import PolicyExpertPrediction
+
+    pred = PolicyExpertPrediction(
+        available=True, as_of="2026-05", model_name="ridge", horizon_months=6,
+        top_expert="Goldilocks", confidence=0.4,
+        expert_allocation={"Goldilocks": 0.4, "Reflation": 0.3, "Stagflation": 0.1, "Recession": 0.2},
+        sleeve_weights={"EQ": 90.0, "CM": 5.0, "FI": 100.0, "MACRO": 0.0},
+        feature_contributions={"Goldilocks": [
+            {"feature": "core_infl_yoy", "group": "inflation", "contribution": -0.005}]},
+    )
+    fragment = render_regime_section_body(_minimal_v2_vm(policy_allocation=pred))
+    assert "driving it" in fragment
+    assert "core_infl_yoy" in fragment
+
+
+def test_policy_trending_panel_renders() -> None:
+    from market_helper.regimes.policy_expert_trending import PolicyExpertTrending
+
+    experts = ["Goldilocks", "Reflation", "Stagflation", "Recession"]
+    t = PolicyExpertTrending(
+        available=True, as_of="2026-06-05", halflife_days=30,
+        probabilities={"Goldilocks": 0.2, "Reflation": 0.5, "Stagflation": 0.2, "Recession": 0.1},
+        trail_3m={k: 5.0 for k in experts}, trail_1m={k: -1.0 for k in experts},
+        trail_1w={k: 0.5 for k in experts},
+        history_dates=["2026-01-01", "2026-06-05"],
+        history={k: [0.25, 0.5] for k in experts},
+    )
+    fragment = render_regime_section_body(_minimal_v2_vm(policy_trending=t))
+    assert "Policy-Expert Trending" in fragment
+    assert "regime-trend__svg" in fragment and "<polyline" in fragment
+    assert all(h in fragment for h in ["<th>3M</th>", "<th>1M</th>", "<th>1W</th>"])
+
+
+def test_policy_trending_unavailable_is_graceful() -> None:
+    from market_helper.regimes.policy_expert_trending import PolicyExpertTrending
+
+    t = PolicyExpertTrending(False, reason="daily returns file not found")
+    fragment = render_regime_section_body(_minimal_v2_vm(policy_trending=t))
+    assert "Policy-Expert Trending" in fragment
     assert "unavailable" in fragment.lower()
 
 

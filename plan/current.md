@@ -477,6 +477,29 @@ lands on the attack template). Records in
 `data/research_artifacts/policy_experts.{json,md}`; the 4 experts' full-sample
 monthly return series (the Phase-3 input) in `policy_expert_returns.csv`.
 
+**Goal v2 (2026-06-06, in progress) — productionize predictor + Trending; remove SVM
+slots.** **A** (done): `macro_truth_ml`/`return_truth_ml` fully removed (see Regime
+Engine item #3 + ADR 0006). **B** (done): model-selection study
+(`policy_expert_model_selection.py` → **ElasticNet** wins: OOS captured +1.3%/IC +0.23,
+beats ridge + trees + mlogit; trees underperform on autocorrelated targets) → canonical
+**production training pipeline in the package** (`market_helper/regimes/policy_expert_training.py`:
+rebuilds panel+22 features+labels, fits ElasticNet, writes a **dated** numpy artifact) →
+**lazy 30-day retrain** in `policy_expert_predictor.predict_latest` (`_maybe_retrain`:
+stale/unstamped/missing artifact → rebuild on ALL data, else pure-Python inference; tests
+cover it). **D** (done): daily expert series (`policy_expert_daily.py`, FI→IEF/CASH→TB3MS,
+6001 days 2002+) for the Trending panel. **C** (done): the forward ML forecast renders
+as a **peer card** in the Regime "Axes & Layers" group (alongside macro/market layers)
+with a **feature-attribution breakdown** (`predict_latest` now returns per-expert top
+feature contributions; "Policy-Expert Forecast (ML)" card). **E** (done):
+**"Policy-Expert Trending"** panel (`policy_expert_trending.py`: EW relative performance
+→ softmax probabilities, recent **trend chart** (inline SVG) + **allocation + 3M/1M/1W
+table**), backward-momentum, distinct from the forward forecast. Both attached on the
+combined-report path (`portfolio_html._attach_policy_allocation`), graceful when
+unavailable. **Model note**: ElasticNet(α=1) degenerates (zeroes all coef → static
+collapse, flagged in the study); **Ridge (embargoed-CV α=1000)** is the production model
+— dynamic (88/88 non-zero coef) + interpretable. Goal v2 functionally complete pending
+final ADR consolidation.
+
 ## Trade Advisor (integration)
 
 **State**: MVP landed. Read-only (no order entry).

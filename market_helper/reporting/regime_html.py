@@ -14,6 +14,7 @@ from market_helper.reporting._design_tokens import design_tokens_css
 
 if TYPE_CHECKING:  # annotation only -- avoids a reporting<->regimes import at runtime
     from market_helper.regimes.policy_expert_predictor import PolicyExpertPrediction
+    from market_helper.regimes.policy_expert_trending import PolicyExpertTrending
 
 
 @dataclass(frozen=True)
@@ -143,9 +144,10 @@ class RegimeHtmlViewModel:
     data_mode: str | None = None
     available_primary_layers: list[str] = field(default_factory=list)
     missing_primary_layers: list[str] = field(default_factory=list)
-    # Allocation-layer overlay (spec choice (b)); attached only on the combined
-    # dashboard path. None => panel omitted (standalone CLI / tests).
-    policy_allocation: "PolicyExpertPrediction | None" = None
+    # Allocation-layer overlays; attached only on the combined dashboard path.
+    # None => panel omitted (standalone CLI / tests).
+    policy_allocation: "PolicyExpertPrediction | None" = None       # forward ML forecast
+    policy_trending: "PolicyExpertTrending | None" = None           # backward EW momentum
 
 
 def build_regime_html_view_model(
@@ -302,11 +304,12 @@ def _render_v2_hero(view_model: RegimeHtmlViewModel, *, stale_tag: str) -> str:
     )
 
 
-def _render_policy_allocation_panel(view_model: RegimeHtmlViewModel) -> str:
-    """Allocation-layer ML overlay: a soft mix across the 4 policy experts + the
-    resulting target sleeve exposures, from ex-ante macro+market features. Advisory /
-    read-only. Returns "" when not attached (standalone CLI / tests). When attached but
-    the model artifact is unavailable, renders an explainer (never a fake number)."""
+def _render_policy_forecast_panel(view_model: RegimeHtmlViewModel) -> str:
+    """The ML predictor's FORWARD policy-expert forecast, rendered as a PEER to the
+    macro / market regime layers: a soft mix across the 4 experts + target sleeve
+    exposures, plus a feature-attribution breakdown (mirrors the macro/market concept
+    breakdown). Advisory / read-only. Returns "" when not attached; an explainer card
+    when the model artifact is unavailable (never a fake number)."""
     pred = view_model.policy_allocation
     if pred is None:
         return ""
@@ -314,11 +317,10 @@ def _render_policy_allocation_panel(view_model: RegimeHtmlViewModel) -> str:
         return (
             "<section class='panel regime-v2-alloc regime-alloc-unavailable'>"
             "<header class='regime-panel__header'>"
-            "<h2>Policy-Expert Allocation (ML)</h2>"
+            "<h2>Policy-Expert Forecast (ML)</h2>"
             "<span class='regime-panel__meta'>advisory &middot; read-only</span></header>"
             f"<p class='regime-alloc__note'>Predictor unavailable ({html.escape(str(pred.reason))}). "
-            "Re-run <code>scripts/research/policy_expert_model.py</code> to refresh the "
-            "model artifact and feature panel.</p></section>"
+            "It rebuilds on the next refresh (lazy 30-day retrain).</p></section>"
         )
     experts = sorted(pred.expert_allocation.items(), key=lambda kv: -kv[1])
     expert_cells = "".join(
@@ -332,24 +334,119 @@ def _render_policy_allocation_panel(view_model: RegimeHtmlViewModel) -> str:
         for s in ("EQ", "CM", "FI", "MACRO")
         if abs(pred.sleeve_weights.get(s, 0.0)) > 1e-9  # hide unused sleeves (e.g. MACRO=0)
     )
+    driver_rows = []
+    for k, w in experts[:3]:
+        contribs = (getattr(pred, "feature_contributions", {}) or {}).get(k, [])[:3]
+        chips = ""
+        for c in contribs:
+            pos = float(c.get("contribution", 0.0)) >= 0
+            chips += (f"<b class='{'contrib-pos' if pos else 'contrib-neg'}'>"
+                      f"{html.escape(str(c.get('feature', '')))} {'+' if pos else '-'}</b>")
+        if chips:
+            driver_rows.append(
+                f"<div class='regime-alloc__driver'><span>{html.escape(k)} {w * 100:.0f}%</span>"
+                f"{chips}</div>"
+            )
+    breakdown = ""
+    if driver_rows:
+        breakdown = ("<h3>What's driving it (top features per expert)</h3>"
+                     f"<div class='regime-alloc__drivers'>{''.join(driver_rows)}</div>")
     return (
         "<section class='panel regime-v2-alloc'>"
         "<header class='regime-panel__header'>"
-        "<h2>Policy-Expert Allocation (ML)</h2>"
+        "<h2>Policy-Expert Forecast (ML)</h2>"
         f"<span class='regime-panel__meta'>{html.escape(pred.model_name)} &middot; "
         f"as of {html.escape(pred.as_of)} &middot; {pred.horizon_months}M horizon</span>"
         "</header>"
-        f"<p class='regime-alloc__lead'>Leaning toward the <b>{html.escape(pred.top_expert)}</b> "
-        f"expert ({pred.confidence * 100:.0f}% weight). Soft mixture across the four "
-        "Growth&times;Inflation policy experts predicted from ex-ante macro + market "
-        "features.</p>"
+        f"<p class='regime-alloc__lead'>Forecast lean: <b>{html.escape(pred.top_expert)}</b> "
+        f"expert ({pred.confidence * 100:.0f}% weight) &mdash; the ML predictor's view of which "
+        "policy expert outperforms next, from ex-ante macro + market features (a peer to the "
+        "macro / market regime layers above).</p>"
         "<h3>Expert mixture</h3>"
         f"<div class='regime-v2-alloc__grid'>{expert_cells}</div>"
         "<h3>Target sleeve exposure (%)</h3>"
         f"<div class='regime-v2-alloc__grid'>{sleeve_cells}</div>"
+        f"{breakdown}"
         "<p class='regime-alloc__note'>Advisory only &mdash; read-only with respect to the "
         "broker (no order entry). FI is a duration (Treasury-futures) excess-return "
-        "overlay; verdict MONITOR (see the policy-expert research report).</p>"
+        "overlay; verdict MONITOR.</p>"
+        "</section>"
+    )
+
+
+_TREND_COLORS = {"Goldilocks": "#16a34a", "Reflation": "#2563eb",
+                 "Stagflation": "#dc2626", "Recession": "#9333ea"}
+
+
+def _render_policy_trending_panel(view_model: RegimeHtmlViewModel) -> str:
+    """Descriptive EW-momentum view (Section E): the 4 experts' recent relative
+    performance -> probabilities, a trend chart, and a 3M/1M/1W table. Backward-looking,
+    distinct from the forward ML forecast. Returns "" when not attached; explainer when
+    unavailable."""
+    t = view_model.policy_trending
+    if t is None:
+        return ""
+    experts_order = ["Goldilocks", "Reflation", "Stagflation", "Recession"]
+    if not getattr(t, "available", False):
+        return (
+            "<section class='panel regime-v2-alloc regime-alloc-unavailable'>"
+            "<header class='regime-panel__header'><h2>Policy-Expert Trending</h2>"
+            "<span class='regime-panel__meta'>advisory &middot; read-only</span></header>"
+            f"<p class='regime-alloc__note'>Trending unavailable ({html.escape(str(t.reason))}).</p>"
+            "</section>"
+        )
+    ranked = sorted(t.probabilities.items(), key=lambda kv: -kv[1])
+    top = ranked[0][0]
+    rows = ""
+    for k, _w in ranked:
+        rows += (
+            f"<tr><td><b>{html.escape(k)}</b></td>"
+            f"<td>{t.probabilities[k] * 100:.0f}%</td>"
+            f"<td>{t.trail_3m.get(k, 0.0):+.1f}%</td>"
+            f"<td>{t.trail_1m.get(k, 0.0):+.1f}%</td>"
+            f"<td>{t.trail_1w.get(k, 0.0):+.1f}%</td></tr>"
+        )
+    table = ("<table><thead><tr><th>Expert</th><th>Allocation</th><th>3M</th><th>1M</th>"
+             f"<th>1W</th></tr></thead><tbody>{rows}</tbody></table>")
+    dates = t.history_dates
+    n = max(2, len(dates))
+    width, height = 640, 150
+
+    def _points(series: list[float]) -> str:
+        return " ".join(f"{(i / (n - 1)) * width:.1f},{(1 - v) * height:.1f}"
+                        for i, v in enumerate(series))
+
+    grid = "".join(
+        f"<line x1='0' x2='{width}' y1='{(1 - y) * height:.0f}' y2='{(1 - y) * height:.0f}' "
+        "stroke='#e2e6ec' stroke-width='1'/>" for y in (0.25, 0.5, 0.75))
+    lines = "".join(
+        f"<polyline fill='none' stroke='{_TREND_COLORS[k]}' stroke-width='2' "
+        f"points='{_points(t.history.get(k, []))}'/>" for k in experts_order)
+    legend = "".join(
+        f"<span class='regime-trend__leg'><i style='background:{_TREND_COLORS[k]}'></i>"
+        f"{html.escape(k)}</span>" for k in experts_order)
+    chart = (
+        f"<svg class='regime-trend__svg' viewBox='0 0 {width} {height}' "
+        f"preserveAspectRatio='none' role='img' aria-label='expert probability trend'>"
+        f"{grid}{lines}</svg>"
+        f"<div class='regime-trend__axis'><span>{html.escape(dates[0]) if dates else ''}</span>"
+        f"<span>{html.escape(dates[-1]) if dates else ''}</span></div>"
+        f"<div class='regime-trend__legend'>{legend}</div>"
+    )
+    return (
+        "<section class='panel regime-v2-alloc regime-trend'>"
+        "<header class='regime-panel__header'><h2>Policy-Expert Trending</h2>"
+        f"<span class='regime-panel__meta'>EW momentum &middot; halflife {t.halflife_days}d "
+        f"&middot; as of {html.escape(t.as_of)}</span></header>"
+        f"<p class='regime-alloc__lead'>Recent <b>relative-performance</b> trend "
+        "(backward-looking, distinct from the forward ML forecast): leaning "
+        f"<b>{html.escape(top)}</b>.</p>"
+        "<h3>Probability trend (last ~6 months)</h3>"
+        f"{chart}"
+        "<h3>Allocation &amp; trailing performance</h3>"
+        f"{table}"
+        "<p class='regime-alloc__note'>Exponentially-weighted relative performance of the 4 "
+        "experts &rarr; softmax probabilities. Advisory; read-only.</p>"
         "</section>"
     )
 
@@ -362,12 +459,13 @@ def _render_v2_detail(view_model: RegimeHtmlViewModel, *, with_subnav: bool) -> 
             "Axes & Layers",
             _render_v2_axis_panel(view_model)
             + _render_v2_layer_detail(view_model)
-            + _render_v2_concept_panel(view_model),
+            + _render_v2_concept_panel(view_model)
+            + _render_policy_forecast_panel(view_model),
         ),
         (
-            "allocation",
-            "Policy-Expert Allocation (ML)",
-            _render_policy_allocation_panel(view_model),
+            "trending",
+            "Policy-Expert Trending",
+            _render_policy_trending_panel(view_model),
         ),
         (
             "overlay",
@@ -1738,6 +1836,17 @@ def regime_section_styles() -> str:
     .regime-alloc__lead { margin: 4px 0 8px; color: var(--ink-2); }
     .regime-alloc__note { margin-top: 10px; font-size: 12px; color: var(--muted-ink); }
     .regime-alloc-unavailable { border-left: 4px solid var(--border-soft); }
+    .regime-alloc__drivers { display: flex; flex-direction: column; gap: 6px; }
+    .regime-alloc__driver { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+    .regime-alloc__driver > span { color: var(--muted-ink); font-size: 12px; font-weight: 700; min-width: 110px; }
+    .contrib-pos, .contrib-neg { display: inline-flex; padding: 3px 7px; border-radius: 999px; font-size: 11px; font-weight: 600; }
+    .contrib-pos { background: #e3f5ea; color: #1d7a44; }
+    .contrib-neg { background: #fde6e6; color: #b3322c; }
+    .regime-trend__svg { width: 100%; height: 150px; background: var(--surface); border: 1px solid var(--border-soft); border-radius: 8px; }
+    .regime-trend__axis { display: flex; justify-content: space-between; font-size: 11px; color: var(--muted-ink); margin-top: 2px; }
+    .regime-trend__legend { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 6px; }
+    .regime-trend__leg { display: inline-flex; align-items: center; gap: 5px; font-size: 12px; color: var(--ink-2); }
+    .regime-trend__leg i { width: 12px; height: 3px; border-radius: 2px; display: inline-block; }
     .mini-stat { border: 1px solid var(--border-soft); border-radius: 8px; padding: 10px 12px; background: var(--surface); }
     .mini-stat span { display: block; color: var(--muted-ink); font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em; }
     .mini-stat strong { display: block; margin-top: 4px; font-size: 17px; font-weight: 700; font-variant-numeric: tabular-nums; }

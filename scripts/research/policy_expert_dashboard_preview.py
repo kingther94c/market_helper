@@ -19,6 +19,7 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(REPO_ROOT))
 
 from market_helper.regimes.policy_expert_predictor import predict_latest  # noqa: E402
+from market_helper.regimes.policy_expert_trending import compute_trending  # noqa: E402
 from market_helper.reporting.regime_html import (  # noqa: E402
     RegimeHtmlLayerRow,
     RegimeHtmlRiskOverlay,
@@ -70,7 +71,11 @@ def representative_view_model() -> RegimeHtmlViewModel:
 
 
 def main() -> int:
-    vm = dataclasses.replace(representative_view_model(), policy_allocation=predict_latest())
+    vm = dataclasses.replace(
+        representative_view_model(),
+        policy_allocation=predict_latest(allow_retrain=False),
+        policy_trending=compute_trending(),
+    )
     OUT.parent.mkdir(parents=True, exist_ok=True)
     OUT.write_text(render_regime_html_report(vm), encoding="utf-8")
     pred = vm.policy_allocation

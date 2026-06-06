@@ -1,8 +1,9 @@
 {
-  "model": "ridge_multi_output_forward_return",
+  "model": "ridge",
+  "trained_at": "2026-06-06",
   "horizon_months": 6,
   "softmax_temp": 0.03,
-  "alpha_selected": 1000.0,
+  "alpha": 1000.0,
   "experts": [
     "Goldilocks",
     "Reflation",
@@ -176,7 +177,7 @@
     },
     "move_proxy": {
       "source": "market",
-      "transform": "FI 3m realized vol %% (MOVE proxy)",
+      "transform": "FI 3m realized vol %",
       "lag_months": 0,
       "group": "stress"
     },

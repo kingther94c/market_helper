@@ -1,0 +1,80 @@
+{
+  "config": {
+    "horizon": 6,
+    "refit_months": 12,
+    "min_train": 120,
+    "n_features": 22,
+    "softmax_temp": 0.03
+  },
+  "candidates": [
+    {
+      "model": "ridge",
+      "n_oos": 305,
+      "excess_captured_pct": 1.03,
+      "rank_ic": 0.222,
+      "top1_acc": 0.321,
+      "log_loss": 1.594,
+      "alloc_dispersion": 0.083,
+      "dynamic": true,
+      "deployable_pure_python": true
+    },
+    {
+      "model": "elasticnet",
+      "n_oos": 305,
+      "excess_captured_pct": 1.26,
+      "rank_ic": 0.226,
+      "top1_acc": 0.325,
+      "log_loss": 1.655,
+      "alloc_dispersion": 0.0182,
+      "dynamic": false,
+      "deployable_pure_python": true
+    },
+    {
+      "model": "mlogit",
+      "n_oos": 305,
+      "excess_captured_pct": -1.4,
+      "rank_ic": -0.148,
+      "top1_acc": 0.18,
+      "log_loss": 2.369,
+      "alloc_dispersion": 0.2357,
+      "dynamic": true,
+      "deployable_pure_python": true
+    },
+    {
+      "model": "rf",
+      "n_oos": 305,
+      "excess_captured_pct": 0.74,
+      "rank_ic": 0.184,
+      "top1_acc": 0.272,
+      "log_loss": 1.558,
+      "alloc_dispersion": 0.0831,
+      "dynamic": true,
+      "deployable_pure_python": false
+    },
+    {
+      "model": "hgb",
+      "n_oos": 305,
+      "excess_captured_pct": -0.1,
+      "rank_ic": 0.023,
+      "top1_acc": 0.22,
+      "log_loss": 2.039,
+      "alloc_dispersion": 0.2105,
+      "dynamic": true,
+      "deployable_pure_python": false
+    },
+    {
+      "model": "ensemble_linear",
+      "n_oos": 305,
+      "excess_captured_pct": 0.3,
+      "rank_ic": 0.088,
+      "top1_acc": 0.302,
+      "log_loss": 1.463,
+      "alloc_dispersion": 0.0914,
+      "dynamic": true,
+      "deployable_pure_python": true
+    }
+  ],
+  "winner_deployable": "ridge",
+  "best_overall": "elasticnet",
+  "note": "Production model is restricted to pure-Python-inferable linear family; trees evaluated for comparison only."
+}
