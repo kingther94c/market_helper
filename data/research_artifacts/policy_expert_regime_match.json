@@ -1,0 +1,182 @@
+{
+  "full_sample_relative_winner_share_pct": {
+    "Goldilocks": 31.0,
+    "Reflation": 24.0,
+    "Stagflation": 28.0,
+    "Recession": 16.0
+  },
+  "relative_return_winner": {
+    "per_regime": {
+      "Goldilocks": {
+        "n_months": 133,
+        "match_pct": 41.0,
+        "top_winner": "Goldilocks"
+      },
+      "Reflation": {
+        "n_months": 70,
+        "match_pct": 34.0,
+        "top_winner": "Reflation"
+      },
+      "Stagflation": {
+        "n_months": 14,
+        "match_pct": 71.0,
+        "top_winner": "Stagflation"
+      },
+      "Recession": {
+        "n_months": 34,
+        "match_pct": 41.0,
+        "top_winner": "Recession"
+      }
+    },
+    "overall_match_pct": 41.0,
+    "n_window_months": 251
+  },
+  "regime_signal_winner": {
+    "per_regime": {
+      "Goldilocks": {
+        "n_months": 133,
+        "match_pct": 14.0,
+        "top_winner": "Stagflation"
+      },
+      "Reflation": {
+        "n_months": 70,
+        "match_pct": 31.0,
+        "top_winner": "Stagflation"
+      },
+      "Stagflation": {
+        "n_months": 14,
+        "match_pct": 86.0,
+        "top_winner": "Stagflation"
+      },
+      "Recession": {
+        "n_months": 34,
+        "match_pct": 53.0,
+        "top_winner": "Recession"
+      }
+    },
+    "overall_match_pct": 28.0,
+    "n_window_months": 251
+  },
+  "episodes": [
+    {
+      "regime": "Goldilocks",
+      "window": "1995-01..1999-12",
+      "n": 60,
+      "window_mean_winner": "Goldilocks",
+      "mean_matches": true,
+      "monthly_dominant": "Goldilocks",
+      "monthly_dominant_share_pct": 47.0,
+      "monthly_matches": true
+    },
+    {
+      "regime": "Goldilocks",
+      "window": "2013-01..2019-09",
+      "n": 81,
+      "window_mean_winner": "Goldilocks",
+      "mean_matches": true,
+      "monthly_dominant": "Goldilocks",
+      "monthly_dominant_share_pct": 35.0,
+      "monthly_matches": true
+    },
+    {
+      "regime": "Reflation",
+      "window": "2003-04..2006-06",
+      "n": 39,
+      "window_mean_winner": "Reflation",
+      "mean_matches": true,
+      "monthly_dominant": "Stagflation",
+      "monthly_dominant_share_pct": 33.0,
+      "monthly_matches": false
+    },
+    {
+      "regime": "Reflation",
+      "window": "2009-04..2010-04",
+      "n": 13,
+      "window_mean_winner": "Reflation",
+      "mean_matches": true,
+      "monthly_dominant": "Reflation",
+      "monthly_dominant_share_pct": 46.0,
+      "monthly_matches": true
+    },
+    {
+      "regime": "Reflation",
+      "window": "2020-06..2021-11",
+      "n": 18,
+      "window_mean_winner": "Reflation",
+      "mean_matches": true,
+      "monthly_dominant": "Reflation",
+      "monthly_dominant_share_pct": 44.0,
+      "monthly_matches": true
+    },
+    {
+      "regime": "Stagflation",
+      "window": "2022-01..2022-10",
+      "n": 10,
+      "window_mean_winner": "Stagflation",
+      "mean_matches": true,
+      "monthly_dominant": "Stagflation",
+      "monthly_dominant_share_pct": 70.0,
+      "monthly_matches": true
+    },
+    {
+      "regime": "Stagflation",
+      "window": "1990-07..1990-10",
+      "n": 4,
+      "window_mean_winner": "Stagflation",
+      "mean_matches": true,
+      "monthly_dominant": "Stagflation",
+      "monthly_dominant_share_pct": 75.0,
+      "monthly_matches": true
+    },
+    {
+      "regime": "Recession",
+      "window": "1990-11..1991-03",
+      "n": 5,
+      "window_mean_winner": "Goldilocks",
+      "mean_matches": false,
+      "monthly_dominant": "Goldilocks",
+      "monthly_dominant_share_pct": 80.0,
+      "monthly_matches": false
+    },
+    {
+      "regime": "Recession",
+      "window": "2001-03..2001-11",
+      "n": 9,
+      "window_mean_winner": "Recession",
+      "mean_matches": true,
+      "monthly_dominant": "Recession",
+      "monthly_dominant_share_pct": 56.0,
+      "monthly_matches": true
+    },
+    {
+      "regime": "Recession",
+      "window": "2008-07..2009-03",
+      "n": 9,
+      "window_mean_winner": "Recession",
+      "mean_matches": true,
+      "monthly_dominant": "Recession",
+      "monthly_dominant_share_pct": 33.0,
+      "monthly_matches": true
+    },
+    {
+      "regime": "Recession",
+      "window": "2015-07..2016-02",
+      "n": 8,
+      "window_mean_winner": "Recession",
+      "mean_matches": true,
+      "monthly_dominant": "Recession",
+      "monthly_dominant_share_pct": 50.0,
+      "monthly_matches": true
+    },
+    {
+      "regime": "Recession",
+      "window": "2020-02..2020-04",
+      "n": 3,
+      "window_mean_winner": "Recession",
+      "mean_matches": true,
+      "monthly_dominant": "Recession",
+      "monthly_dominant_share_pct": 67.0,
+      "monthly_matches": true
+    }
+  ]
+}

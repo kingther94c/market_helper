@@ -411,7 +411,15 @@ removed from the experts (2026-06-06, user request)** — it was a uniform +10 o
 (trend is positive every regime), so it does not differentiate the experts and cancels
 in the cross-sectional allocation (mixture + predictor skill unchanged: IC +0.20).
 Experts are now EQ/CM/FI; dropping MACRO lowered every expert-based strategy uniformly
-(MoE Sharpe 0.69→0.65) while preserving the ranking + verdict. **Phase 7 DONE** — the ML predictor runs live in the
+(MoE Sharpe 0.69→0.65) while preserving the ranking + verdict. **Validation**
+(`policy_expert_regime_match.py`): the experts' relative performance matches the
+consensus regime *periods* at the episode level (month-dominant 10/12, window-mean 11/12)
+but only ~41% month-by-month (Goldilocks/Reflation overlap heavily; the volatile
+Stagflation expert over-wins shock months — 28% of ALL months vs 14 consensus). Two
+economically-sensible misses: 2003-06 Reflation reads Stagflation (China commodity
+super-cycle), 1990-91 Recession reads Goldilocks (Fed-easing recovery bottom — the
+lagging-growth trap). Confirms experts↔consensus align at the regime-period level; the
+month-level noise explains the predictor's modest IC. **Phase 7 DONE** — the ML predictor runs live in the
 **dashboard Regime tab**: a new "Policy-Expert Allocation (ML)" panel (allocation-layer
 overlay, spec choice (b)) via `portfolio_html._attach_policy_allocation` →
 `market_helper/regimes/policy_expert_predictor.predict_latest` (pure-Python, graceful,
