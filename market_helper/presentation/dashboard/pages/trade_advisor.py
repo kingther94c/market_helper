@@ -43,6 +43,7 @@ from market_helper.trade_advisor.contracts import (
     Suggestion,
 )
 from market_helper.trade_advisor.journal import DecisionJournal, decision_from_suggestion
+from market_helper.presentation.dashboard.shell import app_shell
 
 # Bounded option sets — the universe is a fixed, validated list (no free text).
 LIQUID_UNIVERSE = [
@@ -188,16 +189,16 @@ def fx_alloc_table(detail: dict) -> tuple[list[str], list[list[str]]]:
     headers = ["Ccy", "Instrument", "Beta", "Contracts", "Notional $", "Carry bps", "ON %", "Expiry"]
     rows = [
         [
-            str(l.get("currency", "")),
-            str(l.get("instrument", "")),
-            _num(l.get("beta"), "+.3f"),
-            _num(l.get("target_contracts"), "+d"),
-            _num(l.get("target_notional_usd"), ",.0f"),
-            _num(l.get("carry_bps"), "+.0f"),
-            _pct(l.get("on_rate")),
-            str(l.get("expiry", "")),
+            str(leg.get("currency", "")),
+            str(leg.get("instrument", "")),
+            _num(leg.get("beta"), "+.3f"),
+            _num(leg.get("target_contracts"), "+d"),
+            _num(leg.get("target_notional_usd"), ",.0f"),
+            _num(leg.get("carry_bps"), "+.0f"),
+            _pct(leg.get("on_rate")),
+            str(leg.get("expiry", "")),
         ]
-        for l in (detail.get("fx_legs") or [])
+        for leg in (detail.get("fx_legs") or [])
     ]
     return headers, rows
 
@@ -644,25 +645,28 @@ def register_trade_advisor_page(*, registry=None) -> None:
 
     @ui.page("/advisor")
     def advisor_page() -> None:
-        ui.label("Trade Advisor").classes("text-h5")
-        ui.label("Read-only ideas, not orders. Explore within bounded controls.").classes("text-caption pm-muted")
-        ui.link("← Portfolio dashboard", "/portfolio").classes("text-caption")
+        # The shared shell provides the cross-surface nav (so the one-way
+        # "← Portfolio dashboard" link is gone) and injects the dashboard styles
+        # the page's `pm-*` classes rely on.
+        with app_shell(active="advisor"):
+            ui.label("Trade Advisor").classes("text-h5")
+            ui.label("Read-only ideas, not orders. Explore within bounded controls.").classes("text-caption pm-muted")
 
-        journal = default_decision_journal()
-        inbox_box = ui.column().classes("w-full")
+            journal = default_decision_journal()
+            inbox_box = ui.column().classes("w-full")
 
-        def refresh_inbox() -> None:
-            _render_inbox(inbox_box, journal)
+            def refresh_inbox() -> None:
+                _render_inbox(inbox_box, journal)
 
-        refresh_inbox()
+            refresh_inbox()
 
-        # Two parallel surfaces, selectable via tab: the deterministic rule-based
-        # advisor (default) and the opt-in AI+ synthesis layer.
-        with ui.tabs().classes("w-full") as tabs:
-            rb_tab = ui.tab("Rule-based")
-            ai_tab = ui.tab("AI+")
-        with ui.tab_panels(tabs, value=rb_tab).classes("w-full"):
-            with ui.tab_panel(rb_tab):
-                _render_rule_based_tab(journal, refresh_inbox)
-            with ui.tab_panel(ai_tab):
-                _render_ai_tab()
+            # Two parallel surfaces, selectable via tab: the deterministic rule-based
+            # advisor (default) and the opt-in AI+ synthesis layer.
+            with ui.tabs().classes("w-full") as tabs:
+                rb_tab = ui.tab("Rule-based")
+                ai_tab = ui.tab("AI+")
+            with ui.tab_panels(tabs, value=rb_tab).classes("w-full"):
+                with ui.tab_panel(rb_tab):
+                    _render_rule_based_tab(journal, refresh_inbox)
+                with ui.tab_panel(ai_tab):
+                    _render_ai_tab()

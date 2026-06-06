@@ -20,7 +20,9 @@ Current ownership rules:
 - `market_helper/presentation/dashboard/` owns the live NiceGUI UI. The
   dashboard is the **interactive entry**; HTML is the **deliverable** — the
   dashboard embeds the rendered HTML in an iframe. No separate snapshot
-  pipeline or ViewModel rewire is planned.
+  pipeline or ViewModel rewire is planned. `/portfolio` renders inside the
+  shared dashboard shell (`shell.py`) alongside `/advisor` and the `/` landing —
+  one of two parallel surfaces, not a platform ([ADR 0008](../../decisions/0008-unified-dashboard-shell.md)).
 - `market_helper/reporting/` owns the HTML report renderers (combined,
   performance, risk, regime).
 

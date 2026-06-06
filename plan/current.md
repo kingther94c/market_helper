@@ -5,6 +5,34 @@ Track-level architecture detail lives in
 [`../docs/architecture/devplans/`](../docs/architecture/devplans/). Cold
 context is in `memory/archive/` (gitignored, not read by default).
 
+## Dashboard Shell (A+ refactor — landed)
+
+**State**: A+ landed. Shared shell + `/` landing joining the two parallel
+surfaces; NiceGUI kept; routes preserved. See
+[ADR 0008](../docs/decisions/0008-unified-dashboard-shell.md).
+
+- New `presentation/dashboard/shell.py`: `app_shell(active=...)` injects the
+  shared styles once, renders brand + cross-surface nav `[Portfolio Monitor │
+  Trade Advisor]`, and owns a real `/` landing page (two cards; no live data
+  load). `create_app` registers it; the old `/` → `/portfolio` redirect is gone.
+- `/portfolio` and `/advisor` bodies wrapped in the shell (nav-active per route);
+  the advisor's one-way "← Portfolio dashboard" link dropped; its `pm-*` classes
+  now resolve (shell injects `add_dashboard_styles`). Existing chrome (pm-app-bar,
+  operate drawer, refresh pipeline, progress strip, Rule-based / AI+ tabs)
+  unchanged. Dead `regimes.py` / `signals.py` / `backtests.py` page scaffolds
+  deleted; `dashboard.py` compat re-export kept.
+- Verified: full unit suite green (755); `/`, `/portfolio`, `/advisor` all serve
+  200; in-browser DOM confirms the shared nav + correct per-route active state on
+  both pages, the back-link absent, and the portfolio `.pm-app-bar` still sticky.
+- Verification side-fixes (pre-existing, not A+): defined module `_logger` in
+  `portfolio.py` (the TWS-unreachable cached-fallback path called an undefined
+  `_logger.warning` → `NameError`, masking graceful degradation as "Action
+  failed"; regression test added); removed an unused `format_text` import; renamed
+  an ambiguous `l` loop var in the FX-alloc table builder.
+- **Selective-B later (optional, not started)**: split `portfolio.py` (~1.6k) by
+  real boundaries (state / report_host+artifact_routes / actions) only where it
+  improves readability or testability; do not mirror-split `trade_advisor.py`.
+
 ## Portfolio Monitor
 
 **State**: stable. No near-term scope open.

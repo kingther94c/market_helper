@@ -586,3 +586,15 @@ def test_served_artifact_url_returns_none_for_missing_or_outside_paths(
         outside.unlink(missing_ok=True)
     # None input -> None.
     assert portfolio_page._served_artifact_url(None) is None
+
+
+def test_module_logger_is_defined() -> None:
+    """Regression: the live/refresh TWS-unreachable fallback calls
+    ``_logger.warning(...)`` to log that it is using a cached snapshot. The
+    module never defined ``_logger`` (only an inline ``logging.getLogger`` at
+    one other site), so that graceful-degradation path raised ``NameError`` and
+    surfaced as "Action failed" instead of "using cached". Pin the logger so the
+    fallback can log without crashing."""
+    import logging
+
+    assert isinstance(portfolio_page._logger, logging.Logger)

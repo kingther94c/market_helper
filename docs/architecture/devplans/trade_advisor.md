@@ -51,7 +51,9 @@ These are fixed inputs to every milestone; everything else is open to design.
   don't fork — the `suggest/`, regime, and option_advisor patterns.
 - **GUI = extend the existing NiceGUI dashboard; HTML stays the deliverable**
   ([ADR 0002](../../decisions/0002-html-deliverable-dashboard-entry.md)). New
-  interactive pages register alongside `register_portfolio_page(...)`; static
+  interactive pages register alongside `register_portfolio_page(...)` and mount
+  inside the shared dashboard shell (`/advisor` next to `/portfolio` under the `/`
+  landing; [ADR 0008](../../decisions/0008-unified-dashboard-shell.md)); static
   output embeds in the combined HTML report. **No new UI framework.**
 - **Bounded interaction — no free-form input.** There is **no AI/NLP layer** to
   interpret arbitrary input, so **every control is a fixed option set or a

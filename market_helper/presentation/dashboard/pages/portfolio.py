@@ -39,10 +39,12 @@ from market_helper.common.datetime_display import format_local_datetime
 from market_helper.config.local_env import read_local_config_value
 from market_helper.providers.tws_ib_async import TwsIbAsyncError
 from market_helper.presentation.dashboard.components import render_action_card
-from market_helper.presentation.dashboard.components.common import add_dashboard_styles, render_status_card
-from market_helper.presentation.dashboard.formatters import format_local_text, format_path, format_text
+from market_helper.presentation.dashboard.components.common import render_status_card
+from market_helper.presentation.dashboard.formatters import format_local_text, format_path
+from market_helper.presentation.dashboard.shell import app_shell
 
 
+_logger = logging.getLogger(__name__)
 _REGISTERED = False
 _QUERY_SERVICE: PortfolioMonitorQueryService = PortfolioMonitorQueryService()
 _ACTION_SERVICE: PortfolioMonitorActionService = PortfolioMonitorActionService()
@@ -690,19 +692,22 @@ def _build_initial_state(query_service: PortfolioMonitorQueryService) -> Portfol
 
 
 def _render_portfolio_page(state: PortfolioPageState) -> None:
-    add_dashboard_styles()
-    _render_header(state)
-    # P8: thin progress strip directly under the app-bar; only renders while
-    # a job is in flight, with either a measurable fraction or an indeterminate
-    # animation depending on what the progress sink is reporting.
-    _render_progress_strip(state)
-    with ui.column().classes("w-full max-w-[1600px] mx-auto p-4 pm-shell"):
-        _render_toolbar(state)
-        _render_feedback(state)
-        _render_main_tabs(state)
-    # P7: action console + artifact paths + progress log moved out of the page
-    # first-paint into a slide-over drawer triggered by the app-bar Operate button.
-    _render_operate_drawer(state)
+    # The shared shell injects dashboard styles once and renders the
+    # cross-surface nav; the portfolio chrome (sticky `.pm-app-bar`, progress
+    # strip, operate drawer) renders inside it, behavior unchanged.
+    with app_shell(active="portfolio"):
+        _render_header(state)
+        # P8: thin progress strip directly under the app-bar; only renders while
+        # a job is in flight, with either a measurable fraction or an indeterminate
+        # animation depending on what the progress sink is reporting.
+        _render_progress_strip(state)
+        with ui.column().classes("w-full max-w-[1600px] mx-auto p-4 pm-shell"):
+            _render_toolbar(state)
+            _render_feedback(state)
+            _render_main_tabs(state)
+        # P7: action console + artifact paths + progress log moved out of the page
+        # first-paint into a slide-over drawer triggered by the app-bar Operate button.
+        _render_operate_drawer(state)
 
 
 def _render_header(state: PortfolioPageState) -> None:

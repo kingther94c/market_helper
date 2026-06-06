@@ -97,7 +97,11 @@ This layer should stay renderer-agnostic and UI-agnostic wherever possible.
 ### Presentation layer
 
 - `market_helper/presentation/dashboard/`
-  - NiceGUI app, pages, components, snapshot capture pipeline.
+  - NiceGUI app + a thin shared **shell** (`shell.py`: chrome, cross-surface
+    nav, `/` landing page) wrapping **two parallel surfaces** — `portfolio_monitor`
+    (`/portfolio`) and `trade_advisor` (`/advisor`). The shell is a fixed pair,
+    not a registry: research / backtest / screener surfaces are out of scope for
+    this repo (see ADR 0008). Pages + components live alongside.
 - `market_helper/presentation/exporters/`
   - CSV/security-reference export helpers.
 - `market_helper/reporting/`

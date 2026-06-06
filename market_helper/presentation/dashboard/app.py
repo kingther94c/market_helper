@@ -7,7 +7,6 @@ import logging
 import os
 from typing import Sequence
 
-from fastapi.responses import RedirectResponse
 from nicegui import run as nicegui_run
 from nicegui import app as nicegui_app
 from nicegui import ui
@@ -18,8 +17,8 @@ from market_helper.application.portfolio_monitor import (
 )
 from market_helper.presentation.dashboard.pages.portfolio import register_portfolio_page
 from market_helper.presentation.dashboard.pages.trade_advisor import register_trade_advisor_page
+from market_helper.presentation.dashboard.shell import register_landing_page
 
-_ROOT_REGISTERED = False
 _PROCESS_POOL_PATCHED = False
 DEFAULT_PORTFOLIO_ROUTE = "/portfolio"
 
@@ -40,20 +39,12 @@ def create_app(
     query_service: PortfolioMonitorQueryService | None = None,
     action_service: PortfolioMonitorActionService | None = None,
 ):
-    global _ROOT_REGISTERED
-
+    # Two parallel product lines + a shared landing page at `/`. Each registrar
+    # is idempotent. `/portfolio/generated-html` is registered by
+    # `register_portfolio_page` itself (sandboxed to `DATA_DIR`).
     register_portfolio_page(query_service=query_service, action_service=action_service)
     register_trade_advisor_page()
-    if not _ROOT_REGISTERED:
-        @nicegui_app.get("/")
-        async def root_redirect() -> RedirectResponse:
-            return RedirectResponse("/portfolio")
-
-        # Note: `/portfolio/generated-html` is registered by `register_portfolio_page`
-        # itself (sandboxed to `DATA_DIR`, supports `.html` / `.csv` / `.json` /
-        # `.feather`). The simpler `.html`-only handler that used to live here was
-        # removed when the more general version landed.
-        _ROOT_REGISTERED = True
+    register_landing_page()
     return nicegui_app
 
 

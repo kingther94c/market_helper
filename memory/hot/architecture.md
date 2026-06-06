@@ -28,7 +28,10 @@ Dependency direction:
   Yahoo, FRED adapters.
 - `presentation/dashboard/` — live NiceGUI UI. **Interactive entry**; HTML is
   the deliverable. The dashboard embeds the rendered HTML in an iframe — no
-  separate snapshot/Playwright pipeline is planned.
+  separate snapshot/Playwright pipeline is planned. A thin `shell.py` (chrome +
+  cross-surface nav + `/` landing) wraps **two parallel surfaces**:
+  `portfolio_monitor` (`/portfolio`) and `trade_advisor` (`/advisor`). Fixed
+  pair, not a registry (ADR 0008); research/backtest/screener are out of scope.
 - `reporting/` — HTML renderers (combined, performance, risk, regime).
 - `regimes/`, `suggest/` — factor scoring + hysteresis; regime-to-policy
   suggestions.

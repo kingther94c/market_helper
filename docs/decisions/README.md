@@ -13,3 +13,4 @@ prior ADR with a new one that references it.
 | [0005](0005-combined-report-owns-regime-orchestration.md) | Combined report owns regime orchestration | Accepted |
 | [0006](0006-fx-hedge-regression-convention.md) | FX hedge advisor — regression convention & sizing | Accepted |
 | [0007](0007-option-advisor-advisory-scope.md) | Option Advisor is advisory-only, execution out of scope | Accepted |
+| [0008](0008-unified-dashboard-shell.md) | Unified dashboard shell; two parallel surfaces, not a platform | Accepted |
