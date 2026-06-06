@@ -56,9 +56,11 @@ your **local OpenClaw gateway** for a synthesized read (positioning, which ideas
 matter most, the biggest risk, what the rules miss). Output is display-only
 **analysis, never orders**.
 
-- **Enable it**: set `OPENCLAW_GATEWAY_TOKEN` (process env or
-  `configs/portfolio_monitor/local.env`) and start the OpenClaw gateway. Without
-  a token the tab shows a "disabled" explainer; the rule-based tab is unaffected.
+- **Enable it**: just start the OpenClaw gateway. The token resolves in order
+  *explicit → `OPENCLAW_GATEWAY_TOKEN` env → `configs/portfolio_monitor/local.env`
+  → the gateway's own `~/.openclaw/openclaw.json`* — so a running local gateway
+  works out of the box without copying the secret anywhere. If none is found the
+  tab shows a "disabled" explainer; the rule-based tab is unaffected.
   Endpoint/model default to `http://127.0.0.1:18789/v1` / `openclaw/trade-advisor`
   (override via `OPENCLAW_GATEWAY_URL` / `OPENCLAW_TRADE_ADVISOR_MODEL` or the
   bounded **AI model** select).

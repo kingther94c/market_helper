@@ -55,11 +55,59 @@ class GatewayConfig:
         )
 
 
-def resolve_gateway_token(explicit: str | None = None, *, local_env_path: Path | None = None) -> str:
-    """Resolve the bearer token: explicit → process env → local.env. ``""`` if absent.
+def _openclaw_config_path() -> Path:
+    """Where the local OpenClaw gateway keeps its config (honors its env knobs)."""
+    explicit = os.environ.get("OPENCLAW_CONFIG_PATH", "").strip()
+    if explicit:
+        return Path(explicit).expanduser()
+    state = os.environ.get("OPENCLAW_STATE_DIR", "").strip()
+    base = Path(state).expanduser() if state else Path(os.environ.get("USERPROFILE") or Path.home()) / ".openclaw"
+    return base / "openclaw.json"
 
-    The value is returned only to the caller — never logged. An empty string
-    means AI+ should stay disabled (the rule-based surface is unaffected).
+
+def _openclaw_config_token(path: Path | None = None) -> str:
+    """The gateway's own bearer token from ``openclaw.json`` (best-effort, read-only).
+
+    OpenClaw auto-generates and stores the gateway token in its config; reading it
+    lets the AI+ tab authenticate to the *same* local gateway without the operator
+    duplicating the secret. Only the token field is read; any failure → ``""``.
+    """
+    cfg = Path(path) if path is not None else _openclaw_config_path()
+    try:
+        data = json.loads(cfg.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError, ValueError):
+        return ""
+
+    def _dig(d, *keys):
+        cur = d
+        for key in keys:
+            if not isinstance(cur, dict):
+                return None
+            cur = cur.get(key)
+        return cur
+
+    tok = _dig(data, "gateway", "auth", "token")
+    if not tok:
+        toks = _dig(data, "gateway", "auth", "tokens")
+        if isinstance(toks, list) and toks:
+            tok = toks[0]
+    if not tok:
+        tok = _dig(data, "env", _TOKEN_ENV_VAR)
+    return str(tok).strip() if tok else ""
+
+
+def resolve_gateway_token(
+    explicit: str | None = None,
+    *,
+    local_env_path: Path | None = None,
+    openclaw_config_path: Path | None = None,
+) -> str:
+    """Resolve the bearer token: explicit → env → local.env → OpenClaw config. ``""`` if absent.
+
+    The final fallback reads the local OpenClaw gateway's own token from its
+    ``openclaw.json`` so the AI+ tab works out of the box against a running
+    gateway. The value is returned only to the caller — never logged. An empty
+    string means AI+ stays disabled (the rule-based surface is unaffected).
     """
     direct = (explicit or "").strip()
     if direct:
@@ -70,10 +118,12 @@ def resolve_gateway_token(explicit: str | None = None, *, local_env_path: Path |
     try:
         from market_helper.config.local_env import read_local_config_value
 
-        value = read_local_config_value(_TOKEN_ENV_VAR, default_path=local_env_path or _DEFAULT_LOCAL_ENV)
-        return (value or "").strip()
+        value = (read_local_config_value(_TOKEN_ENV_VAR, default_path=local_env_path or _DEFAULT_LOCAL_ENV) or "").strip()
+        if value:
+            return value
     except Exception:  # noqa: BLE001 — token discovery must never raise
-        return ""
+        pass
+    return _openclaw_config_token(openclaw_config_path)
 
 
 def post_chat_completion(*, config: GatewayConfig, token: str, payload: dict) -> dict:

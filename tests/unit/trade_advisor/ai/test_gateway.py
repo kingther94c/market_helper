@@ -54,7 +54,30 @@ def test_token_from_local_env(monkeypatch, tmp_path):
 
 def test_token_absent_is_empty(monkeypatch, tmp_path):
     monkeypatch.delenv("OPENCLAW_GATEWAY_TOKEN", raising=False)
+    # conftest already points OPENCLAW_CONFIG_PATH at a nonexistent file.
     assert gateway.resolve_gateway_token(local_env_path=tmp_path / "nope.env") == ""
+
+
+def test_token_from_openclaw_config(monkeypatch, tmp_path):
+    monkeypatch.delenv("OPENCLAW_GATEWAY_TOKEN", raising=False)
+    cfg = tmp_path / "openclaw.json"
+    cfg.write_text(json.dumps({"gateway": {"auth": {"token": "cfg-token"}}}), encoding="utf-8")
+    monkeypatch.setenv("OPENCLAW_CONFIG_PATH", str(cfg))  # override the conftest neutralization
+    assert gateway.resolve_gateway_token(local_env_path=tmp_path / "none.env") == "cfg-token"
+
+
+def test_token_from_openclaw_config_env_block(monkeypatch, tmp_path):
+    monkeypatch.delenv("OPENCLAW_GATEWAY_TOKEN", raising=False)
+    cfg = tmp_path / "openclaw.json"
+    cfg.write_text(json.dumps({"env": {"OPENCLAW_GATEWAY_TOKEN": "env-block-token"}}), encoding="utf-8")
+    assert gateway.resolve_gateway_token(openclaw_config_path=cfg, local_env_path=tmp_path / "none.env") == "env-block-token"
+
+
+def test_env_token_beats_openclaw_config(monkeypatch, tmp_path):
+    monkeypatch.setenv("OPENCLAW_GATEWAY_TOKEN", "env-wins")
+    cfg = tmp_path / "openclaw.json"
+    cfg.write_text(json.dumps({"gateway": {"auth": {"token": "cfg-token"}}}), encoding="utf-8")
+    assert gateway.resolve_gateway_token(openclaw_config_path=cfg) == "env-wins"
 
 
 # --------------------------------------------------------------------------- #
