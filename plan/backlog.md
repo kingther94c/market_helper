@@ -39,7 +39,10 @@ These are useful but explicitly **not** on deck:
 - More real IBKR payload fixtures and contract edge cases.
 - Random forest / gradient boosting training workflows.
 - Allocation tilt suggestions / trading signals / portfolio optimization
-  driven by regime (out of V1 scope; see ADR 0001).
+  driven by regime — **execution** stays out of V1 scope (ADR 0001). The
+  *advisory* carve-out (ranked option *ideas*, no orders) is now a designed
+  track: see [ADR 0007](../docs/decisions/0007-option-advisor-advisory-scope.md)
+  + [`option_advisor.md`](../docs/architecture/devplans/option_advisor.md).
 
 ## Do not reopen without a new requirement
 

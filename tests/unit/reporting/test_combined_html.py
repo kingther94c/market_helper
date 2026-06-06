@@ -243,6 +243,11 @@ def test_render_portfolio_report_builds_html_shell_without_nicegui_refs(tmp_path
     assert "Artifacts" in rendered
     assert "report-table" in rendered
     assert "/_nicegui/" not in rendered
+    # With no FX hedge artifact (default sentinel), the Risk → FX section still
+    # renders an actionable ‟not yet computed" card rather than vanishing.
+    assert "id='fx-hedge'" in rendered
+    assert "FX Hedging Advisor" in rendered
+    assert "not yet computed" in rendered
     # When no regime artifact is available, the combined report still renders
     # the Regime section (now always present) with an actionable
     # ‟unavailable" card and a fallback ribbon pill — no silent omission.
@@ -263,6 +268,60 @@ def test_render_portfolio_report_builds_html_shell_without_nicegui_refs(tmp_path
     assert "&lt;span class='tone-muted'&gt;" not in rendered
     # P1 — section-nav buttons get a visible focus ring.
     assert ".section-nav__button:focus-visible" in rendered
+
+
+def test_render_portfolio_report_includes_fx_hedge_section_under_risk(tmp_path: Path) -> None:
+    """A populated FX hedge state renders the Target FX Allocation block inside
+    the Risk section, with the freshly-computed badge and conventions."""
+    from dataclasses import replace as _replace
+    from market_helper.domain.portfolio_monitor.services.fx_hedge_advisor import (
+        FxHedgeAllocation,
+        FxHedgeArtifactState,
+        FxHedgeLeg,
+    )
+
+    leg = FxHedgeLeg(
+        currency="EUR", instrument="EUR/USD (6E)", futures_root="6E",
+        yahoo_symbol="EURUSD=X", beta=0.42, beta_std_error=0.05, t_stat=8.4,
+        spot_usd_per_unit=1.08, target_notional_usd=4_200_000.0, contract_size=125_000,
+        contract_size_currency="EUR", usd_notional_per_contract=135_000.0,
+        target_contracts=31, realized_notional_usd=4_185_000.0,
+        residual_notional_usd=15_000.0, on_rate=0.025,
+        expected_annual_carry_usd=-75_330.0, expiry="2026-06-17",
+    )
+    allocation = FxHedgeAllocation(
+        schema_version=1, run_date="2026-03-31", generated_at="2026-03-31T00:00:00+00:00",
+        base_currency="SGD", hedge_target_pair="USD/SGD", hedge_target_yahoo="SGD=X",
+        target_definition="r_tgt = Δln(USD per SGD); hedge long basket, short USD.",
+        return_convention={"price_basis": "usd_per_unit", "frequency": "W-FRI",
+                           "overlapping": False, "return_method": "log", "lookback_weeks": 156},
+        data_source="yahoo_finance", hedge_notional_usd=10_000_000.0,
+        hedge_notional_source="funded_aum_usd",
+        data_window={"start": "2023-04-01", "end": "2026-03-27", "observations": 156},
+        regression={"r_squared": 0.81, "adj_r_squared": 0.80, "alpha_weekly": 0.0,
+                    "residual_vol_annualized": 0.028},
+        legs=(leg,),
+        totals={"target_notional_usd_gross": 4_200_000.0, "realized_notional_usd_gross": 4_185_000.0,
+                "realized_notional_usd_net": 4_185_000.0, "rounding_residual_usd": 15_000.0,
+                "hedge_quality_r_squared": 0.81, "statistical_unhedged_fraction": 0.19,
+                "statistical_unhedged_notional_usd": 4_359_000.0,
+                "expected_annual_carry_usd": -75_330.0, "expected_annual_carry_bps": -75.3},
+        on_rates_as_of="2026-05-01", on_rates_source="configured", max_age_days=30,
+    )
+    state = FxHedgeArtifactState(
+        state="ok", mode_used="refresh-if-stale", allocation=allocation,
+        computed_fresh=True, age_days=0, last_run_at=None, error_message=None,
+    )
+    rendered = render_portfolio_report(_replace(_fake_report_data(tmp_path), fx_hedge_state=state))
+
+    assert "id='fx-hedge'" in rendered
+    assert "Target FX Allocation" in rendered
+    assert "Freshly computed" in rendered
+    assert "EUR/USD (6E)" in rendered
+    assert "Long 31" in rendered
+    assert "Conventions" in rendered
+    # FX section CSS is injected into the document head.
+    assert ".fx-badge--fresh" in rendered
 
 
 def test_render_portfolio_report_includes_regime_section_when_view_model_present(tmp_path: Path) -> None:

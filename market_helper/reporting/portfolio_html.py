@@ -19,6 +19,10 @@ from market_helper.reporting.performance_html import (
     render_performance_assets,
     render_performance_tab,
 )
+from market_helper.reporting.fx_hedge_html import (
+    fx_hedge_section_styles,
+    render_fx_hedge_section,
+)
 from market_helper.reporting.regime_html import (
     regime_section_styles,
     render_regime_detail_section,
@@ -460,8 +464,11 @@ def build_portfolio_report_document(report_data: "PortfolioReportData") -> Repor
         ReportSection(
             key="risk",
             title="Risk",
-            summary="Allocation, drift, breakdown, and position decomposition rendered as the canonical HTML report.",
-            body_html=render_risk_tab(report_data.risk_view_model),
+            summary="Allocation, drift, breakdown, position decomposition, and the FX hedging advisor rendered as the canonical HTML report.",
+            body_html=(
+                render_risk_tab(report_data.risk_view_model)
+                + render_fx_hedge_section(report_data.fx_hedge_state)
+            ),
         ),
         # Regime sits after Risk. The Overview still shows only a compact regime
         # *summary* (hero + status cards) with a "View full regime analysis →"
@@ -490,6 +497,7 @@ def build_portfolio_report_document(report_data: "PortfolioReportData") -> Repor
         # present, even when the view-model is missing (renders an explainer
         # card instead of going blank).
         f"<style>{regime_section_styles()}{_REGIME_RIBBON_STYLES}{_OVERVIEW_STYLES}</style>",
+        f"<style>{fx_hedge_section_styles()}</style>",
     ]
     return ReportDocument(
         title="Portfolio Monitor",

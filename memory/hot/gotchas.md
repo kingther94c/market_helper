@@ -24,6 +24,22 @@ order-entry / cancel / modify code in V1.**
 - Yahoo return cache stores **log returns** — use `expm1` when compounding
   simple chart returns.
 
+## FX Hedging Advisor (Risk → FX)
+
+- **Value-in-USD basis** — the advisor normalises every spot to *USD per 1 unit*
+  of currency (the **inverse** of `fx_usdsgd_eod`). With this basis a positive
+  regression beta ⇒ **long the foreign future / short USD** = the correct hedge
+  for a USD-overexposed SGD investor. Don't "fix" the inversion to match
+  `fx_usdsgd_eod` — it would flip the hedge direction. See
+  [ADR 0006](../../docs/decisions/0006-fx-hedge-regression-convention.md).
+- **CNY proxies CNH** — Yahoo has no long *daily* offshore-CNH history
+  (`CNH=X`/`USDCNH=X` are intraday-only). The CNH leg estimates its beta from
+  onshore `CNY=X`; the *traded* instrument is still the CME USD/CNH future.
+- The **USD/CNH future is USD-sized** (100k USD/contract); the other majors are
+  foreign-currency-sized (USD-per-contract = size × spot). Keep that branch.
+- Standalone risk/report flows resolve the FX artifact path to **None** and skip
+  the provider — only the combined report + `fx-hedge-report` CLI fetch Yahoo.
+
 ## Portfolio
 
 - **AUM denominator excludes futures/options** — stock-like + cash only.

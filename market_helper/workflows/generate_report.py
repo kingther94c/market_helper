@@ -20,6 +20,7 @@ from market_helper.domain.portfolio_monitor.pipelines.generate_portfolio_report 
     backfill_ibkr_flex_full_years as _backfill_ibkr_flex_full_years,
     generate_combined_html_report as _generate_combined_html_report,
     generate_etf_sector_sync as _generate_etf_sector_sync,
+    generate_fx_hedge_report as generate_fx_hedge_report,
     generate_ibkr_flex_performance_report as _generate_ibkr_flex_performance_report,
     generate_ibkr_position_report as _generate_ibkr_position_report,
     generate_live_ibkr_position_report as _generate_live_ibkr_position_report,
