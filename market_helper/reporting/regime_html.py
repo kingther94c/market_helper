@@ -990,11 +990,20 @@ def _render_v2_axis_card(name: str, value: float | None, state: str) -> str:
     )
 
 
+# Dormant ML layer slots (gated; superseded by the allocation-layer policy-expert
+# predictor -- ADR 0006). When unavailable they render as dead "Not available" rows;
+# suppress them from the Layer Detail table. The engine slots stay gated -- this only
+# stops displaying empty placeholders (no behaviour change, no fake outputs).
+_DORMANT_ML_LAYERS = {"macro_truth_ml", "return_truth_ml"}
+
+
 def _render_v2_layer_detail(view_model: RegimeHtmlViewModel) -> str:
     if not view_model.layers:
         return _render_methods(view_model.methods)
     rows = []
     for layer in view_model.layers:
+        if layer.layer_name in _DORMANT_ML_LAYERS and not layer.available:
+            continue  # don't show dead placeholder rows for the gated ML slots
         status_class = _status_class(layer.status)
         rows.append(
             "<tr>"
@@ -1005,6 +1014,8 @@ def _render_v2_layer_detail(view_model: RegimeHtmlViewModel) -> str:
             f"<td>{html.escape(layer.confidence or 'n/a')}</td>"
             "</tr>"
         )
+    if not rows:
+        return _render_methods(view_model.methods)
     return (
         "<section class='panel regime-v2-layer-detail'>"
         "<header class='regime-panel__header'>"
@@ -1213,8 +1224,11 @@ def _render_method_vote_strip(view_model: RegimeHtmlViewModel) -> str:
     if not history:
         return ""
     method_names: list[str] = []
+    available_names = {layer.layer_name for layer in view_model.layers if layer.available}
     for point in history:
         for name in point.quadrants.keys():
+            if name in _DORMANT_ML_LAYERS and name not in available_names:
+                continue  # hide dormant gated ML slots (ADR 0006), same as Layer Detail
             if name not in method_names:
                 method_names.append(name)
     if not method_names:

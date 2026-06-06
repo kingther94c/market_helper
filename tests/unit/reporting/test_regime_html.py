@@ -437,3 +437,21 @@ def test_policy_allocation_panel_unavailable_card_is_graceful() -> None:
     fragment = render_regime_section_body(_minimal_v2_vm(policy_allocation=pred))
     assert "Policy-Expert Allocation (ML)" in fragment
     assert "unavailable" in fragment.lower()
+
+
+def test_layer_detail_hides_dormant_ml_slots() -> None:
+    from market_helper.reporting.regime_html import RegimeHtmlLayerRow
+
+    real = RegimeHtmlLayerRow(
+        layer_name="macro_nowcast", enabled=True, available=True, status="Available",
+        growth_score=0.3, inflation_score=-0.1, growth_state="Up", inflation_state="Down",
+    )
+    dormant = RegimeHtmlLayerRow(
+        layer_name="macro_truth_ml", enabled=True, available=False, status="Not available",
+        growth_score=None, inflation_score=None, growth_state="Not available",
+        inflation_state="Not available",
+    )
+    fragment = render_regime_section_body(_minimal_v2_vm(layers=[real, dormant]))
+    assert "macro_nowcast" in fragment          # enabled + available layer still shows
+    assert "macro_truth_ml" not in fragment     # dormant gated ML slot suppressed
+    assert "return_truth_ml" not in fragment

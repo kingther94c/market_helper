@@ -425,7 +425,10 @@ negative T-bill cash plug of (100%−gross), so leverage pays TB3MS (SGOV/BIL) �
 Goldilocks gross 250% pays ~5pp/yr, the net-short Stagflation expert earns cash. The
 extra **futures financing spread** above T-bills is now audited in the backtest
 (+25/50/100 bps → MoE Sharpe 0.65→0.63/0.60/0.56; edge over best-static survives to
-~50 bps). Transaction costs still unmodelled. **Phase 7 DONE** — the ML predictor runs live in the
+~50 bps). Transaction costs still unmodelled. **UI cleanup**: the dormant
+`macro_truth_ml` / `return_truth_ml` slots are now hidden from the regime Layer Detail
+table + Layer-State heat strip when unavailable (display-only; the engine slots stay
+gated per ADR 0006 — just no more dead "Not available" placeholder rows). **Phase 7 DONE** — the ML predictor runs live in the
 **dashboard Regime tab**: a new "Policy-Expert Allocation (ML)" panel (allocation-layer
 overlay, spec choice (b)) via `portfolio_html._attach_policy_allocation` →
 `market_helper/regimes/policy_expert_predictor.predict_latest` (pure-Python, graceful,
