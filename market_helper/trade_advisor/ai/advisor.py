@@ -42,7 +42,11 @@ def summarize_context(context: AdvisorContext) -> str:
 
 
 def summarize_suggestions(suggestions: list[Suggestion], *, top_n: int = 24) -> str:
-    """One compact line per rule-based idea, grouped by advisor."""
+    """One compact line per rule-based idea, grouped by advisor.
+
+    Each line is tagged ``[advisor/label·data_mode]`` so the model can weight a
+    live-chain idea above a model-only one.
+    """
     if not suggestions:
         return "(the rule-based engine produced no ideas for this context)"
     ordered = sorted(suggestions, key=lambda s: (s.advisor, -s.score))
@@ -50,7 +54,8 @@ def summarize_suggestions(suggestions: list[Suggestion], *, top_n: int = 24) -> 
     for s in ordered[:top_n]:
         metrics = " ".join(f"{k}={v}" for k, v in (s.headline_metrics or {}).items())
         why = f" — {s.why_now}" if s.why_now else ""
-        lines.append(f"- [{s.advisor}/{s.label}] {s.title} (score {s.score:.2f}) {metrics}{why}".rstrip())
+        dm = f"·{s.data_mode}" if s.data_mode else ""
+        lines.append(f"- [{s.advisor}/{s.label}{dm}] {s.title} (score {s.score:.2f}) {metrics}{why}".rstrip())
     if len(ordered) > top_n:
         lines.append(f"… and {len(ordered) - top_n} more")
     return "\n".join(lines)
@@ -69,13 +74,23 @@ def build_prompt(context: AdvisorContext, suggestions: list[Suggestion]) -> str:
         f"{summarize_context(context)}\n\n"
         "## Rule-based ideas (deterministic engine output — your job is to "
         "synthesize, not replace)\n"
+        "Each idea is tagged [advisor/label·data_mode]. data_mode 'live_chain' = "
+        "real per-strike quotes (higher confidence); 'user_override'/'synthetic' = "
+        "model-only (lower confidence — the engine caps these at MONITOR); "
+        "'cached'/'regime'/'portfolio' = derived context. Weight live, "
+        "higher-confidence, higher-score ideas first, and never suggest acting "
+        "beyond an idea's label.\n"
         f"{summarize_suggestions(suggestions)}\n\n"
-        "## Please provide\n"
-        "1. A one-paragraph read on how this book is positioned for the regime.\n"
-        "2. Which 2-3 of the rule-based ideas are most worth attention, and why.\n"
-        "3. The single biggest risk or concentration to watch.\n"
-        "4. Anything the rule-based ideas seem to miss or over-weight.\n"
-        "Keep it tight and concrete. Analysis only — not orders."
+        "## Respond in tight markdown with exactly these bold sections:\n"
+        "**Positioning** — one short paragraph on how the book sits for the regime "
+        "(note any gap vs the regime-aligned target mix if one is given).\n"
+        "**Top ideas** — the 2-3 ideas most worth attention; prefer ones that address "
+        "the regime view or the biggest risk you identify, and explicitly flag any "
+        "idea that *adds* to an existing concentration. Name each and cite its "
+        "economics (credit/debit, max loss, breakeven) and why it fits.\n"
+        "**Biggest risk** — the single biggest risk or concentration to watch.\n"
+        "**Gaps** — what the rule-based ideas miss or over-weight.\n"
+        "Be specific and concise (~150-220 words total). Analysis only — never orders."
     )
 
 

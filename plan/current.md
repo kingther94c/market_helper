@@ -456,6 +456,17 @@ On the operator's direction, AI was then **re-introduced the right way**: a
   rule-based ideas + book + regime (positioning / which ideas matter / biggest
   risk / what the rules miss). Token read from the gateway's own config in
   the operator's machine; never persisted to the repo.
+- **Prompt tuned via repeated live calls** (until the output was reliably good
+  across runs): each idea now carries its `data_mode`, and the prompt tells the
+  model that `live_chain` ideas are higher-confidence while
+  `user_override`/`synthetic` stay capped at MONITOR — verified that synthetic
+  runs are framed as MONITOR-only while live runs allow PROCEED-level picks. The
+  ask is fixed markdown sections (**Positioning / Top ideas / Biggest risk /
+  Gaps**, ~150-220 words) and Top ideas must prefer ideas that address the
+  identified risk and explicitly flag any that *add* concentration (the model now
+  flags e.g. an NVDA call-spread as concentration-adding rather than just
+  recommending it). Pinned by `test_build_prompt_has_honesty_note_and_sections`
+  and `test_summarize_suggestions_tags_data_mode`.
 
 ## Trade Advisor (umbrella)
 

@@ -25,7 +25,8 @@ def _suggestions():
     return [
         Suggestion(advisor="option", suggestion_id="o1", as_of="t", title="COVERED_CALL · SPY",
                    subject="SPY", category="INCOME", label="MONITOR", score=0.8,
-                   why_now="IV elevated", headline_metrics={"net": "credit 250"}),
+                   why_now="IV elevated", headline_metrics={"net": "credit 250"},
+                   data_mode="live_chain"),
         Suggestion(advisor="fx_hedge", suggestion_id="f1", as_of="t", title="FX hedge target · USD/SGD",
                    subject="USD/SGD", category="FX_HEDGE", label="MONITOR", score=0.7),
     ]
@@ -52,11 +53,27 @@ def test_summarize_suggestions_lists_ideas():
     assert "fx_hedge/MONITOR" in text
 
 
+def test_summarize_suggestions_tags_data_mode():
+    # The data_mode tag lets the model weight live vs model-only ideas.
+    text = ai.summarize_suggestions(_suggestions())
+    assert "·live_chain" in text          # the option idea carries its data_mode
+    assert "fx_hedge/MONITOR]" in text    # no data_mode → no trailing ·tag
+
+
 def test_build_prompt_pins_data_and_forbids_orders():
     prompt = ai.build_prompt(_ctx(), _suggestions())
     assert "single source of truth" in prompt
     assert "never output an order" in prompt
     assert "Rule-based ideas" in prompt and "COVERED_CALL · SPY" in prompt
+
+
+def test_build_prompt_has_honesty_note_and_sections():
+    prompt = ai.build_prompt(_ctx(), _suggestions())
+    # data-mode honesty guidance is present
+    assert "live_chain" in prompt and "model-only" in prompt
+    # the requested structured sections are pinned
+    for header in ("**Positioning**", "**Top ideas**", "**Biggest risk**", "**Gaps**"):
+        assert header in prompt
 
 
 # --------------------------------------------------------------------------- #
