@@ -57,13 +57,26 @@ def load_inputs():
     return panel, pred, experts
 
 
-def strategy_return(panel: pd.DataFrame, expo: pd.DataFrame) -> pd.Series:
-    """Apply month-t exposures (percent) to month t+1 returns. No look-ahead."""
+def strategy_return(panel: pd.DataFrame, expo: pd.DataFrame,
+                    financing_spread_ann: float = 0.0) -> pd.Series:
+    """Apply month-t exposures (percent) to month t+1 returns. No look-ahead.
+
+    The T-bill FUNDING cost on leverage is already inside the excess-return accounting
+    (R = cash + sum exposure*(sleeve-cash) = cash*(1 - gross) + sum exposure*sleeve, i.e.
+    a NEGATIVE cash allocation of (100% - gross) earning/paying TB3MS). `financing_spread_ann`
+    optionally charges the extra real-world FUTURES financing spread above T-bills on the
+    futures notional (|FI| + |MACRO| + EQ/CM held beyond 100% physical) -- the cost audit.
+    """
     e = expo.reindex(panel.index).shift(1)            # decided at t, held over t+1
     cash = panel["CASH"]
     contrib = (e["EQ"] * (panel["EQ"] - cash) + e["CM"] * (panel["CM"] - cash)
                + e["FI"] * (panel["FI"] - cash) + e["MACRO"] * panel["MACRO"]) / 100.0
-    return (cash + contrib).dropna()
+    r = cash + contrib
+    if financing_spread_ann:
+        fut_notional = (e["FI"].abs() + e["MACRO"].abs()
+                        + (e["EQ"] + e["CM"] - 100).clip(lower=0)) / 100.0
+        r = r - fut_notional * (financing_spread_ann / 12.0)
+    return r.dropna()
 
 
 def metrics(r: pd.Series, cash: pd.Series, expo: pd.DataFrame | None = None) -> dict:
@@ -174,14 +187,25 @@ def main() -> int:
             "Goldilocks_total_ret_pct": round(float((1 + gold_r).prod() - 1) * 100, 1),
         }
 
+    # cost audit: extra FUTURES financing spread above T-bills (the T-bill funding cost
+    # on leverage is already inside the excess-return accounting).
+    financing = {}
+    for bps in (0, 25, 50, 100):
+        r = strategy_return(panel, moe, financing_spread_ann=bps / 1e4)
+        m = metrics(r, cash)
+        financing[f"{bps}bps"] = {"ann_return_pct": m["ann_return_pct"], "sharpe": m["sharpe"]}
+
     out = {
         "config": {"target_vol": TARGET_VOL, "vol_cap": VOL_CAP, "ewma_span": EWMA_SPAN,
                    "oos_span": [str(idx.min()), str(idx.max())], "n_months": int(len(idx))},
         "strategies": results,
         "stress_episode_attribution": episode,
+        "moe_financing_spread_sensitivity": financing,
         "caveat": "Experts are full-sample oracle templates (teacher step); only the "
                   "predictor is walk-forward. Raw return ~ always-Goldilocks; the edge "
-                  "is risk-adjusted (drawdown/Sharpe).",
+                  "is risk-adjusted (drawdown/Sharpe). T-bill funding cost on leverage IS "
+                  "charged (excess-return accounting = negative cash plug); the FUTURES "
+                  "financing spread above T-bills is the separate sensitivity above.",
     }
     OUT_JSON.parent.mkdir(parents=True, exist_ok=True)
     OUT_JSON.write_text(json.dumps(out, indent=2, default=str), encoding="utf-8")
@@ -195,6 +219,9 @@ def main() -> int:
     print("\nstress episodes (MoE vs Goldilocks, total %):")
     for label, d in episode.items():
         print(f"  {label:18s}: MoE {d['MoE_total_ret_pct']:+.1f}  vs  Gold {d['Goldilocks_total_ret_pct']:+.1f}")
+    print("\nMoE futures-financing-spread sensitivity (T-bill funding already charged):")
+    for k, v in financing.items():
+        print(f"  +{k:>6}: ret {v['ann_return_pct']:>5}%  Sharpe {v['sharpe']}")
     return 0
 
 

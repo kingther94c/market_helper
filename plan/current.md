@@ -419,7 +419,13 @@ Stagflation expert over-wins shock months — 28% of ALL months vs 14 consensus)
 economically-sensible misses: 2003-06 Reflation reads Stagflation (China commodity
 super-cycle), 1990-91 Recession reads Goldilocks (Fed-easing recovery bottom — the
 lagging-growth trap). Confirms experts↔consensus align at the regime-period level; the
-month-level noise explains the predictor's modest IC. **Phase 7 DONE** — the ML predictor runs live in the
+month-level noise explains the predictor's modest IC. **Funding cost verified**: the
+excess-return accounting (`R = cash·100% + Σ exp·(sleeve−cash)`) is algebraically a
+negative T-bill cash plug of (100%−gross), so leverage pays TB3MS (SGOV/BIL) — e.g.
+Goldilocks gross 250% pays ~5pp/yr, the net-short Stagflation expert earns cash. The
+extra **futures financing spread** above T-bills is now audited in the backtest
+(+25/50/100 bps → MoE Sharpe 0.65→0.63/0.60/0.56; edge over best-static survives to
+~50 bps). Transaction costs still unmodelled. **Phase 7 DONE** — the ML predictor runs live in the
 **dashboard Regime tab**: a new "Policy-Expert Allocation (ML)" panel (allocation-layer
 overlay, spec choice (b)) via `portfolio_html._attach_policy_allocation` →
 `market_helper/regimes/policy_expert_predictor.predict_latest` (pure-Python, graceful,

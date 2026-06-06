@@ -97,5 +97,23 @@
       "Goldilocks_total_ret_pct": -31.5
     }
   },
-  "caveat": "Experts are full-sample oracle templates (teacher step); only the predictor is walk-forward. Raw return ~ always-Goldilocks; the edge is risk-adjusted (drawdown/Sharpe)."
+  "moe_financing_spread_sensitivity": {
+    "0bps": {
+      "ann_return_pct": 8.42,
+      "sharpe": 0.65
+    },
+    "25bps": {
+      "ann_return_pct": 8.2,
+      "sharpe": 0.63
+    },
+    "50bps": {
+      "ann_return_pct": 7.97,
+      "sharpe": 0.6
+    },
+    "100bps": {
+      "ann_return_pct": 7.52,
+      "sharpe": 0.56
+    }
+  },
+  "caveat": "Experts are full-sample oracle templates (teacher step); only the predictor is walk-forward. Raw return ~ always-Goldilocks; the edge is risk-adjusted (drawdown/Sharpe). T-bill funding cost on leverage IS charged (excess-return accounting = negative cash plug); the FUTURES financing spread above T-bills is the separate sensitivity above."
 }

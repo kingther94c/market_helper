@@ -159,8 +159,13 @@ def main() -> int:
       "the most fragile conclusion; carries the heaviest caveat.</li>")
     w("<li><b>A simple cash-in-stagflation rule is competitive</b> &mdash; much of the ML's value "
       "is automating crisis de-risking a heuristic also captures.</li>")
-    w("<li><b>Frictionless</b>: futures financing spread / transaction costs not yet charged "
-      "(turnover is modest, ~6%/mo for the MoE).</li></ul>")
+    w("<li><b>Funding cost IS charged</b> &mdash; the excess-return accounting "
+      "(<span class='mono'>R = cash&middot;100% + &Sigma; exp&middot;(sleeve&minus;cash)</span>) "
+      "is identical to a <b>negative T-bill cash allocation of (100% &minus; gross)</b>, so "
+      "leverage pays the <span class='mono'>TB3MS</span> (SGOV/BIL) rate. The extra "
+      "<b>futures financing spread</b> above T-bills is audited: +25 / 50 / 100 bps/yr on the "
+      "futures notional cuts MoE Sharpe 0.65 &rarr; 0.63 / 0.60 / 0.56 (edge over best-static "
+      "survives to ~50 bps). Transaction costs not yet charged (turnover modest, ~6%/mo).</li></ul>")
 
     # 7 separation
     w("<h2>7. What is robust vs tentative</h2><ul>")
