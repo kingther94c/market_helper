@@ -1,6 +1,5 @@
-from __future__ import annotations
-
 """NiceGUI bootstrap for the portfolio-monitor dashboard."""
+from __future__ import annotations
 
 import argparse
 import logging
@@ -15,7 +14,7 @@ from market_helper.application.portfolio_monitor import (
     PortfolioMonitorActionService,
     PortfolioMonitorQueryService,
 )
-from market_helper.presentation.dashboard.pages.portfolio import register_portfolio_page
+from market_helper.presentation.dashboard.pages.portfolio_monitor import register_portfolio_page
 from market_helper.presentation.dashboard.pages.trade_advisor import register_trade_advisor_page
 from market_helper.presentation.dashboard.shell import register_landing_page
 

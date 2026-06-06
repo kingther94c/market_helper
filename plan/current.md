@@ -5,11 +5,13 @@ Track-level architecture detail lives in
 [`../docs/architecture/devplans/`](../docs/architecture/devplans/). Cold
 context is in `memory/archive/` (gitignored, not read by default).
 
-## Dashboard Shell (A+ refactor — landed)
+## Dashboard Shell + two-line decomposition (A+ then B — landed)
 
-**State**: A+ landed. Shared shell + `/` landing joining the two parallel
-surfaces; NiceGUI kept; routes preserved. See
-[ADR 0008](../docs/decisions/0008-unified-dashboard-shell.md).
+**State**: A+ and **B** landed. Shared shell + `/` landing joining the two
+parallel surfaces (NiceGUI kept, routes preserved); both monolith page modules
+decomposed into symmetric `pages/<line>/` subpackages with no backward compat.
+See [ADR 0008](../docs/decisions/0008-unified-dashboard-shell.md) +
+[ADR 0009](../docs/decisions/0009-two-line-dashboard-decomposition.md).
 
 - New `presentation/dashboard/shell.py`: `app_shell(active=...)` injects the
   shared styles once, renders brand + cross-surface nav `[Portfolio Monitor │
@@ -20,7 +22,7 @@ surfaces; NiceGUI kept; routes preserved. See
   now resolve (shell injects `add_dashboard_styles`). Existing chrome (pm-app-bar,
   operate drawer, refresh pipeline, progress strip, Rule-based / AI+ tabs)
   unchanged. Dead `regimes.py` / `signals.py` / `backtests.py` page scaffolds
-  deleted; `dashboard.py` compat re-export kept.
+  deleted (`dashboard.py` compat re-export later deleted in B).
 - Verified: full unit suite green (755); `/`, `/portfolio`, `/advisor` all serve
   200; in-browser DOM confirms the shared nav + correct per-route active state on
   both pages, the back-link absent, and the portfolio `.pm-app-bar` still sticky.
@@ -29,9 +31,16 @@ surfaces; NiceGUI kept; routes preserved. See
   `_logger.warning` → `NameError`, masking graceful degradation as "Action
   failed"; regression test added); removed an unused `format_text` import; renamed
   an ambiguous `l` loop var in the FX-alloc table builder.
-- **Selective-B later (optional, not started)**: split `portfolio.py` (~1.6k) by
-  real boundaries (state / report_host+artifact_routes / actions) only where it
-  improves readability or testability; do not mirror-split `trade_advisor.py`.
+- **B landed (ADR 0009) — full two-line decomposition, no backward compat:**
+  `pages/portfolio.py` (~1.6k) → `pages/portfolio_monitor/` (`state` / `routes` /
+  `actions` / `views` / `drawer` / `page`); `pages/trade_advisor.py` (~0.7k) →
+  `pages/trade_advisor/` (`inputs` / `cards` / `rule_based` / `ai` / `page`). Each
+  `__init__` exposes only `register_<line>_page`. Compat dropped: `dashboard.py`
+  shim deleted, no symbol re-exports, all call-sites + tests import from the new
+  submodules. Routes/behavior unchanged. Advisor service passed explicitly into
+  the tabs (no shared global); fixed a latent `parents[4]→[5]` path bug in
+  `state.DEFAULT_CANONICAL_LOCAL_ENV_PATH` exposed by the deeper package. Verified:
+  755 passed / 1 skipped; ruff F-clean both packages; routes + in-browser DOM OK.
 
 ## Portfolio Monitor
 

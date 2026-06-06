@@ -32,6 +32,9 @@ Dependency direction:
   cross-surface nav + `/` landing) wraps **two parallel surfaces**:
   `portfolio_monitor` (`/portfolio`) and `trade_advisor` (`/advisor`). Fixed
   pair, not a registry (ADR 0008); research/backtest/screener are out of scope.
+  Each surface is a `pages/<line>/` subpackage split by responsibility
+  (monitor: state/routes/actions/views/drawer/page; advisor:
+  inputs/cards/rule_based/ai/page) — ADR 0009; only `register_<line>_page` public.
 - `reporting/` — HTML renderers (combined, performance, risk, regime).
 - `regimes/`, `suggest/` — factor scoring + hysteresis; regime-to-policy
   suggestions.

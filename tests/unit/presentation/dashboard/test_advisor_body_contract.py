@@ -10,7 +10,7 @@ from __future__ import annotations
 
 from types import SimpleNamespace
 
-from market_helper.presentation.dashboard.pages import trade_advisor as ta
+from market_helper.presentation.dashboard.pages.trade_advisor import cards as ta_cards
 from market_helper.trade_advisor.adapters.fx_hedge import FxHedgeAdvisorPlugin
 from market_helper.trade_advisor.adapters.option import OptionAdvisorPlugin
 from market_helper.trade_advisor.adapters.roll import RollReminderPlugin
@@ -39,7 +39,7 @@ def _fx_suggestions():
 
 def test_fx_alloc_detail_drives_alloc_table():
     s = next(x for x in _fx_suggestions() if x.body_kind == "fx_alloc")
-    headers, rows = ta.fx_alloc_table(s.detail)
+    headers, rows = ta_cards.fx_alloc_table(s.detail)
     assert len(rows) == 2          # one row per hedge leg
     assert rows[0][0] == "EUR"     # currency first column
     assert headers[3] == "Contracts"
@@ -47,7 +47,7 @@ def test_fx_alloc_detail_drives_alloc_table():
 
 def test_fx_carry_detail_drives_carry_table():
     s = next(x for x in _fx_suggestions() if x.body_kind == "fx_carry")
-    headers, rows = ta.fx_carry_table(s.detail)
+    headers, rows = ta_cards.fx_carry_table(s.detail)
     assert rows and rows[0][0] == "EUR"   # ranked top-carry first
 
 
@@ -57,7 +57,7 @@ def test_roll_detail_drives_roll_facts():
     s = RollReminderPlugin().produce(
         AdvisorContext(as_of="2026-06-03", held_options=held), today="2026-06-03"
     ).suggestions[0]
-    facts = dict(ta.roll_facts(s.detail))
+    facts = dict(ta_cards.roll_facts(s.detail))
     assert facts["Underlying"] == "SPY" and facts["Moneyness"] == "ITM"
     assert facts["Contract"].startswith("short C740")
 
@@ -68,5 +68,5 @@ def test_option_detail_drives_option_body_helpers():
         overrides={"NVDA": {"spot": 120.0, "iv": 0.45}}, fetch_realized=False,
     )
     s = res.suggestions[0]
-    assert ta.option_legs_lines(s.detail)                 # ≥1 readable leg line
+    assert ta_cards.option_legs_lines(s.detail)                 # ≥1 readable leg line
     assert "spot" in s.detail and "iv_skew" in s.detail   # what-if inputs are present

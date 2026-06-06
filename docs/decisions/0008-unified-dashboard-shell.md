@@ -56,6 +56,10 @@ iframe URL logic), `actions.py` (dispatch + input parsing) — only where it
 improves readability or testability. Do **not** split `trade_advisor.py` merely
 to mirror portfolio.
 
+> **Update:** this selective-B guidance was superseded — the operator directed
+> completing **B in full** (both lines decomposed into symmetric subpackages, no
+> backward compat). See [ADR 0009](0009-two-line-dashboard-decomposition.md).
+
 ## Consequences
 
 - One front door: `/` is a navigable landing; the nav links the two lines both

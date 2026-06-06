@@ -11,6 +11,6 @@ def _stub_ibkr_probe(monkeypatch: pytest.MonkeyPatch) -> None:
     on the developer's machine. Tests that exercise the probe itself
     monkeypatch ``socket.socket`` directly to undo this stub.
     """
-    import market_helper.presentation.dashboard.pages.portfolio as portfolio_page
+    import market_helper.presentation.dashboard.pages.portfolio_monitor.state as pm_state
 
-    monkeypatch.setattr(portfolio_page, "_probe_local_ibkr_port", lambda **_kwargs: None)
+    monkeypatch.setattr(pm_state, "_probe_local_ibkr_port", lambda **_kwargs: None)

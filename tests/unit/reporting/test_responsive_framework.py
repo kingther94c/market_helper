@@ -409,9 +409,11 @@ def test_embedded_overrides_redeclare_app_bar_height() -> None:
     `.app-bar` so an accidental bump (e.g. someone copying the shell defaults
     back in) trips this test.
     """
-    from market_helper.presentation.dashboard.pages import portfolio as portfolio_page
+    from market_helper.presentation.dashboard.pages.portfolio_monitor.views import (
+        _EMBEDDED_REPORT_OVERRIDES,
+    )
 
-    overrides = portfolio_page._EMBEDDED_REPORT_OVERRIDES
+    overrides = _EMBEDDED_REPORT_OVERRIDES
     assert ":root" in overrides, (
         "_EMBEDDED_REPORT_OVERRIDES must re-declare `:root` vars so the iframe's "
         "regime-ribbon sticky offset matches the visible (collapsed) app-bar."
@@ -501,7 +503,7 @@ def test_iframe_override_appears_after_framework_default() -> None:
     `</head>`; this test verifies the cascade actually flips in the rendered
     srcdoc, not just in isolation.
     """
-    from market_helper.presentation.dashboard.pages.portfolio import (
+    from market_helper.presentation.dashboard.pages.portfolio_monitor.views import (
         _inject_embedded_overrides,
     )
     from market_helper.reporting.report_document import (

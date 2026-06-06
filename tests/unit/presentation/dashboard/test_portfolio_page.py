@@ -8,7 +8,7 @@ from market_helper.application.portfolio_monitor import (
     PortfolioReportInputs,
     UiProgressEvent,
 )
-from market_helper.presentation.dashboard.pages.portfolio import (
+from market_helper.presentation.dashboard.pages.portfolio_monitor.state import (
     ActionStatusState,
     ExportActionFormState,
     FlexActionFormState,
@@ -17,26 +17,30 @@ from market_helper.presentation.dashboard.pages.portfolio import (
     PortfolioPageState,
     ReferenceActionFormState,
     RegimeActionFormState,
-    _action_progress_summary,
     _build_initial_state,
     _cache_stale_page_state,
-    _classify_warning,
+    _existing_cached_position_csv,
+    _initial_dashboard_status,
+    _positions_csv_ready_for_autoload,
+    _probe_local_ibkr_port,
+    _report_data_matches_current_local_date,
+    _resolve_default_ibkr_port,
     _restore_stale_page_state,
+)
+from market_helper.presentation.dashboard.pages.portfolio_monitor.actions import (
+    _action_progress_summary,
     _artifact_inputs_from_form,
+    _classify_warning,
     _combined_inputs_from_form,
     _etf_inputs_from_form,
     _flex_inputs_from_form,
-    _initial_dashboard_status,
     _live_inputs_from_form,
-    _positions_csv_ready_for_autoload,
     _regime_refresh_inputs_from_form,
     _regime_run_inputs_from_form,
-    _report_data_matches_current_local_date,
-    _existing_cached_position_csv,
-    _probe_local_ibkr_port,
-    _resolve_default_ibkr_port,
 )
-import market_helper.presentation.dashboard.pages.portfolio as portfolio_page
+import market_helper.presentation.dashboard.pages.portfolio_monitor.page as pm_page
+import market_helper.presentation.dashboard.pages.portfolio_monitor.routes as pm_routes
+import market_helper.presentation.dashboard.pages.portfolio_monitor.state as pm_state
 
 
 def test_artifact_form_converts_strings_to_query_inputs() -> None:
@@ -186,7 +190,7 @@ def test_build_initial_state_prefills_flex_credentials_from_local_env(tmp_path, 
     )
     monkeypatch.delenv("MARKET_HELPER_GDRIVE_ROOT", raising=False)
     monkeypatch.setattr(
-        "market_helper.presentation.dashboard.pages.portfolio.DEFAULT_CANONICAL_LOCAL_ENV_PATH",
+        "market_helper.presentation.dashboard.pages.portfolio_monitor.state.DEFAULT_CANONICAL_LOCAL_ENV_PATH",
         local_env,
     )
 
@@ -220,7 +224,7 @@ def test_build_initial_state_prefills_ibkr_port_and_host_from_env(tmp_path, monk
     monkeypatch.delenv("IBKR_HOST", raising=False)
     monkeypatch.delenv("MARKET_HELPER_GDRIVE_ROOT", raising=False)
     monkeypatch.setattr(
-        "market_helper.presentation.dashboard.pages.portfolio.DEFAULT_CANONICAL_LOCAL_ENV_PATH",
+        "market_helper.presentation.dashboard.pages.portfolio_monitor.state.DEFAULT_CANONICAL_LOCAL_ENV_PATH",
         local_env,
     )
 
@@ -242,11 +246,11 @@ def test_build_initial_state_defaults_to_tws_paper_port_when_unset(tmp_path, mon
     monkeypatch.delenv("IBKR_HOST", raising=False)
     monkeypatch.delenv("MARKET_HELPER_GDRIVE_ROOT", raising=False)
     monkeypatch.setattr(
-        "market_helper.presentation.dashboard.pages.portfolio.DEFAULT_CANONICAL_LOCAL_ENV_PATH",
+        "market_helper.presentation.dashboard.pages.portfolio_monitor.state.DEFAULT_CANONICAL_LOCAL_ENV_PATH",
         tmp_path / "no-such.env",
     )
     # Force the probe to find nothing so the fallback path is exercised.
-    monkeypatch.setattr(portfolio_page, "_probe_local_ibkr_port", lambda **_: None)
+    monkeypatch.setattr(pm_state, "_probe_local_ibkr_port", lambda **_: None)
 
     class QueryService:
         def resolve_inputs(self, inputs: PortfolioReportInputs | None = None) -> PortfolioReportInputs:
@@ -275,7 +279,7 @@ def test_probe_local_ibkr_port_returns_first_listening_port(monkeypatch) -> None
                 raise ConnectionRefusedError("refused")
         def close(self): pass
 
-    monkeypatch.setattr(portfolio_page.socket, "socket", _FakeSock)
+    monkeypatch.setattr(pm_state.socket, "socket", _FakeSock)
     assert _probe_local_ibkr_port() == "4002"
 
 
@@ -287,7 +291,7 @@ def test_probe_local_ibkr_port_returns_none_when_nothing_listens(monkeypatch) ->
             raise ConnectionRefusedError("nothing here")
         def close(self): pass
 
-    monkeypatch.setattr(portfolio_page.socket, "socket", _FakeSock)
+    monkeypatch.setattr(pm_state.socket, "socket", _FakeSock)
     assert _probe_local_ibkr_port() is None
 
 
@@ -301,7 +305,7 @@ def test_resolve_default_ibkr_port_env_var_skips_probe(monkeypatch, tmp_path) ->
         probe_called["yes"] = True
         return "4001"
 
-    monkeypatch.setattr(portfolio_page, "_probe_local_ibkr_port", _exploding_probe)
+    monkeypatch.setattr(pm_state, "_probe_local_ibkr_port", _exploding_probe)
     assert _resolve_default_ibkr_port() == "9999"
     assert probe_called["yes"] is False
 
@@ -327,7 +331,7 @@ def test_build_initial_state_prefills_live_account_id_from_local_env(tmp_path, m
     )
     monkeypatch.delenv("MARKET_HELPER_GDRIVE_ROOT", raising=False)
     monkeypatch.setattr(
-        "market_helper.presentation.dashboard.pages.portfolio.DEFAULT_CANONICAL_LOCAL_ENV_PATH",
+        "market_helper.presentation.dashboard.pages.portfolio_monitor.state.DEFAULT_CANONICAL_LOCAL_ENV_PATH",
         local_env,
     )
 
@@ -352,7 +356,7 @@ def test_build_initial_state_prefers_gdrive_root_local_env(tmp_path, monkeypatch
     override_env.write_text('IBKR_FLEX_QUERY_ID="synced-query"\n', encoding="utf-8")
     monkeypatch.setenv("MARKET_HELPER_GDRIVE_ROOT", str(gdrive_root))
     monkeypatch.setattr(
-        "market_helper.presentation.dashboard.pages.portfolio.DEFAULT_CANONICAL_LOCAL_ENV_PATH",
+        "market_helper.presentation.dashboard.pages.portfolio_monitor.state.DEFAULT_CANONICAL_LOCAL_ENV_PATH",
         default_env,
     )
 
@@ -539,12 +543,12 @@ def test_served_artifact_url_uses_pretty_alias_for_canonical_dashboard_report(
     canonical = tmp_path / "artifacts" / "portfolio_monitor" / "portfolio_dashboard_report.html"
     canonical.parent.mkdir(parents=True)
     canonical.write_text("<html><body>fake</body></html>", encoding="utf-8")
-    monkeypatch.setattr(portfolio_page, "DATA_DIR", tmp_path)
-    monkeypatch.setattr(portfolio_page, "DEFAULT_COMBINED_REPORT_PATH", canonical)
+    monkeypatch.setattr(pm_routes, "DATA_DIR", tmp_path)
+    monkeypatch.setattr(pm_routes, "DEFAULT_COMBINED_REPORT_PATH", canonical)
 
-    url = portfolio_page._served_artifact_url(canonical)
+    url = pm_routes._served_artifact_url(canonical)
 
-    assert url == portfolio_page._DASHBOARD_REPORT_ROUTE
+    assert url == pm_routes._DASHBOARD_REPORT_ROUTE
     assert url == "/portfolio/portfolio_dashboard_report.html"
     assert "?path=" not in url
 
@@ -558,34 +562,34 @@ def test_served_artifact_url_falls_back_to_legacy_query_for_other_files(
     other.parent.mkdir(parents=True)
     other.write_text("as_of,account\n", encoding="utf-8")
     # Make sure DATA_DIR contains `other` so the sandbox check passes.
-    monkeypatch.setattr(portfolio_page, "DATA_DIR", tmp_path)
+    monkeypatch.setattr(pm_routes, "DATA_DIR", tmp_path)
     # Re-point DEFAULT_COMBINED_REPORT_PATH somewhere else so `other` is NOT
     # the canonical report.
     canonical = tmp_path / "artifacts" / "portfolio_monitor" / "portfolio_dashboard_report.html"
-    monkeypatch.setattr(portfolio_page, "DEFAULT_COMBINED_REPORT_PATH", canonical)
+    monkeypatch.setattr(pm_routes, "DEFAULT_COMBINED_REPORT_PATH", canonical)
 
-    url = portfolio_page._served_artifact_url(other)
+    url = pm_routes._served_artifact_url(other)
 
     assert url is not None
-    assert url.startswith(portfolio_page._GENERATED_HTML_ROUTE + "?path=")
+    assert url.startswith(pm_routes._GENERATED_HTML_ROUTE + "?path=")
     assert "live_ibkr_position_report.csv" in url
 
 
 def test_served_artifact_url_returns_none_for_missing_or_outside_paths(
     monkeypatch, tmp_path
 ) -> None:
-    monkeypatch.setattr(portfolio_page, "DATA_DIR", tmp_path)
+    monkeypatch.setattr(pm_routes, "DATA_DIR", tmp_path)
     # Missing file under DATA_DIR.
-    assert portfolio_page._served_artifact_url(tmp_path / "absent.html") is None
+    assert pm_routes._served_artifact_url(tmp_path / "absent.html") is None
     # Path outside DATA_DIR (resolves to a different drive root in tests).
     outside = tmp_path.parent / "outside.html"
     outside.write_text("hi", encoding="utf-8")
     try:
-        assert portfolio_page._served_artifact_url(outside) is None
+        assert pm_routes._served_artifact_url(outside) is None
     finally:
         outside.unlink(missing_ok=True)
     # None input -> None.
-    assert portfolio_page._served_artifact_url(None) is None
+    assert pm_routes._served_artifact_url(None) is None
 
 
 def test_module_logger_is_defined() -> None:
@@ -597,4 +601,4 @@ def test_module_logger_is_defined() -> None:
     fallback can log without crashing."""
     import logging
 
-    assert isinstance(portfolio_page._logger, logging.Logger)
+    assert isinstance(pm_page._logger, logging.Logger)

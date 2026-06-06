@@ -101,7 +101,10 @@ This layer should stay renderer-agnostic and UI-agnostic wherever possible.
     nav, `/` landing page) wrapping **two parallel surfaces** — `portfolio_monitor`
     (`/portfolio`) and `trade_advisor` (`/advisor`). The shell is a fixed pair,
     not a registry: research / backtest / screener surfaces are out of scope for
-    this repo (see ADR 0008). Pages + components live alongside.
+    this repo (see ADR 0008). Each surface is a `pages/<line>/` subpackage split
+    by responsibility — `state`/`routes`/`actions`/`views`/`drawer`/`page` for
+    portfolio_monitor, `inputs`/`cards`/`rule_based`/`ai`/`page` for trade_advisor
+    (see ADR 0009); shared `components/` live alongside.
 - `market_helper/presentation/exporters/`
   - CSV/security-reference export helpers.
 - `market_helper/reporting/`
