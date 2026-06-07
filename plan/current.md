@@ -164,6 +164,21 @@ fire on the real regime. **Flagged (not advisor-caused):**
 appends full snapshots indefinitely) and the advisor reads it on render — spun off
 as a separate task.
 
+**Conversational AI+ + prompt-variant harness (2026-06-07).** The Tactical AI is
+now a **dialog**: `synthesis.py` is messages-based (system + user turns,
+swappable `TacticalPromptStyle`, `request_tactical_chat` for multi-turn,
+`continue_messages` for feedback); the cockpit Tactical tab renders a transcript
+with a **feedback box** ("Send feedback") that appends the operator's turn and
+re-posts to refine — still read-only, never orders. Selected the production
+inject-prompt by **harnessing 4 variants** (baseline / conviction-ranked /
+adversarial / terse-table) live — each an initial brief + a fixed feedback turn:
+all 4 had 0 order leakage; the winner is a **synthesis** (conviction **table** +
+"**Anchors I'd fade**" adversarial honesty + a **monitorable invalidation** per
+idea + feedback-aware revision), set as `DEFAULT_STYLE`. Confirmed live in the
+browser: Generate → brief → feedback ("2 best, drop short-vol, concise") → the
+refined brief narrows to 2 trades and drops short-vol. Suite 787 passed / 1
+skipped.
+
 ### Option Strategy (cockpit Module 1)
 
 **State**: **MVP landed + cockpit structures (in progress).** Pure-stdlib

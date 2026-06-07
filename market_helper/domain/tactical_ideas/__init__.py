@@ -18,7 +18,16 @@ from .signals import (
     build_tactical_context,
     generate_tactical_ideas,
 )
-from .synthesis import TacticalBrief, build_tactical_prompt, request_tactical_brief
+from .synthesis import (
+    DEFAULT_STYLE,
+    TacticalBrief,
+    TacticalPromptStyle,
+    build_tactical_messages,
+    build_tactical_prompt,
+    continue_messages,
+    request_tactical_brief,
+    request_tactical_chat,
+)
 
 __all__ = [
     "TacticalContext",
@@ -26,6 +35,11 @@ __all__ = [
     "build_tactical_context",
     "generate_tactical_ideas",
     "TacticalBrief",
+    "TacticalPromptStyle",
+    "DEFAULT_STYLE",
     "build_tactical_prompt",
+    "build_tactical_messages",
+    "continue_messages",
     "request_tactical_brief",
+    "request_tactical_chat",
 ]

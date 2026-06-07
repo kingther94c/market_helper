@@ -39,58 +39,97 @@ def _render_tactical_ai() -> None:
     """Opt-in, read-only AI tactical brief at the top of the Tactical tab."""
     from market_helper.domain.tactical_ideas import (
         build_tactical_context,
+        build_tactical_messages,
         generate_tactical_ideas,
-        request_tactical_brief,
+        request_tactical_chat,
     )
     from market_helper.trade_advisor.ai.gateway import GatewayAuthMissing, GatewayError
+
+    convo: dict = {"messages": None}  # running OpenAI-style history once a brief exists
 
     with ui.card().classes("w-full pm-card"):
         with ui.row().classes("items-center justify-between w-full"):
             ui.label("AI tactical brief · research/synthesis, never orders").classes("text-subtitle2")
             gen_btn = ui.button("Generate AI brief").props("dense")
-        brief_box = ui.column().classes("w-full")
-        with brief_box:
-            ui.label("Opt-in: synthesizes the grounded anchors below via your local OpenClaw gateway.").classes("text-caption pm-muted")
+        transcript = ui.column().classes("w-full gap-2")
+        with transcript:
+            ui.label(
+                "Opt-in: synthesizes the grounded anchors below via your local OpenClaw gateway. "
+                "After a brief, type feedback to refine it — analysis only, never orders."
+            ).classes("text-caption pm-muted")
+        with ui.row().classes("w-full items-center gap-2 wrap"):
+            fb_in = ui.input(placeholder="Feedback to refine (e.g. “focus on the 2 best; drop short-vol; be concise”)").props("dense").classes("grow")
+            send_btn = ui.button("Send feedback").props("dense")
+        fb_in.disable()
+        send_btn.disable()
+
+        def _add_turn(role: str, text: str, meta: str = "") -> None:
+            with transcript:
+                with ui.card().classes("w-full").style("background:rgba(255,255,255,.03)"):
+                    ui.label("You" if role == "user" else "AI brief").classes("text-caption pm-muted")
+                    if role == "user":
+                        ui.label(text).classes("text-body2")
+                    else:
+                        ui.markdown(text or "_(empty response)_")
+                        if meta:
+                            ui.label(meta).classes("text-caption pm-muted")
+
+        def _explain(msg: str) -> None:
+            with transcript:
+                ui.label(msg).classes("text-caption pm-muted")
+
+        async def _ask(messages: list) -> None:
+            """POST messages, append the assistant brief to the transcript + history. Graceful."""
+            with transcript:
+                pending = ui.label("Synthesizing…").classes("text-caption pm-muted")
+            try:
+                brief = await asyncio.to_thread(lambda: request_tactical_chat(messages=messages))
+            except GatewayAuthMissing:
+                pending.delete()
+                _explain("AI disabled — start the OpenClaw gateway / set OPENCLAW_GATEWAY_TOKEN. "
+                         "The rule-based tactical anchors below are unaffected.")
+                return
+            except (GatewayError, Exception) as exc:  # noqa: BLE001 — UI must never crash
+                pending.delete()
+                _explain(f"AI brief unavailable: {type(exc).__name__}: {str(exc)[:160]}")
+                return
+            pending.delete()
+            convo["messages"] = [*messages, {"role": "assistant", "content": brief.brief}]
+            meta = (
+                f"model {brief.model} · {brief.prompt_tokens}/{brief.completion_tokens} tok · analysis only, not orders"
+                if brief.model else ""
+            )
+            _add_turn("assistant", brief.brief, meta)
+            fb_in.enable()
+            send_btn.enable()
 
         async def generate() -> None:
             gen_btn.disable()
-            brief_box.clear()
-            with brief_box:
-                ui.label("Synthesizing…").classes("text-caption pm-muted")
+            transcript.clear()
+            convo["messages"] = None
+            fb_in.disable()
+            send_btn.disable()
 
-            def work():
+            def _build():
                 ctx = build_tactical_context()
-                ideas = generate_tactical_ideas(ctx)
-                return request_tactical_brief(context=ctx, ideas=ideas)
+                return build_tactical_messages(ctx, generate_tactical_ideas(ctx))
 
-            try:
-                brief = await asyncio.to_thread(work)
-            except GatewayAuthMissing:
-                brief_box.clear()
-                with brief_box:
-                    ui.label(
-                        "AI disabled — start the OpenClaw gateway / set OPENCLAW_GATEWAY_TOKEN. "
-                        "The rule-based tactical anchors below are unaffected."
-                    ).classes("text-caption pm-muted")
-                gen_btn.enable()
-                return
-            except (GatewayError, Exception) as exc:  # noqa: BLE001 — UI must never crash
-                brief_box.clear()
-                with brief_box:
-                    ui.label(f"AI brief unavailable: {type(exc).__name__}: {str(exc)[:160]}").classes("text-caption pm-muted")
-                gen_btn.enable()
-                return
-
-            brief_box.clear()
-            with brief_box:
-                ui.markdown(brief.brief or "_(empty response)_")
-                if brief.model:
-                    ui.label(
-                        f"model {brief.model} · {brief.prompt_tokens}/{brief.completion_tokens} tok · analysis only, not orders"
-                    ).classes("text-caption pm-muted")
+            messages = await asyncio.to_thread(_build)
+            await _ask(messages)
             gen_btn.enable()
 
+        async def send_feedback() -> None:
+            fb = (fb_in.value or "").strip()
+            if not fb or not convo["messages"]:
+                return
+            send_btn.disable()
+            fb_in.value = ""
+            _add_turn("user", fb)
+            await _ask([*convo["messages"], {"role": "user", "content": fb}])
+            send_btn.enable()
+
         gen_btn.on_click(generate)
+        send_btn.on_click(send_feedback)
 
 
 def render_cockpit(journal: DecisionJournal, refresh_inbox, service: TradeAdvisorService) -> None:
