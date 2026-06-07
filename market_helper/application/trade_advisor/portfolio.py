@@ -79,6 +79,7 @@ def context_from_positions_csv(
     csv_path = Path(path) if path else DEFAULT_POSITIONS_CSV
     holdings: dict[str, float] = {}
     held_options: list[dict] = []
+    held_futures: list[dict] = []
     aum = 0.0
     as_of = ""
 
@@ -102,7 +103,19 @@ def context_from_positions_csv(
                 elif iid.startswith("CASH"):
                     if mv:
                         aum += mv
-                # FUT: / other → excluded from AUM, holdings, options
+                elif iid.startswith("FUT:"):
+                    # Futures are excluded from funded AUM (the sizing gotcha) but DO need
+                    # roll/carry management — collect them for the Roll & Carry Calendar.
+                    held_futures.append({
+                        "root": symbol,
+                        "contract": (row.get("local_symbol") or "").strip(),
+                        "internal_id": iid,
+                        "exchange": (row.get("exchange") or "").strip(),
+                        "qty": qty or 0.0,
+                        "latest_price": _f(row.get("latest_price")),
+                        "market_value": mv,
+                    })
+                # other → excluded
 
     return AdvisorContext(
         as_of=as_of,
@@ -113,4 +126,5 @@ def context_from_positions_csv(
         regime_confidence=regime_confidence,
         crisis_flag=crisis_flag,
         held_options=held_options,
+        held_futures=held_futures,
     )

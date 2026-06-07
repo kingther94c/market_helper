@@ -106,6 +106,7 @@ class AdvisorContext:
     crisis_flag: bool = False
     sectors: dict[str, str] = field(default_factory=dict)
     held_options: list[dict] = field(default_factory=list)  # {underlying,right,strike,expiry,qty,underlying_price,delta,iv}
+    held_futures: list[dict] = field(default_factory=list)  # {root,contract,exchange,asset_class,qty,latest_price,market_value}
     extras: dict = field(default_factory=dict)
 
     def symbols(self) -> list[str]:

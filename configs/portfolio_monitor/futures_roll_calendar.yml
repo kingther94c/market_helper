@@ -1,0 +1,27 @@
+# Futures roll & carry calendar — per-root roll schedules for the Trade Advisor
+# "Roll & Carry Calendar" module. Edit here to retune roll timing WITHOUT code.
+# See market_helper/domain/portfolio_monitor/services/futures_roll_calendar.py.
+#
+# schedule:
+#   expiry → roll `roll_lead_days` before the delivery month starts (financials).
+#   gsci   → roll in the month PRIOR to delivery (GSCI-like), at ~`gsci_roll_day`.
+# A reminder is PROCEED within `urgent_days` of (or past) the roll target,
+# MONITOR within `roll_window_days`, else INFO.
+
+default:
+  schedule: expiry
+  roll_lead_days: 10
+  roll_window_days: 14
+  urgent_days: 3
+
+gsci_roll_day: 7        # approximate GSCI roll target = ~7th day of the prior month
+
+roots:
+  # Commodities — GSCI-like prior-month roll.
+  NG:  { schedule: gsci }
+  CL:  { schedule: gsci }
+  MCL: { schedule: gsci }
+  # Quarterly financials — roll a couple of weeks before delivery.
+  ZN:  { schedule: expiry, roll_lead_days: 14 }
+  ZF:  { schedule: expiry, roll_lead_days: 14 }
+  ZT:  { schedule: expiry, roll_lead_days: 14 }

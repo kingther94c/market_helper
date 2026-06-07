@@ -109,8 +109,15 @@ devplan prose — is authoritative):**
   carry impact + the hedge-deviation (basis-risk) cost; surfaced through the
   `fx_hedge` adapter's carry suggestion. Rich before/after UI lands with the
   cockpit shell.
-- ⏳ **Module 3 — Tactical Trade Ideas**, **Module 4 — Roll & Carry Calendar**,
-  and the **cockpit shell** (module tabs + Inbox) are pending.
+- ✅ **Module 4 — Roll & Carry Calendar** *(engine + adapter)*: futures roll
+  reminders (`futures_roll_calendar` engine + `futures_roll` adapter) on top of
+  the option roll. Commodities (NG/CL/…) roll on a **GSCI-like prior-month**
+  schedule, financials on an expiry-lead schedule (config
+  `futures_roll_calendar.yml`). Held futures are now seeded into the context
+  (`AdvisorContext.held_futures`). Honest that F1/F7 deferred-carry needs a CME
+  forward curve (not in-repo) — roll-timing only, no fabricated basis.
+- ⏳ **Module 3 — Tactical Trade Ideas** and the **cockpit shell** (module tabs +
+  Inbox + the FX before/after & futures-roll detail renderers) are pending.
 
 ### Option Strategy (cockpit Module 1)
 
