@@ -116,8 +116,18 @@ devplan prose — is authoritative):**
   `futures_roll_calendar.yml`). Held futures are now seeded into the context
   (`AdvisorContext.held_futures`). Honest that F1/F7 deferred-carry needs a CME
   forward curve (not in-repo) — roll-timing only, no fabricated basis.
-- ⏳ **Module 3 — Tactical Trade Ideas** and the **cockpit shell** (module tabs +
-  Inbox + the FX before/after & futures-roll detail renderers) are pending.
+- ✅ **Module 3 — Tactical Trade Ideas** *(engine + adapter + AI synthesis)*: new
+  `domain/tactical_ideas/` grounds rule-based macro idea anchors (short USD /
+  de-dollarization, risk-off / vol, short-VIX carry, trend-persistence /
+  add-exposure, curve steepener, sector rotation, commodity RV) on the **offline**
+  regime snapshot + policy-expert predictor/trending — each with evidence +
+  invalidation, capped at MONITOR (independent directional trades). A read-only
+  **AI synthesis** layer (`request_tactical_brief`, reuses the OpenClaw gateway)
+  expands them into a tactical brief, pinned to context, **never orders**. New
+  `tactical` adapter, registered.
+- ⏳ **Cockpit shell**: restructure `/advisor` into module tabs (Inbox + the 4
+  modules) + per-module detail renderers (FX before/after, futures-roll, tactical,
+  + the Tactical tab's AI brief), then end-to-end verify & self-judge.
 
 ### Option Strategy (cockpit Module 1)
 

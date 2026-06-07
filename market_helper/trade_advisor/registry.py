@@ -49,6 +49,7 @@ def build_default_registry() -> AdvisorRegistry:
     from .adapters.ideas import TradeIdeasAdvisorPlugin
     from .adapters.option import OptionAdvisorPlugin
     from .adapters.roll import RollReminderPlugin
+    from .adapters.tactical import TacticalIdeasPlugin
 
     registry = AdvisorRegistry()
     registry.register(OptionAdvisorPlugin())
@@ -56,4 +57,5 @@ def build_default_registry() -> AdvisorRegistry:
     registry.register(FuturesRollPlugin())
     registry.register(FxHedgeAdvisorPlugin())
     registry.register(TradeIdeasAdvisorPlugin())
+    registry.register(TacticalIdeasPlugin())
     return registry
