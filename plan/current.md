@@ -125,9 +125,14 @@ devplan prose — is authoritative):**
   **AI synthesis** layer (`request_tactical_brief`, reuses the OpenClaw gateway)
   expands them into a tactical brief, pinned to context, **never orders**. New
   `tactical` adapter, registered.
-- ⏳ **Cockpit shell**: restructure `/advisor` into module tabs (Inbox + the 4
-  modules) + per-module detail renderers (FX before/after, futures-roll, tactical,
-  + the Tactical tab's AI brief), then end-to-end verify & self-judge.
+- ✅ **Cockpit shell**: `/advisor` is now a multi-module cockpit
+  (`pages/trade_advisor/cockpit.py`) — shared bounded inputs → one run → four peer
+  tabs (Option Strategy / FX Carry / Tactical Trade Ideas / Roll & Carry Calendar)
+  over the cross-module Inbox + journal + snapshot; per-module detail renderers
+  added (FX carry before/after, futures-roll, tactical) and the Tactical tab owns
+  the opt-in read-only AI brief. The old Rule-based/AI+ tab split (`rule_based.py`,
+  `ai.py`) is deleted (superseded). Option Strategy is now one tab, not the centre.
+  Full unit suite green (783 passed, 1 skipped).
 
 ### Option Strategy (cockpit Module 1)
 

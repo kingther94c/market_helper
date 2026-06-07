@@ -136,6 +136,51 @@ def roll_facts(detail: dict) -> list[tuple[str, str]]:
     ]
 
 
+def fx_carry_tilt_table(detail: dict) -> tuple[list[str], list[list[str]]]:
+    """Headers + before/after rows for the FX carry tilt overlay (``detail['tilt']['rows']``)."""
+    headers = ["Ccy", "Carry %", "Base ct", "Tilt ct", "Δ ct", "Base $", "Tilt $", "Δ $"]
+    tilt = detail.get("tilt") or {}
+    rows = [
+        [
+            str(r.get("currency", "")),
+            _num(r.get("carry_rate_pct"), "+.2f"),
+            _num(r.get("base_contracts"), "+d"),
+            _num(r.get("tilted_contracts"), "+d"),
+            _num(r.get("delta_contracts"), "+d"),
+            _num(r.get("base_notional_usd"), ",.0f"),
+            _num(r.get("tilted_notional_usd"), ",.0f"),
+            _num(r.get("delta_notional_usd"), "+,.0f"),
+        ]
+        for r in (tilt.get("rows") or [])
+    ]
+    return headers, rows
+
+
+def futures_roll_facts(detail: dict) -> list[tuple[str, str]]:
+    """Label/value pairs describing a held future for the Roll & Carry Calendar body."""
+    days = detail.get("days_to_roll")
+    return [
+        ("Root", str(detail.get("root", "—"))),
+        ("Contract", str(detail.get("contract") or "—")),
+        ("Exchange", str(detail.get("exchange") or "—")),
+        ("Quantity", _num(detail.get("qty"))),
+        ("Delivery", str(detail.get("delivery_label", "—"))),
+        ("Roll target", str(detail.get("roll_target") or "—")),
+        ("To roll", "—" if days is None else f"{days}d"),
+        ("Schedule", "GSCI-like" if detail.get("schedule") == "gsci" else "expiry"),
+    ]
+
+
+def tactical_facts(detail: dict) -> list[tuple[str, str]]:
+    """Label/value pairs describing a tactical idea for its detail body."""
+    return [
+        ("Stance", str(detail.get("direction", "—"))),
+        ("Confidence", str(detail.get("confidence", "—"))),
+        ("Expression", str(detail.get("expression", "—"))),
+        ("Invalidation", str(detail.get("invalidation", "—"))),
+    ]
+
+
 # --------------------------------------------------------------------------- #
 # Rendering
 # --------------------------------------------------------------------------- #
@@ -222,8 +267,10 @@ def _render_inbox(box, journal: DecisionJournal) -> None:
 _BODY_TITLE = {
     "option_payoff": "Detail · payoff · Greeks · audit",
     "fx_alloc": "Detail · hedge legs · audit",
-    "fx_carry": "Detail · carry ranking · audit",
+    "fx_carry": "Detail · carry tilt before/after · audit",
     "roll": "Detail · position · audit",
+    "futures_roll": "Detail · contract · roll target · audit",
+    "tactical": "Detail · evidence · invalidation · audit",
 }
 
 
@@ -259,6 +306,21 @@ def _render_fx_alloc_body(detail: dict) -> None:
 
 
 def _render_fx_carry_body(detail: dict) -> None:
+    tilt = detail.get("tilt") or {}
+    if tilt.get("rows"):
+        before, after = tilt.get("before") or {}, tilt.get("after") or {}
+        ui.label(
+            f"Annual carry before → after: ${before.get('annual_carry_usd', 0):,.0f} → "
+            f"${after.get('annual_carry_usd', 0):,.0f}  "
+            f"({tilt.get('carry_impact_bps', 0):+.0f}bps · {tilt.get('hedge_deviation_pct', 0) * 100:.0f}% deviation "
+            f"from the hedge-optimal)"
+        ).classes("text-caption")
+        headers, rows = fx_carry_tilt_table(detail)
+        _ui_table(headers, rows)
+        if tilt.get("note"):
+            ui.label(tilt["note"]).classes("text-caption pm-muted")
+        return
+    # Fallback: the plain carry ranking (no tilt overlay present).
     headers, rows = fx_carry_table(detail)
     if rows:
         _ui_table(headers, rows)
@@ -271,6 +333,25 @@ def _render_roll_body(detail: dict) -> None:
         for label, value in roll_facts(detail):
             ui.label(label).classes("text-caption pm-muted")
             ui.label(value).classes("text-caption")
+
+
+def _render_futures_roll_body(detail: dict) -> None:
+    with ui.grid(columns=2).classes("gap-x-6 gap-y-1"):
+        for label, value in futures_roll_facts(detail):
+            ui.label(label).classes("text-caption pm-muted")
+            ui.label(value).classes("text-caption")
+    if detail.get("note"):
+        ui.label(detail["note"]).classes("text-caption pm-muted")
+
+
+def _render_tactical_body(detail: dict) -> None:
+    with ui.grid(columns=2).classes("gap-x-6 gap-y-1"):
+        for label, value in tactical_facts(detail):
+            ui.label(label).classes("text-caption pm-muted")
+            ui.label(value).classes("text-caption")
+    evidence = detail.get("evidence") or []
+    if evidence:
+        ui.label("Evidence: " + " · ".join(str(e) for e in evidence)).classes("text-caption pm-muted")
 
 
 def _render_generic_body(detail: dict) -> None:
@@ -289,6 +370,10 @@ def _render_detail_body(s: Suggestion, detail: dict) -> None:
         _render_fx_carry_body(detail)
     elif s.body_kind == "roll":
         _render_roll_body(detail)
+    elif s.body_kind == "futures_roll":
+        _render_futures_roll_body(detail)
+    elif s.body_kind == "tactical":
+        _render_tactical_body(detail)
     else:
         _render_generic_body(detail)
 
@@ -347,6 +432,18 @@ def _render_card(s: Suggestion, journal: DecisionJournal, on_decision) -> None:
             ui.button("Proceed", color="positive", on_click=lambda: _record("PROCEED")).props("dense")
             ui.button("Monitor", color="warning", on_click=lambda: _record("MONITOR")).props("dense")
             ui.button("Reject", color="negative", on_click=lambda: _record("REJECT")).props("dense")
+
+
+def _render_module(box, suggestions: list[Suggestion], journal: DecisionJournal, on_decision, *, empty_note: str = "") -> None:
+    """Render one cockpit module's suggestions as cards (PROCEED → MONITOR → INFO → REJECT)."""
+    box.clear()
+    with box:
+        ordered = sorted(suggestions, key=lambda s: (LABEL_ORDER.get(s.label, 9), -s.score))
+        if not ordered:
+            ui.label(empty_note or "No ideas for these inputs yet — run the advisor.").classes("text-caption pm-muted")
+            return
+        for suggestion in ordered:
+            _render_card(suggestion, journal, on_decision)
 
 
 def _render_results(box, run_result, journal: DecisionJournal, on_decision) -> None:

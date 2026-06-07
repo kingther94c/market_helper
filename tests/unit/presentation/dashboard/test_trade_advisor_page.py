@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-from market_helper.presentation.dashboard.pages.trade_advisor import ai as ta_ai
 from market_helper.presentation.dashboard.pages.trade_advisor import cards as ta_cards
 from market_helper.presentation.dashboard.pages.trade_advisor import inputs as ta_inputs
 from market_helper.presentation.dashboard.pages.trade_advisor import page as ta_page
@@ -21,10 +20,6 @@ def test_build_context_maps_held_and_watchlist():
 def test_option_run_params_passthrough():
     params = ta_inputs.option_run_params(ta_inputs.AdvisorInputs(fetch_realized=True, check_earnings=True))
     assert params == {"option": {"fetch_realized": True, "fetch_events": True}}
-
-
-def test_ai_models_are_bounded_openclaw_ids():
-    assert ta_ai.AI_MODELS and all(m.startswith("openclaw/") for m in ta_ai.AI_MODELS)
 
 
 def test_build_run_context_manual():
@@ -126,6 +121,34 @@ def test_option_legs_lines():
                         "est_price": 2.5, "resolved_dte": 35}]}
     lines = ta_cards.option_legs_lines(detail)
     assert lines == ["SELL C110.0 @ 2.5 (35DTE)"]
+
+
+def test_fx_carry_tilt_table_before_after():
+    detail = {"tilt": {"rows": [
+        {"currency": "EUR", "carry_rate_pct": -1.8, "base_contracts": 5, "tilted_contracts": 4,
+         "delta_contracts": -1, "base_notional_usd": 500000.0, "tilted_notional_usd": 400000.0,
+         "delta_notional_usd": -100000.0},
+    ]}}
+    headers, rows = ta_cards.fx_carry_tilt_table(detail)
+    assert headers[0] == "Ccy" and "Δ ct" in headers and "Δ $" in headers
+    assert rows == [["EUR", "-1.80", "+5", "+4", "-1", "500,000", "400,000", "-100,000"]]
+
+
+def test_futures_roll_facts_gsci():
+    facts = dict(ta_cards.futures_roll_facts({
+        "root": "NG", "contract": "NGQ26", "exchange": "NYMEX", "qty": -1.0,
+        "delivery_label": "Aug 2026", "roll_target": "2026-07-07", "days_to_roll": 6, "schedule": "gsci",
+    }))
+    assert facts["Root"] == "NG" and facts["Schedule"] == "GSCI-like"
+    assert facts["To roll"] == "6d" and facts["Delivery"] == "Aug 2026"
+
+
+def test_tactical_facts():
+    facts = dict(ta_cards.tactical_facts({
+        "direction": "Short USD", "confidence": "Medium", "expression": "long 6E vs USD", "invalidation": "hawkish Fed",
+    }))
+    assert facts["Stance"] == "Short USD" and facts["Confidence"] == "Medium"
+    assert facts["Expression"] == "long 6E vs USD" and facts["Invalidation"] == "hawkish Fed"
 
 
 def test_register_is_idempotent_and_registers_route():

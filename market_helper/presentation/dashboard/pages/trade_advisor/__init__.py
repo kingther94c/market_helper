@@ -1,12 +1,13 @@
 """Trade Advisor dashboard surface (`/advisor`).
 
-The second parallel product line (see ADR 0008 / 0009). Split by responsibility:
+The second parallel product line (see ADR 0008 / 0009). A multi-module advisory
+**cockpit** (Option Strategy / FX Carry / Tactical Trade Ideas / Roll & Carry
+Calendar tabs over one bounded-input run). Split by responsibility:
 
-- `inputs`     — bounded input set + pure context builders (unit-tested).
-- `cards`      — idea cards, body builders, what-if, results, inbox.
-- `rule_based` — the deterministic advisor tab (inputs → run → cards).
-- `ai`         — the opt-in AI+ synthesis tab.
-- `page`       — `register_trade_advisor_page` + the `/advisor` lifecycle.
+- `inputs`  — bounded input set + pure context builders (unit-tested).
+- `cards`   — idea cards, per-body detail builders/renderers, what-if, inbox.
+- `cockpit` — shared inputs → one run → the four module tabs (+ Tactical AI brief).
+- `page`    — `register_trade_advisor_page` + the `/advisor` lifecycle.
 
 Only `register_trade_advisor_page` is public.
 """
