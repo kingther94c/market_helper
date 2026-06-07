@@ -64,3 +64,21 @@ def test_calm_tape_allows_short_vix_carry():
     themes = {i.theme for i in generate_tactical_ideas(ctx)}
     assert "SHORT_VIX" in themes
     assert "RISK_OFF" not in themes
+
+
+def test_neutral_mixed_label_derives_quadrant_for_rotation(tmp_path):
+    # The live engine emits "Neutral/Mixed …" (not one of the 4 quadrants). The advisor
+    # must derive a quadrant from the axis scores so sector rotation still fires + the
+    # regime isn't blank — and stay honest that it was derived.
+    p = _snapshot(tmp_path, base_regime="Neutral/Mixed Growth / Neutral/Mixed Inflation",
+                  final_regime="Neutral/Mixed Growth / Neutral/Mixed Inflation",
+                  final_growth_score=0.16, final_inflation_score=0.35)
+    ctx = build_tactical_context(regime_path=p, prediction=SimpleNamespace(available=False),
+                                 trending=SimpleNamespace(available=False))
+    assert ctx.regime == ""                      # not a known quadrant → blank mapped label
+    assert ctx.regime_effective == "Reflation"   # derived from +growth / +inflation
+    assert "Neutral/Mixed" in ctx.regime_label_raw
+    ideas = generate_tactical_ideas(ctx)
+    sect = [i for i in ideas if i.theme == "SECTOR_ROTATION"]
+    assert sect, "sector rotation must fire via the derived quadrant"
+    assert "derived from scores" in " ".join(sect[0].evidence)  # honest about the derivation

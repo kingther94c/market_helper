@@ -149,6 +149,21 @@ F1/F7 is roll-timing only (needs a curve feed); the tactical *rule* anchors cove
 the core themes with the AI layer for the long tail (dispersion / specific RV /
 JPY). Branch only — not merged to main.
 
+**AI multi-run validation + regime-derivation hardening (2026-06-07).** Ran the
+live Tactical AI brief **7×** against the OpenClaw gateway over the real latest
+regime: **0/7 order leakage**, all four required sections every run, tightly
+grounded (cites the real scores / momentum %), low run-to-run variance, and it
+independently caught the *Goldilocks-forward vs Reflation-momentum divergence* —
+matching my own independent read. Debug fix: the live engine emits a non-quadrant
+label ("Neutral/Mixed …") that mapped to blank → sector rotation silently didn't
+fire and evidence read `regime=?`. `build_tactical_context` now **derives the
+Growth×Inflation quadrant from the axis scores** when the label isn't one of the
+four (honestly tagged "derived from scores; engine label: …"), so all six anchors
+fire on the real regime. **Flagged (not advisor-caused):**
+`regime_detection/regime_snapshots.json` has bloated to ~190 MB (the regime engine
+appends full snapshots indefinitely) and the advisor reads it on render — spun off
+as a separate task.
+
 ### Option Strategy (cockpit Module 1)
 
 **State**: **MVP landed + cockpit structures (in progress).** Pure-stdlib

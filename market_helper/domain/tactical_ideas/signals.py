@@ -37,7 +37,9 @@ class TacticalContext:
     """The offline signal snapshot the tactical anchors + the AI brief read from."""
 
     as_of: str = ""
-    regime: str = ""
+    regime: str = ""                 # mapped quadrant if the engine label is one of the 4, else ""
+    regime_effective: str = ""       # quadrant used for rules: mapped label, else derived from scores
+    regime_label_raw: str = ""       # the engine's raw label (may be "Neutral/Mixed ...")
     confidence: str = ""
     crisis: bool = False
     growth_score: float | None = None
@@ -97,6 +99,32 @@ def _f(x: Any) -> float | None:
         return None
 
 
+def _derive_quadrant(growth: float | None, inflation: float | None, thr: float = 0.05) -> str:
+    """Derive a Growth×Inflation quadrant from the axis scores when the engine emits a
+    non-quadrant label (e.g. "Neutral/Mixed …"). Empty when both axes are ~neutral."""
+    if growth is None or inflation is None:
+        return ""
+    g_up, g_dn = growth > thr, growth < -thr
+    i_up = inflation > thr
+    i_dn = inflation < -thr
+    if g_up and i_up:
+        return "Reflation"
+    if g_up and not (i_up or i_dn):
+        return "Goldilocks"
+    if g_up and i_dn:
+        return "Goldilocks"
+    if g_dn and i_up:
+        return "Stagflation"
+    if g_dn and (i_dn or not i_up):
+        return "Deflationary Slowdown"
+    # growth ~neutral: let inflation break the tie
+    if i_up:
+        return "Reflation"
+    if i_dn:
+        return "Deflationary Slowdown"
+    return ""
+
+
 def build_tactical_context(
     *,
     regime_path: str | Path | None = None,
@@ -136,9 +164,14 @@ def build_tactical_context(
     probs = dict(getattr(trending, "probabilities", {}) or {}) if trend_available else {}
     trend_top = max(probs, key=probs.get) if probs else ""
 
+    raw_label = str(snap.get("base_regime") or snap.get("final_regime") or "").strip()
+    regime_effective = seed.regime or _derive_quadrant(growth, inflation)
+
     return TacticalContext(
         as_of=str(snap.get("as_of") or snap.get("run_date") or ""),
         regime=seed.regime,
+        regime_effective=regime_effective,
+        regime_label_raw=raw_label,
         confidence=seed.confidence,
         crisis=seed.crisis,
         growth_score=growth,
@@ -166,7 +199,12 @@ def generate_tactical_ideas(ctx: TacticalContext) -> list[TacticalIdea]:
     mode = _mode(ctx)
     infl_up = (ctx.inflation_score or 0.0) > 0.05
     growth_up = (ctx.growth_score or 0.0) > 0.05
-    reflationary = ctx.regime in ("Reflation", "Stagflation") or infl_up
+    eff = ctx.regime_effective or ctx.regime  # quadrant for rules (derived from scores if the engine label isn't one)
+    derived = bool(ctx.regime_effective and not ctx.regime)
+    reg_src = (
+        f"{eff} (derived from scores; engine label: {ctx.regime_label_raw or 'n/a'})" if derived else (eff or "?")
+    )
+    reflationary = eff in ("Reflation", "Stagflation") or infl_up
 
     # 1) Risk-off / vol — when the stress overlay is on or the risk score is elevated.
     if ctx.crisis or (ctx.risk_score or 0.0) >= 0.65:
@@ -174,7 +212,7 @@ def generate_tactical_ideas(ctx: TacticalContext) -> list[TacticalIdea]:
             theme="RISK_OFF", title="Risk-off: trim beta / add a vol hedge", direction="Reduce risk",
             thesis="Regime stress is active — cut gross equity beta and/or buy convexity until it clears.",
             why_now=f"Risk overlay {'on' if ctx.crisis else 'elevated'} (risk_score={ctx.risk_score}).",
-            evidence=[f"regime={ctx.regime or '?'}", f"crisis={ctx.crisis}", f"risk_score={ctx.risk_score}"],
+            evidence=[f"regime={reg_src}", f"crisis={ctx.crisis}", f"risk_score={ctx.risk_score}"],
             invalidation="Risk overlay turns off / risk_score falls back below the enter threshold.",
             expression="Long vol (VIX calls / SPY put-spread) or reduce gross; not a base-position overlay.",
             confidence="High" if ctx.crisis else "Medium", data_mode=mode,
@@ -194,7 +232,7 @@ def generate_tactical_ideas(ctx: TacticalContext) -> list[TacticalIdea]:
 
     # 2) Short USD / de-dollarization — reflationary regime and/or a reflation/stagflation expert.
     if reflationary or ctx.top_expert in ("Reflation", "Stagflation"):
-        ev = [f"regime={ctx.regime or '?'}", f"inflation_score={ctx.inflation_score}"]
+        ev = [f"regime={reg_src}", f"inflation_score={ctx.inflation_score}"]
         if ctx.top_expert:
             ev.append(f"top_expert={ctx.top_expert}")
         ideas.append(TacticalIdea(
@@ -208,12 +246,12 @@ def generate_tactical_ideas(ctx: TacticalContext) -> list[TacticalIdea]:
         ))
 
     # 4) Curve steepener — reflation/expansion (not the deflationary bull-flattener).
-    if reflationary and ctx.regime != "Deflationary Slowdown":
+    if reflationary and eff != "Deflationary Slowdown":
         ideas.append(TacticalIdea(
             theme="STEEPENER", title="Bond-curve steepener (futures)", direction="Steepener",
             thesis="Rising inflation / recovering growth steepens the curve (long-end cheapens or easing front-loads).",
-            why_now=f"inflation_score={ctx.inflation_score}, regime={ctx.regime or '?'}.",
-            evidence=[f"regime={ctx.regime or '?'}", f"inflation_score={ctx.inflation_score}", f"growth_score={ctx.growth_score}"],
+            why_now=f"inflation_score={ctx.inflation_score}, regime={reg_src}.",
+            evidence=[f"regime={reg_src}", f"inflation_score={ctx.inflation_score}", f"growth_score={ctx.growth_score}"],
             invalidation="Growth scare / curve inversion deepens (recession bull-flattening).",
             expression="US 2s10s steepener via futures (long ZT vs short ZN, duration-weighted); AU/EU analogues.",
             confidence="Medium", data_mode=mode,
@@ -225,21 +263,21 @@ def generate_tactical_ideas(ctx: TacticalContext) -> list[TacticalIdea]:
         ideas.append(TacticalIdea(
             theme="CM_RV", title="Commodity curve / relative-value", direction="Long commodity RV",
             thesis="Commodity-supportive regime → outright/curve RV (e.g. oil product premium, soyoil share).",
-            why_now=f"regime={ctx.regime or '?'}; policy-expert CM sleeve={cm_sleeve:g}%.",
-            evidence=[f"regime={ctx.regime or '?'}", f"CM_sleeve={cm_sleeve:g}%"],
+            why_now=f"regime={reg_src}; policy-expert CM sleeve={cm_sleeve:g}%.",
+            evidence=[f"regime={reg_src}", f"CM_sleeve={cm_sleeve:g}%"],
             invalidation="Demand shock / growth roll-over compresses the curve.",
             expression="CM futures curve RV / outright (crack spread, soyoil share); not via the base book.",
             confidence="Medium", data_mode=mode,
         ))
 
-    # 6) Sector rotation — always available (regime-keyed), Medium confidence.
-    favored = _REGIME_SECTORS.get(ctx.regime)
+    # 6) Sector rotation — quadrant-keyed (effective regime), Medium confidence.
+    favored = _REGIME_SECTORS.get(eff)
     if favored:
         ideas.append(TacticalIdea(
-            theme="SECTOR_ROTATION", title=f"Sector rotation · {ctx.regime}", direction="Rotate sectors",
-            thesis=f"Rotate toward the {ctx.regime}-favored sectors and fund from the laggards.",
-            why_now=f"regime={ctx.regime}.",
-            evidence=[f"regime={ctx.regime}", f"favored={favored}"],
+            theme="SECTOR_ROTATION", title=f"Sector rotation · {eff}", direction="Rotate sectors",
+            thesis=f"Rotate toward the {eff}-favored sectors and fund from the laggards.",
+            why_now=f"regime={reg_src}.",
+            evidence=[f"regime={reg_src}", f"favored={favored}"],
             invalidation="Regime shift flips the sector leadership.",
             expression=f"Long {favored} vs short SPY (relative), or sector-ETF options as independent expressions.",
             confidence="Medium", data_mode=mode,
