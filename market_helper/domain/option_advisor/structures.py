@@ -32,11 +32,14 @@ from .contracts import (
     OptionLeg,
     OptionQuote,
     STRUCTURE_CALL_SPREAD,
+    STRUCTURE_CARRY_SHORT_CALL,
+    STRUCTURE_CARRY_SHORT_PUT,
     STRUCTURE_CASH_SECURED_PUT,
     STRUCTURE_COLLAR,
     STRUCTURE_COVERED_CALL,
     STRUCTURE_PROTECTIVE_PUT,
     STRUCTURE_PUT_SPREAD,
+    STRUCTURE_ZERO_COST_COLLAR,
     UnderlyingContext,
     ChainSnapshot,
 )
@@ -306,6 +309,142 @@ def build_collar(chain, ctx, *, put_delta=0.20, call_delta=0.25, dte=60) -> Opti
     )
 
 
+def _annualized_carry_pct(premium: float | None, strike: float | None, dte: int | None) -> float | None:
+    """Premium as an annualized yield on the strike notional (carry framing)."""
+    if not premium or not strike or strike <= 0:
+        return None
+    days = max(int(dte or 0), 1)
+    return (premium / strike) * (365.0 / days)
+
+
+def build_zero_cost_collar(
+    chain,
+    ctx,
+    *,
+    protect_put_delta=0.25,
+    floor_put_delta=0.10,
+    call_delta_candidates=(0.35, 0.30, 0.25, 0.20, 0.15),
+    dte=60,
+) -> OptionIdea | None:
+    """Zero-cost protection: buy an OTM put *spread*, finance it by selling an OTM call.
+
+    Legs (overlay on ``MULT`` held shares):
+      * BUY put  @ ``protect_put_delta`` (the protection — closer to spot, higher strike)
+      * SELL put @ ``floor_put_delta``   (the floor — further OTM, lower strike; caps the
+        protected band and cheapens the hedge)
+      * SELL call (chosen from ``call_delta_candidates`` to finance the put-spread debit)
+
+    Intent: net cost ≈ flat or a small credit and **net-short-vega** (two shorts vs one
+    long). Honest caveat: the put *spread* only protects the band
+    ``[floor_strike, protect_strike]`` — the tail below the floor is uncovered (that
+    residual tail is exactly what makes it cheap/zero-cost).
+    """
+    expiry = chain.nearest_expiry(dte)
+    if not expiry:
+        return None
+    qp_long = chain.nearest_by_delta(expiry, "P", protect_put_delta)   # protection (buy)
+    qp_short = chain.nearest_by_delta(expiry, "P", floor_put_delta)    # floor (sell)
+    if not qp_long or not qp_short:
+        return None
+    # Floor must sit strictly below the protection strike (both OTM puts).
+    if qp_short.strike >= qp_long.strike:
+        return None
+    long_prem = _premium(qp_long)
+    short_prem = _premium(qp_short)
+    if long_prem is None or short_prem is None:
+        return None
+    spread_debit = max(long_prem - short_prem, 0.0)
+
+    # Pick the call that best finances the put-spread debit: prefer the *least* upside
+    # given up (smallest premium) that still covers the debit (→ credit); else closest.
+    best: tuple[int, float, OptionQuote, float] | None = None
+    for cd in call_delta_candidates:
+        qc = chain.nearest_by_delta(expiry, "C", cd)
+        if not qc or (qc.strike is not None and chain.spot and qc.strike <= chain.spot):
+            continue
+        cprem = _premium(qc)
+        if cprem is None:
+            continue
+        rank = (0 if cprem >= spread_debit else 1, abs(cprem - spread_debit))
+        if best is None or rank < (best[0], best[1]):
+            best = (rank[0], rank[1], qc, cprem)
+    if best is None:
+        return None
+    qc = best[2]
+
+    legs = [
+        _leg_from_quote(qp_long, "buy", f"delta~{protect_put_delta:.2f}", f"dte~{dte}"),
+        _leg_from_quote(qp_short, "sell", f"delta~{floor_put_delta:.2f}", f"dte~{dte}"),
+        _leg_from_quote(qc, "sell", "finance-call", f"dte~{dte}"),
+    ]
+    if any(l is None for l in legs):
+        return None
+    return _idea(
+        ctx, chain, CATEGORY_HEDGE, STRUCTURE_ZERO_COST_COLLAR, legs,
+        stock_shares=MULT,
+        thesis=(
+            f"Protect the {ctx.symbol} long for ~zero cost: buy a {qp_long.strike:g}/{qp_short.strike:g} "
+            f"put spread, finance it by selling the {qc.strike:g} call."
+        ),
+        why_now=(
+            "Net-short-vega, cost ≈ flat/credit. Covers the "
+            f"{qp_short.strike:g}–{qp_long.strike:g} band; tail below {qp_short.strike:g} stays uncovered "
+            "(the cost of zero-cost). Upside capped above the short call."
+        ),
+        logic=(
+            f"Buy ~{protect_put_delta:.0%}d put / sell ~{floor_put_delta:.0%}d put + sell call to finance, "
+            f"~{dte}DTE (exp {expiry})."
+        ),
+    )
+
+
+def build_carry_short_call(chain, ctx, *, target_delta=0.20, dte=35) -> OptionIdea | None:
+    """Single short call to harvest premium carry. Naked (undefined upside risk) →
+    capped at MONITOR by :mod:`.filters`; shown with an annualized carry yield."""
+    expiry = chain.nearest_expiry(dte)
+    if not expiry:
+        return None
+    q = chain.nearest_by_delta(expiry, "C", target_delta)
+    if not q:
+        return None
+    leg = _leg_from_quote(q, "sell", f"delta~{target_delta:.2f}", f"dte~{dte}")
+    if leg is None:
+        return None
+    ann = _annualized_carry_pct(leg.est_price, q.strike, q.dte)
+    carry_txt = f"~{ann:.0%}/yr premium carry" if ann is not None else "premium carry"
+    return _idea(
+        ctx, chain, CATEGORY_INCOME, STRUCTURE_CARRY_SHORT_CALL, [leg],
+        stock_shares=0,
+        thesis=f"Harvest call premium on {ctx.symbol} (naked short call, carry play).",
+        why_now=f"Collect {carry_txt}. NAKED — undefined upside risk; advisory MONITOR only.",
+        logic=f"Sell ~{target_delta:.0%}-delta call, ~{dte}DTE (strike {q.strike:g}, exp {expiry}).",
+    )
+
+
+def build_carry_short_put(chain, ctx, *, target_delta=0.18, dte=35) -> OptionIdea | None:
+    """Single short put to harvest premium carry (further OTM than the cash-secured put).
+    Loss bounded at strike→0 but uncollateralized here → capped at MONITOR; shown with an
+    annualized carry yield."""
+    expiry = chain.nearest_expiry(dte)
+    if not expiry:
+        return None
+    q = chain.nearest_by_delta(expiry, "P", target_delta)
+    if not q:
+        return None
+    leg = _leg_from_quote(q, "sell", f"delta~{target_delta:.2f}", f"dte~{dte}")
+    if leg is None:
+        return None
+    ann = _annualized_carry_pct(leg.est_price, q.strike, q.dte)
+    carry_txt = f"~{ann:.0%}/yr premium carry" if ann is not None else "premium carry"
+    return _idea(
+        ctx, chain, CATEGORY_INCOME, STRUCTURE_CARRY_SHORT_PUT, [leg],
+        stock_shares=0,
+        thesis=f"Harvest put premium on {ctx.symbol} (short put, carry play).",
+        why_now=f"Collect {carry_txt}. Loss to zero if assigned; advisory MONITOR only.",
+        logic=f"Sell ~{target_delta:.0%}-delta put, ~{dte}DTE (strike {q.strike:g}, exp {expiry}).",
+    )
+
+
 def _vertical(chain, ctx, right, long_delta, short_delta, dte, category, structure_type, thesis, why_now):
     expiry = chain.nearest_expiry(dte)
     if not expiry:
@@ -349,6 +488,7 @@ _OVERLAY_STOCK = {
     STRUCTURE_COVERED_CALL: MULT,
     STRUCTURE_PROTECTIVE_PUT: MULT,
     STRUCTURE_COLLAR: MULT,
+    STRUCTURE_ZERO_COST_COLLAR: MULT,
 }
 
 

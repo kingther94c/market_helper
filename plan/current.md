@@ -99,16 +99,20 @@ short USD, risk-off / vol, trend persistence); **Roll & Carry Calendar** (option
 carry). Design:
 [`trade_advisor.md`](../docs/architecture/devplans/trade_advisor.md).
 
-### Option Advisor (component #1)
+### Option Strategy (cockpit Module 1)
 
-**State**: **MVP landed** (advisory-only, read-only). Pure-stdlib Black–Scholes;
-CBOE-delayed JSON primary chain → yfinance → synthetic vol-surface fallback;
-honesty tagging (`data_mode`; synthetic capped at MONITOR, never PROCEED);
-earnings feed → `EventRisk`; sizing caps to % of funded AUM. Design:
+**State**: **MVP landed + cockpit structures (in progress).** Pure-stdlib
+Black–Scholes; CBOE-delayed JSON primary chain → yfinance → synthetic
+vol-surface fallback; honesty tagging (`data_mode`; synthetic capped at MONITOR,
+never PROCEED); earnings feed → `EventRisk`; sizing caps to % of funded AUM.
+**New (2026-06-07):** zero-cost protection collar (buy OTM put-spread financed by
+a short OTM call — net-short-vega, ≈flat/credit cost, honest about the uncovered
+tail below the floor) + carry-premium shorts (naked short call / short put with
+an annualized carry yield, margin-sized, capped at MONITOR by an explicit
+`naked_premium_risk` filter). 62 option tests green. Design:
 [`option_advisor.md`](../docs/architecture/devplans/option_advisor.md); scope
-`0007-option-advisor-advisory-scope.md`. Future **M3+** (combined-report HTML
-section; M4 backtest baselines + cost/assignment sensitivity; M5 `ib_async` live
-chain + IV-rank cache) is detailed in the devplan.
+`0007-option-advisor-advisory-scope.md`. Future M3+ (backtest baselines,
+`ib_async` live chain) in the devplan.
 
 ## Repository governance
 

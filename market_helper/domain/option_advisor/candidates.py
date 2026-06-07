@@ -36,6 +36,15 @@ def generate(chain: ChainSnapshot, ctx: UnderlyingContext, rules: dict) -> list[
         csp = strat["cash_secured_put"]
         ideas.append(structures.build_cash_secured_put(chain, ctx, target_delta=csp["target_delta"], dte=csp["dte"]))
 
+    # --- Income (carry premium — naked premium-selling, capped at MONITOR by filters) ---
+    if _enabled(rules, "carry_short_call") and held_lots == 0 and not suppress_income:
+        # Held names get the (PROCEED-eligible) covered_call instead; this is the naked carry play.
+        csc = strat["carry_short_call"]
+        ideas.append(structures.build_carry_short_call(chain, ctx, target_delta=csc["target_delta"], dte=csc["dte"]))
+    if _enabled(rules, "carry_short_put") and not suppress_income:
+        csp2 = strat["carry_short_put"]
+        ideas.append(structures.build_carry_short_put(chain, ctx, target_delta=csp2["target_delta"], dte=csp2["dte"]))
+
     # --- Hedge (only meaningful on a held long) ---
     if _enabled(rules, "protective_put") and held_lots >= 1:
         pp = strat["protective_put"]
@@ -43,6 +52,14 @@ def generate(chain: ChainSnapshot, ctx: UnderlyingContext, rules: dict) -> list[
     if _enabled(rules, "collar") and held_lots >= 1:
         co = strat["collar"]
         ideas.append(structures.build_collar(chain, ctx, put_delta=co["put_delta"], call_delta=co["call_delta"], dte=co["dte"]))
+    if _enabled(rules, "zero_cost_collar") and held_lots >= 1:
+        zc = strat["zero_cost_collar"]
+        ideas.append(structures.build_zero_cost_collar(
+            chain, ctx,
+            protect_put_delta=zc["protect_put_delta"],
+            floor_put_delta=zc["floor_put_delta"],
+            dte=zc["dte"],
+        ))
 
     # --- Directional (defined-risk) ---
     if _enabled(rules, "call_spread") and not hedge_bias:

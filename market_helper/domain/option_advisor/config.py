@@ -25,8 +25,11 @@ DEFAULT_RULES: dict[str, Any] = {
         "cash_secured_put": {"enabled": True, "target_delta": 0.27, "dte": 35},
         "protective_put": {"enabled": True, "target_delta": 0.15, "dte": 75, "hedge_weight_trigger": 0.08},
         "collar": {"enabled": True, "put_delta": 0.20, "call_delta": 0.25, "dte": 60},
+        "zero_cost_collar": {"enabled": True, "protect_put_delta": 0.25, "floor_put_delta": 0.10, "dte": 60},
         "call_spread": {"enabled": True, "long_delta": 0.40, "short_delta": 0.20, "dte": 40},
         "put_spread": {"enabled": True, "long_delta": 0.40, "short_delta": 0.20, "dte": 40},
+        "carry_short_call": {"enabled": True, "target_delta": 0.20, "dte": 35},
+        "carry_short_put": {"enabled": True, "target_delta": 0.18, "dte": 35},
     },
     "filters": {
         "min_premium_over_costs": 1.5,   # net credit must clear (commission + half-spread) × this

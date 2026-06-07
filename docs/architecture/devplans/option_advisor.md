@@ -51,8 +51,8 @@ Every idea declares exactly one **category** so the reader can filter by intent:
 
 | Category | Intent | Example structures |
 |---|---|---|
-| `INCOME` | harvest premium on a holding / fund an entry | covered call, cash-secured put |
-| `HEDGE` | cap downside on an existing long | protective put, collar, put spread |
+| `INCOME` | harvest premium on a holding / fund an entry | covered call, cash-secured put, **carry short call/put** (naked premium; MONITOR-capped) |
+| `HEDGE` | cap downside on an existing long | protective put, collar, **zero-cost collar** (buy put-spread, finance with a short call), put spread |
 | `DIRECTIONAL` | express a defined-risk view | call spread (bull), put spread (bear) |
 | `VOLATILITY` | trade IV level / term structure | calendar, straddle/strangle *(gated — needs chain)* |
 | `CONVEXITY` | cheap tail / asymmetric payoff | long OTM call/put, ratio *(model-only until chain)* |

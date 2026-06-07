@@ -10,8 +10,11 @@ strategies:
   cash_secured_put:  { enabled: true,  target_delta: 0.27, dte: 35 }
   protective_put:    { enabled: true,  target_delta: 0.15, dte: 75, hedge_weight_trigger: 0.08 }
   collar:            { enabled: true,  put_delta: 0.20, call_delta: 0.25, dte: 60 }
+  zero_cost_collar:  { enabled: true,  protect_put_delta: 0.25, floor_put_delta: 0.10, dte: 60 }  # buy put-spread, finance with a short call
   call_spread:       { enabled: true,  long_delta: 0.40, short_delta: 0.20, dte: 40 }
   put_spread:        { enabled: true,  long_delta: 0.40, short_delta: 0.20, dte: 40 }
+  carry_short_call:  { enabled: true,  target_delta: 0.20, dte: 35 }  # naked carry; capped at MONITOR
+  carry_short_put:   { enabled: true,  target_delta: 0.18, dte: 35 }  # premium carry; capped at MONITOR
 
 filters:
   min_premium_over_costs: 1.5    # net credit must clear (commission + half-spread) x this

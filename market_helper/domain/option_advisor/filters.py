@@ -11,7 +11,12 @@ from .contracts import FilterOutcome, OptionIdea, SizingGuidance, UnderlyingCont
 
 # Overlay structures sit on top of an existing share lot; standalone ones tie up
 # fresh capital and are sized against the AUM cap.
-_OVERLAY = {"COVERED_CALL", "PROTECTIVE_PUT", "COLLAR"}
+_OVERLAY = {"COVERED_CALL", "PROTECTIVE_PUT", "COLLAR", "ZERO_COST_COLLAR"}
+
+# Naked premium-selling carry plays: undefined/large risk → sized by a margin proxy
+# and always capped at MONITOR (never auto-PROCEED in a read-only advisor).
+_CARRY_SHORT = {"CARRY_SHORT_CALL", "CARRY_SHORT_PUT"}
+_CARRY_MARGIN_PCT = 0.20  # rough naked-option initial-margin proxy on strike notional
 
 
 def _net_debit(idea: OptionIdea) -> float:
@@ -30,6 +35,32 @@ def _sizing(idea: OptionIdea, ctx: UnderlyingContext, rules: dict) -> SizingGuid
             max_contracts=lots or None,
             capital_at_risk_usd=round(cost, 2),
             notes=f"overlay on {lots} held lot(s); upfront option cost ${cost:,.0f}/unit",
+        )
+    if idea.structure_type in _CARRY_SHORT:
+        # max_loss on a naked short is undefined (call) or grid-capped (put), so size by a
+        # margin proxy on the strike notional rather than the misleading grid max-loss.
+        leg = idea.legs[0] if idea.legs else None
+        strike = (leg.resolved_strike if leg else None) or 0.0
+        margin_per = _CARRY_MARGIN_PCT * strike * 100.0
+        credit = idea.est_net_debit_credit or 0.0
+        if aum and margin_per > 0:
+            max_dollars = float(f.get("max_notional_pct_aum", 0.05)) * aum
+            n = int(max_dollars // margin_per)
+            return SizingGuidance(
+                basis="naked_margin_cap",
+                max_contracts=n,
+                capital_at_risk_usd=round(margin_per, 2),
+                notional_pct_of_aum=round(margin_per / aum, 4),
+                notes=(
+                    f"naked carry: ~{_CARRY_MARGIN_PCT:.0%} margin ${margin_per:,.0f}/contract; "
+                    f"cap {f.get('max_notional_pct_aum', 0.05):.0%} AUM (${max_dollars:,.0f}); "
+                    f"credit ${credit:,.0f}/contract"
+                ),
+            )
+        return SizingGuidance(
+            basis="naked_margin_cap",
+            capital_at_risk_usd=round(margin_per, 2) if margin_per else None,
+            notes="naked carry — AUM not supplied; size manually (undefined/large risk)",
         )
     risk = abs(idea.est_max_loss) if idea.est_max_loss is not None else None
     if aum and risk and risk > 0:
@@ -52,6 +83,13 @@ def _sizing(idea: OptionIdea, ctx: UnderlyingContext, rules: dict) -> SizingGuid
 def evaluate(idea: OptionIdea, ctx: UnderlyingContext, rules: dict) -> tuple[list[FilterOutcome], SizingGuidance]:
     f = rules.get("filters", {})
     out: list[FilterOutcome] = []
+
+    # Naked premium-selling carry plays never auto-PROCEED in a read-only advisor: a soft
+    # failure here caps them at MONITOR (ranking), regardless of live-chain validation.
+    if idea.structure_type in _CARRY_SHORT:
+        kind = "undefined upside risk" if idea.structure_type == "CARRY_SHORT_CALL" else "loss-to-zero if assigned"
+        out.append(FilterOutcome("naked_premium_risk", False, "soft",
+                                 f"naked premium-sell ({kind}) — advisory MONITOR cap, never auto-PROCEED"))
 
     liq = idea.liquidity
     if liq and liq.worst_spread_pct is not None:
