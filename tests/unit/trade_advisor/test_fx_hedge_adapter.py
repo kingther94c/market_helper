@@ -13,6 +13,10 @@ def _leg(ccy, beta, contracts, notional, carry, on_rate, expiry="2026-09-16", in
     return SimpleNamespace(
         currency=ccy, instrument=instrument, beta=beta, target_contracts=contracts,
         target_notional_usd=notional, expected_annual_carry_usd=carry, on_rate=on_rate, expiry=expiry,
+        # realized notional + per-contract sizing let the carry-tilt overlay compute.
+        realized_notional_usd=float(notional),
+        usd_notional_per_contract=(float(notional) / contracts if contracts else 0.0),
+        residual_notional_usd=0.0,
     )
 
 
@@ -48,9 +52,14 @@ def test_emits_hedge_target_and_carry_tilt():
     assert hedge.subject == "USD/SGD" and "1,000,000" in hedge.headline_metrics["notional"]
     assert hedge.headline_metrics["R2"] == "0.88"
     tilt = next(s for s in res.suggestions if s.body_kind == "fx_carry")
-    assert tilt.headline_metrics["top"].startswith("EUR")     # highest carry
-    assert tilt.headline_metrics["bottom"].startswith("JPY")  # lowest carry
-    assert tilt.detail["ranking"][0]["currency"] == "EUR"
+    assert tilt.detail["ranking"][0]["currency"] == "EUR"     # ranking back-compat: highest carry
+    # The carry-tilt overlay: rate-approximated method + before/after economics.
+    assert "carry+" in tilt.headline_metrics and "deviation" in tilt.headline_metrics
+    overlay = tilt.detail["tilt"]
+    assert overlay["method"] == "rate_differential"
+    assert {"gross_notional_usd", "annual_carry_usd"} <= set(overlay["before"])
+    assert {"gross_notional_usd", "annual_carry_usd"} <= set(overlay["after"])
+    assert len(overlay["rows"]) == 3
 
 
 def test_default_mode_is_cached_no_network():

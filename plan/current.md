@@ -99,6 +99,19 @@ short USD, risk-off / vol, trend persistence); **Roll & Carry Calendar** (option
 carry). Design:
 [`trade_advisor.md`](../docs/architecture/devplans/trade_advisor.md).
 
+**Cockpit build status (2026-06-07, on branch; the GOAL spec — not the older
+devplan prose — is authoritative):**
+- ✅ **Module 1 — Option Strategy**: zero-cost protection collar + carry-premium
+  shorts landed (see the Option Strategy subsection below).
+- ✅ **Module 2 — FX Carry** *(engine + adapter)*: `fx_carry_tilt.compute_fx_carry_tilt`
+  layers a **bounded** carry tilt on the SGD-hedge allocation (rate-approximated
+  carry — no CME forward curve in-repo) and reports **before/after** exposure +
+  carry impact + the hedge-deviation (basis-risk) cost; surfaced through the
+  `fx_hedge` adapter's carry suggestion. Rich before/after UI lands with the
+  cockpit shell.
+- ⏳ **Module 3 — Tactical Trade Ideas**, **Module 4 — Roll & Carry Calendar**,
+  and the **cockpit shell** (module tabs + Inbox) are pending.
+
 ### Option Strategy (cockpit Module 1)
 
 **State**: **MVP landed + cockpit structures (in progress).** Pure-stdlib
