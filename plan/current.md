@@ -134,6 +134,21 @@ devplan prose — is authoritative):**
   `ai.py`) is deleted (superseded). Option Strategy is now one tab, not the centre.
   Full unit suite green (783 passed, 1 skipped).
 
+**Verification & verdict (2026-06-07).** Verified end-to-end: (1) full unit suite
+**783 passed / 1 skipped**; (2) a headless integrated run of the registry over a
+representative book produced **24 coherent suggestions across all four modules**
+(zero-cost collar ≈flat-credit with the tail loss honestly shown; FX carry tilt
+**+22 bps / +$2,399·yr for 17 %** hedge deviation off a real cached allocation;
+tactical short-USD / steepener / short-VIX anchors with evidence; option + NG
+futures rolls); (3) the live dashboard served `/advisor` and headless-Chromium
+rendering confirmed the four module tabs + bounded inputs + Inbox + the
+"read-only ideas, never orders" banner. **Verdict: a solid, honest MVP of the
+cockpit — all four target modules runnable and integrated.** Disclosed edges
+(not blockers): FX carry is rate-approximated (no forward curve in-repo); Roll
+F1/F7 is roll-timing only (needs a curve feed); the tactical *rule* anchors cover
+the core themes with the AI layer for the long tail (dispersion / specific RV /
+JPY). Branch only — not merged to main.
+
 ### Option Strategy (cockpit Module 1)
 
 **State**: **MVP landed + cockpit structures (in progress).** Pure-stdlib
