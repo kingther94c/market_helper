@@ -5,7 +5,7 @@ regime context into ranked, explained **trade ideas** — never orders. It place
 nothing; it shows labelled ideas you act on yourself.
 
 Design + architecture: [`docs/architecture/devplans/trade_advisor.md`](../architecture/devplans/trade_advisor.md).
-Scope decision: [ADR 0006](../decisions/0006-option-advisor-advisory-scope.md).
+Scope decision: [ADR 0007](../decisions/0007-option-advisor-advisory-scope.md).
 
 ## Open it
 
@@ -56,7 +56,9 @@ your **local OpenClaw gateway** for a synthesized read (positioning, which ideas
 matter most, the biggest risk, what the rules miss). Output is display-only
 **analysis, never orders**.
 
-- **Enable it**: just start the OpenClaw gateway. The token resolves in order
+- **Enable it**: just start the OpenClaw gateway — it lives in a separate repo
+  (`openclaw_thinking_partner`); from there `OPENCLAW_SKIP_CHANNELS=1 node
+  scripts/run-node.mjs gateway run` binds it on loopback:18789. The token resolves in order
   *explicit → `OPENCLAW_GATEWAY_TOKEN` env → `configs/portfolio_monitor/local.env`
   → the gateway's own `~/.openclaw/openclaw.json`* — so a running local gateway
   works out of the box without copying the secret anywhere. If none is found the
