@@ -9,6 +9,7 @@ text only, never orders. Disabled with one missing env var
 """
 
 from .advisor import AiAdvisory, build_prompt, request_ai_advisory
+from .capabilities import AdvisorAiCapabilities, build_advisor_ai_capabilities
 from .gateway import (
     DEFAULT_GATEWAY_URL,
     DEFAULT_MODEL,
@@ -18,6 +19,15 @@ from .gateway import (
     post_chat_completion,
     resolve_gateway_token,
 )
+from .skills import (
+    KnowledgeBook,
+    KnowledgeEntry,
+    PromptSkill,
+    SkillRegistry,
+    build_core_knowledge,
+    knowledge_system_block,
+)
+from .tools import AiTool, AiToolRegistry, ToolChatResult, run_tool_chat, tool_protocol_instructions
 
 __all__ = [
     "AiAdvisory",
@@ -30,4 +40,18 @@ __all__ = [
     "resolve_gateway_token",
     "DEFAULT_GATEWAY_URL",
     "DEFAULT_MODEL",
+    # Capability framework
+    "AiTool",
+    "AiToolRegistry",
+    "ToolChatResult",
+    "run_tool_chat",
+    "tool_protocol_instructions",
+    "PromptSkill",
+    "KnowledgeEntry",
+    "SkillRegistry",
+    "KnowledgeBook",
+    "build_core_knowledge",
+    "knowledge_system_block",
+    "AdvisorAiCapabilities",
+    "build_advisor_ai_capabilities",
 ]

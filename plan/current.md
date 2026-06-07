@@ -179,6 +179,25 @@ browser: Generate → brief → feedback ("2 best, drop short-vol, concise") →
 refined brief narrows to 2 trades and drops short-vol. Suite 787 passed / 1
 skipped.
 
+**Advisor-AI capability framework (2026-06-07).** A systematic, extensible home
+for what the AI can use — **tools / skills / knowledge** — under
+`trade_advisor/ai/` (`tools.py`, `skills.py`, `capabilities.py`), assembled +
+listed by `build_advisor_ai_capabilities().describe()`. **Tools** are registered
+read-only local functions (the registry refuses non-read-only); the tactical set
+(`domain/tactical_ideas/ai_tools.py`) is `get_regime_snapshot` / `get_policy_expert`
+/ `get_tactical_anchors` / `get_price_trend`. **Probe finding:** the OpenClaw
+gateway ignores client-supplied OpenAI `tools` (it has its own internal registry),
+so tool-calling runs via a **gateway-agnostic structured-text protocol**
+(```tool_call``` → dispatch → ```tool_result``` loop, `max_rounds`-capped, with a
+transparent trace); `to_openai_tools()` kept for a future native gateway. **Skills**
+= the injected prompts per task (the harness-winner `tactical_default` + adversarial
++ terse). **Knowledge** = grounding facts (read-only invariant, data-mode ladder,
+triage labels, regime quadrants, module map + tactical). The cockpit Tactical brief
+is now tool-enabled (the AI may pull data mid-brief; the transcript shows which
+tools it called). Verified live: the AI called `get_regime_snapshot` +
+`get_price_trend("SPY")`, used the real results, 0 order leakage. Devplan:
+`docs/architecture/devplans/advisor_ai_capabilities.md`. Suite 805 passed / 1 skipped.
+
 ### Option Strategy (cockpit Module 1)
 
 **State**: **MVP landed + cockpit structures (in progress).** Pure-stdlib

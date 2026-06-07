@@ -37,15 +37,12 @@ _MODULES: list[tuple[str, tuple[str, ...]]] = [
 
 def _render_tactical_ai() -> None:
     """Opt-in, read-only AI tactical brief at the top of the Tactical tab."""
-    from market_helper.domain.tactical_ideas import (
-        build_tactical_context,
-        build_tactical_messages,
-        generate_tactical_ideas,
-        request_tactical_chat,
-    )
+    from market_helper.domain.tactical_ideas import build_tactical_context, generate_tactical_ideas
+    from market_helper.domain.tactical_ideas.ai_tools import build_tactical_tool_registry, tactical_tool_messages
     from market_helper.trade_advisor.ai.gateway import GatewayAuthMissing, GatewayError
+    from market_helper.trade_advisor.ai.tools import run_tool_chat
 
-    convo: dict = {"messages": None}  # running OpenAI-style history once a brief exists
+    convo: dict = {"messages": None, "reg": None}  # running history + tool registry once a brief exists
 
     with ui.card().classes("w-full pm-card"):
         with ui.row().classes("items-center justify-between w-full"):
@@ -54,11 +51,12 @@ def _render_tactical_ai() -> None:
         transcript = ui.column().classes("w-full gap-2")
         with transcript:
             ui.label(
-                "Opt-in: synthesizes the grounded anchors below via your local OpenClaw gateway. "
-                "After a brief, type feedback to refine it — analysis only, never orders."
+                "Opt-in: the AI synthesizes the grounded anchors and may call read-only tools "
+                "(regime / policy-expert / anchors / price-trend) for more. After a brief, type feedback to "
+                "refine it — analysis only, never orders."
             ).classes("text-caption pm-muted")
         with ui.row().classes("w-full items-center gap-2 wrap"):
-            fb_in = ui.input(placeholder="Feedback to refine (e.g. “focus on the 2 best; drop short-vol; be concise”)").props("dense").classes("grow")
+            fb_in = ui.input(placeholder="Feedback to refine (e.g. “focus on the 2 best; check gold trend; be concise”)").props("dense").classes("grow")
             send_btn = ui.button("Send feedback").props("dense")
         fb_in.disable()
         send_btn.disable()
@@ -79,11 +77,13 @@ def _render_tactical_ai() -> None:
                 ui.label(msg).classes("text-caption pm-muted")
 
         async def _ask(messages: list) -> None:
-            """POST messages, append the assistant brief to the transcript + history. Graceful."""
+            """Run the tool-enabled chat, append the brief to the transcript + history. Graceful."""
             with transcript:
-                pending = ui.label("Synthesizing…").classes("text-caption pm-muted")
+                pending = ui.label("Synthesizing… (the AI may call read-only tools)").classes("text-caption pm-muted")
             try:
-                brief = await asyncio.to_thread(lambda: request_tactical_chat(messages=messages))
+                res = await asyncio.to_thread(
+                    lambda: run_tool_chat(messages=messages, registry=convo["reg"], inject_protocol=False, max_rounds=3)
+                )
             except GatewayAuthMissing:
                 pending.delete()
                 _explain("AI disabled — start the OpenClaw gateway / set OPENCLAW_GATEWAY_TOKEN. "
@@ -94,12 +94,15 @@ def _render_tactical_ai() -> None:
                 _explain(f"AI brief unavailable: {type(exc).__name__}: {str(exc)[:160]}")
                 return
             pending.delete()
-            convo["messages"] = [*messages, {"role": "assistant", "content": brief.brief}]
-            meta = (
-                f"model {brief.model} · {brief.prompt_tokens}/{brief.completion_tokens} tok · analysis only, not orders"
-                if brief.model else ""
-            )
-            _add_turn("assistant", brief.brief, meta)
+            convo["messages"] = [*messages, {"role": "assistant", "content": res.text}]
+            tools_used = ", ".join(dict.fromkeys(t["name"] for t in res.tool_calls))
+            bits = []
+            if tools_used:
+                bits.append(f"tools called: {tools_used}")
+            if res.model:
+                bits.append(f"model {res.model} · {res.prompt_tokens}/{res.completion_tokens} tok")
+            bits.append("analysis only, not orders")
+            _add_turn("assistant", res.text, " · ".join(bits))
             fb_in.enable()
             send_btn.enable()
 
@@ -107,14 +110,17 @@ def _render_tactical_ai() -> None:
             gen_btn.disable()
             transcript.clear()
             convo["messages"] = None
+            convo["reg"] = None
             fb_in.disable()
             send_btn.disable()
 
             def _build():
                 ctx = build_tactical_context()
-                return build_tactical_messages(ctx, generate_tactical_ideas(ctx))
+                reg = build_tactical_tool_registry()
+                return tactical_tool_messages(ctx, generate_tactical_ideas(ctx), reg), reg
 
-            messages = await asyncio.to_thread(_build)
+            messages, reg = await asyncio.to_thread(_build)
+            convo["reg"] = reg
             await _ask(messages)
             gen_btn.enable()
 
