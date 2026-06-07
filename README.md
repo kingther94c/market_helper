@@ -94,9 +94,8 @@ Environment overrides (all optional):
 | `HOST` | `127.0.0.1` | Bind address. Defaults to localhost-only since the dashboard has no auth of its own. For cross-device access from a Tailnet, prefer **Tailscale Serve** (see below) over `HOST=0.0.0.0`. |
 | `ENV_NAME` | `py313` | Conda environment to run in |
 | `AUTO_OPEN` | `1` | Set to `0` to disable browser auto-open |
-| `OPEN_WAIT_SECONDS` | `60` | Seconds to wait for the server to become ready before auto-opening |
 
-The script starts the server in the background and waits for the port to be available before opening the URL in your default browser. The server continues running after the browser opens; press `Ctrl+C` to stop it.
+The script starts the server in the background and immediately opens a local **loading page** (`scripts/loading.html`) in your default browser. That page polls the server and auto-redirects to the dashboard the moment it's listening — so you never hit a connection-refused error during the few seconds the server takes to boot. The server continues running after the browser opens; press `Ctrl+C` to stop it.
 
 ### Cross-device access via Tailscale Serve
 

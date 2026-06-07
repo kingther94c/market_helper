@@ -2,6 +2,7 @@
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ENV_NAME="${ENV_NAME:-py313}"
 CONDA_BIN="${CONDA_BIN:-$(command -v conda || true)}"
 
@@ -25,8 +26,7 @@ HOST="${HOST:-127.0.0.1}"
 PORT="${PORT:-18080}"
 
 # Browser navigates to a concrete address; 0.0.0.0 is a listen-only
-# sentinel. The readiness probe also targets the concrete address since
-# /dev/tcp/0.0.0.0 doesn't make sense for an outgoing connect.
+# sentinel, so substitute loopback for the browser/redirect target.
 if [[ "${HOST}" == "0.0.0.0" || "${HOST}" == "::" ]]; then
   OPEN_HOST="127.0.0.1"
 else
@@ -36,7 +36,6 @@ URL="http://${OPEN_HOST}:${PORT}/portfolio"
 
 AUTO_OPEN="${AUTO_OPEN:-1}"
 FALLBACK_OPEN="${FALLBACK_OPEN:-1}"
-OPEN_WAIT_SECONDS="${OPEN_WAIT_SECONDS:-60}"
 CACHE_ROOT="${CACHE_ROOT:-${ROOT_DIR}/.cache}"
 MPLCONFIGDIR="${MPLCONFIGDIR:-${CACHE_ROOT}/matplotlib}"
 XDG_CACHE_HOME="${XDG_CACHE_HOME:-${CACHE_ROOT}/xdg}"
@@ -47,7 +46,7 @@ if [[ -z "${CONDA_BIN}" ]]; then
 fi
 
 cd "${ROOT_DIR}"
-echo "Starting Portfolio Monitor at ${URL} (bound on ${HOST}:${PORT})"
+echo "Starting Portfolio Monitor at ${URL} (binding on ${HOST}:${PORT})"
 
 mkdir -p "${MPLCONFIGDIR}" "${XDG_CACHE_HOME}"
 
@@ -66,42 +65,18 @@ cleanup() {
 trap cleanup INT TERM
 
 if [[ "${AUTO_OPEN}" != "0" && "${FALLBACK_OPEN}" != "0" ]]; then
-  ATTEMPTS=$(( OPEN_WAIT_SECONDS * 2 ))
-  TCP_READY=0
-  HTTP_READY=0
-  SERVER_DIED=0
-  for ((i=0; i<ATTEMPTS; i++)); do
-    if ! kill -0 "${SERVER_PID}" >/dev/null 2>&1; then
-      SERVER_DIED=1
-      break
-    fi
-    if [[ "${TCP_READY}" == "0" ]]; then
-      if (exec 3<>"/dev/tcp/${OPEN_HOST}/${PORT}") >/dev/null 2>&1; then
-        TCP_READY=1
-      fi
-    fi
-    if [[ "${TCP_READY}" == "1" ]]; then
-      if curl -fsS "${URL}" >/dev/null 2>&1; then
-        HTTP_READY=1
-        break
-      fi
-    fi
-    sleep 0.5
-  done
-
-  if [[ "${SERVER_DIED}" == "1" ]]; then
-    echo "Error: dashboard server exited before becoming ready (pid ${SERVER_PID})" >&2
-  elif [[ "${TCP_READY}" == "1" ]]; then
-    if [[ "${HTTP_READY}" != "1" ]]; then
-      echo "Note: ${URL} not yet serving after ${OPEN_WAIT_SECONDS}s; opening anyway, browser will retry" >&2
-    fi
-    if command -v open >/dev/null 2>&1; then
-      open "${URL}" >/dev/null 2>&1 || true
-    elif command -v xdg-open >/dev/null 2>&1; then
-      xdg-open "${URL}" >/dev/null 2>&1 || true
-    fi
-  else
-    echo "Warning: ${URL} did not become ready within ${OPEN_WAIT_SECONDS}s" >&2
+  # Open a local loading page (file://) instead of ${URL} directly. It loads
+  # instantly, polls ${URL}, and auto-redirects the moment the dashboard is
+  # listening — so we never land on the cold-start window where the port is
+  # still refused and the browser shows a connection error.
+  OPEN_TARGET="${URL}"
+  if [[ -f "${SCRIPT_DIR}/loading.html" ]]; then
+    OPEN_TARGET="file://${SCRIPT_DIR}/loading.html?target=${URL}"
+  fi
+  if command -v open >/dev/null 2>&1; then
+    open "${OPEN_TARGET}" >/dev/null 2>&1 || true
+  elif command -v xdg-open >/dev/null 2>&1; then
+    xdg-open "${OPEN_TARGET}" >/dev/null 2>&1 || true
   fi
 fi
 

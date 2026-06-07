@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>正在启动 Portfolio Monitor…</title>
+<style>
+  :root {
+    --bg: #0d1117;
+    --card: #161b22;
+    --border: #2d333b;
+    --fg: #e6edf3;
+    --muted: #8b949e;
+    --accent: #2ea043;
+    --accent-soft: rgba(46, 160, 67, 0.18);
+  }
+  * { box-sizing: border-box; }
+  html, body { height: 100%; margin: 0; }
+  body {
+    background: var(--bg);
+    color: var(--fg);
+    font: 15px/1.6 "Segoe UI", system-ui, -apple-system, "Microsoft YaHei", sans-serif;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 24px;
+  }
+  main {
+    width: 100%;
+    max-width: 440px;
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 36px 32px;
+    text-align: center;
+    box-shadow: 0 12px 40px rgba(0, 0, 0, 0.45);
+  }
+  .spinner {
+    width: 52px;
+    height: 52px;
+    margin: 4px auto 22px;
+    border: 4px solid var(--accent-soft);
+    border-top-color: var(--accent);
+    border-radius: 50%;
+    animation: spin 0.9s linear infinite;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  h1 { font-size: 19px; font-weight: 600; margin: 0 0 6px; }
+  #status { color: var(--muted); margin: 0 0 20px; min-height: 1.6em; }
+  .meta {
+    border-top: 1px solid var(--border);
+    margin-top: 22px;
+    padding-top: 16px;
+    font-size: 13px;
+    color: var(--muted);
+  }
+  .meta .target {
+    font-family: "Cascadia Code", Consolas, monospace;
+    color: var(--fg);
+    word-break: break-all;
+  }
+  .hint { font-size: 13px; color: var(--muted); margin: 14px 0 0; display: none; }
+  .hint.show { display: block; }
+  a { color: var(--accent); text-decoration: none; }
+  a:hover { text-decoration: underline; }
+  @media (prefers-reduced-motion: reduce) { .spinner { animation-duration: 2.4s; } }
+</style>
+</head>
+<body>
+  <main>
+    <div class="spinner" aria-hidden="true"></div>
+    <h1>正在启动 Portfolio Monitor</h1>
+    <p id="status">等待本地服务就绪，就绪后将自动跳转…</p>
+
+    <p class="hint" id="slow-hint">首次启动需要加载行情与组合数据，通常需要 10–30 秒，请稍候。</p>
+
+    <div class="meta">
+      <div>目标地址：<span class="target" id="target-url"></span></div>
+      <div style="margin-top:6px;">已等待 <span id="elapsed">0</span> 秒 ·
+        <a id="manual-link" href="#">没有自动跳转？手动打开</a></div>
+    </div>
+  </main>
+
+  <script>
+  (function () {
+    "use strict";
+
+    // The launcher passes the real dashboard URL as ?target=...
+    var params = new URLSearchParams(window.location.search);
+    var target = params.get("target") || "";
+    // Only honour http(s) targets; fall back to the conventional local address
+    // so a malformed/missing query can never turn this into an open redirect.
+    if (!/^https?:\/\//i.test(target)) {
+      target = "http://127.0.0.1:18080/portfolio";
+    }
+
+    var statusEl = document.getElementById("status");
+    var elapsedEl = document.getElementById("elapsed");
+    var slowHint = document.getElementById("slow-hint");
+    var manualLink = document.getElementById("manual-link");
+    document.getElementById("target-url").textContent = target;
+    manualLink.href = target;
+    manualLink.addEventListener("click", function (e) {
+      e.preventDefault();
+      go();
+    });
+
+    var POLL_MS = 600;       // gap between readiness probes
+    var TIMEOUT_MS = 4000;   // abort a single hung probe so the loop keeps moving
+    var SLOW_AFTER = 15;     // seconds before we reassure the user it's normal
+    var startedAt = Date.now();
+    var done = false;
+
+    function go() {
+      if (done) return;
+      done = true;
+      statusEl.textContent = "服务已就绪，正在跳转…";
+      // replace() so the browser Back button skips this loading page.
+      window.location.replace(target);
+    }
+
+    // A no-cors fetch resolves the instant the server accepts the connection
+    // (even on a 404/redirect — the response is opaque, we only care that
+    // *something* answered). It rejects while the port is still refused, which
+    // is exactly the cold-start window we are waiting out.
+    function fetchProbe() {
+      if (done) return;
+      var ctrl = new AbortController();
+      var timer = setTimeout(function () { ctrl.abort(); }, TIMEOUT_MS);
+      fetch(target, { mode: "no-cors", cache: "no-store", signal: ctrl.signal })
+        .then(function () { clearTimeout(timer); go(); })
+        .catch(function () { clearTimeout(timer); /* not up yet — retry on tick */ });
+    }
+
+    // Backup probe: loading a cross-origin <img> needs no CORS and isn't gated
+    // by the same local-network policies that can affect fetch, so it still
+    // detects readiness if fetchProbe is ever blocked. NiceGUI serves a real
+    // icon at /favicon.ico (200 image/x-icon), so onload == server is up.
+    var faviconUrl = "";
+    try { faviconUrl = new URL(target).origin + "/favicon.ico"; } catch (e) {}
+    function imgProbe() {
+      if (done || !faviconUrl) return;
+      var img = new Image();
+      img.onload = go;
+      img.onerror = function () { if (!done) setTimeout(imgProbe, POLL_MS); };
+      img.src = faviconUrl + "?_=" + Date.now();   // bust cache on every attempt
+    }
+
+    setInterval(function () {
+      var secs = Math.floor((Date.now() - startedAt) / 1000);
+      elapsedEl.textContent = secs;
+      if (secs >= SLOW_AFTER) slowHint.classList.add("show");
+    }, 1000);
+
+    fetchProbe();                                  // try immediately (warm start → instant)
+    imgProbe();
+    setInterval(fetchProbe, POLL_MS);
+  })();
+  </script>
+</body>
+</html>

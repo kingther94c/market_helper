@@ -41,10 +41,19 @@ if errorlevel 1 exit /b 1
 if not exist "%MPLCONFIGDIR%" mkdir "%MPLCONFIGDIR%"
 if not exist "%XDG_CACHE_HOME%" mkdir "%XDG_CACHE_HOME%"
 
-echo Starting Portfolio Monitor at %URL% (bound on %HOST%:%PORT%)
+rem Open a local loading page (file://) instead of the dashboard URL directly.
+rem It loads instantly, shows a spinner, polls %URL%, and auto-redirects the
+rem moment the server is listening — dodging the cold-start race where the
+rem browser reaches the port before Python/uvicorn finishes booting (Chrome
+rem does NOT auto-retry a refused connection, so a bare URL shows
+rem ERR_CONNECTION_REFUSED until the user manually reloads).
+set "LOADING_FILE=%~dp0loading.html"
+set "OPEN_TARGET=file:///%LOADING_FILE:\=/%?target=%URL%"
+if not exist "%LOADING_FILE%" set "OPEN_TARGET=%URL%"
+
+echo Starting Portfolio Monitor at %URL% (binding on %HOST%:%PORT%)
 if not "%AUTO_OPEN%"=="0" (
-    rem Browsers retry the connection — opening before the server is fully up is fine.
-    start "" "%URL%"
+    start "" "%OPEN_TARGET%"
 )
 
 pushd "%ROOT_DIR%"
