@@ -216,6 +216,22 @@ validated: predictive power, risk reduction, crowding, historical-regime efficac
 Committed `d4fb31e`→`78848f7`; HTML `data/artifacts/trade_advisor/advisor_overview.html`.
 Suite 811 passed / 1 skipped.
 
+**AdvisorIdea contract v1 + research-brief + validations (2026-06-08, /goal).** Consolidated
+rather than expanded modules, per the reviewer directions. (1) **AdvisorIdea v1**: an
+`IdeaAssessment` with four ORTHOGONAL axes (confidence / actionability / risk_boundedness /
+data_quality), never one score; + research fields (instrument_family, risk, invalidation,
+missing_data, portfolio_interaction, review_after, journal_note); every adapter populates them
+honestly per tier. (2) **Tactical = research-brief generator** (rule anchors → brief → critique
+→ journal), forced "Why NOT trade today", WATCHLIST-capped. (3) **Tactical_Edge ingestion**:
+parse `MARKET_HELPER_GDRIVE_ROOT/Tactical_Edge/latest.md` → AdvisorIdeas (T4); the card's
+Skeptic's view becomes the why-not (offline + graceful; enabled via `include_edge`). (4) **Three
+validations**: safety (prompt-regression tests), data-honesty (synthetic/cached/missing never
+'live'), and — most important — **decision validation**: the journal freezes an ex-ante snapshot
++ schedules 30/60/90 reviews (`due_for_review` / `record_review`), surfaced as a "Due for review"
+panel so promoted ideas get graded against their ex-ante thesis. Devplan
+`docs/architecture/devplans/advisor_idea_contract.md`. Committed `8b2f418`→`f07b509`+. Suite
+832 passed / 1 skipped.
+
 ### Option Strategy (cockpit Module 1)
 
 **State**: **MVP landed + cockpit structures (in progress).** Pure-stdlib

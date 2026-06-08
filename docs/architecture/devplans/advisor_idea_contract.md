@@ -43,6 +43,19 @@ decision journal) · `journal_note` (the ex-ante note carried into the journal).
 | FX Hedge Tilt | T3 model-overlay | confidence medium/low · risk capped · data per cache · `missing_data` = curve / roll yield / cost |
 | Tactical | T4 research | confidence from the anchor · actionability **watch** (a hypothesis, never act_now) · risk capped (defined-risk expr) / undefined · data per regime |
 
+## Decision journal — ex-ante → 30/60/90 review (the verification loop)
+
+The contract exists to be **graded**. When you Promote / Watch an idea, the journal
+(`trade_advisor/journal.py`) freezes an **ex-ante snapshot** — thesis, the four
+assessment axes, label / tier / data_mode, risk, invalidation — and schedules
+`review_after` = ts + 30/60/90 days. `due_for_review(as_of)` surfaces what's owed;
+`record_review(Review(verdict ∈ worked/partly/wrong/noise))` closes a milestone. The
+cockpit's **"Due for review"** panel shows each due idea beside its frozen ex-ante thesis,
+so you grade the call rather than your memory of it. Dismissed ideas are never reviewed.
+
+Without this loop the cockpit is a pretty but unverifiable dashboard — it is the minimal
+*decision validation* the system needs before any alpha claim (which it has not earned).
+
 ## To extend
 
 A new module fills `assessment=IdeaAssessment(...)` with the four axes set honestly for

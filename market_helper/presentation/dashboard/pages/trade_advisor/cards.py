@@ -6,7 +6,7 @@ the adapter→body contract; the ``ui.*`` wrappers stay thin around them.
 """
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import date, datetime
 
 from nicegui import ui
 
@@ -20,7 +20,12 @@ from market_helper.trade_advisor.contracts import (
     LABEL_WATCHLIST,
     Suggestion,
 )
-from market_helper.trade_advisor.journal import DecisionJournal, decision_from_suggestion
+from market_helper.trade_advisor.journal import (
+    REVIEW_VERDICTS,
+    DecisionJournal,
+    Review,
+    decision_from_suggestion,
+)
 
 _LABEL_COLOR = {
     LABEL_RESEARCH_READY: "positive",
@@ -278,8 +283,39 @@ def _render_option_whatif(detail: dict) -> None:
             element.on_value_change(recompute)
 
 
+def _render_review_queue(box, journal: DecisionJournal) -> None:
+    """Due-for-review queue — grade each promoted idea against its frozen ex-ante thesis.
+
+    This is the decision-validation loop: without it the cockpit is a pretty but
+    unverifiable dashboard. Recording a verdict closes that milestone and re-renders.
+    """
+    as_of = date.today().isoformat()
+    due = journal.due_for_review(as_of)
+    if not due:
+        return
+    with ui.card().classes("w-full pm-card"):
+        ui.label(f"Due for review · {len(due)}").classes("text-subtitle1")
+        ui.label("Grade each idea against its ex-ante thesis — this is what makes the advisor "
+                 "verifiable, not just a dashboard.").classes("text-caption pm-muted")
+        for dec, milestone in due[:20]:
+            with ui.card().classes("w-full").style("background:rgba(255,255,255,.03)"):
+                ui.label(f"{dec.title} · {dec.subject} · due {milestone}").classes("text-body2")
+                ui.label(f"Ex-ante ({dec.ts[:10]}): {dec.ex_ante_thesis or '—'}").classes("text-caption pm-muted")
+                if dec.invalidation:
+                    ui.label(f"Invalidation watched: {dec.invalidation}").classes("text-caption pm-muted")
+                with ui.row().classes("items-center gap-2 wrap"):
+                    note_in = ui.input(placeholder="what actually happened (optional)").props("dense").classes("grow")
+
+                    def _record(verdict: str, d=dec, ms=milestone, ni=note_in) -> None:
+                        journal.record_review(Review(ts=as_of, suggestion_id=d.suggestion_id,
+                                                     milestone=ms, verdict=verdict, note=(ni.value or "")))
+                        _render_inbox(box, journal)   # refresh — the closed milestone drops off
+                    for verdict in REVIEW_VERDICTS:
+                        ui.button(verdict, on_click=lambda v=verdict: _record(v)).props("dense outline")
+
+
 def _render_inbox(box, journal: DecisionJournal) -> None:
-    """Cross-advisor Inbox: the journal's latest Proceed/Monitor decisions."""
+    """Cross-advisor Inbox (latest Promote/Watch) + the due-for-review queue."""
     box.clear()
     with box:
         items = journal.inbox()
@@ -290,6 +326,7 @@ def _render_inbox(box, journal: DecisionJournal) -> None:
             for d in items[:25]:
                 note = f" — {d.note}" if d.note else ""
                 ui.label(f"[{d.decision}] {d.title} · {d.subject} · {d.ts[:16]}{note}").classes("text-caption")
+        _render_review_queue(box, journal)
 
 
 # Per-body expansion titles (so an FX/Roll card doesn't say "payoff · Greeks").
