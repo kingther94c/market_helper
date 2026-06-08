@@ -43,11 +43,15 @@ def test_reflation_generates_expected_anchors():
         trend_probabilities={"Reflation": 0.4},
     )
     ideas = generate_tactical_ideas(ctx)
+    # Scarcity: a decision filter, not a story machine — at most 3, the top-priority anchors.
+    assert len(ideas) == 3
     themes = {i.theme for i in ideas}
-    assert {"SHORT_USD", "STEEPENER", "CM_RV", "SECTOR_ROTATION", "TREND"} <= themes
+    assert themes == {"SHORT_USD", "SECTOR_ROTATION", "STEEPENER"}
     assert all(i.data_mode == "regime+model" for i in ideas)
-    # Every idea is grounded (evidence) and falsifiable (invalidation).
+    # Every surviving idea is grounded (evidence), falsifiable (invalidation), and answers
+    # the five decision questions.
     assert all(i.evidence and i.invalidation for i in ideas)
+    assert all(i.edge and i.disqualifier and i.overlap and i.regime_kill and i.confirm for i in ideas)
 
 
 def test_crisis_is_risk_off_not_short_vol():

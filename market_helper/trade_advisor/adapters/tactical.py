@@ -98,7 +98,7 @@ class TacticalIdeasPlugin:
             score=_CONF_SCORE.get(idea.confidence, 0.45),
             thesis=idea.thesis,
             why_now=idea.why_now,
-            rationale=f"Expression: {idea.expression}  ·  Invalidation: {idea.invalidation}",
+            rationale=f"{idea.expression}  ·  Edge: {idea.edge or '—'}",
             headline_metrics={
                 "stance": idea.direction,
                 "conf": idea.confidence,

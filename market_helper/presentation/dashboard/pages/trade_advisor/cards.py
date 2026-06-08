@@ -172,13 +172,25 @@ def futures_roll_facts(detail: dict) -> list[tuple[str, str]]:
 
 
 def tactical_facts(detail: dict) -> list[tuple[str, str]]:
-    """Label/value pairs describing a tactical idea for its detail body."""
-    return [
+    """Label/value pairs describing a tactical idea for its detail body — including the
+    five decision questions every idea must answer (shown when present)."""
+    facts = [
         ("Stance", str(detail.get("direction", "—"))),
         ("Confidence", str(detail.get("confidence", "—"))),
         ("Expression", str(detail.get("expression", "—"))),
-        ("Invalidation", str(detail.get("invalidation", "—"))),
     ]
+    for key, label in (
+        ("edge", "Edge vs doing nothing"),
+        ("disqualifier", "What would stop me"),
+        ("overlap", "Overlap to check"),
+        ("regime_kill", "Regime that kills it"),
+        ("confirm", "Confirms it's working"),
+        ("invalidation", "Invalidation"),
+    ):
+        val = str(detail.get(key, "") or "").strip()
+        if val:
+            facts.append((label, val))
+    return facts
 
 
 # --------------------------------------------------------------------------- #

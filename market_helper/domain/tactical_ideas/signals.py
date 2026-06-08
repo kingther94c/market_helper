@@ -71,12 +71,21 @@ class TacticalIdea:
     expression: str = ""  # suggested NON-binding instruments (futures / ETF options)
     confidence: str = "Medium"
     data_mode: str = "regime"
+    # Anti-narrative discipline — every surviving idea must answer these five (so the
+    # module is a decision *filter*, not a story generator that always has a trade):
+    edge: str = ""           # why this beats doing nothing
+    disqualifier: str = ""   # what would make me NOT put it on
+    overlap: str = ""        # existing portfolio exposure it may duplicate (check before sizing)
+    regime_kill: str = ""    # the regime transition that kills the thesis
+    confirm: str = ""        # observable price action that confirms it's working
 
     def as_detail(self) -> dict[str, Any]:
         return {
             "theme": self.theme, "direction": self.direction, "thesis": self.thesis,
             "why_now": self.why_now, "evidence": list(self.evidence), "invalidation": self.invalidation,
             "expression": self.expression, "confidence": self.confidence,
+            "edge": self.edge, "disqualifier": self.disqualifier, "overlap": self.overlap,
+            "regime_kill": self.regime_kill, "confirm": self.confirm,
         }
 
 
@@ -192,9 +201,22 @@ def _mode(ctx: TacticalContext) -> str:
     return "regime+model" if (ctx.expert_available or ctx.trend_available) else "regime"
 
 
+# Idea scarcity — a low-conviction macro state must not spray six themes. Keep the most
+# convicted few so the module reads as a decision filter, not a narrative generator.
+MAX_TACTICAL_IDEAS = 3
+_CONF_RANK = {"High": 3, "Medium": 2, "Low": 1}
+# Within a conviction band, keep the most decision-useful themes (RISK_OFF when it fires,
+# then the concrete regime expressions; SHORT_VIX is lowest — it only fires at extremes).
+_THEME_PRIORITY = {
+    "RISK_OFF": 7, "SHORT_USD": 6, "SECTOR_ROTATION": 5, "STEEPENER": 4, "TREND": 3, "CM_RV": 2, "SHORT_VIX": 1,
+}
+
+
 def generate_tactical_ideas(ctx: TacticalContext) -> list[TacticalIdea]:
-    """Derive grounded tactical idea anchors from the context. Conditional on the
-    signals present — an idea only fires when the data supports it, and cites it."""
+    """Derive grounded tactical idea anchors from the context, then keep only the top few
+    by conviction. Conditional on the signals present — an idea only fires when the data
+    supports it, cites it, and answers the five decision questions (edge / disqualifier /
+    overlap / regime_kill / confirm)."""
     ideas: list[TacticalIdea] = []
     mode = _mode(ctx)
     infl_up = (ctx.inflation_score or 0.0) > 0.05
@@ -216,6 +238,11 @@ def generate_tactical_ideas(ctx: TacticalContext) -> list[TacticalIdea]:
             invalidation="Risk overlay turns off / risk_score falls back below the enter threshold.",
             expression="Long vol (VIX calls / SPY put-spread) or reduce gross; not a base-position overlay.",
             confidence="High" if ctx.crisis else "Medium", data_mode=mode,
+            edge="Doing nothing keeps full beta into active stress; a hedge caps the left tail while convexity is still affordable.",
+            disqualifier="The spike already happened and IV is rich — don't buy protection at the top of vol.",
+            overlap="Duplicates any put/hedge or low-beta tilt already on the book — size to NET exposure, not gross.",
+            regime_kill="Stress clears (overlay off, risk_score normalizes) — the hedge then bleeds.",
+            confirm="VIX backwardation, deteriorating breadth, credit spreads widening.",
         ))
     else:
         # 3b) Short-VIX carry — only when calm AND stress is clearly receding (not mid-spike).
@@ -228,6 +255,11 @@ def generate_tactical_ideas(ctx: TacticalContext) -> list[TacticalIdea]:
                 invalidation="Any overlay re-trigger or a VIX spike — short-vol is the first casualty.",
                 expression="Short-vol carry (e.g. VIX call-spread sale / SPX put-spread); enter at extremes only.",
                 confidence="Low", data_mode=mode,
+                edge="Earns the vol-risk premium that simply holding cash forgoes — but only when calm is confirmed.",
+                disqualifier="Any overlay re-trigger, an event into the window, or VIX already floored (<13) — skip.",
+                overlap="Stacks on implicit short-vol in any premium-selling already on the book — don't double up.",
+                regime_kill="A shift out of calm into risk-off — this is the first trade to lose.",
+                confirm="Realized below implied, term structure in contango, overlay off.",
             ))
 
     # 2) Short USD / de-dollarization — reflationary regime and/or a reflation/stagflation expert.
@@ -243,6 +275,11 @@ def generate_tactical_ideas(ctx: TacticalContext) -> list[TacticalIdea]:
             invalidation="Growth re-accelerates with a hawkish Fed → USD bid; or a global risk-off USD squeeze.",
             expression="Long EUR/JPY futures (6E/6J) vs USD, or long gold (GLD); independent macro trade.",
             confidence="Medium", data_mode=mode,
+            edge="Expresses the reflation/diversification theme directly, vs. passively holding USD cash.",
+            disqualifier="Hawkish Fed repricing or a building global risk-off USD squeeze — stand aside.",
+            overlap="Check the USD beta you already carry (USD cash, unhedged US assets) before adding.",
+            regime_kill="Growth re-accelerates into a hawkish Fed → the dollar gets bid.",
+            confirm="DXY lower-highs, gold firmer, front-end rate differentials narrowing.",
         ))
 
     # 4) Curve steepener — reflation/expansion (not the deflationary bull-flattener).
@@ -255,6 +292,11 @@ def generate_tactical_ideas(ctx: TacticalContext) -> list[TacticalIdea]:
             invalidation="Growth scare / curve inversion deepens (recession bull-flattening).",
             expression="US 2s10s steepener via futures (long ZT vs short ZN, duration-weighted); AU/EU analogues.",
             confidence="Medium", data_mode=mode,
+            edge="A curve-shape trade with low outright-rate beta — earns the steepening that doing nothing won't.",
+            disqualifier="Flattening momentum with a growth scare — don't fight a bull-flattener.",
+            overlap="Check existing duration exposure; this is a curve trade, not a level/duration bet.",
+            regime_kill="A growth scare flips it into recession bull-flattening.",
+            confirm="2s10s making higher lows; front-end repricing easier.",
         ))
 
     # 5) Commodity curve / RV — commodity-friendly regime and/or elevated CM sleeve.
@@ -268,6 +310,11 @@ def generate_tactical_ideas(ctx: TacticalContext) -> list[TacticalIdea]:
             invalidation="Demand shock / growth roll-over compresses the curve.",
             expression="CM futures curve RV / outright (crack spread, soyoil share); not via the base book.",
             confidence="Medium", data_mode=mode,
+            edge="Relative-value / curve capture, independent of a flat outright commodity beta.",
+            disqualifier="A demand shock or inventory surprise is pending — RV legs can gap apart.",
+            overlap="Check the commodity sleeve / CM futures you already hold before adding.",
+            regime_kill="A growth roll-over compresses the curve or collapses the spread.",
+            confirm="The product spread / share holding or widening with stable demand data.",
         ))
 
     # 6) Sector rotation — quadrant-keyed (effective regime), Medium confidence.
@@ -281,6 +328,11 @@ def generate_tactical_ideas(ctx: TacticalContext) -> list[TacticalIdea]:
             invalidation="Regime shift flips the sector leadership.",
             expression=f"Long {favored} vs short SPY (relative), or sector-ETF options as independent expressions.",
             confidence="Medium", data_mode=mode,
+            edge="A funded relative rotation captures dispersion that owning the index (doing nothing) won't.",
+            disqualifier="The rotation is already crowded/extended — don't chase consensus leadership.",
+            overlap="Check your current sector tilts — you may already be long the favored sleeve.",
+            regime_kill="A regime shift flips the sector leadership.",
+            confirm="The favored-vs-SPY relative line making higher highs; breadth confirming.",
         ))
 
     # 7) Trend persistence / add exposure — risk-on + concentrated forward/trend conviction.
@@ -294,6 +346,13 @@ def generate_tactical_ideas(ctx: TacticalContext) -> list[TacticalIdea]:
             invalidation="Risk overlay flips on, or the forward/trend leadership rolls over.",
             expression="Increase trading-sleeve exposure / index futures; trim hedges. Sized within risk limits.",
             confidence="Medium", data_mode=mode,
+            edge="Adding when forward + momentum align beats under-allocating a confirmed up-regime.",
+            disqualifier="Stretched positioning or the overlay close to triggering — don't add into thin air.",
+            overlap="Likely duplicates existing long-equity beta — this is sizing-up; account for what you hold.",
+            regime_kill="The overlay flips on, or the forward/trend leadership rolls over.",
+            confirm="Price above trend, expanding breadth, forward conviction holding.",
         ))
 
-    return ideas
+    # Scarcity: keep only the most-convicted, most-useful few (conviction, then theme priority).
+    ideas.sort(key=lambda i: (_CONF_RANK.get(i.confidence, 0), _THEME_PRIORITY.get(i.theme, 0)), reverse=True)
+    return ideas[:MAX_TACTICAL_IDEAS]
