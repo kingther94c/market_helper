@@ -19,7 +19,8 @@ def test_build_context_maps_held_and_watchlist():
 
 def test_option_run_params_passthrough():
     params = ta_inputs.option_run_params(ta_inputs.AdvisorInputs(fetch_realized=True, check_earnings=True))
-    assert params == {"option": {"fetch_realized": True, "fetch_events": True}}
+    assert params["option"] == {"fetch_realized": True, "fetch_events": True}
+    assert params["tactical"] == {"include_edge": True}   # pulls the external Tactical Edge brief
 
 
 def test_build_run_context_manual():

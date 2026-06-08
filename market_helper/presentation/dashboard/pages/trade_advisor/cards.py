@@ -300,7 +300,26 @@ _BODY_TITLE = {
     "roll": "Detail · position · audit",
     "futures_roll": "Detail · contract · roll target · audit",
     "tactical": "Detail · evidence · invalidation · audit",
+    "tactical_edge": "Detail · why-not · expression · scores",
 }
+
+
+def tactical_edge_facts(detail: dict) -> list[tuple[str, str]]:
+    """Key fields of an external Tactical-Edge card for its detail body."""
+    out = [("Status", str(detail.get("status", "—")))]
+    for key, label in (
+        ("retail expression", "Expression"),
+        ("trigger", "Trigger / entry"),
+        ("risk", "Risk / stop"),
+        ("cheapest first test", "Cheapest test"),
+    ):
+        val = str(detail.get(key, "") or "").strip()
+        if val:
+            out.append((label, val))
+    scores = detail.get("scores") or {}
+    if scores:
+        out.append(("Scores", " · ".join(f"{k} {v}/5" for k, v in scores.items())))
+    return out
 
 
 def _ui_table(headers: list[str], rows: list[list[str]]) -> None:
@@ -398,6 +417,20 @@ def _render_tactical_body(detail: dict) -> None:
         ui.label("Evidence: " + " · ".join(str(e) for e in evidence)).classes("text-caption pm-muted")
 
 
+def _render_tactical_edge_body(detail: dict) -> None:
+    skeptic = str(detail.get("skeptic") or "").strip()
+    if skeptic:
+        ui.label("Why NOT trade (skeptic's view)").classes("text-caption pm-muted")
+        ui.label(skeptic).classes("text-body2").style("color:#f3b34d")
+    mech = str(detail.get("mechanism") or "").strip()
+    if mech:
+        ui.label(f"Mechanism: {mech}").classes("text-caption")
+    with ui.grid(columns=2).classes("gap-x-6 gap-y-1"):
+        for label, value in tactical_edge_facts(detail):
+            ui.label(label).classes("text-caption pm-muted")
+            ui.label(value).classes("text-caption")
+
+
 def _render_generic_body(detail: dict) -> None:
     for line in option_legs_lines(detail):
         ui.label(line).classes("text-caption")
@@ -418,6 +451,8 @@ def _render_detail_body(s: Suggestion, detail: dict) -> None:
         _render_futures_roll_body(detail)
     elif s.body_kind == "tactical":
         _render_tactical_body(detail)
+    elif s.body_kind == "tactical_edge":
+        _render_tactical_edge_body(detail)
     else:
         _render_generic_body(detail)
 

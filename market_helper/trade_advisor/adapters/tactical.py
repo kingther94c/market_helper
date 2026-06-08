@@ -13,6 +13,8 @@ module's base-position overlays), so every anchor is advisory and capped at MONI
 
 from __future__ import annotations
 
+import re
+
 from market_helper.domain.tactical_ideas import (
     build_tactical_context,
     generate_tactical_ideas,
@@ -55,6 +57,27 @@ def _tactical_assessment(idea) -> IdeaAssessment:
     )
 
 
+def _slug(text: str) -> str:
+    return re.sub(r"[^a-z0-9]+", "-", (text or "").lower()).strip("-")[:40] or "card"
+
+
+_EDGE_FAMILY_HINTS = (
+    ("rates_curve", ("steepener", "5s30s", "curve", "jgb", "ust", "duration", "bond", "2s10s")),
+    ("commodity_convexity", ("oil", "crude", "brent", "wti", "commodity", "hormuz", "gold", "crack")),
+    ("equity_rotation", ("rotation", "rsp", "qqq", "sector", "concentration", "equal-weight", "dispersion")),
+    ("volatility", ("gamma", "vix", "move", "straddle", "strangle", "opex", "long vol", "short vol")),
+    ("fx", ("usd", "jpy", "fx", "dollar", "aud", "eur", "audjpy", "usdjpy")),
+)
+
+
+def _edge_family(card) -> str:
+    hay = " ".join((card.title, card.get("theme"), card.get("retail expression"))).lower()
+    for family, keywords in _EDGE_FAMILY_HINTS:
+        if any(k in hay for k in keywords):
+            return family
+    return "macro"
+
+
 class TacticalIdeasPlugin:
     """Umbrella advisor for independent short-term macro/market trade ideas."""
 
@@ -68,6 +91,9 @@ class TacticalIdeasPlugin:
         regime_path=None,
         prediction=None,
         trending=None,
+        include_edge: bool = False,
+        edge_cards=None,
+        edge_root=None,
     ) -> AdvisorResult:
         as_of = context.as_of
         try:
@@ -87,7 +113,16 @@ class TacticalIdeasPlugin:
 
         ideas = generate_tactical_ideas(ctx)
         data_mode = "regime+model" if (ctx.expert_available or ctx.trend_available) else "regime"
-        if not ideas:
+
+        # External research brief (Tactical Edge) — when enabled or injected. Offline + graceful.
+        cards = edge_cards
+        if cards is None and include_edge:
+            from market_helper.domain.tactical_ideas.tactical_edge import load_tactical_edge
+
+            _, cards = load_tactical_edge(edge_root)
+        edge_suggestions = [self._edge_to_suggestion(c, as_of) for c in (cards or [])]
+
+        if not ideas and not edge_suggestions:
             return AdvisorResult(
                 advisor=self.key, as_of=as_of, data_mode=data_mode,
                 suggestions=[Suggestion(
@@ -101,10 +136,59 @@ class TacticalIdeasPlugin:
                 meta={"sources": ctx.sources},
             )
 
+        rule_suggestions = [self._to_suggestion(idea, ctx, as_of) for idea in ideas]
         return AdvisorResult(
             advisor=self.key, as_of=as_of, data_mode=data_mode,
-            suggestions=[self._to_suggestion(idea, ctx, as_of) for idea in ideas],
-            meta={"sources": ctx.sources, "n_ideas": len(ideas)},
+            suggestions=edge_suggestions + rule_suggestions,
+            meta={"sources": ctx.sources, "n_ideas": len(ideas), "n_edge": len(edge_suggestions)},
+        )
+
+    def _edge_to_suggestion(self, card, as_of: str) -> Suggestion:
+        """Map an external Tactical-Edge card onto the AdvisorIdea contract (T4, WATCHLIST).
+
+        The card's **Skeptic's view** is the built-in why-not; conviction → confidence."""
+        skeptic = card.get("skeptic's view")
+        evidence = [v for v in (card.get("signal sketch"), card.get("universe & data"),
+                                card.get("return source & orthogonality")) if v]
+        conv = card.scores.get("conviction-today") or card.scores.get("conviction") or 3
+        status = (card.status + " " + card.get("trigger")).lower()
+        actionability = (
+            "parked" if ("raw" in card.status.lower() or "park" in status or "not today" in status or "watchlist" in status)
+            else ("staged" if ("act" in card.status.lower() or "monday" in status or "now" in status or "open" in status)
+                  else "watch")
+        )
+        expr = (card.get("retail expression") + " " + card.get("risk")).lower()
+        bounded = "capped" if ("defined-risk" in expr or "defined debit" in expr or "spread" in expr) else "undefined"
+        return Suggestion(
+            advisor=self.key,
+            suggestion_id=f"tactical_edge:{card.number}:{_slug(card.title)}",
+            as_of=as_of,
+            title=f"Edge #{card.number}: {card.title}",
+            subject=(card.get('theme') or 'Tactical Edge')[:60],
+            category="TACTICAL",
+            label=LABEL_WATCHLIST,                 # external research → WATCHLIST, never a trade candidate
+            decision_tier=TIER_RESEARCH,
+            score=round(0.40 + 0.04 * conv, 3),    # rough ordering only — NOT a substitute for the assessment
+            thesis=card.get("mechanism", "research question", default=card.title),
+            why_now=card.get("research question", "trigger"),
+            rationale=card.get("retail expression"),
+            evidence=evidence,
+            risk=card.get("risk"),
+            invalidation=card.get("risk"),         # the card's stop conditions
+            instrument_family=_edge_family(card),
+            portfolio_interaction=card.get("crowding", "return source & orthogonality"),
+            assessment=IdeaAssessment(
+                confidence={5: "high", 4: "medium", 3: "low"}.get(conv, "speculative"),
+                actionability=actionability,
+                risk_boundedness=bounded,
+                data_quality="recent",             # a dated daily brief (external research)
+                notes={"actionability": card.status, "source": "external Tactical Edge brief"},
+            ),
+            journal_note=(f"Why-not (skeptic): {skeptic}" if skeptic else card.get("next step")),
+            data_mode="tactical_edge",
+            body_kind="tactical_edge",
+            detail={"number": card.number, "status": card.status, "skeptic": skeptic,
+                    "scores": dict(card.scores), **dict(card.fields)},
         )
 
     def _to_suggestion(self, idea, ctx, as_of: str) -> Suggestion:

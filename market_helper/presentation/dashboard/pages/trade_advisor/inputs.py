@@ -48,7 +48,11 @@ def build_context(inp: AdvisorInputs) -> AdvisorContext:
 
 
 def option_run_params(inp: AdvisorInputs) -> dict:
-    return {"option": {"fetch_realized": bool(inp.fetch_realized), "fetch_events": bool(inp.check_earnings)}}
+    return {
+        "option": {"fetch_realized": bool(inp.fetch_realized), "fetch_events": bool(inp.check_earnings)},
+        # Pull the external Tactical Edge daily brief when present (offline + graceful if absent).
+        "tactical": {"include_edge": True},
+    }
 
 
 def build_run_context(inp: AdvisorInputs, *, use_portfolio: bool) -> tuple[AdvisorContext, str]:
