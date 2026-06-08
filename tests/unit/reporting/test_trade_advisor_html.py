@@ -19,11 +19,11 @@ def test_snapshot_lists_decisions_and_escapes_notes():
     decs = [
         Decision(
             ts="2026-06-03T10:00:00", suggestion_id="SPY:COLLAR", advisor="option",
-            subject="SPY", title="COLLAR · SPY", decision="PROCEED", note="<b>watch</b>",
+            subject="SPY", title="COLLAR · SPY", decision="PROMOTE", note="<b>watch</b>",
         )
     ]
     body = render_trade_advisor_section_body(decs)
-    assert "PROCEED" in body and "COLLAR · SPY" in body
+    assert "PROMOTE" in body and "COLLAR · SPY" in body
     assert "&lt;b&gt;watch&lt;/b&gt;" in body and "<b>watch</b>" not in body  # escaped
 
 
@@ -33,9 +33,9 @@ def test_write_decision_snapshot_to_disk(tmp_path):
     journal = DecisionJournal(tmp_path / "j.jsonl")
     journal.record(
         Decision(ts="2026-06-03T10:00:00", suggestion_id="X", advisor="option",
-                 subject="SPY", title="COLLAR · SPY", decision="MONITOR")
+                 subject="SPY", title="COLLAR · SPY", decision="WATCH")
     )
     out = write_decision_snapshot(journal, output_path=tmp_path / "snap.html", mirror=False)
     assert out.exists()
     text = out.read_text(encoding="utf-8")
-    assert "COLLAR · SPY" in text and "MONITOR" in text
+    assert "COLLAR · SPY" in text and "WATCH" in text

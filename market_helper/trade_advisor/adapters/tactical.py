@@ -20,7 +20,8 @@ from market_helper.domain.tactical_ideas import (
 
 from ..contracts import (
     LABEL_INFO,
-    LABEL_MONITOR,
+    LABEL_WATCHLIST,
+    TIER_RESEARCH,
     AdvisorContext,
     AdvisorResult,
     AuditEntry,
@@ -54,7 +55,8 @@ class TacticalIdeasPlugin:
                 suggestions=[Suggestion(
                     advisor=self.key, suggestion_id="tactical:error", as_of=as_of,
                     title="Tactical ideas unavailable", subject="Macro", category="TACTICAL",
-                    label=LABEL_INFO, thesis="Could not assemble the tactical context.",
+                    label=LABEL_INFO, decision_tier=TIER_RESEARCH,
+                    thesis="Could not assemble the tactical context.",
                     why_now="Run the regime report to populate the snapshot.", body_kind="tactical",
                 )],
             )
@@ -67,7 +69,7 @@ class TacticalIdeasPlugin:
                 suggestions=[Suggestion(
                     advisor=self.key, suggestion_id="tactical:none", as_of=as_of,
                     title="No tactical signals fired", subject="Macro", category="TACTICAL",
-                    label=LABEL_INFO,
+                    label=LABEL_INFO, decision_tier=TIER_RESEARCH,
                     thesis="The current regime/context did not trigger a grounded tactical anchor.",
                     why_now=f"regime={ctx.regime or '?'}; sources={', '.join(ctx.sources) or 'regime defaults'}.",
                     body_kind="tactical",
@@ -91,7 +93,8 @@ class TacticalIdeasPlugin:
             title=idea.title,
             subject=idea.theme.replace("_", " ").title(),
             category="TACTICAL",
-            label=LABEL_MONITOR,  # independent directional trades stay advisory
+            label=LABEL_WATCHLIST,  # research hypotheses (T4) never exceed WATCHLIST
+            decision_tier=TIER_RESEARCH,
             score=_CONF_SCORE.get(idea.confidence, 0.45),
             thesis=idea.thesis,
             why_now=idea.why_now,

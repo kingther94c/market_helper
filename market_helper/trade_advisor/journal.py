@@ -14,9 +14,13 @@ import json
 from dataclasses import asdict, dataclass
 from pathlib import Path
 
-from .contracts import LABEL_MONITOR, LABEL_ORDER, LABEL_PROCEED, Suggestion
+from .contracts import Suggestion
 
-DECISIONS = ("PROCEED", "MONITOR", "REJECT")
+# The operator's decision verbs are deliberately distinct from the system's triage
+# labels (RESEARCH_READY/WATCHLIST/…) — these are what *you* choose to do with an idea,
+# and none of them says "trade".
+DECISIONS = ("PROMOTE", "WATCH", "DISMISS")
+DECISION_ORDER = {"PROMOTE": 0, "WATCH": 1, "DISMISS": 2}
 
 
 @dataclass(frozen=True)
@@ -26,7 +30,7 @@ class Decision:
     advisor: str
     subject: str
     title: str
-    decision: str           # PROCEED | MONITOR | REJECT
+    decision: str           # PROMOTE | WATCH | DISMISS
     note: str = ""
     score: float = 0.0
     as_of: str = ""         # the idea's as_of when decided
@@ -77,9 +81,9 @@ class DecisionJournal:
             latest[decision.suggestion_id] = decision  # later lines overwrite earlier
         return latest
 
-    def inbox(self, decisions: tuple[str, ...] = (LABEL_PROCEED, LABEL_MONITOR)) -> list[Decision]:
-        """Latest decision per suggestion, filtered, PROCEED→MONITOR then recent-first."""
+    def inbox(self, decisions: tuple[str, ...] = ("PROMOTE", "WATCH")) -> list[Decision]:
+        """Latest decision per suggestion, filtered, Promote→Watch then recent-first."""
         items = [d for d in self.latest_by_suggestion().values() if d.decision in decisions]
-        items.sort(key=lambda d: d.ts, reverse=True)            # recent first…
-        items.sort(key=lambda d: LABEL_ORDER.get(d.decision, 9))  # …within label order (stable)
+        items.sort(key=lambda d: d.ts, reverse=True)               # recent first…
+        items.sort(key=lambda d: DECISION_ORDER.get(d.decision, 9))  # …within decision order (stable)
         return items

@@ -19,7 +19,7 @@ def test_emits_regime_tilt():
     res = TradeIdeasAdvisorPlugin().produce(AdvisorContext(as_of="t", regime_label="Reflation"), policy=_POLICY)
     assert res.advisor == "ideas" and len(res.suggestions) == 1
     s = res.suggestions[0]
-    assert s.label == "MONITOR" and s.category == "TILT" and s.body_kind == "ideas"
+    assert s.label == "WATCHLIST" and s.category == "TILT" and s.body_kind == "ideas"
     assert "EQ" in s.thesis and s.detail["asset_class_targets"]["EQ"] == 0.76
     assert s.headline_metrics["vol_mult"] == "0.95"
 

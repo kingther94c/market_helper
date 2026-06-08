@@ -23,7 +23,7 @@ def test_short_itm_near_expiry_is_proceed_with_assignment_flag():
     held = [{"underlying": "SPY", "right": "C", "strike": 740, "expiry": "2026-06-08", "qty": -1, "underlying_price": 759.0}]
     res = RollReminderPlugin().produce(_ctx(held), today=TODAY)  # 5 DTE, short call ITM
     s = res.suggestions[0]
-    assert s.label == "PROCEED"
+    assert s.label == "RESEARCH_READY"
     assert s.subject == "SPY" and s.category == "ROLL" and s.body_kind == "roll"
     assert any(a.name == "assignment_risk" for a in s.audit)
     assert s.headline_metrics["moneyness"] == "ITM"
@@ -32,7 +32,7 @@ def test_short_itm_near_expiry_is_proceed_with_assignment_flag():
 def test_in_window_is_monitor():
     held = [{"underlying": "QQQ", "right": "P", "strike": 700, "expiry": "2026-06-18", "qty": -1, "underlying_price": 760.0}]
     res = RollReminderPlugin().produce(_ctx(held), today=TODAY)  # 15 DTE, OTM short put
-    assert res.suggestions[0].label == "MONITOR"
+    assert res.suggestions[0].label == "WATCHLIST"
 
 
 def test_far_expiry_is_info():

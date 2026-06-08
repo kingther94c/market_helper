@@ -13,7 +13,8 @@ from __future__ import annotations
 
 from ..contracts import (
     LABEL_INFO,
-    LABEL_MONITOR,
+    LABEL_WATCHLIST,
+    TIER_RESEARCH,
     AdvisorContext,
     AdvisorResult,
     Suggestion,
@@ -26,7 +27,8 @@ def _info(as_of: str, why: str) -> AdvisorResult:
         suggestions=[Suggestion(
             advisor="ideas", suggestion_id="ideas:no_regime", as_of=as_of,
             title="Set a regime for allocation tilts", subject="Portfolio", category="TILT",
-            label=LABEL_INFO, thesis="No regime selected (or unknown).", why_now=why, body_kind="ideas",
+            label=LABEL_INFO, decision_tier=TIER_RESEARCH,
+            thesis="No regime selected (or unknown).", why_now=why, body_kind="ideas",
         )],
     )
 
@@ -71,7 +73,7 @@ class TradeIdeasAdvisorPlugin:
             suggestions=[Suggestion(
                 advisor="ideas", suggestion_id=f"ideas:tilt:{regime}", as_of=as_of,
                 title=f"Regime-aligned tilt · {regime}", subject="Portfolio", category="TILT",
-                label=LABEL_MONITOR, score=0.55,
+                label=LABEL_WATCHLIST, decision_tier=TIER_RESEARCH, score=0.55,
                 thesis=f"{regime} regime → target sleeve mix: {tilt_str}.",
                 why_now=notes or f"Advisory tilt for the {regime} regime.",
                 rationale=(

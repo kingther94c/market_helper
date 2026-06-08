@@ -23,7 +23,8 @@ from market_helper.domain.portfolio_monitor.services.fx_carry_tilt import (
 
 from ..contracts import (
     LABEL_INFO,
-    LABEL_MONITOR,
+    LABEL_WATCHLIST,
+    TIER_MODEL_OVERLAY,
     AdvisorContext,
     AdvisorResult,
     Suggestion,
@@ -60,7 +61,8 @@ def _hedge_suggestion(alloc, *, as_of: str, data_mode: str) -> Suggestion:
         title=f"FX hedge target · {pair}",
         subject=pair or "FX",
         category="FX_HEDGE",
-        label=LABEL_MONITOR,
+        label=LABEL_WATCHLIST,
+        decision_tier=TIER_MODEL_OVERLAY,
         score=0.70,
         thesis=f"Hedge ${notional:,.0f} USD exposure across CME FX futures (betas vs {pair}).",
         why_now=f"Target as of {getattr(alloc, 'run_date', '?')} · {getattr(alloc, 'hedge_notional_source', '')}.",
@@ -123,7 +125,8 @@ def _carry_tilt_suggestion(
         title="FX carry tilt",
         subject="FX",
         category="FX_CARRY",
-        label=LABEL_MONITOR,
+        label=LABEL_WATCHLIST,
+        decision_tier=TIER_MODEL_OVERLAY,
         score=0.60,
         thesis=thesis,
         why_now="Carry rate-approximated from configured overnight-rate differentials vs USD (no forward curve in-repo).",
@@ -141,7 +144,8 @@ def _missing(as_of: str, why: str, warnings: list[str]) -> AdvisorResult:
         suggestions=[Suggestion(
             advisor="fx_hedge", suggestion_id="fx_hedge:missing", as_of=as_of,
             title="FX hedge allocation not available", subject="FX", category="FX_HEDGE",
-            label=LABEL_INFO, thesis="No cached FX hedge allocation found.", why_now=why, body_kind="fx_alloc",
+            label=LABEL_INFO, decision_tier=TIER_MODEL_OVERLAY,
+            thesis="No cached FX hedge allocation found.", why_now=why, body_kind="fx_alloc",
         )],
     )
 

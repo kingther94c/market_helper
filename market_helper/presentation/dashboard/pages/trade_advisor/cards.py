@@ -14,17 +14,17 @@ from market_helper.application.trade_advisor import write_decision_snapshot
 from market_helper.domain.option_advisor.structures import whatif_from_detail
 from market_helper.trade_advisor.contracts import (
     LABEL_INFO,
-    LABEL_MONITOR,
     LABEL_ORDER,
-    LABEL_PROCEED,
     LABEL_REJECT,
+    LABEL_RESEARCH_READY,
+    LABEL_WATCHLIST,
     Suggestion,
 )
 from market_helper.trade_advisor.journal import DecisionJournal, decision_from_suggestion
 
 _LABEL_COLOR = {
-    LABEL_PROCEED: "positive",
-    LABEL_MONITOR: "warning",
+    LABEL_RESEARCH_READY: "positive",
+    LABEL_WATCHLIST: "warning",
     LABEL_REJECT: "negative",
     LABEL_INFO: "info",
 }
@@ -255,9 +255,9 @@ def _render_inbox(box, journal: DecisionJournal) -> None:
     with box:
         items = journal.inbox()
         with ui.card().classes("w-full pm-card"):
-            ui.label(f"Inbox · {len(items)} flagged (Proceed / Monitor)").classes("text-subtitle1")
+            ui.label(f"Inbox · {len(items)} flagged (Promote / Watch)").classes("text-subtitle1")
             if not items:
-                ui.label("Nothing flagged yet — run an advisor and Proceed/Monitor an idea.").classes("text-caption pm-muted")
+                ui.label("Nothing flagged yet — run an advisor and Promote/Watch an idea.").classes("text-caption pm-muted")
             for d in items[:25]:
                 note = f" — {d.note}" if d.note else ""
                 ui.label(f"[{d.decision}] {d.title} · {d.subject} · {d.ts[:16]}{note}").classes("text-caption")
@@ -384,6 +384,11 @@ def _render_card(s: Suggestion, journal: DecisionJournal, on_decision) -> None:
         with ui.row().classes("items-center justify-between w-full"):
             with ui.row().classes("items-center gap-2"):
                 ui.badge(s.label, color=_LABEL_COLOR.get(s.label, "grey"))
+                if s.decision_tier:
+                    ui.badge(s.decision_tier, color="blue-grey").props("outline").tooltip(
+                        "Evidence tier — modules are not equally reliable. T1 operational · T2 deterministic · "
+                        "T3 model-overlay · T4 research. RESEARCH_READY is only reachable at T1/T2."
+                    )
                 ui.label(f"{s.category} · {s.title}").classes("text-subtitle1")
             ui.label(f"score {s.score:.2f}").classes("text-caption")
         if s.headline_metrics:
@@ -429,9 +434,9 @@ def _render_card(s: Suggestion, journal: DecisionJournal, on_decision) -> None:
                 except Exception:  # noqa: BLE001 — snapshot/mirror is best-effort, never block a decision
                     pass
 
-            ui.button("Proceed", color="positive", on_click=lambda: _record("PROCEED")).props("dense")
-            ui.button("Monitor", color="warning", on_click=lambda: _record("MONITOR")).props("dense")
-            ui.button("Reject", color="negative", on_click=lambda: _record("REJECT")).props("dense")
+            ui.button("Promote", color="positive", on_click=lambda: _record("PROMOTE")).props("dense")
+            ui.button("Watch", color="warning", on_click=lambda: _record("WATCH")).props("dense")
+            ui.button("Dismiss", color="negative", on_click=lambda: _record("DISMISS")).props("dense")
 
 
 def _render_module(box, suggestions: list[Suggestion], journal: DecisionJournal, on_decision, *, empty_note: str = "") -> None:

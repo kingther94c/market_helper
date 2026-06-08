@@ -19,16 +19,19 @@ from market_helper.domain.portfolio_monitor.services.futures_roll_calendar impor
 
 from ..contracts import (
     LABEL_INFO,
-    LABEL_MONITOR,
-    LABEL_PROCEED,
+    LABEL_RESEARCH_READY,
+    LABEL_WATCHLIST,
+    TIER_OPERATIONAL,
     AdvisorContext,
     AdvisorResult,
     AuditEntry,
     Suggestion,
 )
 
+# The calendar engine keeps its own internal urgency labels; the adapter maps them
+# onto the cockpit's research-framed vocabulary.
 _SCORE = {"PROCEED": 0.88, "MONITOR": 0.58, "INFO": 0.30}
-_LABELS = {"PROCEED": LABEL_PROCEED, "MONITOR": LABEL_MONITOR, "INFO": LABEL_INFO}
+_LABELS = {"PROCEED": LABEL_RESEARCH_READY, "MONITOR": LABEL_WATCHLIST, "INFO": LABEL_INFO}
 
 
 def _score(label: str, days: int | None) -> float:
@@ -59,7 +62,8 @@ class FuturesRollPlugin:
                 suggestions=[Suggestion(
                     advisor=self.key, suggestion_id="futures_roll:none", as_of=as_of,
                     title="No futures positions to manage", subject="—", category="ROLL",
-                    label=LABEL_INFO, thesis="No held futures were found.",
+                    label=LABEL_INFO, decision_tier=TIER_OPERATIONAL,
+                    thesis="No held futures were found.",
                     why_now="Load your portfolio (futures positions) to see roll reminders.",
                     body_kind="futures_roll",
                 )],
@@ -86,6 +90,7 @@ class FuturesRollPlugin:
             subject=it.root,
             category="ROLL",
             label=_LABELS.get(it.label, LABEL_INFO),
+            decision_tier=TIER_OPERATIONAL,
             score=_score(it.label, it.days_to_roll),
             thesis=f"{abs(it.qty):g}x {it.root} ({it.contract or '—'}) on {it.exchange or 'exchange'} · {it.delivery_label} delivery.",
             why_now=it.why,

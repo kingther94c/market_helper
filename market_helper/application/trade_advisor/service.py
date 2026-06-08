@@ -11,9 +11,9 @@ from pathlib import Path
 
 from market_helper.app.paths import TRADE_ADVISOR_ARTIFACTS_DIR
 from market_helper.trade_advisor.contracts import (
-    LABEL_MONITOR,
     LABEL_ORDER,
-    LABEL_PROCEED,
+    LABEL_RESEARCH_READY,
+    LABEL_WATCHLIST,
     AdvisorContext,
     AdvisorResult,
     Suggestion,
@@ -35,8 +35,8 @@ class TradeAdvisorRun:
             out.extend(result.suggestions)
         return out
 
-    def inbox(self, labels: tuple[str, ...] = (LABEL_PROCEED, LABEL_MONITOR)) -> list[Suggestion]:
-        """Cross-advisor 'what should I look at' list, sorted PROCEED→MONITOR then score."""
+    def inbox(self, labels: tuple[str, ...] = (LABEL_RESEARCH_READY, LABEL_WATCHLIST)) -> list[Suggestion]:
+        """Cross-advisor 'what should I look at' list, sorted RESEARCH_READY→WATCHLIST then score."""
         items = [s for s in self.all_suggestions() if s.label in labels]
         items.sort(key=lambda s: (LABEL_ORDER.get(s.label, 9), -s.score))
         return items

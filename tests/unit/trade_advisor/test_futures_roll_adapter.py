@@ -25,7 +25,7 @@ def test_emits_roll_suggestions_by_schedule():
     res = FuturesRollPlugin().produce(ctx, today="2026-07-06")
     assert {s.body_kind for s in res.suggestions} == {"futures_roll"}
     ng = next(s for s in res.suggestions if s.subject == "NG")
-    assert ng.label == "PROCEED" and ng.headline_metrics["schedule"] == "GSCI"
+    assert ng.label == "RESEARCH_READY" and ng.headline_metrics["schedule"] == "GSCI"
     assert ng.detail["delivery_label"] == "Aug 2026"
     zn = next(s for s in res.suggestions if s.subject == "ZN")
     assert zn.label == "INFO"  # unparseable contract month → manual review

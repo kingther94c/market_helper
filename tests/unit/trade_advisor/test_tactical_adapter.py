@@ -1,4 +1,4 @@
-"""Tactical Trade Ideas adapter → MONITOR-capped idea suggestions (hermetic)."""
+"""Tactical Trade Ideas adapter → WATCHLIST-capped idea suggestions (hermetic)."""
 
 from __future__ import annotations
 
@@ -26,8 +26,8 @@ def test_adapter_emits_monitor_capped_tactical_ideas(tmp_path):
     res = TacticalIdeasPlugin().produce(AdvisorContext(as_of="t"), regime_path=p, prediction=pred, trending=trend)
     assert res.advisor == "tactical" and res.suggestions
     assert all(s.body_kind == "tactical" for s in res.suggestions)
-    # Independent directional trades are advisory only — never PROCEED.
-    assert all(s.label in ("MONITOR", "INFO") for s in res.suggestions)
+    # Independent directional trades are advisory only — never RESEARCH_READY.
+    assert all(s.label in ("WATCHLIST", "INFO") for s in res.suggestions)
     assert any("SHORT_USD" in s.suggestion_id for s in res.suggestions)
 
 

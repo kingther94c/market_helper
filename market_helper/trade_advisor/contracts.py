@@ -13,15 +13,39 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
-# Triage labels (shared across advisors).
-LABEL_PROCEED = "PROCEED"
-LABEL_MONITOR = "MONITOR"
+# System triage labels (research-framed — *nothing* here implies "trade"). A
+# deliberate downgrade from PROCEED/MONITOR: the system does not do full portfolio
+# construction / liquidity / margin-stress / scenario-loss / execution-cost / tax /
+# correlation modelling, so it never tells you to trade — only how ready an idea is
+# to STUDY or act on at your discretion.
+LABEL_RESEARCH_READY = "RESEARCH_READY"  # fully specified + high-confidence FOR ITS TIER; ready to study — not a trade signal
+LABEL_WATCHLIST = "WATCHLIST"            # worth watching; soft-gated, model-assisted, or a research hypothesis
 LABEL_REJECT = "REJECT"
-LABEL_INFO = "INFO"          # non-actionable context (e.g. a roll reminder with nothing due)
-LABELS = (LABEL_PROCEED, LABEL_MONITOR, LABEL_INFO, LABEL_REJECT)
+LABEL_INFO = "INFO"                      # non-actionable context (e.g. a roll reminder with nothing due)
+LABELS = (LABEL_RESEARCH_READY, LABEL_WATCHLIST, LABEL_INFO, LABEL_REJECT)
 
-# Sort order for presentation (PROCEED first).
-LABEL_ORDER = {LABEL_PROCEED: 0, LABEL_MONITOR: 1, LABEL_INFO: 2, LABEL_REJECT: 3}
+# Sort order for presentation (most-ready first).
+LABEL_ORDER = {LABEL_RESEARCH_READY: 0, LABEL_WATCHLIST: 1, LABEL_INFO: 2, LABEL_REJECT: 3}
+
+# Decision / evidence tiers — the modules are NOT peers in trust, even though the UI
+# shows them as peer tabs. The tier is shown on every card so a research hypothesis is
+# never read as reliably as an operational reminder.
+TIER_OPERATIONAL = "T1 · operational"      # Roll & Carry — operational reminders (highest reliability)
+TIER_DETERMINISTIC = "T2 · deterministic"  # Option Strategy — deterministic analytics / overlay
+TIER_MODEL_OVERLAY = "T3 · model-overlay"  # FX Hedge Tilt — model/approximation-assisted overlay
+TIER_RESEARCH = "T4 · research"            # Tactical — research hypotheses (lowest; AI-assisted)
+TIERS = (TIER_OPERATIONAL, TIER_DETERMINISTIC, TIER_MODEL_OVERLAY, TIER_RESEARCH)
+
+# Only operational / deterministic tiers may reach RESEARCH_READY; model-overlay and
+# research tiers (and any model-only / naked-risk idea) cap at WATCHLIST.
+_RESEARCH_READY_TIERS = frozenset({TIER_OPERATIONAL, TIER_DETERMINISTIC})
+
+
+def cap_label_for_tier(label: str, tier: str) -> str:
+    """Enforce the trust ceiling: RESEARCH_READY is only allowed at T1/T2; else WATCHLIST."""
+    if label == LABEL_RESEARCH_READY and tier not in _RESEARCH_READY_TIERS:
+        return LABEL_WATCHLIST
+    return label
 
 
 @dataclass(frozen=True)
@@ -55,7 +79,8 @@ class Suggestion:
     title: str                            # headline, e.g. "COLLAR · SPY"
     subject: str                          # what it's about: symbol / ccy / account
     category: str                         # advisor-specific bucket (INCOME/HEDGE/…)
-    label: str = LABEL_MONITOR            # PROCEED | MONITOR | INFO | REJECT
+    label: str = LABEL_WATCHLIST          # RESEARCH_READY | WATCHLIST | INFO | REJECT
+    decision_tier: str = ""               # T1 operational · T2 deterministic · T3 model-overlay · T4 research
     score: float = 0.0
     thesis: str = ""
     why_now: str = ""
@@ -85,7 +110,7 @@ class AdvisorResult:
         return [s for s in self.suggestions if s.label == label]
 
     def actionable(self) -> list[Suggestion]:
-        return [s for s in self.suggestions if s.label in (LABEL_PROCEED, LABEL_MONITOR)]
+        return [s for s in self.suggestions if s.label in (LABEL_RESEARCH_READY, LABEL_WATCHLIST)]
 
 
 @dataclass(frozen=True)

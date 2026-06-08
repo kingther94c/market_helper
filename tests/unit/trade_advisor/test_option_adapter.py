@@ -40,12 +40,12 @@ def test_suggestions_carry_uniform_fields():
     for s in result.suggestions:
         assert s.advisor == "option"
         assert s.title and s.subject == "NVDA"
-        assert s.label in ("PROCEED", "MONITOR", "REJECT", "INFO")
+        assert s.label in ("RESEARCH_READY", "WATCHLIST", "REJECT", "INFO")
         assert s.body_kind == "option_payoff"
         assert s.audit  # filter trail projected
         assert "legs" in s.detail  # advisor-specific payload preserved
-    # model-only data must never PROCEED (honesty rule)
-    assert all(s.label != "PROCEED" for s in result.suggestions)
+    # model-only data must never RESEARCH_READY (honesty rule)
+    assert all(s.label != "RESEARCH_READY" for s in result.suggestions)
 
 
 def test_headline_metrics_populated():

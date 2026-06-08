@@ -15,7 +15,7 @@ import html
 
 from market_helper.trade_advisor.journal import Decision
 
-_LABEL_COLOR = {"PROCEED": "#1a7f37", "MONITOR": "#9a6700", "REJECT": "#cf222e"}
+_LABEL_COLOR = {"PROMOTE": "#1a7f37", "WATCH": "#9a6700", "DISMISS": "#cf222e"}
 
 _STYLE = (
     "body{font-family:system-ui,Segoe UI,Arial,sans-serif;margin:24px;color:#1f2328}"
@@ -29,7 +29,7 @@ _STYLE = (
 def render_trade_advisor_section_body(decisions: list[Decision]) -> str:
     """HTML table of the flagged decisions (or an empty-state note)."""
     if not decisions:
-        return "<p class='muted'>No flagged ideas yet — use the Advisor page to Proceed/Monitor an idea.</p>"
+        return "<p class='muted'>No flagged ideas yet — use the Advisor page to Promote/Watch an idea.</p>"
     rows = []
     for d in decisions:
         color = _LABEL_COLOR.get(d.decision, "#57606a")
@@ -57,7 +57,7 @@ def render_trade_advisor_snapshot(decisions: list[Decision], *, as_of: str = "")
         "<meta name='viewport' content='width=device-width, initial-scale=1'>"
         "<title>Trade Advisor — flagged ideas</title>"
         f"<style>{_STYLE}</style></head><body>"
-        "<h2>Trade Advisor — flagged ideas (Proceed / Monitor)</h2>"
+        "<h2>Trade Advisor — flagged ideas (Promote / Watch)</h2>"
         f"<div class='banner'>Read-only advisory snapshot · as of {html.escape(as_of or '—')} · "
         "ideas, not orders · generated from the decision journal</div>"
         f"{render_trade_advisor_section_body(decisions)}"

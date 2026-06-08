@@ -12,7 +12,24 @@ from dataclasses import asdict
 from market_helper.domain.option_advisor import service as option_service
 from market_helper.domain.option_advisor.contracts import OptionAdvisoryResult, OptionIdea
 
-from ..contracts import AdvisorContext, AdvisorResult, AuditEntry, Sizing, Suggestion
+from ..contracts import (
+    LABEL_INFO,
+    LABEL_REJECT,
+    LABEL_RESEARCH_READY,
+    LABEL_WATCHLIST,
+    TIER_DETERMINISTIC,
+    AdvisorContext,
+    AdvisorResult,
+    AuditEntry,
+    Sizing,
+    Suggestion,
+    cap_label_for_tier,
+)
+
+# Map the option ENGINE's internal labels onto the cockpit's research-framed vocabulary.
+# The engine emits PROCEED only on a live chain with all hard filters passed and a real
+# (non-model-only) structure — exactly the T2 RESEARCH_READY gate.
+_LABEL_MAP = {"PROCEED": LABEL_RESEARCH_READY, "MONITOR": LABEL_WATCHLIST, "REJECT": LABEL_REJECT, "INFO": LABEL_INFO}
 
 
 def _sizing_from(idea: OptionIdea) -> Sizing | None:
@@ -53,7 +70,8 @@ def suggestion_from_idea(idea: OptionIdea, data_mode: str) -> Suggestion:
         title=f"{idea.structure_type} · {idea.underlying_symbol}",
         subject=idea.underlying_symbol,
         category=idea.category,
-        label=idea.label,
+        label=cap_label_for_tier(_LABEL_MAP.get(idea.label, LABEL_WATCHLIST), TIER_DETERMINISTIC),
+        decision_tier=TIER_DETERMINISTIC,
         score=idea.score,
         thesis=idea.thesis,
         why_now=idea.why_now,

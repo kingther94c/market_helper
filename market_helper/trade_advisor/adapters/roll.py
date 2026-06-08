@@ -13,15 +13,16 @@ import datetime as _dt
 
 from ..contracts import (
     LABEL_INFO,
-    LABEL_MONITOR,
-    LABEL_PROCEED,
+    LABEL_RESEARCH_READY,
+    LABEL_WATCHLIST,
+    TIER_OPERATIONAL,
     AdvisorContext,
     AdvisorResult,
     AuditEntry,
     Suggestion,
 )
 
-_LABEL_BASE = {LABEL_PROCEED: 0.90, LABEL_MONITOR: 0.60, LABEL_INFO: 0.30}
+_LABEL_BASE = {LABEL_RESEARCH_READY: 0.90, LABEL_WATCHLIST: 0.60, LABEL_INFO: 0.30}
 
 
 def _roll_score(label: str, dte: int | None) -> float:
@@ -66,7 +67,8 @@ class RollReminderPlugin:
                     Suggestion(
                         advisor=self.key, suggestion_id="roll:none", as_of=as_of,
                         title="No option positions to manage", subject="—", category="ROLL",
-                        label=LABEL_INFO, thesis="No held option positions were found.",
+                        label=LABEL_INFO, decision_tier=TIER_OPERATIONAL,
+                        thesis="No held option positions were found.",
                         why_now="Load your portfolio (held options) to see roll reminders.",
                         body_kind="roll",
                     )
@@ -107,11 +109,11 @@ class RollReminderPlugin:
             audit.append(AuditEntry("assignment_risk", False, "soft", f"short {right} ITM with {dte} DTE — assignment risk"))
 
         if expired:
-            label, why = LABEL_PROCEED, f"Expired ({dte} DTE) — close or roll now."
+            label, why = LABEL_RESEARCH_READY, f"Expired ({dte} DTE) — close or roll now."
         elif assignment and urgent:
-            label, why = LABEL_PROCEED, f"Short {right} ITM, {dte} DTE — high assignment risk; roll out or close."
+            label, why = LABEL_RESEARCH_READY, f"Short {right} ITM, {dte} DTE — high assignment risk; roll out or close."
         elif in_window:
-            label, why = LABEL_MONITOR, f"{dte} DTE within the {roll_dte}-day roll window — consider rolling out."
+            label, why = LABEL_WATCHLIST, f"{dte} DTE within the {roll_dte}-day roll window — consider rolling out."
         else:
             label, why = LABEL_INFO, (f"{dte} DTE — outside the roll window; nothing to do yet." if dte is not None
                                       else "No expiry parsed — review manually.")
@@ -130,6 +132,7 @@ class RollReminderPlugin:
             subject=underlying,
             category="ROLL",
             label=label,
+            decision_tier=TIER_OPERATIONAL,
             score=_roll_score(label, dte),
             thesis=f"{side.capitalize()} {abs(qty):g}x {underlying} {right}{strike:g} exp {expiry} ({dte} DTE).",
             why_now=why,
