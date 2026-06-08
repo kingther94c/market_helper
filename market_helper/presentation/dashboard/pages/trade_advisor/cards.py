@@ -90,6 +90,23 @@ def option_legs_lines(detail: dict) -> list[str]:
     return out
 
 
+def option_risk_facts(detail: dict) -> list[tuple[str, str]]:
+    """Risk-explainer label/value rows for an option idea (from ``detail['risk']``)."""
+    risk = detail.get("risk") or {}
+    out: list[tuple[str, str]] = []
+    scen = risk.get("scenarios_at_expiry") or {}
+    if scen:
+        out.append(("P&L @ expiry (spot shock)", "   ".join(f"{k}: {float(v):,.0f}" for k, v in scen.items())))
+    vs = risk.get("vol_shock_5pt_usd")
+    if vs is not None:
+        out.append(("Vol shock (+5 vol pts)", f"{float(vs):,.0f}"))
+    liq = risk.get("liquidity") or {}
+    if liq.get("status"):
+        ws = liq.get("worst_spread_pct")
+        out.append(("Liquidity", str(liq["status"]) + (f" (worst spread {float(ws):.0%})" if ws is not None else "")))
+    return out
+
+
 def fx_alloc_table(detail: dict) -> tuple[list[str], list[list[str]]]:
     """Headers + formatted rows for an FX hedge allocation (``detail['fx_legs']``)."""
     headers = ["Ccy", "Instrument", "Beta", "Contracts", "Notional $", "Carry bps", "ON %", "Expiry"]
@@ -298,12 +315,27 @@ def _render_greeks(detail: dict) -> None:
         ui.label("Greeks: " + "  ".join(f"{k} {float(v):.3f}" for k, v in greeks.items())).classes("text-caption")
 
 
+def _render_option_risk(detail: dict) -> None:
+    """The risk-explainer block: scenario P&L, vol-shock, liquidity, and risk flags."""
+    risk = detail.get("risk") or {}
+    facts = option_risk_facts(detail)
+    flags = risk.get("flags") or []
+    if not facts and not flags:
+        return
+    ui.label("Risk profile · explainer, not a recommendation").classes("text-caption pm-muted")
+    for label, value in facts:
+        ui.label(f"{label}: {value}").classes("text-caption")
+    for flag in flags:
+        ui.label("⚠ " + str(flag)).classes("text-caption").style("color:#f3b34d")
+
+
 def _render_option_body(detail: dict) -> None:
     if detail.get("est_payoff_curve"):
         _render_option_whatif(detail)
     for line in option_legs_lines(detail):
         ui.label(line).classes("text-caption")
     _render_greeks(detail)
+    _render_option_risk(detail)
 
 
 def _render_fx_alloc_body(detail: dict) -> None:

@@ -2,12 +2,15 @@
 
 Wraps :mod:`market_helper.domain.option_advisor.service` and maps each
 ``OptionIdea`` onto the shared :class:`~..contracts.Suggestion`. No behavior
-change to the option engine — this is a pure projection (M1).
+change to the option engine — a projection that also surfaces a **risk explainer**
+(scenario P&L, vol-shock, liquidity, and plain-English risk flags) so the module
+reads as a risk/overlay analyzer first, not just an idea recommender.
 """
 
 from __future__ import annotations
 
 from dataclasses import asdict
+from typing import Any
 
 from market_helper.domain.option_advisor import service as option_service
 from market_helper.domain.option_advisor.contracts import OptionAdvisoryResult, OptionIdea
@@ -45,6 +48,77 @@ def _sizing_from(idea: OptionIdea) -> Sizing | None:
     )
 
 
+def _interp_payoff(curve, target: float) -> float | None:
+    pts = sorted((float(s), float(p)) for s, p in (curve or []) if s is not None and p is not None)
+    if not pts:
+        return None
+    if target <= pts[0][0]:
+        return pts[0][1]
+    if target >= pts[-1][0]:
+        return pts[-1][1]
+    for (s0, p0), (s1, p1) in zip(pts, pts[1:]):
+        if s0 <= target <= s1:
+            return p0 if s1 == s0 else p0 + (target - s0) / (s1 - s0) * (p1 - p0)
+    return None
+
+
+def _scenario_pnl(idea: OptionIdea) -> dict[str, float]:
+    """At-expiry structure P&L at spot shocks — the defined-risk profile (per structure unit)."""
+    spot = idea.spot
+    if not spot or not idea.est_payoff_curve:
+        return {}
+    out: dict[str, float] = {}
+    for shock in (-0.20, -0.10, -0.05, 0.05, 0.10):
+        v = _interp_payoff(idea.est_payoff_curve, spot * (1.0 + shock))
+        if v is not None:
+            out[f"{shock:+.0%}"] = round(v, 2)
+    return out
+
+
+def _vol_shock_usd(idea: OptionIdea, vol_points: float = 5.0) -> float | None:
+    """≈ MTM impact of a +vol_points move (net vega is per 1.00 sigma = 100 vol points)."""
+    vega = idea.net_greeks.get("vega")
+    return round(vega * vol_points / 100.0, 2) if vega is not None else None
+
+
+def _risk_flags(idea: OptionIdea) -> list[str]:
+    """Plain-English risk disclosures — the explainer's core, not a 'yield' story."""
+    flags: list[str] = []
+    legs = idea.legs or []
+    shorts = [l for l in legs if str(l.action).lower().startswith("s")]
+    longs = [l for l in legs if str(l.action).lower().startswith("b")]
+    spot = idea.spot
+    if shorts and not longs:
+        flags.append("Undefined left-tail (naked premium sale) — gap / margin / assignment risk, not a 'yield'.")
+    for l in shorts:
+        k = l.resolved_strike
+        if k is None or not spot:
+            continue
+        right = str(l.right).upper()
+        itm = (right == "C" and spot > k) or (right == "P" and spot < k)
+        if itm:
+            extra = " + early-exercise/dividend risk around ex-div" if right == "C" else ""
+            flags.append(f"Assignment risk: short {right}{k:g} is ITM (spot {spot:g}){extra}.")
+    return flags
+
+
+def _liquidity_bits(idea: OptionIdea) -> dict[str, Any]:
+    liq = idea.liquidity
+    if liq is None:
+        return {"status": "unknown_no_chain"}
+    return {"status": liq.status, "worst_spread_pct": liq.worst_spread_pct, "min_open_interest": liq.min_open_interest}
+
+
+def _risk_block(idea: OptionIdea) -> dict[str, Any]:
+    return {
+        "scenarios_at_expiry": _scenario_pnl(idea),
+        "vol_shock_5pt_usd": _vol_shock_usd(idea),
+        "flags": _risk_flags(idea),
+        "liquidity": _liquidity_bits(idea),
+        "net_greeks": dict(idea.net_greeks),
+    }
+
+
 def _headline_metrics(idea: OptionIdea) -> dict[str, str]:
     m: dict[str, str] = {}
     cf = idea.est_net_debit_credit
@@ -54,6 +128,15 @@ def _headline_metrics(idea: OptionIdea) -> dict[str, str]:
         m["max_loss"] = f"{idea.est_max_loss:,.0f}"
     if idea.est_max_gain is not None:
         m["max_gain"] = f"{idea.est_max_gain:,.0f}"
+    scen = _scenario_pnl(idea)
+    if "-10%" in scen:
+        m["@-10%"] = f"{scen['-10%']:,.0f}"      # the risk-explainer headline: P&L if spot -10% (at expiry)
+    vshock = _vol_shock_usd(idea)
+    if vshock is not None:
+        m["+5vol"] = f"{vshock:,.0f}"
+    liq = _liquidity_bits(idea)
+    if liq.get("status") and liq["status"] != "unknown_no_chain":
+        m["liq"] = str(liq["status"])
     if idea.est_breakevens:
         m["breakeven"] = ", ".join(f"{b:g}" for b in idea.est_breakevens)
     er = idea.event_risk
@@ -82,7 +165,7 @@ def suggestion_from_idea(idea: OptionIdea, data_mode: str) -> Suggestion:
         data_mode=data_mode,
         sizing=_sizing_from(idea),
         body_kind="option_payoff",
-        detail=asdict(idea),
+        detail={**asdict(idea), "risk": _risk_block(idea)},
     )
 
 

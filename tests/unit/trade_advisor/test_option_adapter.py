@@ -81,3 +81,30 @@ def test_idea_detail_carries_iv_skew_key():
     # what-if skew-link reads detail["iv_skew"]; the projection must include it.
     result = _run()
     assert all("iv_skew" in s.detail for s in result.suggestions)
+
+
+def test_risk_explainer_block_present():
+    # Every option suggestion carries the risk-explainer block; scenario P&L + headline surfaced.
+    result = _run()
+    for s in result.suggestions:
+        risk = s.detail.get("risk")
+        assert risk is not None and isinstance(risk.get("flags"), list)
+    assert any(s.detail["risk"].get("scenarios_at_expiry") for s in result.suggestions)
+    assert any("@-10%" in s.headline_metrics for s in result.suggestions)
+
+
+def test_risk_helpers_on_a_naked_short():
+    from market_helper.domain.option_advisor.contracts import OptionIdea, OptionLeg
+    from market_helper.trade_advisor.adapters.option import _risk_flags, _scenario_pnl, _vol_shock_usd
+
+    leg = OptionLeg(right="P", action="sell", strike_rule="abs:100", expiry_rule="dte:30", resolved_strike=100.0)
+    idea = OptionIdea(
+        idea_id="x", as_of="t", underlying_id="u", underlying_symbol="SPY", category="INCOME",
+        structure_type="short_put", legs=[leg], spot=110.0,
+        est_payoff_curve=[(80.0, -2000.0), (100.0, 0.0), (120.0, 500.0)],
+        net_greeks={"vega": 20.0, "delta": 30.0},
+    )
+    scen = _scenario_pnl(idea)
+    assert scen["-10%"] == -100.0                 # interp at spot 99 between (80,-2000)&(100,0)
+    assert _vol_shock_usd(idea) == 1.0            # vega 20 per 100 vol pts → +5 vol = 1.0
+    assert any("Undefined left-tail" in f for f in _risk_flags(idea))  # naked short → tail, not yield
