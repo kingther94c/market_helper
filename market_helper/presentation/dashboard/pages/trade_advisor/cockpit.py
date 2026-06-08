@@ -1,9 +1,10 @@
 """The Advisor cockpit: shared bounded inputs → one run → per-module tabs.
 
 Reframes ``/advisor`` from an option page into a multi-module advisory cockpit —
-**Option Strategy**, **FX Carry**, **Tactical Trade Ideas**, and **Roll & Carry
-Calendar** are peer tabs over a single bounded-input run, so Option Strategy is
-one module, not the centre. The Tactical tab additionally exposes an opt-in,
+**Option Strategy**, **FX Hedge Tilt**, **Tactical Trade Ideas**, and **Roll & Carry
+Calendar** are peer *tabs* (but not peers in trust — each suggestion carries a
+decision tier) over a single bounded-input run, so Option Strategy is one module,
+not the centre. The Tactical tab additionally exposes an opt-in,
 read-only **AI brief** (research/synthesis, never orders). The cross-module Inbox
 + decision journal + static snapshot are unchanged.
 """
@@ -29,7 +30,7 @@ from market_helper.trade_advisor.journal import DecisionJournal
 # Cockpit module tab → the advisor keys whose suggestions render in it.
 _MODULES: list[tuple[str, tuple[str, ...]]] = [
     ("Option Strategy", ("option",)),
-    ("FX Carry", ("fx_hedge",)),
+    ("FX Hedge Tilt", ("fx_hedge",)),
     ("Tactical Trade Ideas", ("tactical", "ideas")),
     ("Roll & Carry Calendar", ("roll", "futures_roll")),
 ]

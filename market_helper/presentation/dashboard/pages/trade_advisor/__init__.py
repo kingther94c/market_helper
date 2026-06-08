@@ -1,7 +1,7 @@
 """Trade Advisor dashboard surface (`/advisor`).
 
 The second parallel product line (see ADR 0008 / 0009). A multi-module advisory
-**cockpit** (Option Strategy / FX Carry / Tactical Trade Ideas / Roll & Carry
+**cockpit** (Option Strategy / FX Hedge Tilt / Tactical Trade Ideas / Roll & Carry
 Calendar tabs over one bounded-input run). Split by responsibility:
 
 - `inputs`  — bounded input set + pure context builders (unit-tested).

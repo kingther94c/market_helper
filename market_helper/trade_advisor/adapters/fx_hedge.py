@@ -1,4 +1,4 @@
-"""FX Hedging advisor → umbrella adapter (+ FX Carry Tilt sub-module).
+"""FX Hedging advisor → umbrella adapter (+ FX Hedge Tilt sub-module).
 
 Wraps the existing ``domain/portfolio_monitor/services/fx_hedge_advisor`` two-
 surface engine. In the umbrella it runs **cached** by default (reads the shared
@@ -7,8 +7,9 @@ on-demand ``refresh=True`` force-recomputes (the slow OLS path). Emits the
 uniform :class:`~..contracts.Suggestion` shape:
 
 * a **hedge-target** suggestion (target allocation across CME FX futures), and
-* a **FX Carry Tilt** sub-module suggestion (rank currencies by indicative
-  overnight-rate carry → tilt the hedge toward higher-carry legs).
+* a **FX Hedge Tilt** sub-module suggestion (rank currencies by indicative
+  overnight-rate carry → tilt the hedge toward higher-carry legs). It is a tilt
+  *explorer*, not a carry optimizer — see its ``why_now``.
 
 FX detail rides under non-colliding keys (``fx_legs`` / ``totals`` / ``ranking``)
 so the generic card renders without option-specific assumptions.
@@ -122,14 +123,16 @@ def _carry_tilt_suggestion(
         advisor="fx_hedge",
         suggestion_id="fx_hedge:carry_tilt",
         as_of=as_of,
-        title="FX carry tilt",
+        title="FX hedge tilt (explorer)",
         subject="FX",
-        category="FX_CARRY",
+        category="FX_TILT",
         label=LABEL_WATCHLIST,
         decision_tier=TIER_MODEL_OVERLAY,
         score=0.60,
         thesis=thesis,
-        why_now="Carry rate-approximated from configured overnight-rate differentials vs USD (no forward curve in-repo).",
+        why_now=("A tilt EXPLORER, not a carry optimizer: carry is rate-approximated from configured "
+                 "overnight-rate differentials vs USD. A real carry module needs an FX futures curve, "
+                 "roll yield, and execution cost (none in-repo)."),
         headline_metrics=headline,
         rationale=rationale,
         data_mode=data_mode,

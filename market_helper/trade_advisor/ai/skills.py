@@ -151,9 +151,11 @@ def build_core_knowledge() -> KnowledgeBook:
     kb.register(KnowledgeEntry(
         "cockpit_modules", "Product",
         "The cockpit has four modules: Option Strategy (structures on the base book — zero-cost collar, "
-        "carry shorts), FX Carry (SGD-hedge FX-futures allocation + a bounded carry tilt), Tactical Trade "
-        "Ideas (independent short-term macro/market trades — this AI's home), Roll & Carry Calendar (option "
-        "+ futures rolls, GSCI-like commodity schedules).",
+        "carry shorts), FX Hedge Tilt (a rate-approximated tilt explorer on the SGD-hedge allocation — not "
+        "a carry optimizer), Tactical Trade Ideas (independent short-term macro/market trades — this AI's "
+        "home), Roll & Carry Calendar (option + futures rolls, GSCI-like commodity schedules). The modules "
+        "are NOT peers in trust: each suggestion carries a decision tier (T1 operational > T2 deterministic "
+        "> T3 model-overlay > T4 research).",
         ("product",),
     ))
     return kb

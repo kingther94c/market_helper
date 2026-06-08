@@ -1,7 +1,7 @@
 """`/advisor` registration + page lifecycle (the multi-module Advisor cockpit).
 
 Owns the NiceGUI page handler, the per-page decision journal + cross-module Inbox
-wiring, and the cockpit (Option Strategy / FX Carry / Tactical Trade Ideas /
+wiring, and the cockpit (Option Strategy / FX Hedge Tilt / Tactical Trade Ideas /
 Roll & Carry Calendar tabs). The service singleton lives here and is passed
 explicitly into the cockpit renderer (no shared cross-module global).
 """
