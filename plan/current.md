@@ -198,6 +198,24 @@ tools it called). Verified live: the AI called `get_regime_snapshot` +
 `get_price_trend("SPY")`, used the real results, 0 order leakage. Devplan:
 `docs/architecture/devplans/advisor_ai_capabilities.md`. Suite 805 passed / 1 skipped.
 
+**Trust-framework revision (2026-06-08, from a reviewer critique).** Six changes so
+the cockpit's confidence language matches its evidence: (1) **research-framed labels**
+— PROCEED→`RESEARCH_READY`, MONITOR→`WATCHLIST` (nothing implies "trade"); the
+operator's decision verbs decoupled to **Promote/Watch/Dismiss**. (2) **`decision_tier`**
+on every `Suggestion` — T1 operational (Roll) / T2 deterministic (Option) / T3
+model-overlay (FX) / T4 research (Tactical); `cap_label_for_tier` lets only T1/T2 reach
+RESEARCH_READY, so Tactical + FX + model-only/naked cap at WATCHLIST (shown as a card
+chip). (3) **Tactical scarcity** — `generate_tactical_ideas` caps to top 3 (conviction
+× theme priority) and every idea answers five questions (edge / disqualifier / overlap /
+regime_kill / confirm); the AI prompt enforces both. (4) **Option = risk-explainer** —
+the adapter surfaces scenario P&L (−20/−10/−5/+5/+10%), vol-shock, liquidity, and
+plain-English risk flags; carry shorts framed by tail/margin, not yield. (5) **FX Carry →
+FX Hedge Tilt** (a rate-approx tilt *explorer*, not a carry optimizer). (6) **AI
+reframed** as operationally-safe-not-alpha (the overview HTML now lists what is NOT
+validated: predictive power, risk reduction, crowding, historical-regime efficacy).
+Committed `d4fb31e`→`78848f7`; HTML `data/artifacts/trade_advisor/advisor_overview.html`.
+Suite 811 passed / 1 skipped.
+
 ### Option Strategy (cockpit Module 1)
 
 **State**: **MVP landed + cockpit structures (in progress).** Pure-stdlib
