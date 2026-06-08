@@ -28,7 +28,9 @@ from ..contracts import (
     TIER_MODEL_OVERLAY,
     AdvisorContext,
     AdvisorResult,
+    IdeaAssessment,
     Suggestion,
+    data_quality_for_mode,
 )
 
 
@@ -75,6 +77,9 @@ def _hedge_suggestion(alloc, *, as_of: str, data_mode: str) -> Suggestion:
         },
         rationale="Per-ccy contracts: " + ", ".join(f"{l['currency']} {l['target_contracts']:+d}" for l in legs),
         data_mode=data_mode,
+        assessment=IdeaAssessment(confidence="medium", actionability="watch",
+                                  risk_boundedness="capped", data_quality=data_quality_for_mode(data_mode)),
+        instrument_family="fx",
         body_kind="fx_alloc",
         detail={"hedge_notional_usd": notional, "pair": pair, "fx_legs": legs, "totals": totals},
     )
@@ -136,6 +141,10 @@ def _carry_tilt_suggestion(
         headline_metrics=headline,
         rationale=rationale,
         data_mode=data_mode,
+        assessment=IdeaAssessment(confidence="low", actionability="watch",
+                                  risk_boundedness="capped", data_quality=data_quality_for_mode(data_mode)),
+        instrument_family="fx",
+        missing_data=["FX futures curve", "roll yield", "execution cost"],
         body_kind="fx_carry",
         detail=detail,
     )

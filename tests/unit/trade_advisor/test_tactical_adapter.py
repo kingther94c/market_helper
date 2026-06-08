@@ -44,3 +44,19 @@ def test_adapter_no_signals_is_info(tmp_path):
 
 def test_registered_in_default_registry():
     assert "tactical" in build_default_registry()
+
+
+def test_suggestions_carry_assessment_and_research_fields(tmp_path):
+    p = _snapshot(tmp_path)
+    pred = SimpleNamespace(available=True, top_expert="Reflation", confidence=0.4, sleeve_weights={"CM": 20.0})
+    res = TacticalIdeasPlugin().produce(
+        AdvisorContext(as_of="t"), regime_path=p, prediction=pred,
+        trending=SimpleNamespace(available=False, probabilities={}),
+    )
+    assert res.suggestions
+    for s in res.suggestions:
+        a = s.assessment
+        assert a.actionability == "watch"               # research-tier never act_now from a rule anchor
+        assert a.confidence in ("high", "medium", "low")
+        assert a.data_quality in ("recent", "stale")     # regime / regime+model
+        assert s.instrument_family and s.risk and s.invalidation and s.portfolio_interaction

@@ -25,10 +25,34 @@ from ..contracts import (
     AdvisorContext,
     AdvisorResult,
     AuditEntry,
+    IdeaAssessment,
     Suggestion,
+    data_quality_for_mode,
 )
 
 _CONF_SCORE = {"High": 0.62, "Medium": 0.50, "Low": 0.40}
+_CONF_AXIS = {"High": "high", "Medium": "medium", "Low": "low"}
+_TACTICAL_FAMILY = {
+    "SHORT_USD": "fx", "STEEPENER": "rates_curve", "SECTOR_ROTATION": "equity_rotation",
+    "CM_RV": "commodity_rv", "SHORT_VIX": "volatility", "RISK_OFF": "volatility", "TREND": "equity_beta",
+}
+
+
+def _tactical_assessment(idea) -> IdeaAssessment:
+    """Honest multi-axis read of a rule anchor — research-tier, so never act_now."""
+    expr = (idea.expression or "").lower()
+    bounded = "capped" if ("spread" in expr or "call spread" in expr or "put spread" in expr) else "undefined"
+    return IdeaAssessment(
+        confidence=_CONF_AXIS.get(idea.confidence, "low"),
+        actionability="watch",   # a research hypothesis is studied, not acted on, from the rule layer
+        risk_boundedness=bounded,
+        data_quality=data_quality_for_mode(idea.data_mode),
+        notes={
+            "confidence": idea.why_now,
+            "risk_boundedness": "defined-risk expression" if bounded == "capped" else "directional macro — size the loss yourself",
+            "actionability": "T4 research hypothesis — pressure-test before acting",
+        },
+    )
 
 
 class TacticalIdeasPlugin:
@@ -106,6 +130,13 @@ class TacticalIdeasPlugin:
             },
             audit=audit,
             data_mode=idea.data_mode,
+            assessment=_tactical_assessment(idea),
+            instrument_family=_TACTICAL_FAMILY.get(idea.theme, "macro"),
+            evidence=list(idea.evidence),
+            risk=idea.regime_kill or idea.invalidation,
+            invalidation=idea.invalidation,
+            portfolio_interaction=idea.overlap,
+            journal_note=f"Edge: {idea.edge or '—'}. Confirm: {idea.confirm or '—'}.",
             body_kind="tactical",
             detail=idea.as_detail(),
         )

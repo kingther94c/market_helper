@@ -19,6 +19,7 @@ from ..contracts import (
     AdvisorContext,
     AdvisorResult,
     AuditEntry,
+    IdeaAssessment,
     Suggestion,
 )
 
@@ -140,6 +141,14 @@ class RollReminderPlugin:
             headline_metrics=metrics,
             audit=audit,
             data_mode="portfolio",
+            assessment=IdeaAssessment(
+                confidence="high",                          # a deterministic expiry/DTE fact
+                actionability="act_now" if label == LABEL_RESEARCH_READY else "watch",
+                risk_boundedness="defined",                 # rolling is a known operation
+                data_quality="recent",
+            ),
+            instrument_family="option_roll",
+            invalidation=why,
             body_kind="roll",
             detail={
                 "underlying": underlying, "right": right, "strike": strike, "expiry": expiry,

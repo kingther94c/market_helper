@@ -25,6 +25,7 @@ from ..contracts import (
     AdvisorContext,
     AdvisorResult,
     AuditEntry,
+    IdeaAssessment,
     Suggestion,
 )
 
@@ -103,6 +104,14 @@ class FuturesRollPlugin:
             },
             audit=audit,
             data_mode="portfolio",
+            assessment=IdeaAssessment(
+                confidence="high",                              # a deterministic schedule fact
+                actionability="act_now" if it.label == "PROCEED" else "watch",
+                risk_boundedness="defined",
+                data_quality="recent",
+            ),
+            instrument_family="futures_roll",
+            invalidation=it.why,
             body_kind="futures_roll",
             detail=it.as_detail(),
         )

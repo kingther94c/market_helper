@@ -69,17 +69,68 @@ class Sizing:
     notes: str = ""
 
 
+# The four assessment axes are kept SEPARATE on purpose — a single score or label must
+# never stand in for them. They are orthogonal: a high-confidence signal can be
+# un-actionable today; a well-defined risk can rest on stale data. Levels are ordered
+# best→worst (so a UI can colour them) but are NEVER summed into one number.
+CONFIDENCE_LEVELS = ("high", "medium", "low", "speculative")              # signal credibility
+ACTIONABILITY_LEVELS = ("act_now", "staged", "watch", "parked")           # suitable to ACT now?
+RISK_BOUNDEDNESS_LEVELS = ("defined", "capped", "undefined")              # is the loss definable?
+DATA_QUALITY_LEVELS = ("live", "recent", "stale", "synthetic", "missing")  # is the data sufficient?
+
+
+@dataclass(frozen=True)
+class IdeaAssessment:
+    """Four orthogonal judgement axes — never collapsed into one number.
+
+    Defaults are deliberately conservative (low / watch / undefined / synthetic): an idea
+    is low-trust until an advisor proves otherwise. ``notes`` carries an optional one-line
+    rationale per axis.
+    """
+
+    confidence: str = "low"
+    actionability: str = "watch"
+    risk_boundedness: str = "undefined"
+    data_quality: str = "synthetic"
+    notes: dict[str, str] = field(default_factory=dict)
+
+
+# data_mode (how real the inputs are) → the data_quality axis. Conservative by default.
+_DATA_QUALITY_BY_MODE = {
+    "live_chain": "live", "live_anchored": "recent", "live": "live",
+    "fresh": "recent", "regime+model": "recent", "portfolio": "recent",
+    "cached": "stale", "regime": "stale", "stale": "stale",
+    "user_override": "synthetic", "synthetic": "synthetic", "missing": "missing",
+}
+
+
+def data_quality_for_mode(data_mode: str) -> str:
+    """Map a ``data_mode`` to the IdeaAssessment ``data_quality`` axis (best→worst ladder)."""
+    dm = (data_mode or "").strip().lower()
+    for prefix, quality in _DATA_QUALITY_BY_MODE.items():
+        if dm.startswith(prefix):
+            return quality
+    return "synthetic"
+
+
 @dataclass(frozen=True)
 class Suggestion:
-    """One advisor output, uniform across advisor types."""
+    """One advisor output — the **AdvisorIdea v1** contract, uniform across advisors.
 
-    advisor: str                          # producing advisor key, e.g. "option"
-    suggestion_id: str
+    Beyond the single ``label`` / ``score`` it carries an :class:`IdeaAssessment` (four
+    orthogonal axes — confidence · actionability · risk_boundedness · data_quality) plus
+    the research fields (risk / invalidation / missing_data / portfolio_interaction /
+    review_after / journal_note). ``idea_id`` and ``module`` are the canonical AdvisorIdea
+    field names (aliases of ``suggestion_id`` / ``advisor``).
+    """
+
+    advisor: str                          # producing advisor key, e.g. "option" (a.k.a. module)
+    suggestion_id: str                    # a.k.a. idea_id
     as_of: str
     title: str                            # headline, e.g. "COLLAR · SPY"
     subject: str                          # what it's about: symbol / ccy / account
     category: str                         # advisor-specific bucket (INCOME/HEDGE/…)
-    label: str = LABEL_WATCHLIST          # RESEARCH_READY | WATCHLIST | INFO | REJECT
+    label: str = LABEL_WATCHLIST          # RESEARCH_READY | WATCHLIST | INFO | REJECT — triage, NOT a substitute for the assessment
     decision_tier: str = ""               # T1 operational · T2 deterministic · T3 model-overlay · T4 research
     score: float = 0.0
     thesis: str = ""
@@ -89,9 +140,29 @@ class Suggestion:
     drivers: list[tuple[str, float]] = field(default_factory=list)
     audit: list[AuditEntry] = field(default_factory=list)
     data_mode: str = ""                   # live / live_anchored / synthetic / user_override / cached / stale
+    # --- AdvisorIdea v1: multi-dimensional assessment + research fields ---
+    assessment: IdeaAssessment = field(default_factory=IdeaAssessment)
+    instrument_family: str = ""           # rates_curve | equity_dispersion | fx | commodity_convexity | vol | …
+    evidence: list[str] = field(default_factory=list)       # human-facing supporting points
+    risk: str = ""                        # the principal risk / where it loses
+    invalidation: str = ""                # what observable would prove it wrong
+    missing_data: list[str] = field(default_factory=list)   # data that is absent (feeds data_quality honesty)
+    portfolio_interaction: str = ""       # overlap / conflict with the existing book
+    review_after: list[str] = field(default_factory=list)   # ex-ante review dates (ISO) — 30/60/90
+    journal_note: str = ""                # ex-ante note carried into the decision journal
     sizing: Sizing | None = None
     body_kind: str = "generic"            # which detail renderer the UI should use
     detail: dict = field(default_factory=dict)  # JSON-serializable advisor-specific payload
+
+    @property
+    def idea_id(self) -> str:
+        """Canonical AdvisorIdea name (alias of ``suggestion_id``)."""
+        return self.suggestion_id
+
+    @property
+    def module(self) -> str:
+        """Canonical AdvisorIdea name (alias of ``advisor``)."""
+        return self.advisor
 
 
 @dataclass(frozen=True)

@@ -17,6 +17,7 @@ from ..contracts import (
     TIER_RESEARCH,
     AdvisorContext,
     AdvisorResult,
+    IdeaAssessment,
     Suggestion,
 )
 
@@ -81,7 +82,11 @@ class TradeIdeasAdvisorPlugin:
                     "or auto-execution (ADR 0006); compare against your current sleeve weights."
                 ),
                 headline_metrics=metrics,
-                data_mode="regime", body_kind="ideas",
+                data_mode="regime",
+                assessment=IdeaAssessment(confidence="low", actionability="watch",
+                                          risk_boundedness="undefined", data_quality="stale"),
+                instrument_family="allocation_tilt",
+                body_kind="ideas",
                 detail={"regime": regime, "asset_class_targets": targets, "vol_multiplier": vol_mult, "notes": notes},
             )],
             meta={"regime": regime},

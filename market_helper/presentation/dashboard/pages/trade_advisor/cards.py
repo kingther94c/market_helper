@@ -441,6 +441,20 @@ def _render_card(s: Suggestion, journal: DecisionJournal, on_decision) -> None:
             ui.label(s.thesis).classes("text-body2")
         if s.why_now:
             ui.label(f"Why now: {s.why_now}").classes("text-caption pm-muted")
+        a = s.assessment
+        ui.label(
+            f"confidence {a.confidence} · actionability {a.actionability} · "
+            f"risk {a.risk_boundedness} · data {a.data_quality}"
+        ).classes("text-caption pm-muted").tooltip(
+            "Four orthogonal axes — never one score: signal credibility · act-now suitability · "
+            "is the loss bounded · is the data sufficient/fresh."
+        )
+        if s.risk:
+            ui.label(f"Risk: {s.risk}").classes("text-caption")
+        if s.invalidation:
+            ui.label(f"Invalidation: {s.invalidation}").classes("text-caption pm-muted")
+        if s.portfolio_interaction:
+            ui.label(f"Portfolio: {s.portfolio_interaction}").classes("text-caption pm-muted")
         with ui.expansion(_BODY_TITLE.get(s.body_kind, "Detail · audit")).classes("w-full"):
             detail = s.detail or {}
             _render_detail_body(s, detail)

@@ -24,10 +24,14 @@ from ..contracts import (
     AdvisorContext,
     AdvisorResult,
     AuditEntry,
+    IdeaAssessment,
     Sizing,
     Suggestion,
     cap_label_for_tier,
+    data_quality_for_mode,
 )
+
+_CONF_BY_ENGINE = {"PROCEED": "high", "MONITOR": "medium", "REJECT": "low", "INFO": "low"}
 
 # Map the option ENGINE's internal labels onto the cockpit's research-framed vocabulary.
 # The engine emits PROCEED only on a live chain with all hard filters passed and a real
@@ -145,7 +149,30 @@ def _headline_metrics(idea: OptionIdea) -> dict[str, str]:
     return m
 
 
+def _option_assessment(idea: OptionIdea, data_mode: str, facing_label: str, flags: list[str]) -> IdeaAssessment:
+    naked = any("Undefined left-tail" in f for f in flags)
+    confidence = _CONF_BY_ENGINE.get(idea.label, "low")
+    if idea.data_status == "model_only" and confidence == "high":
+        confidence = "medium"   # model-only is never high-confidence
+    return IdeaAssessment(
+        confidence=confidence,
+        actionability="staged" if facing_label == LABEL_RESEARCH_READY else ("watch" if facing_label == LABEL_WATCHLIST else "parked"),
+        risk_boundedness="undefined" if naked else "defined",
+        data_quality=data_quality_for_mode(data_mode),
+        notes={
+            "risk_boundedness": flags[0] if naked else "Defined-risk structure (bounded max loss).",
+            "data_quality": f"chain: {idea.data_status}",
+        },
+    )
+
+
 def suggestion_from_idea(idea: OptionIdea, data_mode: str) -> Suggestion:
+    facing = cap_label_for_tier(_LABEL_MAP.get(idea.label, LABEL_WATCHLIST), TIER_DETERMINISTIC)
+    flags = _risk_flags(idea)
+    invalidation = (
+        "Breakevens " + ", ".join(f"{b:g}" for b in idea.est_breakevens) if idea.est_breakevens
+        else "Adverse move past the structure's wings / floor."
+    )
     return Suggestion(
         advisor="option",
         suggestion_id=idea.idea_id,
@@ -153,7 +180,7 @@ def suggestion_from_idea(idea: OptionIdea, data_mode: str) -> Suggestion:
         title=f"{idea.structure_type} · {idea.underlying_symbol}",
         subject=idea.underlying_symbol,
         category=idea.category,
-        label=cap_label_for_tier(_LABEL_MAP.get(idea.label, LABEL_WATCHLIST), TIER_DETERMINISTIC),
+        label=facing,
         decision_tier=TIER_DETERMINISTIC,
         score=idea.score,
         thesis=idea.thesis,
@@ -163,6 +190,11 @@ def suggestion_from_idea(idea: OptionIdea, data_mode: str) -> Suggestion:
         drivers=list(idea.drivers),
         audit=[AuditEntry(f.filter_name, f.passed, f.severity, f.detail) for f in idea.filters_applied],
         data_mode=data_mode,
+        assessment=_option_assessment(idea, data_mode, facing, flags),
+        instrument_family="option_structure",
+        risk="; ".join(flags) if flags else (f"Max loss {idea.est_max_loss:,.0f}" if idea.est_max_loss is not None else ""),
+        invalidation=invalidation,
+        portfolio_interaction="Overlay on the base position — net against existing exposure before sizing.",
         sizing=_sizing_from(idea),
         body_kind="option_payoff",
         detail={**asdict(idea), "risk": _risk_block(idea)},

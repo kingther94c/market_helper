@@ -14,8 +14,10 @@ from .contracts import (
     AdvisorContext,
     AdvisorResult,
     AuditEntry,
+    IdeaAssessment,
     Sizing,
     Suggestion,
+    data_quality_for_mode,
 )
 from .registry import AdvisorRegistry, build_default_registry
 
@@ -23,8 +25,10 @@ __all__ = [
     "AdvisorContext",
     "AdvisorResult",
     "AuditEntry",
+    "IdeaAssessment",
     "Sizing",
     "Suggestion",
+    "data_quality_for_mode",
     "AdvisorRegistry",
     "build_default_registry",
 ]
