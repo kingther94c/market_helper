@@ -106,6 +106,7 @@ class TacticalIdeasPlugin:
                     advisor=self.key, suggestion_id="tactical:error", as_of=as_of,
                     title="Tactical ideas unavailable", subject="Macro", category="TACTICAL",
                     label=LABEL_INFO, decision_tier=TIER_RESEARCH,
+                    assessment=IdeaAssessment(actionability="parked", data_quality="missing"),
                     thesis="Could not assemble the tactical context.",
                     why_now="Run the regime report to populate the snapshot.", body_kind="tactical",
                 )],
@@ -129,6 +130,7 @@ class TacticalIdeasPlugin:
                     advisor=self.key, suggestion_id="tactical:none", as_of=as_of,
                     title="No tactical signals fired", subject="Macro", category="TACTICAL",
                     label=LABEL_INFO, decision_tier=TIER_RESEARCH,
+                    assessment=IdeaAssessment(actionability="parked", data_quality=data_quality_for_mode(data_mode)),
                     thesis="The current regime/context did not trigger a grounded tactical anchor.",
                     why_now=f"regime={ctx.regime or '?'}; sources={', '.join(ctx.sources) or 'regime defaults'}.",
                     body_kind="tactical",
@@ -151,13 +153,18 @@ class TacticalIdeasPlugin:
         evidence = [v for v in (card.get("signal sketch"), card.get("universe & data"),
                                 card.get("return source & orthogonality")) if v]
         conv = card.scores.get("conviction-today") or card.scores.get("conviction") or 3
-        status = (card.status + " " + card.get("trigger")).lower()
-        actionability = (
-            "parked" if ("raw" in card.status.lower() or "park" in status or "not today" in status or "watchlist" in status)
-            else ("staged" if ("act" in card.status.lower() or "monday" in status or "now" in status or "open" in status)
-                  else "watch")
-        )
-        expr = (card.get("retail expression") + " " + card.get("risk")).lower()
+        st = card.status.lower()
+        trig = card.get("trigger").lower()
+        # Word-boundary matches so "nowhere"/"known"/"inactive"/"reopening" don't false-trigger.
+        if re.search(r"\braw\b", st) or re.search(r"\b(park|watchlist)\b", trig) or "not today" in trig:
+            actionability = "parked"
+        elif re.search(r"\bact\b", st) or re.search(r"\b(now|monday)\b", trig) or "open the" in trig or "put on" in trig:
+            actionability = "staged"      # external research → staged at most, never act_now
+        else:
+            actionability = "watch"
+        # Scan only the EXPRESSION for defined-risk wording — not the risk prose, where a bare
+        # "spread" (e.g. "the bid/ask spread is wide") would mislabel a directional macro trade.
+        expr = card.get("retail expression").lower()
         bounded = "capped" if ("defined-risk" in expr or "defined debit" in expr or "spread" in expr) else "undefined"
         return Suggestion(
             advisor=self.key,

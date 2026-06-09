@@ -120,10 +120,14 @@ def _render_tactical_ai() -> None:
                 reg = build_tactical_tool_registry()
                 return tactical_tool_messages(ctx, generate_tactical_ideas(ctx), reg), reg
 
-            messages, reg = await asyncio.to_thread(_build)
-            convo["reg"] = reg
-            await _ask(messages)
-            gen_btn.enable()
+            try:
+                messages, reg = await asyncio.to_thread(_build)
+                convo["reg"] = reg
+                await _ask(messages)
+            except Exception as exc:  # noqa: BLE001 — the Generate button must never wedge disabled
+                _explain(f"Could not build the tactical brief: {type(exc).__name__}: {str(exc)[:160]}")
+            finally:
+                gen_btn.enable()
 
         async def send_feedback() -> None:
             fb = (fb_in.value or "").strip()

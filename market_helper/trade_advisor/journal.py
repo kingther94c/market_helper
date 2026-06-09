@@ -75,7 +75,7 @@ def review_dates(ts: str, days: tuple[int, ...] = DEFAULT_REVIEW_DAYS) -> list[s
     """ISO review dates at ts + N days (empty if ts is unparseable)."""
     try:
         base = date.fromisoformat(str(ts)[:10])
-    except ValueError:
+    except (ValueError, TypeError):
         return []
     return [(base + timedelta(days=int(n))).isoformat() for n in days]
 

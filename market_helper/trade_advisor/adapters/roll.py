@@ -69,6 +69,8 @@ class RollReminderPlugin:
                         advisor=self.key, suggestion_id="roll:none", as_of=as_of,
                         title="No option positions to manage", subject="—", category="ROLL",
                         label=LABEL_INFO, decision_tier=TIER_OPERATIONAL,
+                        assessment=IdeaAssessment(confidence="high", actionability="parked",
+                                                  risk_boundedness="defined", data_quality="recent"),
                         thesis="No held option positions were found.",
                         why_now="Load your portfolio (held options) to see roll reminders.",
                         body_kind="roll",

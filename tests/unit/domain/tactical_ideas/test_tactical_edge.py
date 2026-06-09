@@ -85,3 +85,42 @@ def test_adapter_maps_edge_cards_to_advisor_ideas():
 def test_load_is_graceful_without_root():
     date, cards = load_tactical_edge(root="")     # no root → never raises, no cards
     assert date == "" and cards == []
+
+
+# --- review follow-ups: parser robustness ---
+
+def test_status_less_card_heading_is_not_dropped():
+    md = ("# Tactical Edge Daily — 2026-06-08\n\n"
+          "### #1. A clean macro idea with no status suffix\n\n"
+          "- **Mechanism**: it works because X.\n"
+          "- **Scores**: Conviction-today 4/5\n")
+    _, cards = parse_tactical_edge(md)
+    assert len(cards) == 1
+    assert cards[0].title == "A clean macro idea with no status suffix" and cards[0].status == ""
+    assert cards[0].scores["conviction-today"] == 4
+
+
+def test_scores_multidigit_and_out_of_range_dropped():
+    md = ("# t — d\n\n### #1. T — Developing\n\n"
+          "- **Scores**: Novelty 10/5 · Mechanism 0/5 · Tradability 4/5 · Conviction-today 7/5\n")
+    _, cards = parse_tactical_edge(md)
+    assert cards[0].scores == {"tradability": 4}   # 10 / 0 / 7 are out of the 1-5 scale → dropped
+
+
+def test_mid_card_subheading_does_not_orphan_fields():
+    md = ("# t — d\n\n### #1. T — Developing\n\n"
+          "- **Mechanism**: m.\n"
+          "### Notes (a non-card sub-heading)\n"
+          "- **Risk / stop**: r.\n")
+    _, cards = parse_tactical_edge(md)
+    assert len(cards) == 1
+    assert cards[0].get("mechanism") == "m." and cards[0].get("risk") == "r."
+
+
+def test_load_is_graceful_on_non_utf8(tmp_path):
+    d = tmp_path / "Tactical_Edge"
+    d.mkdir()
+    # \x96 is a cp1252 en-dash — invalid UTF-8; errors="replace" must keep the run alive.
+    (d / "latest.md").write_bytes(b"# Tactical Edge Daily 2026\n\n### #1. T \x96 Developing\n\n- **Mechanism**: ok.\n")
+    _, cards = load_tactical_edge(root=str(tmp_path))
+    assert len(cards) == 1 and cards[0].get("mechanism") == "ok."

@@ -570,33 +570,12 @@ def _render_card(s: Suggestion, journal: DecisionJournal, on_decision) -> None:
 
 
 def _render_module(box, suggestions: list[Suggestion], journal: DecisionJournal, on_decision, *, empty_note: str = "") -> None:
-    """Render one cockpit module's suggestions as cards (PROCEED → MONITOR → INFO → REJECT)."""
+    """Render one cockpit module's suggestions as cards (RESEARCH_READY → WATCHLIST → INFO → REJECT)."""
     box.clear()
     with box:
         ordered = sorted(suggestions, key=lambda s: (LABEL_ORDER.get(s.label, 9), -s.score))
         if not ordered:
             ui.label(empty_note or "No ideas for these inputs yet — run the advisor.").classes("text-caption pm-muted")
-            return
-        for suggestion in ordered:
-            _render_card(suggestion, journal, on_decision)
-
-
-def _render_results(box, run_result, journal: DecisionJournal, on_decision) -> None:
-    box.clear()
-    with box:
-        modes = sorted({r.data_mode for r in run_result.results.values() if r.data_mode})
-        ui.label(f"data mode: {', '.join(modes) or 'n/a'} · ideas advisory only — not orders").classes("text-caption pm-muted")
-        warnings = run_result.warnings()
-        if warnings:
-            with ui.card().classes("w-full pm-card"):
-                ui.label("Warnings").classes("text-subtitle2")
-                for w in warnings[:10]:
-                    ui.label(f"• {w}").classes("text-caption")
-        # Render every advisor's output, PROCEED → MONITOR → INFO → REJECT, so the
-        # operator sees that each advisor ran (even when it has nothing actionable).
-        ordered = sorted(run_result.all_suggestions(), key=lambda s: (LABEL_ORDER.get(s.label, 9), -s.score))
-        if not ordered:
-            ui.label("No ideas generated for these inputs.").classes("text-caption")
             return
         for suggestion in ordered:
             _render_card(suggestion, journal, on_decision)

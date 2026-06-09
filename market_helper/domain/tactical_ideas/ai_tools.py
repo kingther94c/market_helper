@@ -94,6 +94,22 @@ def build_tactical_tool_registry(*, regime_path=None) -> AiToolRegistry:
         out = realized_vol_and_trend(str(symbol).upper())
         return out if isinstance(out, dict) else {"result": out}
 
+    @reg.tool(
+        "get_tactical_edge",
+        "The external daily Tactical Edge research brief — independent idea cards (title, status, mechanism, "
+        "Skeptic's view, conviction score). Pull this to reconcile your read against it, or to fade it.",
+        _NO_PARAMS,
+    )
+    def get_tactical_edge() -> list:
+        from .tactical_edge import load_tactical_edge
+
+        _, cards = load_tactical_edge()  # offline + graceful; [] when the brief is absent
+        return [
+            {"number": c.number, "title": c.title, "status": c.status, "mechanism": c.get("mechanism"),
+             "skeptic": c.get("skeptic's view"), "expression": c.get("retail expression"), "scores": dict(c.scores)}
+            for c in cards
+        ]
+
     return reg
 
 

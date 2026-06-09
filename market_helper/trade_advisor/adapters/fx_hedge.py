@@ -157,6 +157,7 @@ def _missing(as_of: str, why: str, warnings: list[str]) -> AdvisorResult:
             advisor="fx_hedge", suggestion_id="fx_hedge:missing", as_of=as_of,
             title="FX hedge allocation not available", subject="FX", category="FX_HEDGE",
             label=LABEL_INFO, decision_tier=TIER_MODEL_OVERLAY,
+            assessment=IdeaAssessment(actionability="parked", risk_boundedness="undefined", data_quality="missing"),
             thesis="No cached FX hedge allocation found.", why_now=why, body_kind="fx_alloc",
         )],
     )

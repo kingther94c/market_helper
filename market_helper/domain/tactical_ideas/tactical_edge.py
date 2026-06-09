@@ -18,11 +18,22 @@ import re
 from dataclasses import dataclass, field
 from pathlib import Path
 
-# Title may itself contain em-dashes; the STATUS is the last " — …" segment → greedy title.
-_CARD_RE = re.compile(r"^###\s+#(\d+)\.\s+(.*)\s+[—–-]\s+(.*?)\s*$")
+# A card heading is "### #N. <title>" with an OPTIONAL " — <status>" suffix; the title may
+# itself contain em-dashes, so the status is split off the LAST separator in code (status optional,
+# so a heading without one is still a card, not silently dropped).
+_CARD_RE = re.compile(r"^###\s+#(\d+)\.\s+(.+?)\s*$")
+_SEP_RE = re.compile(r"\s+[—–-]\s+")
 _FIELD_RE = re.compile(r"^[-*]\s+\*\*(.+?)\*\*\s*[:：]\s*(.*)$")
 _DATE_RE = re.compile(r"Tactical Edge Daily\s*[—–-]\s*(\S+)")
-_SCORE_RE = re.compile(r"([A-Za-z][A-Za-z\- ]*?)\s+(\d)\s*/\s*5")
+_SCORE_RE = re.compile(r"([A-Za-z][A-Za-z\- ]*?)\s+(\d+)\s*/\s*5")
+
+
+def _split_title_status(rest: str) -> tuple[str, str]:
+    """Split a card heading into (title, status); status is the last ' — …' segment, or ''."""
+    parts = _SEP_RE.split(rest)
+    if len(parts) >= 2:
+        return " — ".join(p.strip() for p in parts[:-1]), parts[-1].strip()
+    return rest.strip(), ""
 
 
 def _norm(label: str) -> str:
@@ -52,7 +63,12 @@ class TacticalEdgeCard:
 
 
 def _parse_scores(text: str) -> dict[str, int]:
-    return {m.group(1).strip().lower(): int(m.group(2)) for m in _SCORE_RE.finditer(text)}
+    out: dict[str, int] = {}
+    for m in _SCORE_RE.finditer(text):
+        value = int(m.group(2))
+        if 1 <= value <= 5:                      # /5 scale — drop out-of-range / garbage
+            out[m.group(1).strip().lower()] = value
+    return out
 
 
 def parse_tactical_edge(md: str) -> tuple[str, list[TacticalEdgeCard]]:
@@ -77,11 +93,12 @@ def parse_tactical_edge(md: str) -> tuple[str, list[TacticalEdgeCard]]:
         card_match = _CARD_RE.match(line)
         if card_match:
             flush()
-            cur = (int(card_match.group(1)), card_match.group(2).strip(), card_match.group(3).strip())
+            title, status = _split_title_status(card_match.group(2))
+            cur = (int(card_match.group(1)), title, status)
             continue
         if cur is None:
             continue
-        if line.startswith("## ") or line.startswith("### "):
+        if line.startswith("## "):       # a top-level section ends the cards; a non-card "### " does NOT
             flush()
             continue
         field_match = _FIELD_RE.match(line)
@@ -111,7 +128,8 @@ def load_tactical_edge(root: str | Path | None = None) -> tuple[str, list[Tactic
     if path is None or not path.is_file():
         return "", []
     try:
-        return parse_tactical_edge(path.read_text(encoding="utf-8"))
+        # errors="replace": a mis-encoded external brief must never crash the tactical run.
+        return parse_tactical_edge(path.read_text(encoding="utf-8", errors="replace"))
     except OSError:
         return "", []
 

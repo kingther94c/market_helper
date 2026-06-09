@@ -29,6 +29,7 @@ def _info(as_of: str, why: str) -> AdvisorResult:
             advisor="ideas", suggestion_id="ideas:no_regime", as_of=as_of,
             title="Set a regime for allocation tilts", subject="Portfolio", category="TILT",
             label=LABEL_INFO, decision_tier=TIER_RESEARCH,
+            assessment=IdeaAssessment(actionability="parked", data_quality="missing"),
             thesis="No regime selected (or unknown).", why_now=why, body_kind="ideas",
         )],
     )
