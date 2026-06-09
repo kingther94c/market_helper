@@ -81,6 +81,7 @@ def build_fx_exposure() -> dict:
         "by_currency": exp["by_currency"],
         "total_usd": exp["total_usd"],
         "as_of": exp["as_of"],
+        "lookthrough": exp.get("lookthrough", False),
     }
 
 
@@ -151,10 +152,11 @@ def _render_decision_panel() -> None:
             ui.label("2 · Current FX exposure").classes("text-subtitle2")
             _ui_table(exp["headers"], exp["rows"])
             top = exp["by_currency"][0]
+            method = "country lookthrough" if exp.get("lookthrough") else "listing currency"
             ui.label(
-                f"Largest: {top[0]} ${top[1]:,.0f} ({top[2] * 100:.0f}%) of ${exp['total_usd']:,.0f} gross. "
-                "Coarse: listing/settlement currency (FX futures → economic ccy); a USD-listed ex-US fund still "
-                "counts as USD — deeper risk-currency lookthrough pending."
+                f"Largest: {top[0]} ${top[1]:,.0f} ({top[2] * 100:.0f}%) of ${exp['total_usd']:,.0f} gross · via {method}. "
+                "Equities are looked through to underlying-country currencies (FX futures → economic ccy). Bucket-level: "
+                "DM-EUME folds GBP/CHF into EUR; symbols not in the lookthrough fall back to their listing currency."
             ).classes("text-caption pm-muted")
         else:
             ph = fx_exposure_placeholder()

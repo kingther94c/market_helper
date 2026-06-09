@@ -81,15 +81,58 @@ def _currency_of_risk(iid: str, symbol: str, currency: str) -> str:
     return (currency or "?").strip().upper() or "?"
 
 
-def currency_exposure_from_positions_csv(path: str | Path | None = None) -> dict:
-    """Per-currency economic exposure of the live book (coarse lookthrough).
+def _currency_weights_for_row(iid: str, symbol: str, currency: str, *, manual, taxonomy) -> list[tuple[str, float]]:
+    """``[(currency, weight), …]`` (weights sum to 1) for one position row.
+
+    Equity rows are looked *through* to their underlying-country currencies via the
+    country lookthrough (the deeper FX exposure); any uncovered remainder falls back to
+    the listing currency. FX futures + cash/bonds keep their currency-of-risk.
+    """
+    if iid.startswith("STK:") and manual is not None:
+        from market_helper.domain.portfolio_monitor.services.currency_lookthrough import (
+            symbol_currency_weights,
+        )
+
+        weights = symbol_currency_weights(symbol, manual=manual, taxonomy=taxonomy)
+        if weights:
+            covered = sum(w for _c, w in weights)
+            out = list(weights)
+            if covered < 0.999:  # honest gap-fill: unresearched remainder → listing currency
+                out.append((_currency_of_risk(iid, symbol, currency), 1.0 - covered))
+            return out
+    return [(_currency_of_risk(iid, symbol, currency), 1.0)]
+
+
+def currency_exposure_from_positions_csv(
+    path: str | Path | None = None,
+    *,
+    lookthrough: bool = True,
+    manual: dict | None = None,
+    taxonomy: dict | None = None,
+) -> dict:
+    """Per-currency economic exposure of the live book.
 
     Sums ``|market_value|`` by currency-of-risk across stock / cash / futures rows
-    (options are overlays — excluded). FX futures count toward the foreign currency
-    they track. Returns ``{"by_currency": [(ccy, usd, weight), …] desc, "total_usd",
-    "as_of", "n_positions"}``; empty when the file is missing.
+    (options excluded). FX futures count toward the foreign currency they track. With
+    ``lookthrough`` (default), equities are looked *through* to their underlying-country
+    currencies via the country lookthrough — so a USD-listed ex-US fund contributes
+    JPY/EUR/AUD/… rather than all USD. ``manual`` / ``taxonomy`` are injectable for tests;
+    when omitted (and ``lookthrough``) the maintained country lookthrough CSVs are loaded.
+    Returns ``{"by_currency": [(ccy, usd, weight), …] desc, "total_usd", "as_of",
+    "n_positions", "lookthrough": bool}``; empty when the file is missing.
     """
     csv_path = Path(path) if path else DEFAULT_POSITIONS_CSV
+    if lookthrough and manual is None:
+        from market_helper.domain.portfolio_monitor.services.currency_lookthrough import (
+            load_country_manual,
+            load_country_taxonomy,
+        )
+
+        manual = load_country_manual()
+        taxonomy = taxonomy if taxonomy is not None else load_country_taxonomy()
+    if not lookthrough:
+        manual = None
+
     by_ccy: dict[str, float] = {}
     total = 0.0
     as_of = ""
@@ -104,9 +147,13 @@ def currency_exposure_from_positions_csv(path: str | Path | None = None) -> dict
                 if not mv:
                     continue
                 as_of = as_of or (row.get("as_of") or "")
-                ccy = _currency_of_risk(iid, (row.get("symbol") or "").strip(), row.get("currency") or "")
-                by_ccy[ccy] = by_ccy.get(ccy, 0.0) + abs(mv)
-                total += abs(mv)
+                amt = abs(mv)
+                for ccy, weight in _currency_weights_for_row(
+                    iid, (row.get("symbol") or "").strip(), row.get("currency") or "",
+                    manual=manual, taxonomy=taxonomy,
+                ):
+                    by_ccy[ccy] = by_ccy.get(ccy, 0.0) + amt * weight
+                total += amt
                 n += 1
     ranked = sorted(by_ccy.items(), key=lambda kv: kv[1], reverse=True)
     return {
@@ -114,6 +161,7 @@ def currency_exposure_from_positions_csv(path: str | Path | None = None) -> dict
         "total_usd": round(total, 2),
         "as_of": as_of,
         "n_positions": n,
+        "lookthrough": bool(manual is not None),
     }
 
 

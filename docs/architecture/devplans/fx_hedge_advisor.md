@@ -72,11 +72,13 @@ network-free.
 
 ## Backlog / not in V1
 
-- **Current FX exposure lookthrough** — a *coarse* version landed for the Trade
-  Advisor **FX Hedge decision panel** (`application/trade_advisor/portfolio.py`
-  `currency_exposure_from_positions_csv`: FX futures → economic ccy, else quote ccy,
-  options excluded). **Open refinement:** look a USD-listed ex-US fund through to its
-  underlying-asset currencies (today it counts as USD). See
+- **Current FX exposure lookthrough** — **landed (deeper).** Shared domain service
+  `domain/portfolio_monitor/services/currency_lookthrough.py` maps the country
+  lookthrough → currency (bucket-level), consumed by **both** the monitor risk report
+  (EQ Currency Exposure) and the Trade Advisor FX Hedge panel
+  (`currency_exposure_from_positions_csv`, `lookthrough=True`): FX futures → economic
+  ccy, equities → underlying-country currencies, else listing ccy. Open refinements:
+  single-name domicile currency; splitting DM-EUME into EUR/GBP/CHF. See
   [`trade_advisor.md`](trade_advisor.md) §5.2.
 - Second-order cross-currency (hedge-leg USD-P&L → SGD) term.
 - Margin / transaction-cost / carry optimisation.

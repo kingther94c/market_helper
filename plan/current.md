@@ -111,10 +111,22 @@ new `pages/trade_advisor/modules/` (option/fx_hedge/tactical/roll) + reusable
 FX futures → economic ccy; real book = USD 74% + AUD/EUR/GBP tilts); option scan
 wired to `security_universe.csv`. Two incidental fixes: a Tactical-Edge `scores`
 render crash, and the 181 MB `regime_snapshots.json` full-parse-every-load → a
-cached tail-read (5 ms). **Still open:** the option premium-short *value screen*
-research (M4), the deeper ex-US-fund currency lookthrough, GSCI F1/F7 (forward-curve
--blocked). Suite 857 passed / 1 skipped. Milestones in
+cached tail-read (5 ms). Milestones in
 [`trade_advisor.md`](../docs/architecture/devplans/trade_advisor.md).
+
+**Option premium value screen + deeper FX lookthrough (2026-06-09).** Two researched
+follow-ups landed. (1) **Option premium value screen** — the rule-based INCOME screen
+now ranks by the **variance risk premium** (IV/RV richness) × annualized yield, with the
+researched 30-45 DTE entry / ~21 DTE management; config `premium_screen` in
+`option_advisor/config.py` (+ YAML), VRP threaded onto `OptionIdea`, surfaced as
+`yield` + `IV/RV` on Income cards. Web-research basis + sources in
+[`option_advisor.md`](../docs/architecture/devplans/option_advisor.md) §5b. (2) **Deeper FX
+lookthrough** — new shared domain service `currency_lookthrough.py` (country lookthrough →
+currency map) consumed by **both** the advisor FX panel and the monitor risk report (EQ
+Currency Exposure); equities now look through to underlying-country currencies (real book
+USD 74%→66%, revealing EUR/KRW/CNY/JPY/TWD). **Still open:** option IV-percentile over a
+history cache; single-name / EUME-split currency precision; GSCI F1/F7 (forward-curve-
+blocked). Suite 869 passed / 1 skipped.
 
 **Reused capabilities (landed on-branch; survive the v2 reset).** The four engines
 + adapters (Option collar + carry-premium shorts; FX carry-tilt before/after on the

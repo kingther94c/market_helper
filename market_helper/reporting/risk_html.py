@@ -1772,6 +1772,38 @@ def render_risk_report_script() -> str:
 """
 
 
+def _build_currency_breakdown(country_rows: Iterable[BreakdownRow]) -> list[BreakdownRow]:
+    """Aggregate the leaf EQ country breakdown into per-currency rows (deeper FX exposure).
+
+    Reuses the country-bucket → currency map shared with the Trade Advisor FX Hedge panel,
+    so a USD-listed ex-US fund's exposure shows under its underlying-country currencies
+    rather than all USD. Bucket-level (DM-EUME folds GBP/CHF into EUR; mixed regions → Other).
+    """
+    from market_helper.domain.portfolio_monitor.services.currency_lookthrough import bucket_currency
+
+    agg: dict[str, dict[str, float]] = {}
+    for row in country_rows:
+        ccy = bucket_currency(row.bucket)
+        a = agg.setdefault(ccy, {})
+        a["exposure_usd"] = a.get("exposure_usd", 0.0) + row.exposure_usd
+        a["gross"] = a.get("gross", 0.0) + row.gross_exposure_usd
+        a["dw"] = a.get("dw", 0.0) + row.dollar_weight
+        a["rce"] = a.get("rce", 0.0) + row.risk_contribution_estimated
+        a["rcg"] = a.get("rcg", 0.0) + row.risk_contribution_geomean_1m_3m
+        a["rc5"] = a.get("rc5", 0.0) + row.risk_contribution_5y_realized
+        a["rcf"] = a.get("rcf", 0.0) + row.risk_contribution_forward_looking
+    rows = [
+        BreakdownRow(
+            bucket=ccy, bucket_label=ccy, parent="EQ",
+            exposure_usd=a["exposure_usd"], gross_exposure_usd=a["gross"], dollar_weight=a["dw"],
+            risk_contribution_estimated=a["rce"], risk_contribution_geomean_1m_3m=a["rcg"],
+            risk_contribution_5y_realized=a["rc5"], risk_contribution_forward_looking=a["rcf"],
+        )
+        for ccy, a in agg.items()
+    ]
+    return sorted(rows, key=lambda r: r.gross_exposure_usd, reverse=True)
+
+
 def render_risk_tab(view_model: RiskReportViewModel) -> str:
     risk_rows = view_model.risk_rows
     summary = view_model.summary
@@ -1802,6 +1834,15 @@ def render_risk_tab(view_model: RiskReportViewModel) -> str:
         rows=_breakdown_table_rows(country_breakdown, include_bucket_label=False, vol_method=vol_method),
         empty_message="No country breakdown data",
         table_class="report-table report-table--country-breakdown",
+    )
+    # Deeper FX exposure: roll the leaf country breakdown up to currency (shared map with
+    # the Trade Advisor FX Hedge panel). Built from the raw leaf rows, not the with-totals set.
+    currency_breakdown = _build_currency_breakdown(view_model.country_breakdown)
+    currency_table = render_html_table(
+        columns=_breakdown_columns(include_bucket_label=False, vol_method=vol_method),
+        rows=_breakdown_table_rows(currency_breakdown, include_bucket_label=False, vol_method=vol_method),
+        empty_message="No currency breakdown data",
+        table_class="report-table report-table--currency-breakdown",
     )
     sector_table = render_html_table(
         columns=_breakdown_columns(include_bucket_label=False, vol_method=vol_method),
@@ -1917,6 +1958,12 @@ def render_risk_tab(view_model: RiskReportViewModel) -> str:
     <div class='card'>
     <h2>EQ Country Breakdown</h2>
     {country_table}
+    </div>
+
+    <div class='card'>
+    <h2>EQ Currency Exposure (via country lookthrough)</h2>
+    <p>Underlying-country currencies of EQ holdings — a USD-listed ex-US fund shows its JPY/EUR/… exposure rather than all USD. Bucket-level: DM-EUME folds GBP/CHF into EUR; mixed regions → Other.</p>
+    {currency_table}
     </div>
 
     <div class='card'>

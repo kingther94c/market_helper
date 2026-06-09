@@ -75,7 +75,7 @@ def _write_fx_csv(path):
 def test_currency_exposure_maps_fx_futures_and_excludes_options(tmp_path):
     csv_path = tmp_path / "positions.csv"
     _write_fx_csv(csv_path)
-    exp = currency_exposure_from_positions_csv(csv_path)
+    exp = currency_exposure_from_positions_csv(csv_path, lookthrough=False)  # coarse listing-ccy path
 
     by = dict((c, usd) for c, usd, _w in exp["by_currency"])
     assert by["AUD"] == 493206.0                       # FX future → foreign ccy, not USD
@@ -89,5 +89,28 @@ def test_currency_exposure_maps_fx_futures_and_excludes_options(tmp_path):
 
 
 def test_currency_exposure_missing_csv_is_empty(tmp_path):
-    exp = currency_exposure_from_positions_csv(tmp_path / "nope.csv")
+    exp = currency_exposure_from_positions_csv(tmp_path / "nope.csv", lookthrough=False)
     assert exp["by_currency"] == [] and exp["total_usd"] == 0.0 and exp["n_positions"] == 0
+
+
+def test_currency_exposure_deeper_lookthrough_splits_equity(tmp_path):
+    csv_path = tmp_path / "positions.csv"
+    rows = [
+        _HEADER,
+        # USD-listed ex-US ETF (USD quote) holding Japan + Europe → splits via lookthrough
+        "2026-06-03T00:00:00+00:00,U1,STK:VEA:SMART,1,VEA,VEA,SMART,USD,ibkr,1000,40,100,100000,90000,10000,0.5,,,,,,,,",
+        # FX future is unchanged by the equity lookthrough
+        "2026-06-03T00:00:00+00:00,U1,FUT:AUD:CME,2,AUD,AUD,CME,USD,ibkr,2,98000,98,200000,196000,4000,0.0,,,,,,,,",
+    ]
+    csv_path.write_text("\n".join(rows) + "\n", encoding="utf-8")
+
+    # Inject a lookthrough: VEA = 40% Japan + 50% Europe (10% uncovered → listing USD).
+    manual = {"VEA": [("DM-JP", 0.40), ("DM-EUME", 0.50)]}
+    exp = currency_exposure_from_positions_csv(csv_path, manual=manual, taxonomy={})
+    by = dict((c, usd) for c, usd, _w in exp["by_currency"])
+    assert exp["lookthrough"] is True
+    assert by["JPY"] == 40000.0                 # 0.40 × 100k → JPY (not USD!)
+    assert by["EUR"] == 50000.0                 # 0.50 × 100k → EUR
+    assert by["USD"] == 10000.0                 # 0.10 uncovered remainder → listing currency
+    assert by["AUD"] == 200000.0                # FX future economic ccy, unchanged
+    assert "VEA" not in by                       # looked through, not held as a 'VEA currency'

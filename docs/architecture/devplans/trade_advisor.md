@@ -304,10 +304,14 @@ the UI surfaces it. Three honest gaps this reset must name rather than paper ove
 
 1. **Option scan universe** — switch the premium-short scan from the hardcoded
    14-name list to the **EQ rows of `security_universe.csv`**. Small, clean.
-2. **FX current exposure** — **landed (coarse).**
+2. **FX current exposure** — **landed (deeper — country lookthrough).**
    `currency_exposure_from_positions_csv` maps FX futures to their economic ccy and
-   everything else to its quote ccy (options excluded). The deeper ex-US-fund
-   underlying-currency lookthrough stays open.
+   looks equities *through* to their underlying-country currencies (shared domain
+   service `currency_lookthrough.py`, country→currency map) — a USD-listed ex-US fund
+   now shows JPY/EUR/AUD/… not all USD (real book USD 74%→66%). Bucket-level coarseness
+   (DM-EUME folds GBP/CHF into EUR) is documented; single-name underlying-currency is
+   still listing-ccy. Surfaced in **both** the advisor FX panel and the monitor risk
+   report (EQ Currency Exposure).
 3. **GSCI F1/F7 deferred carry** — **blocked on a CME forward curve.** Placeholder
    only; roll-timing is honest, basis numbers would not be.
 
@@ -353,11 +357,12 @@ functions); the AI cannot reach the broker or any write path.
 
 **Build status (2026-06-09).** ✅ M1 (4-tab shell, no global inputs, `cockpit.py`
 deleted; Roll is a no-run holdings calendar) · ✅ M2 (FX decision panel; no
-Promote/Watch/Dismiss) · ✅ M3 (FX currency-exposure lookthrough —
-`currency_exposure_from_positions_csv`: FX futures → economic ccy, else quote ccy,
-options excluded; coarse, the ex-US-fund underlying-currency lookthrough stays open)
-· ✅ M4-partial (option scan wired to `security_universe.csv`; the premium-short
-*value screen* research still open) · ✅ M5 (Tactical Edge baseline + AI
+Promote/Watch/Dismiss) · ✅ M3 (FX currency-exposure lookthrough, now **deeper** —
+equities looked *through* to underlying-country currencies via `currency_lookthrough.py`;
+USD 74%→66% on the real book; in **both** advisor + monitor) · ✅ M4 (option scan wired
+to `security_universe.csv`; **premium value screen** researched — variance-risk-premium
+IV/RV × annualized yield, ~30-45 DTE / manage ~21 DTE, sources in `option_advisor.md`)
+· ✅ M5 (Tactical Edge baseline + AI
 accumulation) · ✅ M6 (commodity-carry placeholder). The reusable **AI Plus** pane
 (`ai_pane.py`, tools-only/never-orders) is on Option/FX/Tactical. All four tabs
 **browser-verified on the real book** (FX exposure USD 74% + AUD/EUR/GBP tilts; the
