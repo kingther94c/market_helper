@@ -31,6 +31,36 @@ from ..inputs import (
 )
 
 
+def partition_option_ideas(suggestions):
+    """Split option suggestions into the user's two screens + the remainder.
+
+    Returns ``[(title, items, empty_note), …]``: Hedge (collar/protective over
+    holdings), Income (sell premium over the universe), then any other structures.
+    """
+    hedge = [s for s in suggestions if s.category == "HEDGE"]
+    income = [s for s in suggestions if s.category == "INCOME"]
+    other = [s for s in suggestions if s.category not in ("HEDGE", "INCOME")]
+    return [
+        ("Hedge · zero-cost / protective collar (your holdings)", hedge,
+         "No collar / hedge structures for your holdings."),
+        ("Income · sell premium (security universe)", income,
+         "No premium-selling opportunities for these inputs."),
+        ("Other structures", other, ""),  # empty note "" → section hidden when empty
+    ]
+
+
+def _render_option_results(results, suggestions, journal, on_decision) -> None:
+    """Render the option ideas grouped into the two screens (+ other), each a card list."""
+    results.clear()
+    with results:
+        for title, items, empty in partition_option_ideas(suggestions):
+            if not items and not empty:
+                continue
+            ui.label(title).classes("text-subtitle2")
+            box = ui.column().classes("w-full gap-3")
+            _render_module(box, items, journal, on_decision, empty_note=empty)
+
+
 def _make_option_ai_builder(sym_sel, held_sel):
     """Factory: an AI-pane initial_builder that reads the live universe/held inputs."""
 
@@ -141,10 +171,7 @@ def render_option_module(journal, refresh_inbox) -> None:
             status.text = f"Failed: {type(exc).__name__}: {exc}"
             run_btn.enable()
             return
-        _render_module(
-            results, res.suggestions, journal, refresh_inbox,
-            empty_note="No option ideas for these inputs.",
-        )
+        _render_option_results(results, res.suggestions, journal, refresh_inbox)
         status.text = f"Done · {len(res.suggestions)} ideas · data: {res.data_mode or 'n/a'}{book_note}"
         run_btn.enable()
 

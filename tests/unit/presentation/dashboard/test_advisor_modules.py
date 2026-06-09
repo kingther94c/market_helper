@@ -10,8 +10,9 @@ from types import SimpleNamespace
 
 from market_helper.presentation.dashboard.pages.trade_advisor.inputs import load_option_universe
 from market_helper.presentation.dashboard.pages.trade_advisor.modules import fx_hedge as fx_mod
+from market_helper.presentation.dashboard.pages.trade_advisor.modules import option as opt_mod
 from market_helper.presentation.dashboard.pages.trade_advisor.modules import roll as roll_mod
-from market_helper.trade_advisor.contracts import AdvisorContext, LABEL_RESEARCH_READY
+from market_helper.trade_advisor.contracts import AdvisorContext, LABEL_RESEARCH_READY, Suggestion
 
 
 # --------------------------------------------------------------------------- #
@@ -129,3 +130,19 @@ def test_load_option_universe_falls_back(tmp_path):
     bad = tmp_path / "missing.csv"
     out = load_option_universe(path=bad)
     assert "SPY" in out and "QQQ" in out      # falls back to LIQUID_UNIVERSE
+
+
+def _opt_sug(category: str, sid: str) -> Suggestion:
+    return Suggestion(advisor="option", suggestion_id=sid, as_of="2026-06-09",
+                      title=sid, subject="X", category=category)
+
+
+def test_partition_option_ideas_splits_into_two_screens():
+    sugs = [_opt_sug("HEDGE", "h1"), _opt_sug("INCOME", "i1"),
+            _opt_sug("INCOME", "i2"), _opt_sug("DIRECTIONAL", "d1")]
+    groups = opt_mod.partition_option_ideas(sugs)
+    assert "Hedge" in groups[0][0] and "Income" in groups[1][0] and "Other" in groups[2][0]
+    assert [s.suggestion_id for s in groups[0][1]] == ["h1"]        # collar/hedge screen
+    assert [s.suggestion_id for s in groups[1][1]] == ["i1", "i2"]  # premium/income screen
+    assert [s.suggestion_id for s in groups[2][1]] == ["d1"]        # other structures
+    assert groups[2][2] == ""                                       # 'Other' hidden when empty (no note)
