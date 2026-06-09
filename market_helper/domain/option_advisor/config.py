@@ -48,6 +48,16 @@ DEFAULT_RULES: dict[str, Any] = {
         },
         "max_proceed": 8,                # top-N PROCEED; rest MONITOR/REJECT
     },
+    "premium_screen": {
+        # Rule-based VALUE screen for SELLING premium (INCOME). Research basis + sources:
+        # docs/architecture/devplans/option_advisor.md "Premium value screen". The edge is
+        # the variance risk premium (implied > realized vol); enter ~30-45 DTE (theta sweet
+        # spot), manage ~21 DTE. Score blends annualized yield × IV/RV richness.
+        "target_yield_annualized": 0.40,  # annualized credit/capital-at-risk that scores 1.0
+        "vrp_ratio_span": 0.5,            # IV/RV − 1 of 0.5 (implied 50% over realized) → richness 1.0
+        "min_vrp_ratio": 1.0,             # ≤1 = implied cheaper than realized = poor seller value
+        "manage_dte": 21,                 # close ≈50% max profit / before gamma ramps
+    },
     "regime_gates": {
         # Suppress upside-capping income when strongly risk-on (don't sell calls in a rip).
         "suppress_income_when": ["Goldilocks:High"],

@@ -24,8 +24,16 @@ def _clip(x: float, lo: float = 0.0, hi: float = 1.0) -> float:
     return max(lo, min(hi, x))
 
 
-def _efficiency(idea: OptionIdea) -> tuple[float, float]:
-    """Return (efficiency 0..1, raw_metric) for the idea's primary objective."""
+def _efficiency(idea: OptionIdea, premium_cfg: dict | None = None) -> tuple[float, float]:
+    """Return (efficiency 0..1, raw_metric) for the idea's primary objective.
+
+    For INCOME (selling premium) the value screen blends two researched signals:
+    the **annualized yield** on capital at risk *and* the **variance risk premium**
+    (IV/RV richness) — premium-selling only carries an edge when implied vol exceeds
+    the realized vol the underlying actually delivers. See the option_advisor devplan
+    "Premium value screen". The VRP term only engages when realized vol is known.
+    """
+    premium_cfg = premium_cfg or {}
     credit = idea.est_net_debit_credit or 0.0
     max_loss = abs(idea.est_max_loss) if idea.est_max_loss is not None else None
     max_gain = idea.est_max_gain if idea.est_max_gain is not None else None
@@ -35,7 +43,14 @@ def _efficiency(idea: OptionIdea) -> tuple[float, float]:
         # Annualized return on capital at risk.
         base = max_loss if (max_loss and max_loss > 0) else (idea.legs[0].resolved_strike or 1) * 100
         ann = (credit / base) * (365.0 / max(dte, 1))
-        return _clip(ann / 0.40), ann          # 40% annualized → score 1.0
+        target_yield = float(premium_cfg.get("target_yield_annualized", 0.40)) or 0.40
+        yld = _clip(ann / target_yield)
+        vrp = idea.vrp_ratio
+        if vrp is not None:
+            span = float(premium_cfg.get("vrp_ratio_span", 0.5)) or 0.5
+            vrp_eff = _clip((vrp - 1.0) / span)        # IV `span`% above RV → richness 1.0
+            return _clip((yld * vrp_eff) ** 0.5), ann  # geometric: reward rich premium AND positive VRP
+        return yld, ann                                # no realized vol → pure yield (back-compat)
     if idea.category == CATEGORY_HEDGE:
         cost = max(0.0, -credit)
         notional = (idea.underlying_symbol and 0) or 0
@@ -73,8 +88,10 @@ def _event_safety(idea: OptionIdea) -> float:
     return 0.85  # unverified
 
 
-def score_components(idea: OptionIdea) -> tuple[dict[str, float], list[tuple[str, float]]]:
-    eff, raw = _efficiency(idea)
+def score_components(
+    idea: OptionIdea, premium_cfg: dict | None = None
+) -> tuple[dict[str, float], list[tuple[str, float]]]:
+    eff, raw = _efficiency(idea, premium_cfg)
     comp = {
         "yield_or_efficiency": eff,
         "regime_align": _regime_align(idea),
@@ -87,6 +104,8 @@ def score_components(idea: OptionIdea) -> tuple[dict[str, float], list[tuple[str
         ("liquidity_conf", round(comp["liquidity_conf"], 3)),
         ("event_safety", round(comp["event_penalty"], 3)),
     ]
+    if idea.category == CATEGORY_INCOME and idea.vrp_ratio is not None:
+        drivers.append(("vrp_ratio", round(idea.vrp_ratio, 3)))  # IV/RV value-screen signal
     return comp, drivers
 
 
@@ -104,13 +123,28 @@ def _rationale(idea: OptionIdea, label: str, model_only: bool) -> str:
     return " ".join(bits)
 
 
+def _augment_income_rationale(idea: OptionIdea, rationale: str, premium_cfg: dict) -> str:
+    """Append the premium value read (VRP) + the researched management note for INCOME ideas."""
+    if idea.category != CATEGORY_INCOME:
+        return rationale
+    bits: list[str] = []
+    vrp = idea.vrp_ratio
+    if vrp is not None:
+        rich = "rich vs realized" if vrp > 1.0 else "CHEAP vs realized — poor seller value"
+        bits.append(f"VRP IV/RV {vrp:.2f}x ({rich})")
+    manage = int(premium_cfg.get("manage_dte", 21))
+    bits.append(f"manage ~{manage} DTE (close ≈50% max profit / before gamma ramps)")
+    return (rationale + " " + "; ".join(bits) + ".").strip()
+
+
 def rank_and_label(ideas: list[OptionIdea], rules: dict) -> list[OptionIdea]:
     weights = rules.get("ranking", {}).get("weights", {})
     max_proceed = int(rules.get("ranking", {}).get("max_proceed", 8))
+    premium_cfg = rules.get("premium_screen", {})
 
     scored: list[OptionIdea] = []
     for idea in ideas:
-        comp, drivers = score_components(idea)
+        comp, drivers = score_components(idea, premium_cfg)
         score = sum(weights.get(k, 0.0) * v for k, v in comp.items())
         hard_fail = any((not fo.passed and fo.severity == "hard") for fo in idea.filters_applied)
         soft_fail = any((not fo.passed and fo.severity == "soft") for fo in idea.filters_applied)
@@ -121,9 +155,10 @@ def rank_and_label(ideas: list[OptionIdea], rules: dict) -> list[OptionIdea]:
             label = LABEL_MONITOR
         else:
             label = LABEL_PROCEED
+        rationale = _rationale(replace(idea, label=label), label, model_only)
         scored.append(replace(
             idea, score=round(score, 4), drivers=drivers, label=label,
-            rationale=_rationale(replace(idea, label=label), label, model_only),
+            rationale=_augment_income_rationale(idea, rationale, premium_cfg),
         ))
 
     # Cap PROCEED to the top-N by score; demote the rest to MONITOR.

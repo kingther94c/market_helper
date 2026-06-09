@@ -132,6 +132,13 @@ def _headline_metrics(idea: OptionIdea) -> dict[str, str]:
         m["max_loss"] = f"{idea.est_max_loss:,.0f}"
     if idea.est_max_gain is not None:
         m["max_gain"] = f"{idea.est_max_gain:,.0f}"
+    if idea.category == "INCOME":
+        # The premium value-screen signals: annualized yield (from the ranking driver) + VRP.
+        ann = dict(idea.drivers).get("raw_metric")
+        if ann:
+            m["yield"] = f"{float(ann) * 100:.0f}%/yr"
+        if idea.vrp_ratio is not None:
+            m["IV/RV"] = f"{idea.vrp_ratio:.2f}x"
     scen = _scenario_pnl(idea)
     if "-10%" in scen:
         m["@-10%"] = f"{scen['-10%']:,.0f}"      # the risk-explainer headline: P&L if spot -10% (at expiry)

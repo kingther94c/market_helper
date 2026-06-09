@@ -271,6 +271,39 @@ Editing this file re-tunes strategy enablement, strike/DTE targets, filter
 thresholds, and ranking weights **without touching Python** — the same property
 that lets a regime signal be retuned from YAML.
 
+## 5b. Premium value screen (INCOME) — research basis
+
+The rule-based screen for *selling* premium ranks INCOME ideas by **value**, grounded
+in two established results (so "普通版怎么筛选" is researched, not arbitrary):
+
+1. **Theta sweet spot — when to be in the trade.** Time decay is non-linear: it
+   accelerates as expiry nears, steepest in the final ~30 days, fastest in the last
+   week; **>70% of the time premium erodes in the final three weeks**. The income
+   window is therefore **~30–45 DTE entry** (theta meaningful, gamma/pin risk still
+   manageable) and **management at ~21 DTE** (bank the bulk of the decay, exit before
+   the gamma / binary-event week). [Cboe Options Institute; daystoexpiry; projectfinance]
+2. **The edge is the variance risk premium (VRP), not "high IV".** Implied vol
+   systematically exceeds the realized vol that follows; that gap (**VRP = IV − RV**)
+   is the structural reason short-premium earns a positive expected return. The popular
+   "sell when IV-rank > 50" heuristic is fragile (one IV spike distorts IV-rank for a
+   year), so we rank by **IV/RV richness** — is implied rich vs what the underlying is
+   actually realizing? A rich premium with *negative* VRP (IV < RV) is poor seller value
+   and is scored down. [predictingalpha; volradar; Quantpedia VRP effect]
+
+**Implementation.** `premium_screen` config (`target_yield_annualized`, `vrp_ratio_span`,
+`min_vrp_ratio`, `manage_dte`) drives `ranking._efficiency`: for INCOME the score is the
+**geometric mean of annualized yield × VRP richness** (both must be decent), surfaced as
+`yield` + `IV/RV` on the card with a "manage ~21 DTE" note. IV comes from the fetched
+chain, RV from `domain/portfolio_monitor/services/volatility.py` — **no new IV-history
+cache needed**. (IV-percentile over a history cache stays a future refinement; the AI Plus
+pane covers open-ended discovery and can crystallize a tuned screen back into this config.)
+
+Sources: [daystoexpiry — theta DTE guide](https://www.daystoexpiry.com/blog/theta-decay-dte-guide) ·
+[projectfinance — option theta](https://www.projectfinance.com/theta/) ·
+[predictingalpha — IV vs RV](https://www.predictingalpha.com/implied-vs-realized-volatility/) ·
+[volradar — IV vs RV](https://volradar.com/learn/implied-vs-realized-volatility) ·
+[Quantpedia — volatility risk premium](https://quantpedia.com/strategies/volatility-risk-premium-effect)
+
 ## 6. Audit trail
 
 No new mechanism — reuse the regime engine's three-part pattern:

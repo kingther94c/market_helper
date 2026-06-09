@@ -357,6 +357,20 @@ class OptionIdea:
     data_status: str = "model_only"    # "model_only" | "chain_validated"
     spot: float | None = None          # underlying spot at generation (drives what-if)
     iv_skew: float | None = None       # chain ∂IV/∂log-moneyness near ATM (sticky-moneyness what-if)
+    under_iv: float | None = None      # underlying ATM implied vol at generation
+    under_rv: float | None = None      # underlying realized vol (~1m) — for the VRP premium-value screen
+
+    @property
+    def vrp_ratio(self) -> float | None:
+        """IV / RV — the variance-risk-premium richness of selling this option.
+
+        >1 means implied vol exceeds realized vol (positive VRP, the structural edge a
+        premium seller harvests); ≤1 means the premium is cheap vs what the underlying is
+        actually realizing (poor seller value). ``None`` when RV or IV is unavailable.
+        """
+        if self.under_iv and self.under_rv and self.under_rv > 0:
+            return self.under_iv / self.under_rv
+        return None
 
 
 @dataclass(frozen=True)

@@ -51,8 +51,16 @@ def advise_symbol(
     rules = {**rules, "filters": {**rules.get("filters", {}), "_aum": aum}}
 
     raw = candidates.generate(chain, ctx, rules)
+    # Thread the underlying IV + realized vol onto each idea so ranking can score the
+    # variance-risk-premium (IV/RV) value of selling premium (the researched screen).
+    under_iv = ctx.atm_iv
+    under_rv = None
+    if ctx.realized_vol is not None:
+        rv = ctx.realized_vol
+        under_rv = rv.vol_1m or rv.vol_3m or rv.ewma_vol
     enriched: list[OptionIdea] = []
     for idea in raw:
+        idea = replace(idea, under_iv=under_iv, under_rv=under_rv)
         fos, sizing = filters.evaluate(idea, ctx, rules)
         enriched.append(replace(idea, filters_applied=fos, sizing=sizing))
     labelled = ranking.rank_and_label(enriched, rules)
