@@ -63,14 +63,35 @@ def build_fx_panel(*, provider=None, mode: str = "cached") -> dict:
     return panel
 
 
-def fx_exposure_placeholder() -> dict:
-    """The (2) current-FX-exposure placeholder — honest about the missing build."""
+def build_fx_exposure() -> dict:
+    """Render-ready per-currency exposure of the live book (coarse lookthrough).
+
+    FX futures count toward the foreign currency they track; everything else toward
+    its quote currency (options excluded). ``available`` is False when no positions
+    are found — the caller then shows the placeholder.
+    """
+    from market_helper.application.trade_advisor import currency_exposure_from_positions_csv
+
+    exp = currency_exposure_from_positions_csv()
+    rows = [[c, f"{usd:,.0f}", f"{w * 100:.1f}"] for c, usd, w in exp["by_currency"]]
     return {
-        "title": "Current FX exposure — not yet computed",
+        "available": exp["n_positions"] > 0,
+        "headers": ["Currency", "Exposure $", "Weight %"],
+        "rows": rows,
+        "by_currency": exp["by_currency"],
+        "total_usd": exp["total_usd"],
+        "as_of": exp["as_of"],
+    }
+
+
+def fx_exposure_placeholder() -> dict:
+    """Shown only when no live positions are found — honest, no fabricated number."""
+    return {
+        "title": "Current FX exposure — no live positions",
         "body": (
-            "Per-currency portfolio exposure needs a currency lookthrough (symbol → currency-of-risk "
-            "→ weight), analogous to the existing country / sector lookthrough. Until it lands, this "
-            "panel shows the hedge target + carry only — no fabricated exposure number."
+            "No live positions CSV found, so per-currency exposure can't be computed. With a book loaded "
+            "this shows a coarse currency lookthrough (FX futures → their economic currency; everything "
+            "else → quote currency). No fabricated number."
         ),
     }
 
@@ -123,11 +144,22 @@ def _render_decision_panel() -> None:
         if panel["headline"]:
             ui.label("   ".join(f"{k}: {v}" for k, v in panel["headline"].items())).classes("text-caption pm-muted")
 
-    # 2) Current FX exposure (placeholder until the lookthrough lands)
-    ph = fx_exposure_placeholder()
+    # 2) Current FX exposure — a coarse currency lookthrough of the live book.
+    exp = build_fx_exposure()
     with ui.card().classes("w-full pm-card"):
-        ui.label("2 · " + ph["title"]).classes("text-subtitle2")
-        ui.label(ph["body"]).classes("text-caption").style("color:#f3b34d")
+        if exp["available"]:
+            ui.label("2 · Current FX exposure").classes("text-subtitle2")
+            _ui_table(exp["headers"], exp["rows"])
+            top = exp["by_currency"][0]
+            ui.label(
+                f"Largest: {top[0]} ${top[1]:,.0f} ({top[2] * 100:.0f}%) of ${exp['total_usd']:,.0f} gross. "
+                "Coarse: listing/settlement currency (FX futures → economic ccy); a USD-listed ex-US fund still "
+                "counts as USD — deeper risk-currency lookthrough pending."
+            ).classes("text-caption pm-muted")
+        else:
+            ph = fx_exposure_placeholder()
+            ui.label("2 · " + ph["title"]).classes("text-subtitle2")
+            ui.label(ph["body"]).classes("text-caption").style("color:#f3b34d")
 
     # 3) Carry → tilt decision
     with ui.card().classes("w-full pm-card"):
@@ -155,6 +187,11 @@ def _fx_ai_builder():
     mix_lines = "; ".join(
         f"{r[0]} {r[3]}ct (β{r[2]}, carry {r[5]}bps)" for r in (panel.get("mix", (None, []))[1] or [])
     ) or "no cached allocation"
+    try:
+        exp = build_fx_exposure()
+        exp_line = "; ".join(f"{c} {w * 100:.0f}%" for c, _u, w in exp["by_currency"][:6]) if exp["available"] else "not available"
+    except Exception:  # noqa: BLE001 — grounding is best-effort
+        exp_line = "not available"
     framing = (
         "You are an FX-hedge RESEARCH partner for an SGD-based book. The baseline is a USD/SGD hedge target "
         "across CME FX futures (EUR/GBP/AUD/JPY/CNH). Analyze whether to TILT the mix given carry and (when "
@@ -164,9 +201,10 @@ def _fx_ai_builder():
         "an order, contract count to execute, or size."
     )
     ask = (
-        f"Current hedge legs: {mix_lines}. Tilt read: {fx_tilt_summary(panel)}. "
-        "Give: (1) a short macro/carry read; (2) which leg(s) you'd tilt and why (or why not); "
-        "(3) the main basis-risk / what would change your mind. No orders, no sizes."
+        f"Current hedge legs: {mix_lines}. Book FX exposure (coarse): {exp_line}. "
+        f"Tilt read: {fx_tilt_summary(panel)}. "
+        "Give: (1) a short macro/carry read; (2) which leg(s) you'd tilt and why (or why not), in light of the "
+        "book's existing currency exposure; (3) the main basis-risk / what would change your mind. No orders, no sizes."
     )
     return module_ai_initial(framing, ask)
 

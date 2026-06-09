@@ -72,9 +72,11 @@ network-free.
 
 ## Backlog / not in V1
 
-- **Current FX exposure lookthrough** (symbol → currency-of-risk → per-ccy weight)
-  — not computed today; required by the Trade Advisor **FX Hedge decision panel**
-  (baseline mix + exposure + carry → tilt). See
+- **Current FX exposure lookthrough** — a *coarse* version landed for the Trade
+  Advisor **FX Hedge decision panel** (`application/trade_advisor/portfolio.py`
+  `currency_exposure_from_positions_csv`: FX futures → economic ccy, else quote ccy,
+  options excluded). **Open refinement:** look a USD-listed ex-US fund through to its
+  underlying-asset currencies (today it counts as USD). See
   [`trade_advisor.md`](trade_advisor.md) §5.2.
 - Second-order cross-currency (hedge-leg USD-P&L → SGD) term.
 - Margin / transaction-cost / carry optimisation.

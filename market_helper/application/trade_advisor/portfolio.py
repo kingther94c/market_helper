@@ -63,6 +63,60 @@ def _parse_option_row(row: dict) -> dict | None:
     }
 
 
+# CME-style FX future roots whose economic exposure is to the FOREIGN currency even
+# though the contract is USD-quoted (so a long 6A is AUD exposure, not USD).
+_FX_FUTURE_CCYS = frozenset({"AUD", "EUR", "GBP", "JPY", "CNH", "CHF", "CAD", "NZD", "MXN", "SGD"})
+
+
+def _currency_of_risk(iid: str, symbol: str, currency: str) -> str:
+    """The currency a position is economically exposed to (coarse, honest).
+
+    FX futures map to the foreign currency they track (the symbol); everything else
+    maps to its quote/settlement currency. This is a listing-currency proxy — it does
+    NOT look through a USD-listed ex-US fund to its underlying-asset currencies (that
+    deeper lookthrough is a refinement).
+    """
+    if iid.startswith("FUT:") and symbol in _FX_FUTURE_CCYS:
+        return symbol
+    return (currency or "?").strip().upper() or "?"
+
+
+def currency_exposure_from_positions_csv(path: str | Path | None = None) -> dict:
+    """Per-currency economic exposure of the live book (coarse lookthrough).
+
+    Sums ``|market_value|`` by currency-of-risk across stock / cash / futures rows
+    (options are overlays — excluded). FX futures count toward the foreign currency
+    they track. Returns ``{"by_currency": [(ccy, usd, weight), …] desc, "total_usd",
+    "as_of", "n_positions"}``; empty when the file is missing.
+    """
+    csv_path = Path(path) if path else DEFAULT_POSITIONS_CSV
+    by_ccy: dict[str, float] = {}
+    total = 0.0
+    as_of = ""
+    n = 0
+    if csv_path.exists():
+        with csv_path.open(newline="", encoding="utf-8") as handle:
+            for row in csv.DictReader(handle):
+                iid = (row.get("internal_id") or "").strip()
+                if _is_option_row(row, iid):
+                    continue  # overlays, not a denominated exposure
+                mv = _f(row.get("market_value"))
+                if not mv:
+                    continue
+                as_of = as_of or (row.get("as_of") or "")
+                ccy = _currency_of_risk(iid, (row.get("symbol") or "").strip(), row.get("currency") or "")
+                by_ccy[ccy] = by_ccy.get(ccy, 0.0) + abs(mv)
+                total += abs(mv)
+                n += 1
+    ranked = sorted(by_ccy.items(), key=lambda kv: kv[1], reverse=True)
+    return {
+        "by_currency": [(c, round(v, 2), (v / total if total else 0.0)) for c, v in ranked],
+        "total_usd": round(total, 2),
+        "as_of": as_of,
+        "n_positions": n,
+    }
+
+
 def context_from_positions_csv(
     path: str | Path | None = None,
     *,

@@ -2,7 +2,10 @@
 
 from __future__ import annotations
 
-from market_helper.application.trade_advisor import context_from_positions_csv
+from market_helper.application.trade_advisor import (
+    context_from_positions_csv,
+    currency_exposure_from_positions_csv,
+)
 
 _HEADER = (
     "as_of,account,internal_id,con_id,symbol,local_symbol,exchange,currency,source,quantity,"
@@ -48,3 +51,43 @@ def test_missing_csv_returns_empty_context(tmp_path):
     ctx = context_from_positions_csv(tmp_path / "nope.csv", watchlist=["SPY"])
     assert ctx.holdings == {} and ctx.held_options == [] and ctx.aum is None
     assert ctx.watchlist == ["SPY"]  # graceful: watchlist-only scan
+
+
+def _write_fx_csv(path):
+    rows = [
+        _HEADER,
+        # US equity → USD exposure (quote ccy)
+        "2026-06-03T00:00:00+00:00,U1,STK:ACWD:LSEETF,1,ACWD,ACWD,LSEETF,USD,ibkr,100,900,955,95501,90000,5501,0.2,,,,,,,,",
+        # CME AUD future → AUD exposure even though USD-quoted (FX-future override)
+        "2026-06-03T00:00:00+00:00,U1,FUT:AUD:CME,2,AUD,AUD,CME,USD,ibkr,5,98000,98,493206,490000,3206,0.0,,,,,,,,",
+        # Italian bond future → EUR exposure (quote ccy; not an FX future)
+        "2026-06-03T00:00:00+00:00,U1,FUT:BTP:EUREX,3,BTP,BTP,EUREX,EUR,ibkr,1,117000,117,117150,117000,150,0.0,,,,,,,,",
+        # US Treasury future → USD (quote ccy)
+        "2026-06-03T00:00:00+00:00,U1,FUT:ZN:CBOT,4,ZN,10Y US,CBOT,USD,ibkr,1,110000,110,110000,110000,0,0.0,,,,,,,,",
+        # cash → USD
+        "2026-06-03T00:00:00+00:00,U1,CASH:USD:IDEALPRO,5,USD,USD,IDEALPRO,USD,ibkr,20000,1,1,20000,20000,0,0.0,,,,,,,,",
+        # option → excluded from exposure (overlay)
+        '2026-06-03T00:00:00+00:00,U1,OUTSIDE_SCOPE:OPT:FLKR:AMEX,6,FLKR,FLKR  260618C00069000,AMEX,USD,ibkr,-1,2,2,-240,-200,-40,0.0,0.3,69,,0.4,modelGreeks,available,FLKR,STK:FLKR:SMART',
+    ]
+    path.write_text("\n".join(rows) + "\n", encoding="utf-8")
+
+
+def test_currency_exposure_maps_fx_futures_and_excludes_options(tmp_path):
+    csv_path = tmp_path / "positions.csv"
+    _write_fx_csv(csv_path)
+    exp = currency_exposure_from_positions_csv(csv_path)
+
+    by = dict((c, usd) for c, usd, _w in exp["by_currency"])
+    assert by["AUD"] == 493206.0                       # FX future → foreign ccy, not USD
+    assert by["EUR"] == 117150.0                        # BTP bond future → quote ccy
+    assert by["USD"] == 95501.0 + 110000.0 + 20000.0   # ACWD + ZN + cash
+    assert "FLKR" not in by and exp["n_positions"] == 5  # option excluded
+    assert exp["by_currency"][0][0] == "AUD"            # ranked by exposure desc
+    assert abs(exp["total_usd"] - 835857.0) < 1e-6
+    # weights sum to 1
+    assert abs(sum(w for _c, _u, w in exp["by_currency"]) - 1.0) < 1e-9
+
+
+def test_currency_exposure_missing_csv_is_empty(tmp_path):
+    exp = currency_exposure_from_positions_csv(tmp_path / "nope.csv")
+    assert exp["by_currency"] == [] and exp["total_usd"] == 0.0 and exp["n_positions"] == 0

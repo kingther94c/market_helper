@@ -77,12 +77,12 @@ cash-in-stagflation rule.
 
 ## Trade Advisor
 
-**State**: **foundation landed (M1–M6 + opt-in AI); unified cockpit SUPERSEDED;
-v2 IA reset SPECIFIED (2026-06-09).** The umbrella mechanics are proven — but the
-unified single-run cockpit over a global input panel was the wrong shape. The
-engines (option / fx-hedge + carry / futures+option roll / tactical anchors +
-Tactical Edge ingest / AI gateway+tools) and the reusable capabilities below are
-kept; what changes is the information architecture + per-module presentation.
+**State**: **v2 cockpit BUILT + browser-verified (2026-06-09); unified cockpit
+SUPERSEDED.** The unified single-run cockpit over a global input panel was the wrong
+shape and is replaced by four de-unified per-module surfaces (below). The engines
+(option / fx-hedge + carry / futures+option roll / tactical anchors + Tactical Edge
+ingest / AI gateway+tools) and the reusable capabilities below are kept; the
+information architecture + per-module presentation are rebuilt.
 Read-only w.r.t. the broker (ADR `0001-read-only-broker-policy.md`). Foundation
 log: `memory/archive/landed/trade_advisor_landed.md`; runbook
 [`docs/operations/trade_advisor_howto.md`](../docs/operations/trade_advisor_howto.md);
@@ -103,9 +103,18 @@ Tactical Edge brief as baseline, then AI-accumulate ideas (multi-direction query
 tools + confidence). (4) **Roll & Carry Calendar** — **no run**, derived from
 holdings (options+futures roll) + a commodity-carry **placeholder** (GSCI/F1-F7,
 blocked on a CME forward curve). Journal/Inbox kept for **Option + Tactical only**.
-Three named gaps: FX currency-exposure lookthrough (**new build**), option scan
-universe wiring, GSCI F1/F7 (forward-curve-blocked). Milestones M1–M6 + open
-questions in [`trade_advisor.md`](../docs/architecture/devplans/trade_advisor.md).
+
+**Built + browser-verified (2026-06-09).** All four tabs render on the real book:
+new `pages/trade_advisor/modules/` (option/fx_hedge/tactical/roll) + reusable
+`ai_pane.py` (tools-only, never orders); `cockpit.py`/global inputs deleted. FX
+**currency-exposure lookthrough** landed (`currency_exposure_from_positions_csv`:
+FX futures → economic ccy; real book = USD 74% + AUD/EUR/GBP tilts); option scan
+wired to `security_universe.csv`. Two incidental fixes: a Tactical-Edge `scores`
+render crash, and the 181 MB `regime_snapshots.json` full-parse-every-load → a
+cached tail-read (5 ms). **Still open:** the option premium-short *value screen*
+research (M4), the deeper ex-US-fund currency lookthrough, GSCI F1/F7 (forward-curve
+-blocked). Suite 857 passed / 1 skipped. Milestones in
+[`trade_advisor.md`](../docs/architecture/devplans/trade_advisor.md).
 
 **Reused capabilities (landed on-branch; survive the v2 reset).** The four engines
 + adapters (Option collar + carry-premium shorts; FX carry-tilt before/after on the

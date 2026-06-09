@@ -217,12 +217,13 @@ standing **decision panel** built from three parts:
 - **Baseline hedging mix** — read Portfolio Monitor's FX-hedge target artifact
   (`fx_hedge_allocation.json`: per-ccy target contracts, betas, indicative carry).
   Display as the starting point; do not re-derive it here.
-- **Current FX exposure** — **a genuine new build.** The repo does not yet compute
-  per-currency portfolio exposure (the hedge engine sizes off funded AUM, and
-  `security_universe.csv` has no currency column). This needs a small **currency
-  lookthrough** (symbol → currency-of-risk, summed to a weight per ccy), analogous
-  to the existing country/sector lookthrough. Until it lands, show an honest
-  "exposure not yet computed" placeholder rather than a fabricated number.
+- **Current FX exposure** — **landed (coarse lookthrough).** The positions CSV
+  carries a per-row `currency`; `currency_exposure_from_positions_csv` sums
+  `|market_value|` by currency-of-risk — FX futures (USD-quoted) map to the foreign
+  currency they track, everything else to its quote currency, options excluded.
+  Honestly labelled coarse: a USD-listed ex-US fund still counts as USD (the deeper
+  underlying-asset-currency lookthrough is the open refinement). No fabricated number;
+  falls back to a placeholder when no positions are loaded.
 - **Carry** — per-ccy carry. Today this is the **ON-rate differential** approximation
   already in `fx_carry_tilt` (honestly labelled rate-approx, not futures-implied);
   the futures-implied curve is a later upgrade gated on a forward-curve feed.
@@ -303,8 +304,10 @@ the UI surfaces it. Three honest gaps this reset must name rather than paper ove
 
 1. **Option scan universe** — switch the premium-short scan from the hardcoded
    14-name list to the **EQ rows of `security_universe.csv`**. Small, clean.
-2. **FX current exposure** — **not computed today.** Needs the new currency
-   lookthrough (§5.2); show a placeholder until it lands.
+2. **FX current exposure** — **landed (coarse).**
+   `currency_exposure_from_positions_csv` maps FX futures to their economic ccy and
+   everything else to its quote ccy (options excluded). The deeper ex-US-fund
+   underlying-currency lookthrough stays open.
 3. **GSCI F1/F7 deferred carry** — **blocked on a CME forward curve.** Placeholder
    only; roll-timing is honest, basis numbers would not be.
 
@@ -347,6 +350,20 @@ functions); the AI cannot reach the broker or any write path.
 6. **M6 — Commodity carry calendar (placeholder → GSCI/F1-F7).** Ship the labelled
    placeholder now; the GSCI roll calendar + F1/F7 tune lands when a forward-curve
    feed is available.
+
+**Build status (2026-06-09).** ✅ M1 (4-tab shell, no global inputs, `cockpit.py`
+deleted; Roll is a no-run holdings calendar) · ✅ M2 (FX decision panel; no
+Promote/Watch/Dismiss) · ✅ M3 (FX currency-exposure lookthrough —
+`currency_exposure_from_positions_csv`: FX futures → economic ccy, else quote ccy,
+options excluded; coarse, the ex-US-fund underlying-currency lookthrough stays open)
+· ✅ M4-partial (option scan wired to `security_universe.csv`; the premium-short
+*value screen* research still open) · ✅ M5 (Tactical Edge baseline + AI
+accumulation) · ✅ M6 (commodity-carry placeholder). The reusable **AI Plus** pane
+(`ai_pane.py`, tools-only/never-orders) is on Option/FX/Tactical. All four tabs
+**browser-verified on the real book** (FX exposure USD 74% + AUD/EUR/GBP tilts; the
+carry tilt adds AUD / trims JPY; Tactical Edge cards + rule anchors render). Two
+incidental fixes shipped: a Tactical-Edge `scores` render crash, and a 181 MB
+`regime_snapshots.json` full-parse on every load → now a cached tail-read (5 ms).
 
 Each milestone gets its own short design pass; scope-expanding ones get an ADR.
 
