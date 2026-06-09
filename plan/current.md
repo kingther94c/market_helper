@@ -77,175 +77,59 @@ cash-in-stagflation rule.
 
 ## Trade Advisor
 
-**State**: **foundation landed (M1–M6 + opt-in AI+); direction reset OPEN
-(2026-06-07).** The umbrella mechanics are proven — one bounded-control
-`/advisor` UI hosts four registered advisors (Option / Roll / FX Hedging + carry
-/ Trade Ideas; adding an advisor needs no UI work), decision journal + Inbox +
-cross-device snapshot, real-book seeding, regime auto-seed, CBOE cache, and an
-opt-in **AI+** OpenClaw-gateway synthesis layer that never replaces the
-rule-based engine (analysis only, never orders). Read-only w.r.t. the broker
-(ADR `0001-read-only-broker-policy.md`). Foundation milestone log:
-`memory/archive/landed/trade_advisor_landed.md`; runbook
+**State**: **foundation landed (M1–M6 + opt-in AI); unified cockpit SUPERSEDED;
+v2 IA reset SPECIFIED (2026-06-09).** The umbrella mechanics are proven — but the
+unified single-run cockpit over a global input panel was the wrong shape. The
+engines (option / fx-hedge + carry / futures+option roll / tactical anchors +
+Tactical Edge ingest / AI gateway+tools) and the reusable capabilities below are
+kept; what changes is the information architecture + per-module presentation.
+Read-only w.r.t. the broker (ADR `0001-read-only-broker-policy.md`). Foundation
+log: `memory/archive/landed/trade_advisor_landed.md`; runbook
 [`docs/operations/trade_advisor_howto.md`](../docs/operations/trade_advisor_howto.md);
 advisory scope `0007-option-advisor-advisory-scope.md`.
 
-**Active — Advisor cockpit (next direction).** The foundation is no longer the
-final product target: re-aim at a **multi-module Advisor cockpit** where Option
-Strategy is *one module, not the center*. Target modules: **Option Strategy**;
-**FX Carry** (SGD hedge allocation + futures-implied carry tilt); **Tactical
-Trade Ideas** (AI-assisted non-option macro / market ideas — de-dollarization,
-short USD, risk-off / vol, trend persistence); **Roll & Carry Calendar** (options
-+ futures rolls, commodity strategy calendars, GSCI-like schedule, F1/F7 deferred
-carry). Design:
-[`trade_advisor.md`](../docs/architecture/devplans/trade_advisor.md).
+**Active — Cockpit v2 (de-unified IA, 2026-06-09).** Re-aim per the rewritten
+devplan: **no global input entry**; four **purpose-built module surfaces**, each
+with a deterministic **Rule-based** pane + an interactive read-only **AI Plus**
+dialog (free-form refine, tools only, never orders) — except where a module's
+nature departs from the template. (1) **Option Strategy** — Rule-based runs two
+screens: zero-cost collar over *holdings*, premium-shorts over the *security
+universe* (`security_universe.csv` EQ rows, not the hardcoded 14; needs a
+minimum-research pass to fix the premium screen); AI Plus opens the search +
+crystallizes good screens back into the preset. (2) **FX Hedge** — an independent
+**decision panel** (baseline mix + current FX exposure + carry → tilt), **not**
+idea-cards; drops Promote/Watch/Dismiss. (3) **Tactical** — lead with the external
+Tactical Edge brief as baseline, then AI-accumulate ideas (multi-direction query +
+tools + confidence). (4) **Roll & Carry Calendar** — **no run**, derived from
+holdings (options+futures roll) + a commodity-carry **placeholder** (GSCI/F1-F7,
+blocked on a CME forward curve). Journal/Inbox kept for **Option + Tactical only**.
+Three named gaps: FX currency-exposure lookthrough (**new build**), option scan
+universe wiring, GSCI F1/F7 (forward-curve-blocked). Milestones M1–M6 + open
+questions in [`trade_advisor.md`](../docs/architecture/devplans/trade_advisor.md).
 
-**Cockpit build status (2026-06-07, on branch; the GOAL spec — not the older
-devplan prose — is authoritative):**
-- ✅ **Module 1 — Option Strategy**: zero-cost protection collar + carry-premium
-  shorts landed (see the Option Strategy subsection below).
-- ✅ **Module 2 — FX Carry** *(engine + adapter)*: `fx_carry_tilt.compute_fx_carry_tilt`
-  layers a **bounded** carry tilt on the SGD-hedge allocation (rate-approximated
-  carry — no CME forward curve in-repo) and reports **before/after** exposure +
-  carry impact + the hedge-deviation (basis-risk) cost; surfaced through the
-  `fx_hedge` adapter's carry suggestion. Rich before/after UI lands with the
-  cockpit shell.
-- ✅ **Module 4 — Roll & Carry Calendar** *(engine + adapter)*: futures roll
-  reminders (`futures_roll_calendar` engine + `futures_roll` adapter) on top of
-  the option roll. Commodities (NG/CL/…) roll on a **GSCI-like prior-month**
-  schedule, financials on an expiry-lead schedule (config
-  `futures_roll_calendar.yml`). Held futures are now seeded into the context
-  (`AdvisorContext.held_futures`). Honest that F1/F7 deferred-carry needs a CME
-  forward curve (not in-repo) — roll-timing only, no fabricated basis.
-- ✅ **Module 3 — Tactical Trade Ideas** *(engine + adapter + AI synthesis)*: new
-  `domain/tactical_ideas/` grounds rule-based macro idea anchors (short USD /
-  de-dollarization, risk-off / vol, short-VIX carry, trend-persistence /
-  add-exposure, curve steepener, sector rotation, commodity RV) on the **offline**
-  regime snapshot + policy-expert predictor/trending — each with evidence +
-  invalidation, capped at MONITOR (independent directional trades). A read-only
-  **AI synthesis** layer (`request_tactical_brief`, reuses the OpenClaw gateway)
-  expands them into a tactical brief, pinned to context, **never orders**. New
-  `tactical` adapter, registered.
-- ✅ **Cockpit shell**: `/advisor` is now a multi-module cockpit
-  (`pages/trade_advisor/cockpit.py`) — shared bounded inputs → one run → four peer
-  tabs (Option Strategy / FX Carry / Tactical Trade Ideas / Roll & Carry Calendar)
-  over the cross-module Inbox + journal + snapshot; per-module detail renderers
-  added (FX carry before/after, futures-roll, tactical) and the Tactical tab owns
-  the opt-in read-only AI brief. The old Rule-based/AI+ tab split (`rule_based.py`,
-  `ai.py`) is deleted (superseded). Option Strategy is now one tab, not the centre.
-  Full unit suite green (783 passed, 1 skipped).
+**Reused capabilities (landed on-branch; survive the v2 reset).** The four engines
++ adapters (Option collar + carry-premium shorts; FX carry-tilt before/after on the
+SGD hedge; futures+option roll driven by `futures_roll_calendar.yml`; tactical rule
+anchors + external **Tactical Edge** ingest); the **AdvisorIdea v1** four-axis
+assessment (confidence / actionability / risk / data — never one score) + research
+fields; the **decision journal** with ex-ante snapshot + 30/60/90 review loop; the
+trust **tiers** T1–T4 + research-framed labels; the **AI capability framework**
+(`trade_advisor/ai/`: read-only tools + skills + knowledge, gateway-agnostic
+structured-text tool protocol, conversational `continue_messages` feedback); three
+validations (safety / data-honesty / decision). Suite 832 passed / 1 skipped
+(on-branch). Devplans:
+[`advisor_idea_contract.md`](../docs/architecture/devplans/advisor_idea_contract.md),
+[`advisor_ai_capabilities.md`](../docs/architecture/devplans/advisor_ai_capabilities.md).
 
-**Verification & verdict (2026-06-07).** Verified end-to-end: (1) full unit suite
-**783 passed / 1 skipped**; (2) a headless integrated run of the registry over a
-representative book produced **24 coherent suggestions across all four modules**
-(zero-cost collar ≈flat-credit with the tail loss honestly shown; FX carry tilt
-**+22 bps / +$2,399·yr for 17 %** hedge deviation off a real cached allocation;
-tactical short-USD / steepener / short-VIX anchors with evidence; option + NG
-futures rolls); (3) the live dashboard served `/advisor` and headless-Chromium
-rendering confirmed the four module tabs + bounded inputs + Inbox + the
-"read-only ideas, never orders" banner. **Verdict: a solid, honest MVP of the
-cockpit — all four target modules runnable and integrated.** Disclosed edges
-(not blockers): FX carry is rate-approximated (no forward curve in-repo); Roll
-F1/F7 is roll-timing only (needs a curve feed); the tactical *rule* anchors cover
-the core themes with the AI layer for the long tail (dispersion / specific RV /
-JPY). Branch only — not merged to main.
+### Option Strategy (engine — cockpit Module 1)
 
-**AI multi-run validation + regime-derivation hardening (2026-06-07).** Ran the
-live Tactical AI brief **7×** against the OpenClaw gateway over the real latest
-regime: **0/7 order leakage**, all four required sections every run, tightly
-grounded (cites the real scores / momentum %), low run-to-run variance, and it
-independently caught the *Goldilocks-forward vs Reflation-momentum divergence* —
-matching my own independent read. Debug fix: the live engine emits a non-quadrant
-label ("Neutral/Mixed …") that mapped to blank → sector rotation silently didn't
-fire and evidence read `regime=?`. `build_tactical_context` now **derives the
-Growth×Inflation quadrant from the axis scores** when the label isn't one of the
-four (honestly tagged "derived from scores; engine label: …"), so all six anchors
-fire on the real regime. **Flagged (not advisor-caused):**
-`regime_detection/regime_snapshots.json` has bloated to ~190 MB (the regime engine
-appends full snapshots indefinitely) and the advisor reads it on render — spun off
-as a separate task.
-
-**Conversational AI+ + prompt-variant harness (2026-06-07).** The Tactical AI is
-now a **dialog**: `synthesis.py` is messages-based (system + user turns,
-swappable `TacticalPromptStyle`, `request_tactical_chat` for multi-turn,
-`continue_messages` for feedback); the cockpit Tactical tab renders a transcript
-with a **feedback box** ("Send feedback") that appends the operator's turn and
-re-posts to refine — still read-only, never orders. Selected the production
-inject-prompt by **harnessing 4 variants** (baseline / conviction-ranked /
-adversarial / terse-table) live — each an initial brief + a fixed feedback turn:
-all 4 had 0 order leakage; the winner is a **synthesis** (conviction **table** +
-"**Anchors I'd fade**" adversarial honesty + a **monitorable invalidation** per
-idea + feedback-aware revision), set as `DEFAULT_STYLE`. Confirmed live in the
-browser: Generate → brief → feedback ("2 best, drop short-vol, concise") → the
-refined brief narrows to 2 trades and drops short-vol. Suite 787 passed / 1
-skipped.
-
-**Advisor-AI capability framework (2026-06-07).** A systematic, extensible home
-for what the AI can use — **tools / skills / knowledge** — under
-`trade_advisor/ai/` (`tools.py`, `skills.py`, `capabilities.py`), assembled +
-listed by `build_advisor_ai_capabilities().describe()`. **Tools** are registered
-read-only local functions (the registry refuses non-read-only); the tactical set
-(`domain/tactical_ideas/ai_tools.py`) is `get_regime_snapshot` / `get_policy_expert`
-/ `get_tactical_anchors` / `get_price_trend`. **Probe finding:** the OpenClaw
-gateway ignores client-supplied OpenAI `tools` (it has its own internal registry),
-so tool-calling runs via a **gateway-agnostic structured-text protocol**
-(```tool_call``` → dispatch → ```tool_result``` loop, `max_rounds`-capped, with a
-transparent trace); `to_openai_tools()` kept for a future native gateway. **Skills**
-= the injected prompts per task (the harness-winner `tactical_default` + adversarial
-+ terse). **Knowledge** = grounding facts (read-only invariant, data-mode ladder,
-triage labels, regime quadrants, module map + tactical). The cockpit Tactical brief
-is now tool-enabled (the AI may pull data mid-brief; the transcript shows which
-tools it called). Verified live: the AI called `get_regime_snapshot` +
-`get_price_trend("SPY")`, used the real results, 0 order leakage. Devplan:
-`docs/architecture/devplans/advisor_ai_capabilities.md`. Suite 805 passed / 1 skipped.
-
-**Trust-framework revision (2026-06-08, from a reviewer critique).** Six changes so
-the cockpit's confidence language matches its evidence: (1) **research-framed labels**
-— PROCEED→`RESEARCH_READY`, MONITOR→`WATCHLIST` (nothing implies "trade"); the
-operator's decision verbs decoupled to **Promote/Watch/Dismiss**. (2) **`decision_tier`**
-on every `Suggestion` — T1 operational (Roll) / T2 deterministic (Option) / T3
-model-overlay (FX) / T4 research (Tactical); `cap_label_for_tier` lets only T1/T2 reach
-RESEARCH_READY, so Tactical + FX + model-only/naked cap at WATCHLIST (shown as a card
-chip). (3) **Tactical scarcity** — `generate_tactical_ideas` caps to top 3 (conviction
-× theme priority) and every idea answers five questions (edge / disqualifier / overlap /
-regime_kill / confirm); the AI prompt enforces both. (4) **Option = risk-explainer** —
-the adapter surfaces scenario P&L (−20/−10/−5/+5/+10%), vol-shock, liquidity, and
-plain-English risk flags; carry shorts framed by tail/margin, not yield. (5) **FX Carry →
-FX Hedge Tilt** (a rate-approx tilt *explorer*, not a carry optimizer). (6) **AI
-reframed** as operationally-safe-not-alpha (the overview HTML now lists what is NOT
-validated: predictive power, risk reduction, crowding, historical-regime efficacy).
-Committed `d4fb31e`→`78848f7`; HTML `data/artifacts/trade_advisor/advisor_overview.html`.
-Suite 811 passed / 1 skipped.
-
-**AdvisorIdea contract v1 + research-brief + validations (2026-06-08, /goal).** Consolidated
-rather than expanded modules, per the reviewer directions. (1) **AdvisorIdea v1**: an
-`IdeaAssessment` with four ORTHOGONAL axes (confidence / actionability / risk_boundedness /
-data_quality), never one score; + research fields (instrument_family, risk, invalidation,
-missing_data, portfolio_interaction, review_after, journal_note); every adapter populates them
-honestly per tier. (2) **Tactical = research-brief generator** (rule anchors → brief → critique
-→ journal), forced "Why NOT trade today", WATCHLIST-capped. (3) **Tactical_Edge ingestion**:
-parse `MARKET_HELPER_GDRIVE_ROOT/Tactical_Edge/latest.md` → AdvisorIdeas (T4); the card's
-Skeptic's view becomes the why-not (offline + graceful; enabled via `include_edge`). (4) **Three
-validations**: safety (prompt-regression tests), data-honesty (synthetic/cached/missing never
-'live'), and — most important — **decision validation**: the journal freezes an ex-ante snapshot
-+ schedules 30/60/90 reviews (`due_for_review` / `record_review`), surfaced as a "Due for review"
-panel so promoted ideas get graded against their ex-ante thesis. Devplan
-`docs/architecture/devplans/advisor_idea_contract.md`. Committed `8b2f418`→`f07b509`+. Suite
-832 passed / 1 skipped.
-
-### Option Strategy (cockpit Module 1)
-
-**State**: **MVP landed + cockpit structures (in progress).** Pure-stdlib
-Black–Scholes; CBOE-delayed JSON primary chain → yfinance → synthetic
-vol-surface fallback; honesty tagging (`data_mode`; synthetic capped at MONITOR,
-never PROCEED); earnings feed → `EventRisk`; sizing caps to % of funded AUM.
-**New (2026-06-07):** zero-cost protection collar (buy OTM put-spread financed by
-a short OTM call — net-short-vega, ≈flat/credit cost, honest about the uncovered
-tail below the floor) + carry-premium shorts (naked short call / short put with
-an annualized carry yield, margin-sized, capped at MONITOR by an explicit
-`naked_premium_risk` filter). 62 option tests green. Design:
+**State**: **MVP landed.** Pure-stdlib Black–Scholes; CBOE-delayed JSON chain →
+yfinance → synthetic fallback; honesty tagging (synthetic capped at MONITOR);
+earnings → `EventRisk`; sizing caps to % funded AUM; zero-cost protection collar +
+carry-premium shorts (naked, MONITOR-capped). 62 option tests green. Design:
 [`option_advisor.md`](../docs/architecture/devplans/option_advisor.md); scope
-`0007-option-advisor-advisory-scope.md`. Future M3+ (backtest baselines,
-`ib_async` live chain) in the devplan.
+`0007-option-advisor-advisory-scope.md`. Future (backtest baselines, `ib_async`
+live chain) in the devplan.
 
 ## Repository governance
 
@@ -260,5 +144,7 @@ that broke on Windows under `core.symlinks=false`).
 ---
 *Last compaction: 2026-06-07 (790 → 126 lines). Landed-phase detail moved to
 `memory/archive/landed/{dashboard,portfolio_monitor,regime_engine,
-policy_expert,trade_advisor}_landed.md`. Trade Advisor "cockpit" direction reset
-kept active (folded in from a parallel main-checkout edit).*
+policy_expert,trade_advisor}_landed.md`. Trade Advisor section re-compacted
+2026-06-09 for the cockpit-v2 IA reset: the superseded unified-cockpit build log
+collapsed to "reused capabilities"; v2 direction authoritative in
+`trade_advisor.md`.*

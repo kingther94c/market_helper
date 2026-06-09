@@ -1,385 +1,386 @@
 # Trade Advisor — Development Plan
 
-Goal-setting-altitude plan for a **`trade_advisor` umbrella**: one advisory
-surface that turns portfolio + market + regime context into ranked, explained,
-**read-only** trade *ideas* across several advisor types, with an **interactive
-GUI** to explore them, tweak inputs, and watch the computed feedback update —
-plus a static snapshot in the daily report.
+Goal-setting-altitude plan for the **`trade_advisor` surface**: turn portfolio +
+market + regime context into **read-only** advisory output across four modules,
+each with an **interactive GUI**.
 
-This is intentionally **not** an implementation spec. It fixes the *objective*,
-the *hard constraints*, the *component family*, and especially the *UI /
-interaction design*; it leaves data-shapes, signatures, and file layout to each
-milestone's own design pass. The existing
-[Option Advisor](option_advisor.md) becomes the first component under this
-umbrella and is the proof that the shared pattern works.
+This is intentionally **not** an implementation spec — it fixes the *objective*,
+the *hard constraints*, the *module roster*, and especially the *UI / interaction
+design*; it leaves data-shapes, signatures, and file layout to each milestone's
+own design pass.
+
+> **Direction reset (2026-06-09).** The umbrella *mechanics* are proven (M1–M6 +
+> opt-in AI), but the **unified single-run cockpit was the wrong shape** and is
+> superseded by §5 below. The engines beneath (option, fx-hedge, futures/option
+> roll, tactical anchors + Tactical Edge ingest, the AI gateway/tools) are **kept
+> and reused**; what changes is the *information architecture and per-module
+> presentation*. The foundation milestone log is archived in
+> `memory/archive/landed/trade_advisor_landed.md`.
 
 ---
 
 ## 1. Objective
 
-A single place — in the GUI and in the report — where the user can ask *"given
-what I hold, the regime, and the market, what option/FX/rebalance moves are
-worth considering, and why?"* and get back **ranked, labelled, fully-explained
-ideas they can poke at**, never orders. Every idea is reproducible, auditable,
-and honest about the quality of the data behind it.
+A place — in the GUI — where, for each kind of move the user actually makes, they
+get **honest, explained, read-only research output they can poke at**, never
+orders. Four modules, each purpose-built around the decision it serves:
 
-Two things make this more than "more report sections":
-
-1. **It is interactive.** The user supplies inputs (watchlist, overrides,
-   risk appetite, what-if tweaks) and the computed feedback (payoff, Greeks,
-   risk, sizing) responds live. The current dashboard is mostly read-only;
-   trade_advisor is the first genuinely two-way surface.
-2. **It is a family, not one feature.** Options, roll reminders, FX-carry tilts,
-   general trade ideas, and future advisors all plug into **one framework** and
-   render through **one card/feedback UI**, so adding an advisor is cheap and
-   the user learns the interaction once.
+- **Option Strategy** — "what option structures fit my holdings (hedge) and which
+  names in my universe are worth selling premium on?"
+- **FX Hedge** — "given my baseline hedge mix, my current FX exposure, and carry,
+  how should I tilt?"
+- **Tactical Trade Ideas** — "what macro/market ideas are live right now — from my
+  external brief and from the AI — and how confident should I be?"
+- **Roll & Carry Calendar** — "which of my holdings need a roll, and when?"
 
 ---
 
-## 2. Hard constraints (the only non-negotiables)
+## 2. The reset — what was wrong, and the new spine
 
-These are fixed inputs to every milestone; everything else is open to design.
+**What was wrong (the user's critique).** Opening `/advisor` led with a *global*
+input panel (Universe / Treat-as-held / AUM / Regime) on the left, feeding **one
+Run** that fanned out to **four tabs**, all rendered through **one idea-card
+contract** with the **same Promote / Watch / Dismiss + Inbox**. Three problems:
 
-- **Read-only / advisory-only.** No order placement, modification, or
-  cancellation, ever — anywhere in this tree ([ADR 0001](../../decisions/0001-read-only-broker-policy.md),
-  [ADR 0007](../../decisions/0007-option-advisor-advisory-scope.md)). The GUI
-  shows ideas + decision *labels*; it never produces an order ticket.
+1. **The global inputs are disconnected from the modules.** A single Universe /
+   AUM entry is meaningful for Option scanning but irrelevant to FX Hedge and to
+   the Roll calendar; presenting it as the one front door is incoherent.
+2. **The four modules are not the same shape**, so one contract flattens them:
+   - *Option* and *Tactical* genuinely produce a **stream of ideas** (a journal +
+     Promote/Watch fits).
+   - *FX Hedge* is a **continuous allocation decision** (baseline mix → exposure →
+     carry → tilt), not a discrete idea stream. Promote/Watch/Dismiss on it is, in
+     the user's words, *滑稽* (absurd).
+   - *Roll & Carry* is a **deterministic schedule derived from holdings** — it
+     should not need a "Run advisor" at all.
+3. **Rule-based vs AI were split the wrong way** — once a global "rule-based run"
+   plus a single AI tab bolted onto Tactical. AI should be available **per module**,
+   beside that module's deterministic view.
+
+**The new spine.**
+
+- **No global input entry.** Each module owns the inputs its decision actually
+  needs, and nothing more.
+- **Two surfaces per module, side by side:** a **Rule-based** pane (deterministic:
+  preset rules over holdings + the security universe) and an **AI Plus** pane
+  (open: calls read-only tools, fetches fresh data, runs a more expansive search,
+  and supports **interactive refine** — a dialog, not a one-shot). *(Working
+  names; "Rule-based" / "AI Plus" are provisional and may be renamed.)*
+- **Module nature overrides the template where it must.** FX Hedge's left pane is
+  a *decision panel* (mix + exposure + carry), not an idea list; Roll & Carry has
+  *no run* and (for now) no AI pane. The two-pane pattern is the default, not a
+  straitjacket.
+- **A closed loop between the panes.** AI Plus is where the user *discovers* a good
+  screen interactively; when one proves out, it can be **crystallized into the
+  Rule-based preset** (config, not code), so the deterministic pane keeps getting
+  better. This is the explicit payoff of running the two panes side by side.
+
+---
+
+## 3. Hard constraints (the only non-negotiables)
+
+- **Read-only / advisory-only.** No order placement, modification, or cancellation,
+  ever, anywhere in this tree ([ADR 0001](../../decisions/0001-read-only-broker-policy.md),
+  [ADR 0007](../../decisions/0007-option-advisor-advisory-scope.md)). This includes
+  the AI Plus panes: they analyze and suggest, they never emit an order ticket or
+  position size as an instruction. The read-only invariant is injected into every
+  AI prompt and asserted by the safety tests.
 - **Architecture compatibility.** Stay inside the existing layering
   (`cli → workflows → application → domain → data_sources / reporting /
-  presentation`). Engines/analytics in `domain`; dashboard orchestration in
-  `application`; UI in `presentation`; static rendering in `reporting`. Reuse —
-  don't fork — the `suggest/`, regime, and option_advisor patterns.
-- **GUI = extend the existing NiceGUI dashboard; HTML stays the deliverable**
-  ([ADR 0002](../../decisions/0002-html-deliverable-dashboard-entry.md)). New
-  interactive pages register alongside `register_portfolio_page(...)` and mount
-  inside the shared dashboard shell (`/advisor` next to `/portfolio` under the `/`
-  landing; [ADR 0008](../../decisions/0008-unified-dashboard-shell.md)); static
-  output embeds in the combined HTML report. **No new UI framework.**
-- **Bounded interaction — no free-form input.** There is **no AI/NLP layer** to
-  interpret arbitrary input, so **every control is a fixed option set or a
-  validated, bounded numeric field** (dropdown / toggle / chip / segmented
-  control / stepper / range-capped slider). No free-text prompts, no
-  natural-language "ask". The user explores **within rails**; invalid states are
-  unreachable by construction, and the compute engine only ever receives clean,
-  in-range inputs. (Free-form input is revisited only if/when an AI layer lands.)
-- **Honesty is mandatory.** Every idea carries a `data_mode` (live vs
-  model/synthetic), a `PROCEED / MONITOR / REJECT` label, and an audit trail of
-  why it was generated or filtered. Model-only ideas never reach `PROCEED`.
-  (Mirrors the regime engine's `data_mode` + option_advisor's filter trail.)
-- **Rule-based first; explainable; no opaque ML.** No optimizer/black-box until
-  the rule layer is validated.
-- **Regime is context, not an allocator.** Consume regime/risk signals; never
-  turn them into auto-execution (the regime guardrails still hold).
-- **Conda `py313`.** New runtime deps go into `env.yml` in the same change.
+  presentation`). Engines/analytics in `domain`; orchestration in `application`;
+  UI in `presentation`. **Reuse** the existing engines (don't fork them); this
+  reset is mostly a presentation + per-module-orchestration change.
+- **GUI = extend the existing NiceGUI dashboard**
+  ([ADR 0002](../../decisions/0002-html-deliverable-dashboard-entry.md),
+  [ADR 0008](../../decisions/0008-unified-dashboard-shell.md)). No new UI framework.
+- **Two interaction modes, each honest about its rails:**
+  - *Rule-based pane* — **bounded controls only** (dropdown / toggle / stepper /
+    range-capped slider over fixed option sets and validated numeric bands). Invalid
+    states are unreachable; the engine only ever receives clean inputs.
+  - *AI Plus pane* — a **read-only dialog** over the OpenClaw gateway. Free-form
+    text refine **is** allowed here (this supersedes the old "no free-form input /
+    no AI layer" constraint), but the AI may only call **registered read-only
+    tools** via the structured-text tool protocol, and may never produce orders.
+- **Honesty is mandatory.** Every piece of output carries a `data_mode` (live vs
+  cached vs model/synthetic vs your-override). Nothing model-derived is dressed up
+  as live. Synthetic/model-only option ideas are capped (never "research-ready");
+  the AI pane shows which tools it actually called.
+- **Rule-based first; explainable; no opaque ML.** The deterministic pane is the
+  product's backbone; the AI pane augments, never replaces it.
+- **Regime is context, not an allocator.** Consume regime/risk signals; never turn
+  them into auto-execution.
+- **Conda `py313`;** new runtime deps go into `env.yml` in the same change.
 - **Funded-AUM denominator excludes options/futures** (existing risk gotcha) for
   all sizing.
 
 ---
 
-## 3. The advisor family (scope)
+## 4. The four modules (roster + surface types)
 
-Each is described at intent level; mechanics are each milestone's job.
+The modules are peers in the nav but **not** peers in shape or in trust — each
+suggestion already carries a `decision_tier` (T1 operational · T2 deterministic ·
+T3 model-overlay · T4 research), and that stays.
 
-| Advisor | Question it answers | Status |
-|---|---|---|
-| **Option Advisor** | "What option structures fit my holdings + regime + vol?" | ✅ built ([devplan](option_advisor.md)) — folds in as component #1 |
-| **Roll Reminder** | "Which of my *existing* option positions need attention (DTE, ITM/assignment, ex-div) and what's the roll?" | planned |
-| **FX Hedging Advisor** (+ **FX Carry Tilt** sub-module) | "What's the USD/SGD hedge target across CME FX futures — and which ccy to tilt by carry?" | ✅ built ([devplan](fx_hedge_advisor.md), [ADR 0006](../../decisions/0006-fx-hedge-regression-convention.md)); **spans both surfaces**. Carry-tilt sub-module planned |
-| **Trade Ideas** (general) | "Non-option moves worth considering: rebalance vs policy drift, regime-aligned sleeve tilts, relative-value pairs." | planned (scope to firm up) |
-| **(extensible)** | earnings-vol, tax-loss harvest, cash-deployment, … | open — a registry makes these additive |
+| Module | Decision it serves | Rule-based pane | AI Plus pane | Output shape | Journal? |
+|---|---|---|---|---|---|
+| **Option Strategy** | hedge holdings; sell premium on the universe | two screens: *collar over holdings*, *premium-shorts over the security universe* | open search over holdings + universe; tool-evaluate opportunity quality; refine | **idea stream** | ✅ yes |
+| **FX Hedge** | tilt the hedge by exposure + carry | **decision panel**: baseline mix + current FX exposure + carry → tilt | free analysis of the same three inputs; refine | **state / decision panel** | ❌ no |
+| **Tactical Trade Ideas** | what's live and how confident | display the external **Tactical Edge** brief as baseline | accumulate our own ideas — query in several directions, call tools, fetch latest data, judge confidence | **idea stream** | ✅ yes |
+| **Roll & Carry Calendar** | which holdings need a roll, when | **no run** — derived from holdings: (a) options + futures roll calendar, (b) commodity carry calendar *(placeholder)* | *(deferred — not asked for yet)* | **calendar** | ❌ no |
 
-**Design principle:** the umbrella owns a small **shared advisor contract** so
-all of the above produce the *same shape* of suggestion (label, category,
-thesis, why-now, rationale, drivers, audit, data_mode, sizing, decision hooks).
-That uniformity is what lets one GUI render all of them and lets "others not yet
-decided" drop in without UI work.
-
-**Two-surface advisors (worked example: FX Hedging Advisor).** Some advisors
-live on *both* surfaces over **one shared artifact**: the **report** side shows
-only the **target allocation**, refreshed on a slow **~30-day stale** cadence;
-the **interactive** side can **trigger a refresh on demand** (force-refresh) and
-shows the **full detail** (per-ccy hedge betas / R² / contracts / expiries /
-carry). Either refresh writes the same artifact, so the report always loads the
-latest. This is the concrete proof of §5.1's two-surface model and the template
-for any advisor that warrants both a glance and a workbench. The **FX Carry
-Tilt** sub-module hangs off this advisor (see §5.5) — it is **not** a standalone
-family member.
+Engines reused per module: `domain/option_advisor/` (Option); the
+`portfolio_monitor` fx-hedge engine + `fx_carry_tilt` (FX Hedge); the futures-roll
++ option-roll engines (Roll); `domain/tactical_ideas/` anchors + the Tactical Edge
+parser (Tactical); and `trade_advisor/ai/` (gateway + read-only tools + skills) for
+every AI Plus pane.
 
 ---
 
-## 4. Architecture at altitude
+## 5. UI / UX — the four module surfaces (the heart of this plan)
 
-- **`market_helper/trade_advisor/`** — the umbrella the user asked for: the
-  shared **advisor protocol + suggestion contract + registry**, plus a thin
-  **context bus** that assembles the common inputs once (portfolio snapshot,
-  regime state, risk view-model, market-data providers) and hands them to every
-  advisor. Each component advisor is a registered plugin.
-- **Component engines** live as domain analytics (the option engine already does,
-  at `domain/option_advisor/`). *Decision for M1: whether to physically move
-  option_advisor under the umbrella or register it in place* — recommend
-  register-in-place first (zero churn), re-home later only if it earns its keep.
-- **`application/trade_advisor/`** — dashboard-facing orchestration: run
-  advisors, collect suggestions, drive progress events, and own the **decision
-  journal** (accept/monitor/reject history — a local artifact, never a broker
-  action). Reuses the `QueryService` / `ActionService` split.
-- **`presentation/dashboard/pages/trade_advisor.py`** — the interactive page,
-  registered next to the portfolio page; built from the existing NiceGUI
-  primitives (`render_action_card`, status badges, `.pm-card`) + Plotly (already
-  the dashboard's charting lib).
-- **`reporting/`** — a static **Trade Advisor snapshot** section in the combined
-  HTML report (for the daily cron + Tailscale cross-device view).
+Each module is its **own surface** with inputs scoped to its decision; there is no
+shared input column and no single Run button. The default body is a **Rule-based |
+AI Plus** two-pane; FX Hedge and Roll & Carry depart from it where their nature
+demands.
 
-Net: the umbrella is a **coordinator + shared contract + two presentation
-hooks**, not a monolith. Adding an advisor touches the registry + one engine +
-(optionally) a per-advisor sub-view, nothing else.
+### 5.0 The shared two-pane pattern
+
+```
+┌─ <Module> ──────────────────────────────────────────────────────────────┐
+│  ┌──────── Rule-based ────────────┐  ┌────────── AI Plus ──────────────┐ │
+│  │ inputs scoped to THIS module   │  │ same context, opened up:        │ │
+│  │ (bounded controls)             │  │  • calls read-only tools        │ │
+│  │ preset-rule scan over          │  │  • fetches fresh data           │ │
+│  │   holdings + security universe │  │  • broader search               │ │
+│  │ → deterministic results        │  │  • interactive refine (dialog)  │ │
+│  │                                │  │  ↳ "crystallize" a good screen  │ │
+│  │                                │  │     back into the Rule-based     │ │
+│  │                                │  │     preset (config, not code)    │ │
+│  └────────────────────────────────┘  └──────────────────────────────────┘ │
+└──────────────────────────────────────────────────────────────────────────┘
+```
+
+The **AI Plus dialog** is the interactive-feedback mechanism the user asked for
+across *all* AI panes: generate → read → type feedback ("focus on the 2 best;
+check the gold trend; be concise") → it revises, with the tool-call trace visible.
+This reuses the existing `run_tool_chat` / `continue_messages` loop — read-only,
+never orders.
+
+### 5.1 Option Strategy
+
+**Rule-based pane — two preset screens, each with its own scope:**
+
+- **Zero-cost collar (holdings only).** Only meaningful against names the user
+  actually holds — it hedges an existing long. Scans `context.holdings`, builds the
+  buy-put-spread-financed-by-short-call structure, shows the honest tail below the
+  floor. *(Engine exists; carry over the current collar builder.)*
+- **Sell call / sell put for premium (the universe).** Searches the **security
+  universe** (the EQ rows of `configs/security_universe.csv` — ~32 names today, not
+  the hardcoded 14-name `LIQUID_UNIVERSE`) plus holdings, and filters for the
+  *valuable* premium opportunities by preset rule (carry yield vs margin, liquidity,
+  regime gate). **This needs a minimum research pass** to fix the screen: what makes
+  a premium short "worth it" (annualized yield floor, delta band, IV-rank gate,
+  event-risk exclusion). The result is YAML preset rules, not code.
+
+Per-idea detail keeps the existing **risk-explainer** body (scenario P&L, vol-shock,
+liquidity, plain-English flags) + the bounded what-if re-price. Ideas flow to the
+**journal / Inbox** (this module stays idea-shaped).
+
+**AI Plus pane.** Given holdings + the interest universe, the AI runs a more
+expansive search and **calls tools to evaluate whether an opportunity is good
+enough** (price-trend, regime, liquidity proxies), then refines on feedback. When
+an AI-found screen proves out, **crystallize it into the Rule-based preset**.
+
+### 5.2 FX Hedge — an independent decision panel (not idea cards)
+
+FX Hedge does **not** use the idea-card / Promote-Watch-Dismiss contract. It is a
+standing **decision panel** built from three parts:
+
+```
+┌─ FX Hedge ───────────────────────────────────────────────────────────────┐
+│  1) Baseline hedging mix   2) Current FX exposure   3) Carry               │
+│  ┌──────────────────┐  ┌──────────────────┐  ┌──────────────────────────┐ │
+│  │ from Portfolio    │  │ my actual FX      │  │ per-ccy carry (ON-rate   │ │
+│  │ Monitor's hedge   │  │ weight / exposure │  │ differential today;      │ │
+│  │ target artifact   │  │ across the book   │  │ futures-implied later)   │ │
+│  │ (EUR/GBP/AUD/JPY/ │  │  ← NEW: currency  │  │ e.g. AUD carry is good   │ │
+│  │  CNH legs, betas) │  │     lookthrough   │  │                          │ │
+│  └──────────────────┘  └──────────────────┘  └──────────────────────────┘ │
+│  → Decision: tilt the mix given exposure + carry                          │
+│    (e.g. "AUD carry is attractive → add AUD weight") — before/after view  │
+│  ┌──────────────────────────── AI Plus ────────────────────────────────┐  │
+│  │ free analysis over the same mix/exposure/carry; interactive refine   │  │
+│  └──────────────────────────────────────────────────────────────────────┘  │
+└────────────────────────────────────────────────────────────────────────────┘
+```
+
+- **Baseline hedging mix** — read Portfolio Monitor's FX-hedge target artifact
+  (`fx_hedge_allocation.json`: per-ccy target contracts, betas, indicative carry).
+  Display as the starting point; do not re-derive it here.
+- **Current FX exposure** — **a genuine new build.** The repo does not yet compute
+  per-currency portfolio exposure (the hedge engine sizes off funded AUM, and
+  `security_universe.csv` has no currency column). This needs a small **currency
+  lookthrough** (symbol → currency-of-risk, summed to a weight per ccy), analogous
+  to the existing country/sector lookthrough. Until it lands, show an honest
+  "exposure not yet computed" placeholder rather than a fabricated number.
+- **Carry** — per-ccy carry. Today this is the **ON-rate differential** approximation
+  already in `fx_carry_tilt` (honestly labelled rate-approx, not futures-implied);
+  the futures-implied curve is a later upgrade gated on a forward-curve feed.
+- **Decision layer** — the tilt: combine exposure + carry to suggest leaning the mix
+  (the user's example: AUD carry attractive → add AUD weight), with the existing
+  before/after exposure + carry-impact + hedge-deviation (basis-risk) view. This is
+  a *recommendation to the user about a continuous allocation*, recorded (if at all)
+  as the latest panel state — **not** a Promote/Watch/Dismiss idea.
+
+**AI Plus pane** — free analysis over the same three inputs, interactive refine.
+
+### 5.3 Tactical Trade Ideas
+
+Two steps, matching how the user wants to work:
+
+1. **Baseline = the external brief.** Pull the **Tactical Edge** daily brief from
+   the user's folder (`MARKET_HELPER_GDRIVE_ROOT/Tactical_Edge/latest.md`, already
+   parsed by `parse_tactical_edge`) and **display it directly** as the baseline set
+   of ideas — title, status, mechanism, the skeptic's "why-not", scores. This is a
+   strong reference to build on.
+2. **Accumulate our own ideas (AI-led).** On top of the baseline, the AI is queried
+   **in several directions** (the rule anchors: short-USD / de-dollarization,
+   risk-off / vol, trend-persistence, curve, sector rotation, commodity RV), **calls
+   read-only tools to fetch the latest data**, and **judges confidence** + suggests
+   new ideas — each forced to answer "why NOT trade today", capped at WATCHLIST.
+   This is the interactive-refine dialog again.
+
+Tactical stays idea-shaped → keeps the **journal / Inbox** and the 30/60/90 ex-ante
+review loop (this is what makes a promoted idea *verifiable* later).
+
+### 5.4 Roll & Carry Calendar — holdings-derived, no run
+
+This module should **not** run an advisor. It is read straight off the book:
+
+- **(a) Current holdings' roll calendar.** Options **and** futures the user holds,
+  with DTE / roll-target / urgency (PROCEED-within-urgent / MONITOR-within-window /
+  INFO), driven by `configs/portfolio_monitor/futures_roll_calendar.yml` (per-root
+  schedules) + the option-roll engine. Engines exist; this is a presentation re-home
+  away from the idea-card contract into a plain **calendar/table**.
+- **(b) Commodity carry calendar — placeholder now.** Leave a clearly-labelled
+  placeholder. The target: pull **GSCI's latest roll calendar** and tune its **F1/F7
+  deferred-carry** logic as the baseline. This is honestly **blocked on a CME forward
+  curve** (not in-repo) — today's roll engine is roll-*timing* only and must not
+  fabricate basis. The placeholder states exactly that and what data would unblock it.
+
+No Promote/Watch/Dismiss; no journal — it's a schedule, not an idea stream.
+
+### 5.5 What keeps the journal / Inbox
+
+Only the two **idea-stream** modules — **Option Strategy** and **Tactical Trade
+Ideas** — keep the decision journal, the cross-module Inbox of Promote/Watch items,
+and the ex-ante 30/60/90 review queue. **FX Hedge** (a decision panel) and **Roll &
+Carry** (a calendar) drop out of that contract entirely. *(Design decision taken in
+this reset — flagged for the user to veto.)*
 
 ---
 
-## 5. UI / UX design
+## 6. Architecture at altitude
 
-The emphasis of this plan. Two surfaces, one mental model.
-
-### 5.1 Two surfaces
-
-- **Interactive (NiceGUI, localhost / Tailscale):** where the user *works* —
-  picks inputs, runs advisors, tweaks what-if, records decisions.
-- **Static snapshot (combined HTML report):** where the user *reviews* — a
-  read-only roll-up of current PROCEED/MONITOR items, mirrored to GDrive and
-  reachable cross-device. No inputs; links back to the live page.
-
-### 5.2 Information architecture
-
-A new top-level **"Advisor"** entry next to Overview / Performance / Risk /
-Regime. Inside it, a unified **Inbox** plus one sub-tab per advisor:
-
-```
-┌─ Market Helper ───────────────────────────── [Live Refresh] [Refresh Regime] ─┐
-│  Overview  Performance  Risk  Regime  ▸ ADVISOR ◂  Artifacts                   │
-├───────────────────────────────────────────────────────────────────────────────┤
-│  Inbox │ Options │ Rolls │ FX Hedge │ Ideas            data: ● live  ⟳ 14:32   │
-│  ┌──────────── Inputs ───────────┐  ┌──────────── Results (ranked) ─────────┐  │
-│  │ Universe: [holdings ✓][watch+]│  │ [PROCEED] HEDGE · Collar · SPY  0.91  │  │
-│  │ AUM:  [ 250,000 ]             │  │ [PROCEED] DIR  · CallSpd · QQQ  0.90  │  │
-│  │ Regime: Reflation (auto) [⟳]  │  │ [MONITOR] INC  · CovCall · SPY  0.49  │  │
-│  │ Override IV/spot:  [SPY ▸]    │  │ [REJECT ] INC  · CSP     · SPY  —     │  │
-│  │ Strategies: ☑CC ☑CSP ☑PP …    │  │  … grouped by label, sortable          │  │
-│  │ Risk:  delta◍── dte◍──        │  └────────────────────────────────────────┘  │
-│  │           [ Run Advisor ▶ ]   │     ↑ click a row → detail panel (5.4)        │
-│  └───────────────────────────────┘                                              │
-└───────────────────────────────────────────────────────────────────────────────┘
-```
-
-The **Inbox** aggregates the top PROCEED/MONITOR items across *all* advisors so
-the user has one "what should I look at today" list; the per-advisor tabs are
-for focused work.
-
-### 5.3 Interaction model (input → compute → feedback)
-
-Reuse the established **action-card loop** (status badge → progress → last
-output) so running an advisor feels like the existing Live/Flex refresh:
-
-1. **Inputs** auto-seed from live state (holdings, regime, risk weights) and are
-   overridable **only through bounded controls** — never free text:
-   - *Universe*: multi-select of current holdings + a **validated symbol picker**
-     (autocomplete against the security universe / contract search), not an
-     arbitrary text box.
-   - *AUM*: numeric field with a min + step (or auto from the portfolio).
-   - *Regime*: a **select** — auto from the engine; manual override chooses from
-     the known regime labels.
-   - *Strategies*: per-strategy **toggles**.
-   - *Risk targets* (delta / DTE): **range-capped sliders** (fixed min/max/step).
-   - *Overrides* (IV / spot): **steppers / capped sliders** within a validated
-     band (e.g. IV in [floor, cap]; spot within ±N% of live).
-2. **Run** streams progress (per-symbol, per-advisor) — never a frozen spinner.
-3. **Results** arrive as ranked cards, grouped by label, with a persistent
-   **data-mode banner** (● live chain / ◐ live-anchored / ○ synthetic / ✎ your
-   override) so honesty is always on screen.
-
-### 5.4 Idea card + detail (how computed feedback is shown)
-
-Collapsed card = the headline; expanded = the full computed feedback.
-
-```
-┌ [PROCEED] HEDGE · Collar · SPY ───────────────── score 0.91 · ● live ─┐
-│ Buy P718 / Sell C791 · ~60DTE · net debit $96/unit · BE 760.5          │
-│ thesis: finance downside on the SPY long by capping upside             │
-│ ▸ expand: payoff · greeks · liquidity · sizing · audit · what-if       │
-└────────────────────────────────────────────────────────────────────────┘
-        ▼ expanded
-   ┌ Payoff (interactive Plotly) ─────────┐  ┌ Greeks ─────────┐
-   │   P&L ┆      ___________              │  │ Δ +55  Γ -0.33  │
-   │       ┆     /                         │  │ Θ -3.3  V -11.6 │
-   │  0 ───┼────/──────●BE────── spot      │  └─────────────────┘
-   │       ┆  / 718        791             │  ┌ Sizing ─────────┐
-   │  hover: at S=740 → P&L −$1,840        │  │ 2 lots (held)   │
-   └───────────────────────────────────────┘  │ risk $9,550     │
-   what-if:  strike[718▾] expiry[Jul31▾] qty[2▾] IV[+0%]  spot[759]│
-             └ drag any control → payoff/greeks/BE recompute live ─┘
-   liquidity: ● ok (spread 0.5%, OI 229)     event: earnings n/a (unverified)
-   audit ▸ why generated / why not PROCEED:  [liquidity ✓][cost ✓][sizing ✓]…
-   decision:  [ Proceed ]  [ Monitor ]  [ Reject ]   + note ▢
-```
-
-The load-bearing UX ideas:
-
-- **Live what-if — all via bounded controls.** Strike and expiry are
-  **dropdowns populated from the actual chain** (discrete by nature); quantity is
-  a **stepper** capped by the sizing rule; IV / spot are **steppers or
-  range-capped sliders** within a validated band. Changing one recomputes payoff,
-  Greeks, breakevens, and sizing *in place* — so the user explores the structure
-  instead of reading a fixed recommendation, but can never enter an out-of-range
-  or unparseable value. (Cheap: the pricing math is already pure + fast.)
-- **Payoff as the centerpiece.** An interactive P&L-vs-spot chart with hover
-  read-outs and breakeven/strike markers, optionally overlaid with a baseline
-  (buy-and-hold / unhedged) so the *marginal* effect is visible.
-- **Sensitivity on demand.** Toggle the x-axis to vol or days-to-expiry to see
-  P&L decay / vega exposure, not just terminal payoff.
-- **Audit is one click, always available.** The filter trail (each
-  pass/fail + reason) is how the user trusts a PROCEED and understands a REJECT.
-- **Decision controls, not order buttons.** Proceed/Monitor/Reject + a note
-  write to the **decision journal** (history + the Inbox + the static snapshot).
-  This is the closest the product comes to "action" — and it's purely a record.
-
-### 5.5 Per-advisor surfaces (same frame, different body)
-
-- **Roll Reminder:** a positions-by-expiry table — DTE countdown, ITM /
-  assignment / ex-div flags, and a suggested roll per row; row-expand reuses the
-  same payoff/greeks/what-if panel comparing *current vs rolled*. "Snooze /
-  monitor" instead of proceed.
-- **FX Hedging Advisor:** the **report** card shows the target hedge allocation
-  (cached ~30d); the **interactive** view adds the full detail — per-ccy hedge
-  ratios (betas) + R², contract counts, expiries, indicative carry — plus a
-  **Refresh now** trigger (force-refresh the shared artifact). Its **FX Carry
-  Tilt** sub-module ranks currencies by **futures-implied carry** (or
-  overnight-rate carry) and suggests a tilt *on top of* the hedge, with a
-  before/after exposure view. Decision = "adopt tilt / monitor / dismiss".
-- **Trade Ideas:** rebalance/relative-value cards; expand shows the drift-vs-
-  policy or pair chart instead of an option payoff.
-
-Same card chrome, same label/audit/decision controls — only the **body** differs
-per advisor, which is exactly what the shared contract buys us.
-
-### 5.6 Cross-device & persistence
-
-Interactive page is localhost-bound (Tailscale Serve for remote, per existing
-setup). The decision journal + the latest snapshot persist as local artifacts
-and mirror to GDrive like other reports, so the static "what did I flag" view is
-reachable anywhere without exposing the interactive controls.
+- **`market_helper/trade_advisor/`** keeps the shared contract + AI capability home
+  (`ai/`), but the contract stops being a one-size mould: FX Hedge and Roll render
+  their own bodies and skip the idea/journal machinery.
+- **Per-module presentation** replaces the single cockpit (`pages/trade_advisor/
+  cockpit.py`) + the global `inputs.py`: each module gets its own inputs + two-pane
+  surface. The old global-input builder and the single-Run fan-out are retired.
+- **Engines are untouched** — option, fx-hedge + carry-tilt, futures/option roll,
+  tactical anchors + Tactical Edge parse, and `ai/` gateway/tools/skills all stay.
+  The change is *which presentation calls them and how the output is framed*.
+- **New build surface, small and contained:** the FX currency-exposure lookthrough
+  (§5.2) and the Option premium-short preset-rule research (§5.1).
 
 ---
 
-## 6. Data & honesty
+## 7. Data & honesty (and the three real gaps)
 
-Reuse the option_advisor provider ladder (live → fallback → synthetic, all
-user-overridable) and generalize it: each advisor declares the freshness of its
-inputs, the UI surfaces it, and nothing model-derived is dressed up as live. FX
-carry needs rate/forward data; roll reminder reads already-ingested held-option
-Greeks; trade ideas read the existing risk/regime artifacts — **prefer existing
-in-repo data before adding any provider**, and when a provider is added it's
-read-only and declared in `env.yml`.
+Reuse the live → cached → model/synthetic ladder; each module declares freshness,
+the UI surfaces it. Three honest gaps this reset must name rather than paper over:
+
+1. **Option scan universe** — switch the premium-short scan from the hardcoded
+   14-name list to the **EQ rows of `security_universe.csv`**. Small, clean.
+2. **FX current exposure** — **not computed today.** Needs the new currency
+   lookthrough (§5.2); show a placeholder until it lands.
+3. **GSCI F1/F7 deferred carry** — **blocked on a CME forward curve.** Placeholder
+   only; roll-timing is honest, basis numbers would not be.
+
+AI Plus data access is **read-only tools only** (the registry refuses non-read-only
+functions); the AI cannot reach the broker or any write path.
 
 ---
 
-## 7. Validation
+## 8. Validation
 
-- Reuse the option_advisor test discipline: pure math unit-tested; deterministic
-  ranking/filter tests; hermetic (no network) via synthetic/override fixtures.
-- Per-advisor backtest vs **simple baselines** where data permits (covered-call
-  vs buy-and-hold; carry tilt vs equal-weight FX; rebalance vs do-nothing).
-- A **what-if-matches-engine** test class: the UI's live recompute must equal the
-  engine's batch output for the same inputs (no drift between display and truth).
+- Keep the engine test discipline (pure math unit-tested; deterministic
+  ranking/filter tests; hermetic via synthetic/override fixtures).
+- **Safety tests** (carry over): the AI panes never emit orders/sizes — prompt-
+  regression + leakage checks on every AI surface.
+- **Data-honesty tests** (carry over): synthetic / cached / missing is never tagged
+  "live"; the FX exposure placeholder never shows a fabricated weight.
+- **Decision validation** (carry over, Option + Tactical only): the journal freezes
+  an ex-ante snapshot + schedules 30/60/90 reviews.
 - Keep the full unit suite green on every milestone.
 
 ---
 
-## 8. Milestones (each small, reviewable; sequenced for early proof)
+## 9. Milestones (v2 — small, reviewable; sequenced to de-risk the IA first)
 
-1. ✅ **M1 — Umbrella + shared contract.** `market_helper/trade_advisor/`:
-   `Advisor` protocol, shared `Suggestion` / `AdvisorResult` / `AdvisorContext`
-   contracts, `AdvisorRegistry`, and an option-advisor adapter (registered in
-   place — **no behavior change**). 8 tests; full unit suite green (635).
-2. ✅ **M2 — Interactive shell + live what-if.** NiceGUI `/advisor` page
-   (bounded controls → Run → ranked cards → Plotly payoff + Greeks + sizing +
-   audit + live what-if re-price), wired into `create_app`. **Browser-verified**
-   end-to-end on live CBOE data (9 SPY/QQQ ideas, `data mode: live_chain`; cards,
-   payoff chart, audit all render); `what-if == engine` unit test. Proves the
-   interaction model on the option advisor.
-3. ✅ **M3 — Decision journal + static snapshot.** Append-only JSONL journal
-   (`trade_advisor.journal`); `/advisor` cards get Proceed/Monitor/Reject + note
-   controls feeding a cross-advisor **Inbox**; each decision regenerates a static
-   **snapshot HTML** (`reporting/trade_advisor_html`) written to
-   `data/artifacts/trade_advisor/` and mirrored cross-device via the existing
-   GDrive helper. Persist→inbox→snapshot pipeline unit + headless verified.
-4. ✅ **M4 — Roll Reminder.** Second advisor (`trade_advisor.adapters.roll`):
-   reads `context.held_options` → DTE / ITM / short-ITM assignment flags + roll
-   suggestions, registered so it appears in `/advisor` + Inbox with **zero
-   advisor-specific UI** (the page just runs every registered advisor). 5 tests.
-   *(Needs real held options — see the M6 portfolio-seeding item.)*
-5. ✅ **M5 — FX Hedging Advisor into the umbrella.** Adapter
-   (`trade_advisor.adapters.fx_hedge`) wraps the existing FX hedge engine,
-   **cached-by-default** (reads the shared artifact, no network; `refresh=True`
-   force-recomputes), emitting a hedge-target suggestion + a **FX Carry Tilt**
-   sub-module (rank ccys by overnight-rate carry). Third advisor, registered →
-   appears in `/advisor` + Inbox with zero advisor-specific UI; degrades to INFO
-   when no allocation is cached. 5 tests.
-6. ✅ **M6 — Trade Ideas + responsiveness + docs.** 4th advisor
-   (`trade_advisor.adapters.ideas`): regime-aligned sleeve tilt reusing
-   `suggest.quadrant_policy` (advisory, ADR 0006). Plus a short-TTL **CBOE
-   response cache** + tighter timeout (#7 — re-runs return instantly, throttled
-   CDN fails fast into the fallback) and a **how-to doc**
-   ([`docs/operations/trade_advisor_howto.md`](../../operations/trade_advisor_howto.md), #8).
-
-**All milestones M0–M6 landed.** The umbrella hosts four advisors (Option, Roll,
-FX Hedging + carry tilt, Trade Ideas) under one bounded-control UI; adding a
-fifth needs only a registered adapter.
-
-**Polish pass (post-M6, 2026-06-04).** Four reviewable increments:
-- *What-if spot ↔ chain skew* — ideas carry `ChainSnapshot.atm_skew` →
-  `OptionIdea.iv_skew`; the spot slider moves leg IV along the chain skew
-  (sticky-moneyness, default on, toggle for flat-vol). `iv_skew=0` keeps the
-  `what-if == engine` invariant.
-- *Earnings feed → `EventRisk`* — `option_advisor/earnings.py` (pure core +
-  graceful yfinance) wired through signals/service/adapter/CLI; surfaces in the
-  card headline, the `event_risk` audit filter, and ranking event-safety.
-- *Dedicated FX/Roll detail bodies* — card detail dispatches on `body_kind`
-  (fixes FX/Roll cards opening empty); pure table/fact builders unit-tested.
-- *Coverage + review* — +35 tests incl. an adapter→body contract test; review
-  confirmed the layering is sound (no large refactor warranted).
+1. **M1 — Shell re-aim.** Replace the global-input cockpit with **four
+   independently-routed module surfaces** (no shared input column, no single Run).
+   Move Roll & Carry off the idea-card contract into a plain holdings-derived
+   calendar (no run). *Proves the de-unified IA with the lowest-risk module.*
+2. **M2 — FX Hedge decision panel.** Re-home FX off idea-cards into the three-part
+   panel (baseline mix + exposure-placeholder + carry → tilt before/after). Drop
+   Promote/Watch/Dismiss for FX.
+3. **M3 — FX currency-exposure lookthrough.** The new build: symbol → currency-of-
+   risk → per-ccy weight; fills the §5.2 exposure column for real.
+4. **M4 — Option two-pane + universe + premium-short research.** Wire the scan to
+   `security_universe.csv`; do the minimum-research pass to fix the premium-short
+   preset rules (YAML); add the AI Plus pane with the crystallize-back loop.
+5. **M5 — Tactical baseline-first + AI accumulation.** Lead with the Tactical Edge
+   brief as baseline; AI accumulation pane with multi-direction querying + tools +
+   confidence judging + interactive refine.
+6. **M6 — Commodity carry calendar (placeholder → GSCI/F1-F7).** Ship the labelled
+   placeholder now; the GSCI roll calendar + F1/F7 tune lands when a forward-curve
+   feed is available.
 
 Each milestone gets its own short design pass; scope-expanding ones get an ADR.
 
 ---
 
-## 9. Non-goals
+## 10. Non-goals
 
 - No order execution / broker writes — now or via this surface, ever.
 - No opaque ML; no full multi-leg optimizer before the rule layer is validated.
-- No new UI framework (extend NiceGUI + the HTML report).
-- No real-time tick infrastructure in V1 — delayed/snapshot data is sufficient.
+- No new UI framework (extend NiceGUI).
+- No fabricated FX exposure or F1/F7 basis while the underlying data is absent.
 - Not a multi-user SaaS; single-operator, Tailscale-reachable.
 
 ---
 
-## 10. Open questions (to resolve as milestones land)
+## 11. Open questions / decisions taken in this reset
 
-- Final placement: move `option_advisor` physically under the umbrella, or
-  register in place? (Recommend in-place first.)
-- The "others not yet decided" advisors — which earn a slot (earnings-vol,
-  tax-loss harvest, cash deployment, pairs)?
-- Decision journal persistence: local JSON/Feather vs GDrive-mirrored; retention.
-- Do reminders ever *push* (email/notification via the existing scheduled-task
-  path), or stay pull-only in the Inbox?
-- What-if recompute: server round-trip vs lightweight client-side — latency vs
-  single-source-of-truth (the test in §7 guards correctness either way).
+- **Decided:** journal/Inbox kept for Option + Tactical only; FX + Roll drop it.
+  *(User may veto.)*
+- **Decided:** "Rule-based" / "AI Plus" as provisional pane names; open to rename.
+- **Open:** does Roll & Carry ever get an AI pane, or stay purely deterministic?
+  (Not asked for; default = stay deterministic.)
+- **Open:** does the FX tilt decision get any persistence (panel-state history), or
+  stay stateless each session?
+- **Open:** when the currency lookthrough lands, is currency-of-risk a manual map
+  (like country/sector lookthrough) or derived — and where does it live?
 
 ---
 
-## 11. Governance
+## 12. Governance
 
-- This file is the canonical track devplan. The
-  [option_advisor devplan](option_advisor.md) becomes a component reference under
-  it.
-- ADRs to add as scope is accepted: **trade_advisor umbrella + shared advisor
-  contract** (M1) and **interactive advisory surface** (M2, extends ADR 0002's
-  "HTML is the deliverable" to "interactive advisor page + static snapshot").
+- This file is the canonical track devplan; [option_advisor](option_advisor.md) and
+  [fx_hedge_advisor](fx_hedge_advisor.md) stay as the engine references beneath it.
+- ADRs to add as scope is accepted: **cockpit-v2 de-unified IA** (M1) and **AI Plus
+  read-only dialog per module** (supersedes the old "no free-form input" line in
+  ADR 0002's interaction model).
 - `plan/current.md` carries the active entry; each milestone updates it.

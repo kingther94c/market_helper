@@ -72,6 +72,10 @@ network-free.
 
 ## Backlog / not in V1
 
+- **Current FX exposure lookthrough** (symbol → currency-of-risk → per-ccy weight)
+  — not computed today; required by the Trade Advisor **FX Hedge decision panel**
+  (baseline mix + exposure + carry → tilt). See
+  [`trade_advisor.md`](trade_advisor.md) §5.2.
 - Second-order cross-currency (hedge-leg USD-P&L → SGD) term.
 - Margin / transaction-cost / carry optimisation.
 - Shrinkage / robust estimators for the collinear basket.
