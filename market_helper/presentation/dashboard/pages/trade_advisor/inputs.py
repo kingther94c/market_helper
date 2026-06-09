@@ -13,12 +13,52 @@ from market_helper.application.trade_advisor import context_from_positions_csv
 from market_helper.trade_advisor.contracts import AdvisorContext
 
 # Bounded option sets — the universe is a fixed, validated list (no free text).
+# LIQUID_UNIVERSE is the liquid default subset; the full option-scannable universe
+# is loaded from configs/security_universe.csv (see load_option_universe).
 LIQUID_UNIVERSE = [
     "SPY", "QQQ", "IWM", "DIA", "XLK", "XLF", "XLE",
     "AAPL", "MSFT", "NVDA", "TSLA", "AMZN", "GOOGL", "META",
 ]
 REGIME_OPTIONS = ["", "Goldilocks", "Reflation", "Stagflation", "Deflationary Slowdown"]
 CONFIDENCE_OPTIONS = ["", "High", "Medium", "Low"]
+
+
+def load_option_universe(path=None) -> list[str]:
+    """US-listed EQ tickers from ``configs/security_universe.csv`` (option-scannable).
+
+    The v2 Option module scans the *security universe* rather than a hardcoded
+    14-name list. We keep only equity STK rows that are US-listed (an option chain
+    is fetchable), drop ``.L`` London listings, and surface the liquid names first.
+    Falls back to ``LIQUID_UNIVERSE`` if the CSV is unreadable.
+    """
+    import csv
+
+    from market_helper.app.paths import CONFIGS_DIR
+
+    csv_path = path or (CONFIGS_DIR / "security_universe.csv")
+    try:
+        with open(csv_path, newline="", encoding="utf-8") as fh:
+            rows = list(csv.DictReader(fh))
+    except (OSError, csv.Error):
+        return list(LIQUID_UNIVERSE)
+
+    scannable: list[str] = []
+    for row in rows:
+        if (row.get("asset_class") or "").strip().upper() != "EQ":
+            continue
+        if (row.get("sec_type") or "").strip().upper() != "STK":
+            continue
+        if (row.get("yahoo_symbol") or "").strip().upper().endswith(".L"):
+            continue  # London listing — no US option chain
+        sym = (row.get("ibkr_symbol") or "").strip().upper()
+        if sym and sym not in scannable:
+            scannable.append(sym)
+    if not scannable:
+        return list(LIQUID_UNIVERSE)
+    # Liquid names first (stable, good defaults), then the rest of the universe.
+    liquid = [s for s in LIQUID_UNIVERSE if s in scannable]
+    rest = [s for s in scannable if s not in liquid]
+    return liquid + rest
 
 
 @dataclass

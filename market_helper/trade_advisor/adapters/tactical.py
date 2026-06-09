@@ -194,8 +194,10 @@ class TacticalIdeasPlugin:
             journal_note=(f"Why-not (skeptic): {skeptic}" if skeptic else card.get("next step")),
             data_mode="tactical_edge",
             body_kind="tactical_edge",
-            detail={"number": card.number, "status": card.status, "skeptic": skeptic,
-                    "scores": dict(card.scores), **dict(card.fields)},
+            # Spread the raw parsed fields FIRST so the structured keys below always win —
+            # a card field literally named "scores" must not clobber the scores DICT.
+            detail={**dict(card.fields), "number": card.number, "status": card.status,
+                    "skeptic": skeptic, "scores": dict(card.scores)},
         )
 
     def _to_suggestion(self, idea, ctx, as_of: str) -> Suggestion:

@@ -42,10 +42,21 @@ class RegimeSeed:
         return bool(self.regime)
 
 
-def _latest_snapshot(path: Path) -> dict | None:
+# The canonical regime artifact (``regime_snapshots.json``) is a single JSON array the
+# engine APPENDS to indefinitely — in practice it grows to 100s of MB. Both the advisor
+# seed and the tactical context only need the LAST snapshot, so fully parsing it on every
+# page load froze the UI. We therefore (a) tail-read just the last array element for big
+# files, and (b) cache by (mtime, size) so repeated reads in one process are free.
+# (The root fix — bounding the engine's append — is a separate regime-engine task.)
+_FULL_PARSE_MAX = 4 * 1024 * 1024     # ≤4 MB → parse fully (simple + robust; covers test fixtures)
+_TAIL_BYTES = 1024 * 1024             # read up to the last 1 MB for the tail scan
+_SNAPSHOT_CACHE: dict[str, tuple[float, int, "dict | None"]] = {}
+
+
+def _parse_last_full(path: Path) -> dict | None:
     try:
         payload = json.loads(path.read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError):
+    except (OSError, json.JSONDecodeError, ValueError):
         return None
     if isinstance(payload, list):
         snap = payload[-1] if payload else None
@@ -56,6 +67,58 @@ def _latest_snapshot(path: Path) -> dict | None:
     return snap if isinstance(snap, dict) else None
 
 
+def _parse_last_tail(path: Path, size: int) -> dict | None:
+    """Last element of a pretty-printed (``indent=2``) JSON array — without a full parse.
+
+    Top-level array elements open/close at exactly two-space indent (``  {`` / ``  }``);
+    nested content is indented deeper, so those lines unambiguously bound the last object.
+    """
+    try:
+        with open(path, "rb") as fh:
+            fh.seek(max(0, size - _TAIL_BYTES))
+            tail = fh.read().decode("utf-8", errors="ignore")
+    except OSError:
+        return None
+    lines = tail.splitlines()
+    close = next((i for i in range(len(lines) - 1, -1, -1) if lines[i].rstrip() in ("  }", "  },")), None)
+    if close is None:
+        return None
+    opener = next((i for i in range(close - 1, -1, -1) if lines[i].rstrip() == "  {"), None)
+    if opener is None:
+        return None
+    block = "\n".join(lines[opener:close + 1]).rstrip().rstrip(",")
+    try:
+        obj = json.loads(block)
+    except (json.JSONDecodeError, ValueError):
+        return None
+    return obj if isinstance(obj, dict) else None
+
+
+def latest_regime_snapshot(path: str | Path | None = None) -> dict | None:
+    """Return the latest regime snapshot dict, reading the huge append-only array cheaply.
+
+    Cached by (mtime, size) per path, so the first read in a process pays the cost and
+    every later read (other tabs, the tactical context) is free. Big files are tail-read;
+    small files / fixtures are parsed fully. Best-effort: returns ``None`` on any problem.
+    """
+    p = Path(path) if path else DEFAULT_REGIME_SNAPSHOT_PATH
+    try:
+        st = p.stat()
+    except OSError:
+        return None
+    key = str(p)
+    hit = _SNAPSHOT_CACHE.get(key)
+    if hit is not None and hit[0] == st.st_mtime and hit[1] == st.st_size:
+        return hit[2]
+    snap = _parse_last_full(p) if st.st_size <= _FULL_PARSE_MAX else _parse_last_tail(p, st.st_size)
+    _SNAPSHOT_CACHE[key] = (st.st_mtime, st.st_size, snap)
+    return snap
+
+
+# Back-compat alias (older callers / tests).
+_latest_snapshot = latest_regime_snapshot
+
+
 def current_regime_seed(path: str | Path | None = None) -> RegimeSeed:
     """Return the latest regime snapshot mapped onto the advisor's controls.
 
@@ -64,7 +127,7 @@ def current_regime_seed(path: str | Path | None = None) -> RegimeSeed:
     crisis flag. Unrecognised labels are dropped to ``""`` so the dropdown stays
     valid.
     """
-    snap = _latest_snapshot(Path(path) if path else DEFAULT_REGIME_SNAPSHOT_PATH)
+    snap = latest_regime_snapshot(path)
     if snap is None:
         return RegimeSeed()
 
@@ -79,4 +142,4 @@ def current_regime_seed(path: str | Path | None = None) -> RegimeSeed:
     return RegimeSeed(regime=regime, confidence=confidence, crisis=bool(snap.get("risk_overlay_on", False)))
 
 
-__all__ = ["RegimeSeed", "current_regime_seed", "DEFAULT_REGIME_SNAPSHOT_PATH"]
+__all__ = ["RegimeSeed", "current_regime_seed", "latest_regime_snapshot", "DEFAULT_REGIME_SNAPSHOT_PATH"]

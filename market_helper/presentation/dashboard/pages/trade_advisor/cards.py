@@ -353,8 +353,8 @@ def tactical_edge_facts(detail: dict) -> list[tuple[str, str]]:
         val = str(detail.get(key, "") or "").strip()
         if val:
             out.append((label, val))
-    scores = detail.get("scores") or {}
-    if scores:
+    scores = detail.get("scores")
+    if isinstance(scores, dict) and scores:
         out.append(("Scores", " · ".join(f"{k} {v}/5" for k, v in scores.items())))
     return out
 

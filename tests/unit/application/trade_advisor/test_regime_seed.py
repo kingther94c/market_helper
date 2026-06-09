@@ -4,7 +4,11 @@ from __future__ import annotations
 
 import json
 
-from market_helper.application.trade_advisor.regime_seed import RegimeSeed, current_regime_seed
+from market_helper.application.trade_advisor.regime_seed import (
+    RegimeSeed,
+    current_regime_seed,
+    latest_regime_snapshot,
+)
 
 
 def _write(tmp_path, payload):
@@ -53,3 +57,29 @@ def test_malformed_json_is_empty_seed(tmp_path):
 
 def test_empty_list_is_empty_seed(tmp_path):
     assert current_regime_seed(_write(tmp_path, [])) == RegimeSeed()
+
+
+def test_tail_read_large_array_returns_last_without_full_parse(tmp_path):
+    """The canonical artifact grows to 100s of MB; the reader must tail-read the last
+    element of a pretty-printed (indent=2) array, not parse the whole thing."""
+    filler = {"date": "1900-01-01", "base_regime": "Goldilocks", "confidence": "Low",
+              "risk_overlay_on": False, "pad": "x" * 2000}
+    last = {"date": "2026-06-09", "base_regime": "Reflation", "confidence": "High",
+            "risk_overlay_on": True, "final_growth_score": 0.5}
+    payload = [dict(filler) for _ in range(2600)] + [last]
+    p = tmp_path / "regime_snapshots.json"
+    p.write_text(json.dumps(payload, indent=2), encoding="utf-8")  # indent=2 → top-level `  {`/`  }`
+    assert p.stat().st_size > 4 * 1024 * 1024  # on the tail-read path, not full-parse
+
+    snap = latest_regime_snapshot(p)
+    assert snap is not None and snap["date"] == "2026-06-09" and snap["base_regime"] == "Reflation"
+    assert current_regime_seed(p) == RegimeSeed(regime="Reflation", confidence="High", crisis=True)
+
+
+def test_snapshot_cache_refreshes_when_file_changes(tmp_path):
+    p = tmp_path / "regime_snapshots.json"
+    p.write_text(json.dumps([{"base_regime": "Goldilocks", "confidence": "Low"}]), encoding="utf-8")
+    assert latest_regime_snapshot(p)["base_regime"] == "Goldilocks"
+    # Rewrite with different content + size → the (mtime, size)-keyed cache must refresh.
+    p.write_text(json.dumps([{"base_regime": "Reflation", "confidence": "High", "pad": "different-size"}]), encoding="utf-8")
+    assert latest_regime_snapshot(p)["base_regime"] == "Reflation"

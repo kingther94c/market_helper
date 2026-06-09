@@ -13,14 +13,13 @@ are injectable so tests stay hermetic.
 
 from __future__ import annotations
 
-import json
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
 from market_helper.application.trade_advisor.regime_seed import (
-    DEFAULT_REGIME_SNAPSHOT_PATH,
     current_regime_seed,
+    latest_regime_snapshot,
 )
 
 # Regime-quadrant → favored equity sectors (the rotation anchor).
@@ -89,18 +88,6 @@ class TacticalIdea:
         }
 
 
-def _read_snapshot(path: Path) -> dict | None:
-    try:
-        payload = json.loads(Path(path).read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError, ValueError):
-        return None
-    if isinstance(payload, list):
-        snap = payload[-1] if payload else None
-    else:
-        snap = payload
-    return snap if isinstance(snap, dict) else None
-
-
 def _f(x: Any) -> float | None:
     try:
         return float(x)
@@ -144,7 +131,7 @@ def build_tactical_context(
     injectable; when omitted they are loaded best-effort (offline, no retrain)."""
     sources: list[str] = []
     seed = current_regime_seed(regime_path)
-    snap = _read_snapshot(Path(regime_path) if regime_path else DEFAULT_REGIME_SNAPSHOT_PATH) or {}
+    snap = latest_regime_snapshot(regime_path) or {}
     if snap:
         sources.append("regime_snapshot")
     growth = _f(snap.get("final_growth_score"))
