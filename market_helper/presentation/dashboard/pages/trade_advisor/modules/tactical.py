@@ -39,13 +39,20 @@ def build_tactical_suggestions(*, include_edge: bool = True, edge_root=None) -> 
 
 
 def _tactical_ai_builder():
-    """Initial messages for the tool-enabled tactical brief (the harness-selected prompt)."""
+    """Initial messages for the tool-enabled tactical brief (the harness-selected prompt).
+
+    v2.1: the idea-block capture protocol rides on the system turn so every
+    proposed idea is also emitted as a fenced ``idea`` block the pane can capture.
+    """
     from market_helper.domain.tactical_ideas import build_tactical_context, generate_tactical_ideas
     from market_helper.domain.tactical_ideas.ai_tools import build_tactical_tool_registry, tactical_tool_messages
+    from market_helper.trade_advisor.ai.idea_capture import IDEA_BLOCK_INSTRUCTIONS
 
     ctx = build_tactical_context()
     reg = build_tactical_tool_registry()
-    return tactical_tool_messages(ctx, generate_tactical_ideas(ctx), reg), reg
+    messages = tactical_tool_messages(ctx, generate_tactical_ideas(ctx), reg)
+    messages[0]["content"] += IDEA_BLOCK_INSTRUCTIONS
+    return messages, reg
 
 
 def render_tactical_module(journal, refresh_inbox) -> None:
@@ -80,11 +87,45 @@ def render_tactical_module(journal, refresh_inbox) -> None:
 
         ui.timer(0.1, _populate, once=True)
 
-    # 2) Accumulate — the AI Plus dialog.
+    # 2) Accumulate — the AI Plus dialog + the captured-ideas shelf (v2.1).
+    # Captured ideas become journal-able cards (T4 · WATCHLIST-capped · honest
+    # synthetic data tag) instead of evaporating with the dialog.
+    captured: list = []
+    with ui.card().classes("w-full pm-card"):
+        ui.label("Captured ideas · from the AI dialog").classes("text-subtitle2")
+        captured_box = ui.column().classes("w-full gap-3")
+        with captured_box:
+            ui.label(
+                "Nothing captured yet — generate a brief below; replies carrying idea blocks "
+                "offer a one-click capture."
+            ).classes("text-caption pm-muted")
+
+    def _on_capture(items: list) -> None:
+        from market_helper.trade_advisor.ai.idea_capture import captured_suggestion
+
+        as_of = _dt.date.today().isoformat()
+        existing = {s.suggestion_id for s in captured}
+        captured.extend(
+            s for s in (captured_suggestion(f, as_of=as_of) for f in items)
+            if s.suggestion_id not in existing
+        )
+        _render_module(
+            captured_box, list(captured), journal, refresh_inbox,
+            empty_note="Nothing captured yet.",
+        )
+
+    def _parse_blocks(text: str) -> list:
+        from market_helper.trade_advisor.ai.idea_capture import parse_idea_blocks
+
+        return parse_idea_blocks(text)
+
     render_ai_pane(
         _tactical_ai_builder,
         intro="Opt-in: the AI synthesizes the anchors and may call read-only tools (regime / policy-expert / "
               "anchors / price-trend / tactical-edge) to research new ideas + judge confidence. After a brief, "
-              "type feedback to refine — analysis only, never orders.",
+              "type feedback to refine — analysis only, never orders. Replies with idea blocks can be captured "
+              "into journal-able cards above.",
         generate_label="Generate AI brief",
+        capture_parser=_parse_blocks,
+        on_capture=_on_capture,
     )

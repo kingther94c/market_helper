@@ -53,8 +53,26 @@ def test_build_roll_rows_empty_book():
 def test_roll_calendar_table_shape():
     rows = roll_mod.build_roll_rows(_roll_context(), today="2026-06-03")
     headers, trows = roll_mod.roll_calendar_table(rows)
-    assert headers == ["Type", "Subject", "Instrument", "Urgency", "To roll", "Schedule"]
+    assert headers == ["Type", "Subject", "Instrument", "Urgency", "To roll", "Roll date", "Schedule"]
     assert len(trows) == len(rows) and all(len(r) == len(headers) for r in trows)
+    date_col = headers.index("Roll date")
+    spy = next(r for r in trows if r[1] == "SPY")
+    assert spy[date_col] == "2026-06-08"            # option roll date = its expiry
+    ng = next(r for r in trows if r[1] == "NG")
+    assert ng[date_col] == "2026-07-07"             # GSCI-like prior-month target (Jul 7)
+
+
+def test_roll_yield_table_formats_ok_and_skipped():
+    rows = [
+        {"root": "NG", "held_contract": "NGQ26", "next_contract": "NGU26",
+         "held_px": 3.23, "next_px": 3.40, "roll_yield_ann": -0.602, "curve": "contango", "status": "ok"},
+        {"root": "ZN", "held_contract": "10Y US", "status": "skipped",
+         "note": "no month code on the position — cannot identify the curve point"},
+    ]
+    headers, trows = roll_mod.roll_yield_table(rows)
+    assert headers[-2] == "Roll yield (ann)"
+    assert trows[0][5] == "-60.2%" and trows[0][6] == "contango"
+    assert "no month code" in trows[1][6]           # skips carry their reason, never vanish
 
 
 def test_commodity_carry_placeholder_is_honest():
@@ -107,6 +125,64 @@ def test_fx_exposure_placeholder_is_honest():
     assert "lookthrough" in ph["body"] and "fabricated" in ph["body"]   # no fake exposure number
 
 
+def _decision_inputs():
+    panel = {
+        "available": True,
+        "legs_raw": [
+            {"currency": "AUD", "target_contracts": 4, "target_notional_usd": 400_000.0},
+            {"currency": "CNH", "target_contracts": 1, "target_notional_usd": 100_000.0},
+        ],
+    }
+    exposure = {
+        "available": True,
+        "by_currency": [("USD", 700_000.0, 0.7), ("AUD", 200_000.0, 0.2), ("CNY", 100_000.0, 0.1)],
+        "fx_overlay_by_currency": {"AUD": {"usd": 200_000.0, "qty": 3.0}},
+    }
+    return panel, exposure
+
+
+def test_build_fx_decision_joins_target_vs_held():
+    panel, exposure = _decision_inputs()
+    d = fx_mod.build_fx_decision(panel, exposure)
+    assert d["available"] is True
+    by = {r["ccy"]: r for r in d["rows"]}
+    aud = by["AUD"]
+    assert aud["cur_qty"] == 3.0 and aud["cur_usd"] == 200_000.0
+    assert aud["tgt_ct"] == 4 and aud["tgt_usd"] == 400_000.0
+    assert aud["gap_ct"] == 1.0 and aud["gap_usd"] == 200_000.0        # the actionable distance
+    # CNH target leg joins the book's CNY bucket (offshore proxy, documented).
+    cny = by["CNY"]
+    assert cny["tgt_usd"] == 100_000.0 and cny["cur_usd"] == 0.0 and cny["book_usd"] == 100_000.0
+    assert d["rows"][0]["ccy"] == "AUD"                                # sorted by |target| desc
+
+
+def test_build_fx_decision_at_target_mix_renormalizes():
+    panel, exposure = _decision_inputs()
+    d = fx_mod.build_fx_decision(panel, exposure)
+    at = {c: (usd, w) for c, usd, w in d["at_target"]}
+    # AUD: 200k book − 200k held + 400k target = 400k; CNY: 100k + 100k = 200k; USD unchanged.
+    assert at["AUD"][0] == 400_000.0 and at["CNY"][0] == 200_000.0 and at["USD"][0] == 700_000.0
+    total = 400_000.0 + 200_000.0 + 700_000.0
+    assert abs(at["USD"][1] - 700_000.0 / total) < 1e-9
+    assert d["at_target"][0][0] == "USD"                               # sorted by size desc
+    assert "USD" in fx_mod.at_target_line(d)
+
+
+def test_build_fx_decision_unavailable_inputs_stay_empty():
+    d = fx_mod.build_fx_decision({"available": False}, {"available": True, "by_currency": []})
+    assert d["available"] is False and d["rows"] == []                 # never fabricated
+    headers, rows = fx_mod.fx_decision_table(d)
+    assert rows == [] and headers[0] == "Ccy"
+
+
+def test_fx_decision_table_formats_signed():
+    panel, exposure = _decision_inputs()
+    headers, rows = fx_mod.fx_decision_table(fx_mod.build_fx_decision(panel, exposure))
+    assert headers == ["Ccy", "Book $", "Book %", "Now ct", "Now $", "Target ct", "Target $", "Δ ct", "Δ $"]
+    aud = next(r for r in rows if r[0] == "AUD")
+    assert aud[5] == "+4" and aud[7] == "+1" and aud[8] == "+200,000"
+
+
 # --------------------------------------------------------------------------- #
 # Option universe loader (security_universe.csv wiring)
 # --------------------------------------------------------------------------- #
@@ -146,3 +222,18 @@ def test_partition_option_ideas_splits_into_two_screens():
     assert [s.suggestion_id for s in groups[1][1]] == ["i1", "i2"]  # premium/income screen
     assert [s.suggestion_id for s in groups[2][1]] == ["d1"]        # other structures
     assert groups[2][2] == ""                                       # 'Other' hidden when empty (no note)
+
+
+def test_option_summary_rows_ranked_and_aligned():
+    a = Suggestion(advisor="option", suggestion_id="a", as_of="2026-06-10",
+                   title="COVERED_CALL · SPY", subject="SPY", category="INCOME",
+                   label="WATCHLIST", score=0.6,
+                   headline_metrics={"yield": "38%/yr", "IV/RV": "1.31x", "net": "credit 412", "liq": "ok"})
+    b = Suggestion(advisor="option", suggestion_id="b", as_of="2026-06-10",
+                   title="ZERO_COST_COLLAR · NVDA", subject="NVDA", category="HEDGE",
+                   label="RESEARCH_READY", score=0.8, headline_metrics={"net": "credit 0", "@-10%": "-1,200"})
+    headers, rows = opt_mod.option_summary_rows([a, b])
+    assert len(headers) == len(rows[0]) == len(rows[1])
+    assert rows[0][:4] == ["Hedge", "NVDA", "ZERO_COST_COLLAR", "RESEARCH_READY"]  # label rank first
+    assert rows[1][0] == "Income" and rows[1][4] == "38%/yr" and rows[1][5] == "1.31x"
+    assert rows[0][4] == "—"                                       # missing metric → em dash, not blank

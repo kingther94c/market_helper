@@ -372,6 +372,87 @@ incidental fixes shipped: a Tactical-Edge `scores` render crash, and a 181 MB
 
 Each milestone gets its own short design pass; scope-expanding ones get an ADR.
 
+### 9.1 v2.1 — the next-level pass (2026-06-10)
+
+A fresh full review of the built v2 found the IA right but the *product* still
+answering only when poked. Six concrete weaknesses, each with a fix:
+
+1. **The surface has no "so what" layer.** Opening `/advisor` gives four tabs and
+   buttons. Roll urgency, due idea reviews, FX-target staleness, the carry-tilt
+   headline, and brief freshness are all *computed* but each buried one tab deep;
+   nothing synthesizes "what needs my attention today".
+2. **Scans evaporate.** An Option scan dies on reload; the tab always opens empty
+   and nothing is as-of-stamped. There is also no compact ranked view — only a
+   card pile — so comparing 10+ ideas means scrolling.
+3. **The FX panel shows the three inputs but never does the join.** §5.2 promises
+   a *decision*; what renders is mix, exposure, and carry side by side-ish
+   (actually stacked) with the only join being the carry tilt. The actual gap —
+   per-currency **target hedge leg vs the FX futures the book already holds**
+   (their `market_value` is the signed notional, so this is exactly computable) —
+   and the post-at-target net currency mix are missing.
+4. **The promised loops aren't closed.** Tactical "accumulate own ideas" produces
+   prose that evaporates with the dialog; Option "crystallize a good screen into
+   the preset" has no affordance at all. Both are flagship §2 promises.
+5. **Roll & Carry shows neither dates nor carry.** The table gives relative "12d"
+   but not the target date; the carry card is a pure placeholder — although the
+   book's NG calendar spread (short Q26 / long G27) *is* a carry position, and a
+   **two-contract roll yield** from live month-contract quotes (`NGQ26.NYM`) is
+   honestly computable without a CME curve feed.
+6. **Render-path jank.** All four tab panels build synchronously at page load (FX
+   artifact read + roll computation inline); `build_fx_panel` runs twice (panel +
+   AI grounding); the Option module's manual "Treat as held" select is silently
+   ignored while "use my portfolio" is on.
+
+**v2.1 milestones** (sequenced; each lands with tests + an honest data label):
+
+- **V1 — Option scan persistence + ranked summary.** Persist each scan
+  (suggestions + inputs + as-of) to
+  `data/artifacts/trade_advisor/option_scan_latest.json` (gitignored); restore on
+  open with an as-of badge; a ranked summary table (screen · symbol · structure ·
+  label · yield · IV/RV · net · liquidity) above the cards; grey out the manual
+  held-select while the live book drives the scan.
+- **V2 — "Today" attention strip.** A zero-click synthesis bar at the top of
+  `/advisor`: roll-now items (T1), due idea reviews, FX-target staleness + tilt
+  headline, Tactical-Edge brief freshness, last-scan stats. Local/cached data
+  only, built async off the render path; each chip jumps to its tab. Module tab
+  bodies defer their IO the same way (fixes weakness 6).
+- **V3 — FX target-vs-current decision table.** Split the book's FX-future
+  overlay (signed notionals) out of the lookthrough exposure; join per currency:
+  book exposure | current overlay | target leg | **gap**; plus an "at target" net
+  mix line. Input cards side-by-side per the §5.2 sketch; the decision card —
+  gap table + carry tilt — beneath.
+- **V4 — Roll calendar dates + held-roots roll yield.** Add the roll-target date
+  column. New `futures_roll_yield` service: held month-coded contract → next
+  liquid contract (per-root liquid-months config) → quote both via Yahoo
+  month-contract symbols → annualized roll yield `ln(F1/F2) × 365/Δdays`, cached
+  artifact + an explicit "Fetch quotes (network)" button. Honest scope:
+  two-contract carry for *held* roots — the GSCI F1/F7 curve stays open.
+- **V5 — Tactical idea capture.** A fenced ```idea`` block protocol in the
+  tactical AI prompt; parser + mapping onto `Suggestion` (T4, WATCHLIST-capped);
+  a "Capture" action per AI turn renders captured ideas as journal-able cards.
+  Closes the accumulate loop; the same protocol is reusable by Option later.
+- **V6 (stretch) — crystallize editor.** A bounded premium-screen knob editor
+  writing the YAML preset the scan honors. Closes the crystallize loop.
+
+**Build status (2026-06-10).** ✅ V1 (scan persisted to
+`option_scan_latest.json` + restored with a saved-at badge; ranked summary table;
+manual held/AUM greyed out under "use my portfolio") · ✅ V2 (`overview.py` Today
+strip: roll/reviews/FX/edge/scan chips, severity-sorted, async-gathered, chips
+jump tabs; FX + Roll module bodies now also populate async) · ✅ V3
+(`fx_overlay_by_currency` signed split in the exposure; `build_fx_decision` joins
+target legs vs held FX futures per ccy — gap in contracts + USD, "at target" mix
+line, CNH↔CNY bucket join; three input cards side-by-side, decision card beneath;
+AI grounding now includes the gap + reuses the module's cached panel) · ✅ V4
+(roll-date column; `futures_roll_yield.py` two-contract roll yield over Yahoo
+month contracts, per-root `liquid_months` cycles, cached via
+`roll_carry.fetch/load_roll_yields`, explicit Fetch button — network never in the
+render path) · ✅ V5 (`idea_capture.py` fenced ``idea``-block protocol + parser +
+`captured_suggestion` → T4/WATCHLIST/synthetic-tagged cards; generic capture seam
+on `ai_pane.py`; tactical wires it with a captured-ideas shelf + dedupe) · ✅ V6
+(`option_rules.py` bounded clamp + targeted-line-edit YAML save that preserves
+comments; the Option scan now passes `advisor_rules.yaml` as `rules_path`, so the
+crystallize loop is live end-to-end).
+
 ---
 
 ## 10. Non-goals
@@ -402,7 +483,8 @@ Each milestone gets its own short design pass; scope-expanding ones get an ADR.
 
 - This file is the canonical track devplan; [option_advisor](option_advisor.md) and
   [fx_hedge_advisor](fx_hedge_advisor.md) stay as the engine references beneath it.
-- ADRs to add as scope is accepted: **cockpit-v2 de-unified IA** (M1) and **AI Plus
-  read-only dialog per module** (supersedes the old "no free-form input" line in
-  ADR 0002's interaction model).
+- The IA + interaction decisions are recorded in
+  [ADR 0010](../../decisions/0010-advisor-de-unified-modules-and-ai-plus.md)
+  (de-unified module surfaces; per-module AI Plus read-only dialog — amends the
+  "no free-form input" line in ADR 0002's interaction model; v2.1 closed loops).
 - `plan/current.md` carries the active entry; each milestone updates it.

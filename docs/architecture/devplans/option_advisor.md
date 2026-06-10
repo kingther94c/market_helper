@@ -295,8 +295,15 @@ in two established results (so "普通版怎么筛选" is researched, not arbitr
 **geometric mean of annualized yield × VRP richness** (both must be decent), surfaced as
 `yield` + `IV/RV` on the card with a "manage ~21 DTE" note. IV comes from the fetched
 chain, RV from `domain/portfolio_monitor/services/volatility.py` — **no new IV-history
-cache needed**. (IV-percentile over a history cache stays a future refinement; the AI Plus
-pane covers open-ended discovery and can crystallize a tuned screen back into this config.)
+cache needed**. (IV-percentile over a history cache stays a future refinement.)
+
+**Crystallize loop (v2.1, 2026-06-10).** The dashboard's Option module now passes
+`configs/option_advisor/advisor_rules.yaml` as `rules_path` (previously the scan ran on
+in-code defaults only), and a bounded **"Premium screen preset · crystallize"** editor
+(`application/trade_advisor/option_rules.py`) writes the four knobs back into that YAML
+via targeted line edits — values clamped to validated bands, comments (this research
+rationale) preserved byte-for-byte. What the AI Plus pane discovers can therefore land
+in the deterministic preset as config, not code.
 
 Sources: [daystoexpiry — theta DTE guide](https://www.daystoexpiry.com/blog/theta-decay-dte-guide) ·
 [projectfinance — option theta](https://www.projectfinance.com/theta/) ·

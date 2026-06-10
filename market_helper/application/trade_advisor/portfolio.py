@@ -119,7 +119,10 @@ def currency_exposure_from_positions_csv(
     JPY/EUR/AUD/… rather than all USD. ``manual`` / ``taxonomy`` are injectable for tests;
     when omitted (and ``lookthrough``) the maintained country lookthrough CSVs are loaded.
     Returns ``{"by_currency": [(ccy, usd, weight), …] desc, "total_usd", "as_of",
-    "n_positions", "lookthrough": bool}``; empty when the file is missing.
+    "n_positions", "lookthrough": bool, "fx_overlay_by_currency": {ccy: {"usd":
+    signed_notional, "qty": signed_contracts}}}``; empty when the file is missing.
+    The overlay is the FX-futures slice kept *signed* — what the FX Hedge decision
+    panel diffs against the target hedge legs.
     """
     csv_path = Path(path) if path else DEFAULT_POSITIONS_CSV
     if lookthrough and manual is None:
@@ -134,6 +137,7 @@ def currency_exposure_from_positions_csv(
         manual = None
 
     by_ccy: dict[str, float] = {}
+    fx_overlay: dict[str, dict[str, float]] = {}
     total = 0.0
     as_of = ""
     n = 0
@@ -147,12 +151,20 @@ def currency_exposure_from_positions_csv(
                 if not mv:
                     continue
                 as_of = as_of or (row.get("as_of") or "")
+                symbol = (row.get("symbol") or "").strip()
                 amt = abs(mv)
                 for ccy, weight in _currency_weights_for_row(
-                    iid, (row.get("symbol") or "").strip(), row.get("currency") or "",
+                    iid, symbol, row.get("currency") or "",
                     manual=manual, taxonomy=taxonomy,
                 ):
                     by_ccy[ccy] = by_ccy.get(ccy, 0.0) + amt * weight
+                if iid.startswith("FUT:") and symbol in _FX_FUTURE_CCYS:
+                    # The FX-futures overlay, kept SIGNED (mv is the signed notional;
+                    # qty the signed contract count) — this is what the FX Hedge
+                    # decision panel compares against the target hedge legs.
+                    slot = fx_overlay.setdefault(symbol, {"usd": 0.0, "qty": 0.0})
+                    slot["usd"] += mv
+                    slot["qty"] += _f(row.get("quantity")) or 0.0
                 total += amt
                 n += 1
     ranked = sorted(by_ccy.items(), key=lambda kv: kv[1], reverse=True)
@@ -162,6 +174,9 @@ def currency_exposure_from_positions_csv(
         "as_of": as_of,
         "n_positions": n,
         "lookthrough": bool(manual is not None),
+        "fx_overlay_by_currency": {
+            c: {"usd": round(v["usd"], 2), "qty": v["qty"]} for c, v in fx_overlay.items()
+        },
     }
 
 

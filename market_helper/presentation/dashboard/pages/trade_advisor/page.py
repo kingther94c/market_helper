@@ -18,6 +18,13 @@ from market_helper.presentation.dashboard.pages.trade_advisor.modules.fx_hedge i
 from market_helper.presentation.dashboard.pages.trade_advisor.modules.option import render_option_module
 from market_helper.presentation.dashboard.pages.trade_advisor.modules.roll import render_roll_module
 from market_helper.presentation.dashboard.pages.trade_advisor.modules.tactical import render_tactical_module
+from market_helper.presentation.dashboard.pages.trade_advisor.overview import (
+    TAB_FX,
+    TAB_OPTION,
+    TAB_ROLL,
+    TAB_TACTICAL,
+    render_overview_strip,
+)
 from market_helper.presentation.dashboard.shell import app_shell
 
 _REGISTERED = False
@@ -49,11 +56,22 @@ def register_trade_advisor_page() -> None:
                 if box is not None:
                     _render_inbox(box, journal)
 
+            # The zero-click "Today" synthesis strip sits above the tab bar; it needs
+            # the tab objects (for chip→tab jumps), so reserve its slot first and
+            # fill it right after the tabs exist.
+            strip_slot = ui.element("div").classes("w-full")
+
             with ui.tabs().classes("w-full") as tabs:
-                t_opt = ui.tab("Option Strategy")
-                t_fx = ui.tab("FX Hedge")
-                t_tac = ui.tab("Tactical Trade Ideas")
-                t_roll = ui.tab("Roll & Carry Calendar")
+                t_opt = ui.tab(TAB_OPTION)
+                t_fx = ui.tab(TAB_FX)
+                t_tac = ui.tab(TAB_TACTICAL)
+                t_roll = ui.tab(TAB_ROLL)
+            with strip_slot:
+                render_overview_strip(
+                    tabs,
+                    {TAB_OPTION: t_opt, TAB_FX: t_fx, TAB_TACTICAL: t_tac, TAB_ROLL: t_roll},
+                    journal,
+                )
             with ui.tab_panels(tabs, value=t_opt).classes("w-full"):
                 with ui.tab_panel(t_opt):
                     render_option_module(journal, refresh_inbox)

@@ -80,6 +80,12 @@ network-free.
   ccy, equities → underlying-country currencies, else listing ccy. Open refinements:
   single-name domicile currency; splitting DM-EUME into EUR/GBP/CHF. See
   [`trade_advisor.md`](trade_advisor.md) §5.2.
+- **Target-vs-current decision join** — **landed (v2.1, 2026-06-10).** The exposure
+  function also splits out the **signed FX-futures overlay** per currency
+  (`fx_overlay_by_currency`: notional + contracts — a future's `market_value` is its
+  signed notional in the positions CSV), and the advisor FX panel diffs it against
+  this engine's target legs: per-ccy gap in contracts/USD + an "at target" book mix
+  (CNH joins the CNY bucket). See [`trade_advisor.md`](trade_advisor.md) §9.1 V3.
 - Second-order cross-currency (hedge-leg USD-P&L → SGD) term.
 - Margin / transaction-cost / carry optimisation.
 - Shrinkage / robust estimators for the collinear basket.

@@ -18,6 +18,9 @@ gsci_roll_day: 7        # approximate GSCI roll target = ~7th day of the prior m
 
 roots:
   # Commodities — GSCI-like prior-month roll.
+  # Optional per-root `liquid_months` (month codes, e.g. "GJMQVZ") overrides the
+  # roll-yield service's next-liquid-contract cycle (futures_roll_yield.py);
+  # default: all 12 months for gsci roots, quarterly HMUZ for expiry roots.
   NG:  { schedule: gsci }
   CL:  { schedule: gsci }
   MCL: { schedule: gsci }

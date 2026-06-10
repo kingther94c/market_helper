@@ -86,6 +86,22 @@ def test_currency_exposure_maps_fx_futures_and_excludes_options(tmp_path):
     assert abs(exp["total_usd"] - 835857.0) < 1e-6
     # weights sum to 1
     assert abs(sum(w for _c, _u, w in exp["by_currency"]) - 1.0) < 1e-9
+    # The FX-futures overlay is split out SIGNED (notional + contracts) for the
+    # FX Hedge decision join; the BTP bond future is not an FX future → absent.
+    assert exp["fx_overlay_by_currency"] == {"AUD": {"usd": 493206.0, "qty": 5.0}}
+
+
+def test_currency_exposure_overlay_keeps_short_futures_signed(tmp_path):
+    csv_path = tmp_path / "positions.csv"
+    rows = [
+        _HEADER,
+        # short 2 JPY futures → signed negative overlay (gross exposure still counts abs)
+        "2026-06-03T00:00:00+00:00,U1,FUT:JPY:CME,1,JPY,JPY,CME,USD,ibkr,-2,80000,80,-160000,-160000,0,0.0,,,,,,,,",
+    ]
+    csv_path.write_text("\n".join(rows) + "\n", encoding="utf-8")
+    exp = currency_exposure_from_positions_csv(csv_path, lookthrough=False)
+    assert exp["fx_overlay_by_currency"] == {"JPY": {"usd": -160000.0, "qty": -2.0}}
+    assert dict((c, u) for c, u, _w in exp["by_currency"])["JPY"] == 160000.0  # gross frame
 
 
 def test_currency_exposure_missing_csv_is_empty(tmp_path):

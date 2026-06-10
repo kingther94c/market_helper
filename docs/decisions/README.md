@@ -15,3 +15,4 @@ prior ADR with a new one that references it.
 | [0007](0007-option-advisor-advisory-scope.md) | Option Advisor is advisory-only, execution out of scope | Accepted |
 | [0008](0008-unified-dashboard-shell.md) | Unified dashboard shell; two parallel surfaces, not a platform | Accepted |
 | [0009](0009-two-line-dashboard-decomposition.md) | Two-line dashboard decomposition (complete B); no backward compat | Accepted |
+| [0010](0010-advisor-de-unified-modules-and-ai-plus.md) | Trade Advisor de-unified module surfaces + per-module AI Plus dialog | Accepted |

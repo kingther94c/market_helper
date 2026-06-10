@@ -1,29 +1,38 @@
 """FX Hedge module — an independent **decision panel**, not idea-cards.
 
 FX Hedge is a continuous allocation decision, so it deliberately does NOT use the
-Promote/Watch/Dismiss idea contract or the journal. It is built from three parts
-(devplan §5.2):
+Promote/Watch/Dismiss idea contract or the journal. Three inputs side by side
+(devplan §5.2) feeding an actual **decision join** (v2.1):
 
 1. **Baseline hedging mix** — Portfolio Monitor's FX-hedge target artifact (per-ccy
    target contracts / betas / indicative carry), read cached (no network).
-2. **Current FX exposure** — a currency lookthrough of the book. Not yet computed
-   in-repo (``security_universe.csv`` has no currency column), so this shows an
-   honest placeholder rather than a fabricated weight until the lookthrough lands.
-3. **Carry** — per-ccy carry (ON-rate differential approximation) → the tilt
-   decision (e.g. "AUD carry is attractive → add AUD weight"), with the existing
-   before/after exposure + carry-impact + hedge-deviation view.
+2. **Current FX exposure** — the currency lookthrough of the book, including the
+   **signed FX-futures overlay** (a future's ``market_value`` is its signed
+   notional).
+3. **Carry** — per-ccy carry (ON-rate differential approximation).
 
-Plus an **AI Plus** dialog over the same three inputs. The panel builders are pure
-and unit-tested; the ``ui.*`` wrappers stay thin.
+→ **Decision** — the per-currency join the panel previously left to the reader:
+   target hedge leg vs the FX futures the book *already holds* (the gap, in
+   contracts and USD), the "at target" net currency mix, and the carry tilt
+   before/after. Plus an **AI Plus** dialog grounded on the same data.
+
+The panel builders are pure and unit-tested; the ``ui.*`` wrappers stay thin and
+populate **async off the render path**.
 """
 from __future__ import annotations
+
+import asyncio
 
 from nicegui import ui
 
 from market_helper.trade_advisor.contracts import AdvisorContext
 
 from ..ai_pane import module_ai_initial, render_ai_pane
-from ..cards import _ui_table, fx_alloc_table, fx_carry_table, fx_carry_tilt_table
+from ..cards import _num, _ui_table, fx_alloc_table, fx_carry_table, fx_carry_tilt_table
+
+# The hedge instrument for CNY exposure is the offshore CNH future — join them as
+# one bucket in the decision table (documented coarseness, not a hidden merge).
+_CCY_ALIAS = {"CNH": "CNY"}
 
 
 # --------------------------------------------------------------------------- #
@@ -54,6 +63,7 @@ def build_fx_panel(*, provider=None, mode: str = "cached") -> dict:
         "why_now": hedge.why_now if hedge else "",
         "headline": dict(hedge.headline_metrics) if hedge else {},
         "mix": fx_alloc_table(hedge.detail) if (available and hedge) else (["Ccy"], []),
+        "legs_raw": [dict(l) for l in (hedge.detail.get("fx_legs") or [])] if (available and hedge) else [],
         "carry": fx_carry_table(tilt.detail) if tilt else (["Ccy", "Carry bps", "ON %"], []),
         "tilt_detail": (tilt.detail if tilt else {}),
         "tilt_thesis": tilt.thesis if tilt else "",
@@ -64,11 +74,11 @@ def build_fx_panel(*, provider=None, mode: str = "cached") -> dict:
 
 
 def build_fx_exposure() -> dict:
-    """Render-ready per-currency exposure of the live book (coarse lookthrough).
+    """Render-ready per-currency exposure of the live book (lookthrough).
 
-    FX futures count toward the foreign currency they track; everything else toward
-    its quote currency (options excluded). ``available`` is False when no positions
-    are found — the caller then shows the placeholder.
+    FX futures count toward the foreign currency they track; equities are looked
+    through to underlying-country currencies. ``available`` is False when no
+    positions are found — the caller then shows the placeholder.
     """
     from market_helper.application.trade_advisor import currency_exposure_from_positions_csv
 
@@ -82,7 +92,96 @@ def build_fx_exposure() -> dict:
         "total_usd": exp["total_usd"],
         "as_of": exp["as_of"],
         "lookthrough": exp.get("lookthrough", False),
+        "fx_overlay_by_currency": dict(exp.get("fx_overlay_by_currency") or {}),
     }
+
+
+def build_fx_decision(panel: dict, exposure: dict) -> dict:
+    """The decision join: per-currency target hedge leg vs the held FX-futures overlay.
+
+    Pure. Returns ``{"available", "rows", "at_target", "note"}`` where each row is
+    ``{ccy, book_usd, book_w, cur_qty, cur_usd, tgt_ct, tgt_usd, gap_ct, gap_usd}``
+    (signed notionals: long foreign = positive). ``at_target`` is the book's
+    currency mix if the FX-futures overlay matched the target legs — same gross,
+    single-assignment frame as the exposure table (no double counting of the
+    implicit USD short).
+    """
+    if not panel.get("available") or not exposure.get("available"):
+        return {"available": False, "rows": [], "at_target": [], "note": ""}
+
+    book = {c: (usd, w) for c, usd, w in exposure["by_currency"]}
+    overlay = {
+        _CCY_ALIAS.get(c, c): dict(v) for c, v in (exposure.get("fx_overlay_by_currency") or {}).items()
+    }
+    targets: dict[str, dict] = {}
+    for leg in panel.get("legs_raw") or []:
+        ccy = _CCY_ALIAS.get(str(leg.get("currency", "")), str(leg.get("currency", "")))
+        slot = targets.setdefault(ccy, {"usd": 0.0, "ct": 0})
+        slot["usd"] += float(leg.get("target_notional_usd") or 0.0)
+        slot["ct"] += int(leg.get("target_contracts") or 0)
+
+    rows: list[dict] = []
+    for ccy in sorted(set(targets) | set(overlay),
+                      key=lambda c: (-abs(targets.get(c, {}).get("usd", 0.0)), c)):
+        cur = overlay.get(ccy, {})
+        tgt = targets.get(ccy, {})
+        cur_usd = float(cur.get("usd") or 0.0)
+        tgt_usd = float(tgt.get("usd") or 0.0)
+        cur_qty = float(cur.get("qty") or 0.0)
+        tgt_ct = int(tgt.get("ct") or 0)
+        b_usd, b_w = book.get(ccy, (0.0, 0.0))
+        rows.append({
+            "ccy": ccy, "book_usd": b_usd, "book_w": b_w,
+            "cur_qty": cur_qty, "cur_usd": cur_usd,
+            "tgt_ct": tgt_ct, "tgt_usd": tgt_usd,
+            "gap_ct": tgt_ct - cur_qty, "gap_usd": tgt_usd - cur_usd,
+        })
+
+    # "At target": replace the held overlay gross with the target gross per foreign
+    # ccy, keep everything else, renormalize. Same gross frame as the exposure table.
+    at: dict[str, float] = {c: usd for c, (usd, _w) in book.items()}
+    for ccy in set(targets) | set(overlay):
+        cur_abs = abs(float(overlay.get(ccy, {}).get("usd") or 0.0))
+        tgt_abs = abs(float(targets.get(ccy, {}).get("usd") or 0.0))
+        at[ccy] = max(at.get(ccy, 0.0) - cur_abs + tgt_abs, 0.0)
+    total = sum(at.values())
+    at_target = sorted(
+        ((c, v, (v / total if total else 0.0)) for c, v in at.items() if v > 0.5),
+        key=lambda x: -x[1],
+    )
+
+    note = (
+        "Signed FX-futures notionals vs the cached target legs (CNH joins the CNY bucket). Book weights are "
+        "gross-MV, single-assignment. A gap is information about distance-to-target, not an instruction — "
+        "read-only, no orders."
+    )
+    return {"available": True, "rows": rows, "at_target": at_target, "note": note}
+
+
+def fx_decision_table(decision: dict) -> tuple[list[str], list[list[str]]]:
+    """Headers + formatted rows for the target-vs-current decision join."""
+    headers = ["Ccy", "Book $", "Book %", "Now ct", "Now $", "Target ct", "Target $", "Δ ct", "Δ $"]
+    rows = [
+        [
+            r["ccy"],
+            _num(r["book_usd"], ",.0f"),
+            f"{r['book_w'] * 100:.1f}",
+            _num(r["cur_qty"], "+g") if r["cur_qty"] else "0",
+            _num(r["cur_usd"], "+,.0f") if r["cur_usd"] else "0",
+            _num(r["tgt_ct"], "+d"),
+            _num(r["tgt_usd"], "+,.0f"),
+            _num(r["gap_ct"], "+.0f"),
+            _num(r["gap_usd"], "+,.0f"),
+        ]
+        for r in decision.get("rows", [])
+    ]
+    return headers, rows
+
+
+def at_target_line(decision: dict, top: int = 6) -> str:
+    """One-line 'at target' currency mix, e.g. ``USD 62% · EUR 14% · AUD 9%``."""
+    parts = [f"{c} {w * 100:.0f}%" for c, _usd, w in decision.get("at_target", [])[:top]]
+    return " · ".join(parts)
 
 
 def fx_exposure_placeholder() -> dict:
@@ -91,8 +190,8 @@ def fx_exposure_placeholder() -> dict:
         "title": "Current FX exposure — no live positions",
         "body": (
             "No live positions CSV found, so per-currency exposure can't be computed. With a book loaded "
-            "this shows a coarse currency lookthrough (FX futures → their economic currency; everything "
-            "else → quote currency). No fabricated number."
+            "this shows a currency lookthrough (FX futures → their economic currency; equities → their "
+            "underlying-country currencies). No fabricated number."
         ),
     }
 
@@ -117,13 +216,8 @@ def fx_tilt_summary(panel: dict) -> str:
 # --------------------------------------------------------------------------- #
 
 
-def _render_decision_panel() -> None:
-    try:
-        panel = build_fx_panel()
-    except Exception as exc:  # noqa: BLE001 — surface, never crash the page
-        ui.label(f"FX hedge unavailable: {type(exc).__name__}: {str(exc)[:160]}").classes("text-caption pm-muted")
-        return
-
+def _render_panel_content(panel: dict, exp: dict) -> None:
+    """The three input cards side by side + the full-width decision card."""
     if not panel["available"]:
         ui.label("No cached FX hedge allocation found.").classes("text-subtitle2")
         ui.label(
@@ -134,94 +228,162 @@ def _render_decision_panel() -> None:
     badge = f"data: {panel['data_mode']}" + (f" · {panel['source']}" if panel["source"] else "")
     ui.label(badge).classes("text-caption pm-muted")
 
-    # 1) Baseline hedging mix
-    with ui.card().classes("w-full pm-card"):
-        ui.label("1 · Baseline hedging mix").classes("text-subtitle2")
-        if panel["thesis"]:
-            ui.label(panel["thesis"]).classes("text-caption")
-        headers, rows = panel["mix"]
-        if rows:
-            _ui_table(headers, rows)
-        if panel["headline"]:
-            ui.label("   ".join(f"{k}: {v}" for k, v in panel["headline"].items())).classes("text-caption pm-muted")
+    with ui.row().classes("w-full gap-3 items-stretch wrap"):
+        # 1) Baseline hedging mix
+        with ui.column().classes("grow").style("min-width: 340px"):
+            with ui.card().classes("w-full pm-card"):
+                ui.label("1 · Baseline hedging mix").classes("text-subtitle2")
+                if panel["thesis"]:
+                    ui.label(panel["thesis"]).classes("text-caption")
+                headers, rows = panel["mix"]
+                if rows:
+                    _ui_table(headers, rows)
+                if panel["headline"]:
+                    ui.label("   ".join(f"{k}: {v}" for k, v in panel["headline"].items())).classes(
+                        "text-caption pm-muted"
+                    )
 
-    # 2) Current FX exposure — a coarse currency lookthrough of the live book.
-    exp = build_fx_exposure()
+        # 2) Current FX exposure
+        with ui.column().classes("grow").style("min-width: 300px"):
+            with ui.card().classes("w-full pm-card"):
+                if exp["available"]:
+                    ui.label("2 · Current FX exposure").classes("text-subtitle2")
+                    _ui_table(exp["headers"], exp["rows"])
+                    top = exp["by_currency"][0]
+                    method = "country lookthrough" if exp.get("lookthrough") else "listing currency"
+                    ui.label(
+                        f"Largest: {top[0]} ${top[1]:,.0f} ({top[2] * 100:.0f}%) of ${exp['total_usd']:,.0f} gross "
+                        f"· via {method}. DM-EUME folds GBP/CHF into EUR; uncovered symbols fall back to listing ccy."
+                    ).classes("text-caption pm-muted")
+                else:
+                    ph = fx_exposure_placeholder()
+                    ui.label("2 · " + ph["title"]).classes("text-subtitle2")
+                    ui.label(ph["body"]).classes("text-caption").style("color:#f3b34d")
+
+        # 3) Carry
+        with ui.column().classes("grow").style("min-width: 240px"):
+            with ui.card().classes("w-full pm-card"):
+                ui.label("3 · Carry (ON-rate approx)").classes("text-subtitle2")
+                ch, cr = panel["carry"]
+                if cr:
+                    _ui_table(ch, cr)
+                else:
+                    ui.label("No carry ranking available.").classes("text-caption pm-muted")
+                ui.label(
+                    "Rate-differential approximation vs USD — not futures-implied."
+                ).classes("text-caption pm-muted")
+
+    # → Decision: the join the reader previously had to do in their head.
+    decision = build_fx_decision(panel, exp)
     with ui.card().classes("w-full pm-card"):
-        if exp["available"]:
-            ui.label("2 · Current FX exposure").classes("text-subtitle2")
-            _ui_table(exp["headers"], exp["rows"])
-            top = exp["by_currency"][0]
-            method = "country lookthrough" if exp.get("lookthrough") else "listing currency"
+        ui.label("→ Decision · target vs current FX-futures book").classes("text-subtitle2")
+        if decision["available"]:
+            headers, rows = fx_decision_table(decision)
+            _ui_table(headers, rows)
+            at_line = at_target_line(decision)
+            if at_line:
+                ui.label(f"Book mix at target: {at_line}").classes("text-caption")
+            ui.label(decision["note"]).classes("text-caption pm-muted")
+        else:
             ui.label(
-                f"Largest: {top[0]} ${top[1]:,.0f} ({top[2] * 100:.0f}%) of ${exp['total_usd']:,.0f} gross · via {method}. "
-                "Equities are looked through to underlying-country currencies (FX futures → economic ccy). Bucket-level: "
-                "DM-EUME folds GBP/CHF into EUR; symbols not in the lookthrough fall back to their listing currency."
+                "Needs both a cached hedge target and live positions — the gap table stays empty rather "
+                "than fabricated."
             ).classes("text-caption pm-muted")
-        else:
-            ph = fx_exposure_placeholder()
-            ui.label("2 · " + ph["title"]).classes("text-subtitle2")
-            ui.label(ph["body"]).classes("text-caption").style("color:#f3b34d")
-
-    # 3) Carry → tilt decision
-    with ui.card().classes("w-full pm-card"):
-        ui.label("3 · Carry → tilt decision").classes("text-subtitle2")
+        ui.separator()
+        ui.label("Carry tilt (explorer)").classes("text-subtitle2")
         ui.label(fx_tilt_summary(panel)).classes("text-caption")
-        headers, rows = panel["tilt_table"]
-        if rows:
-            _ui_table(headers, rows)
-        else:
-            ch, cr = panel["carry"]
-            if cr:
-                _ui_table(ch, cr)
+        theaders, trows = panel["tilt_table"]
+        if trows:
+            _ui_table(theaders, trows)
         ui.label(
             "A tilt EXPLORER, not a carry optimizer: carry is rate-approximated from configured overnight-rate "
             "differentials vs USD. Read-only — no order, no size."
         ).classes("text-caption pm-muted")
 
 
-def _fx_ai_builder():
-    """AI Plus initial messages grounded on the live FX hedge mix + carry."""
-    try:
-        panel = build_fx_panel()
-    except Exception:  # noqa: BLE001 — AI pane must still open if the panel build fails
-        panel = {"available": False}
+def _fx_ai_builder(cache: dict):
+    """AI Plus initial messages grounded on the live FX hedge mix + exposure + gap.
+
+    Reuses the panel/exposure the module already built (``cache``) instead of
+    re-reading artifacts; falls back to building when the cache is cold.
+    """
+    panel = cache.get("panel")
+    if panel is None:
+        try:
+            panel = build_fx_panel()
+        except Exception:  # noqa: BLE001 — AI pane must still open if the panel build fails
+            panel = {"available": False}
+    exp = cache.get("exp")
+    if exp is None:
+        try:
+            exp = build_fx_exposure()
+        except Exception:  # noqa: BLE001 — grounding is best-effort
+            exp = {"available": False}
+
     mix_lines = "; ".join(
         f"{r[0]} {r[3]}ct (β{r[2]}, carry {r[5]}bps)" for r in (panel.get("mix", (None, []))[1] or [])
     ) or "no cached allocation"
-    try:
-        exp = build_fx_exposure()
-        exp_line = "; ".join(f"{c} {w * 100:.0f}%" for c, _u, w in exp["by_currency"][:6]) if exp["available"] else "not available"
-    except Exception:  # noqa: BLE001 — grounding is best-effort
-        exp_line = "not available"
+    exp_line = (
+        "; ".join(f"{c} {w * 100:.0f}%" for c, _u, w in exp["by_currency"][:6]) if exp.get("available") else "not available"
+    )
+    decision = build_fx_decision(panel, exp)
+    gap_line = (
+        "; ".join(f"{r['ccy']} Δ{r['gap_usd']:+,.0f}$" for r in decision["rows"][:6])
+        if decision["available"] else "not available"
+    )
     framing = (
         "You are an FX-hedge RESEARCH partner for an SGD-based book. The baseline is a USD/SGD hedge target "
-        "across CME FX futures (EUR/GBP/AUD/JPY/CNH). Analyze whether to TILT the mix given carry and (when "
-        "known) the book's FX exposure — e.g. is a higher-carry currency like AUD worth overweighting, and at "
-        "what basis-risk cost? Be explicit that carry here is a rate-differential approximation, not "
-        "futures-implied. You may call read-only tools (regime, price-trend) to support the read. Never output "
-        "an order, contract count to execute, or size."
+        "across CME FX futures (EUR/GBP/AUD/JPY/CNH). Analyze whether to TILT the mix given carry, the book's "
+        "FX exposure, and the gap between the held FX futures and the target legs — e.g. is a higher-carry "
+        "currency like AUD worth overweighting, and at what basis-risk cost? Be explicit that carry here is a "
+        "rate-differential approximation, not futures-implied. You may call read-only tools (regime, "
+        "price-trend) to support the read. Never output an order, contract count to execute, or size."
     )
     ask = (
-        f"Current hedge legs: {mix_lines}. Book FX exposure (coarse): {exp_line}. "
+        f"Current hedge legs: {mix_lines}. Book FX exposure (lookthrough): {exp_line}. "
+        f"Gap to target (held FX futures vs target legs): {gap_line}. "
         f"Tilt read: {fx_tilt_summary(panel)}. "
         "Give: (1) a short macro/carry read; (2) which leg(s) you'd tilt and why (or why not), in light of the "
-        "book's existing currency exposure; (3) the main basis-risk / what would change your mind. No orders, no sizes."
+        "book's existing currency exposure and the gaps; (3) the main basis-risk / what would change your mind. "
+        "No orders, no sizes."
     )
     return module_ai_initial(framing, ask)
 
 
 def render_fx_hedge_module() -> None:
-    """Render the FX Hedge decision panel + the AI Plus dialog."""
+    """Render the FX Hedge decision panel + the AI Plus dialog (async populate)."""
     ui.label("FX Hedge").classes("text-subtitle1")
     ui.label(
-        "A decision panel — baseline hedge mix + FX exposure + carry → tilt. Not idea-cards; "
-        "read-only, never orders."
+        "A decision panel — baseline hedge mix + FX exposure + carry → target-vs-current gap + tilt. "
+        "Not idea-cards; read-only, never orders."
     ).classes("text-caption pm-muted")
-    _render_decision_panel()
+
+    cache: dict = {"panel": None, "exp": None}
+    body = ui.column().classes("w-full gap-3")
+    with body:
+        ui.label("Loading FX panel…").classes("text-caption pm-muted")
+
+    async def _populate() -> None:
+        try:
+            panel = await asyncio.to_thread(build_fx_panel)
+            exp = await asyncio.to_thread(build_fx_exposure)
+        except Exception as exc:  # noqa: BLE001 — surface, never crash the page
+            body.clear()
+            with body:
+                ui.label(f"FX hedge unavailable: {type(exc).__name__}: {str(exc)[:160]}").classes(
+                    "text-caption pm-muted"
+                )
+            return
+        cache["panel"], cache["exp"] = panel, exp
+        body.clear()
+        with body:
+            _render_panel_content(panel, exp)
+
+    ui.timer(0.1, _populate, once=True)
+
     render_ai_pane(
-        _fx_ai_builder,
-        intro="Opt-in: the AI analyzes the hedge mix + carry (and may call read-only tools) to reason about a "
-              "tilt. After a brief, type feedback to refine — analysis only, never orders.",
+        lambda: _fx_ai_builder(cache),
+        intro="Opt-in: the AI analyzes the hedge mix + exposure gap + carry (and may call read-only tools) to "
+              "reason about a tilt. After a brief, type feedback to refine — analysis only, never orders.",
         generate_label="Analyze FX tilt",
     )

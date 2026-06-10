@@ -67,6 +67,9 @@ def render_ai_pane(
     generate_label: str = "Generate",
     feedback_placeholder: str = "Feedback to refine (e.g. “focus on the 2 best; be concise”)",
     max_rounds: int = 3,
+    capture_parser: "Callable[[str], list] | None" = None,
+    on_capture: "Callable[[list], None] | None" = None,
+    capture_label: str = "Capture ideas → cards",
 ) -> None:
     """Render an opt-in AI dialog: Generate → brief → feedback → refine.
 
@@ -76,6 +79,12 @@ def render_ai_pane(
     is shared. The pane never injects the tool protocol itself (the builder owns the
     system framing), mirroring the persistent-conversation contract of
     :func:`run_tool_chat` (``inject_protocol=False``).
+
+    **Capture seam (v2.1):** when ``capture_parser`` + ``on_capture`` are given,
+    every AI turn is parsed for structured idea blocks; a found batch surfaces a
+    one-click capture button that hands the parsed items to the module (which
+    renders them as journal-able cards). This is what stops good AI output from
+    evaporating with the dialog.
     """
     convo: dict = {"messages": None, "reg": None}  # running history + tool registry once a brief exists
 
@@ -134,8 +143,35 @@ def render_ai_pane(
                 bits.append(f"model {res.model} · {res.prompt_tokens}/{res.completion_tokens} tok")
             bits.append("analysis only, not orders")
             _add_turn("assistant", res.text, " · ".join(bits))
+            _offer_capture(res.text)
             fb_in.enable()
             send_btn.enable()
+
+        def _offer_capture(text: str) -> None:
+            """Surface a one-click capture button when the turn carries idea blocks."""
+            if capture_parser is None or on_capture is None:
+                return
+            try:
+                items = capture_parser(text or "")
+            except Exception:  # noqa: BLE001 — a parser bug must not break the dialog
+                return
+            if not items:
+                return
+            with transcript:
+                with ui.row().classes("items-center gap-2"):
+                    n = len(items)
+                    btn = ui.button(f"{capture_label} ({n})").props("dense outline")
+
+                    def _do_capture() -> None:
+                        try:
+                            on_capture(items)
+                        except Exception as exc:  # noqa: BLE001 — surface, don't crash
+                            _explain(f"Capture failed: {type(exc).__name__}: {str(exc)[:120]}")
+                            return
+                        btn.disable()
+                        btn.text = f"Captured {n} idea{'s' if n > 1 else ''} ✓"
+
+                    btn.on_click(_do_capture)
 
         async def generate() -> None:
             gen_btn.disable()

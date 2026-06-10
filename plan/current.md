@@ -124,9 +124,25 @@ researched 30-45 DTE entry / ~21 DTE management; config `premium_screen` in
 lookthrough** — new shared domain service `currency_lookthrough.py` (country lookthrough →
 currency map) consumed by **both** the advisor FX panel and the monitor risk report (EQ
 Currency Exposure); equities now look through to underlying-country currencies (real book
-USD 74%→66%, revealing EUR/KRW/CNY/JPY/TWD). **Still open:** option IV-percentile over a
-history cache; single-name / EUME-split currency precision; GSCI F1/F7 (forward-curve-
-blocked). Suite 869 passed / 1 skipped.
+USD 74%→66%, revealing EUR/KRW/CNY/JPY/TWD).
+
+**v2.1 next-level pass (2026-06-10).** A fresh critical review (devplan §9.1) found the
+v2 IA right but the product still answering only when poked; six fixes landed: **(V1)**
+option scans persist + restore with an as-of badge + a ranked summary table (+ manual
+held/AUM greyed under "use my portfolio"); **(V2)** a zero-click **"Today" attention
+strip** on `/advisor` (roll urgency / due reviews / FX staleness + tilt / Edge-brief
+freshness / last-scan stats; async, chips jump tabs; FX + Roll bodies also async now);
+**(V3)** the FX panel finally **does the join** — signed FX-futures overlay vs target
+hedge legs per ccy (gap in ct + USD), "at target" mix, side-by-side input cards;
+**(V4)** roll calendar gets real dates + a **held-roots two-contract roll yield**
+(Yahoo month contracts, cached, fetch-on-demand only — first honest slice of carry);
+**(V5)** AI Plus replies carry fenced ``idea`` blocks that **capture into journal-able
+cards** (T4 · WATCHLIST · synthetic-tagged — the accumulate loop closed); **(V6)** a
+bounded **crystallize editor** writes the premium-screen knobs into
+`advisor_rules.yaml` (comment-preserving line edits) and the scan now honors that YAML.
+**Still open:** option IV-percentile over a history cache; single-name / EUME-split
+currency precision; GSCI F1/F7 full curve (forward-curve-blocked; the two-contract
+slice deliberately doesn't pretend to be it).
 
 **Reused capabilities (landed on-branch; survive the v2 reset).** The four engines
 + adapters (Option collar + carry-premium shorts; FX carry-tilt before/after on the
