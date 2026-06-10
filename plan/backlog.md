@@ -16,10 +16,14 @@ Concise future-work items. One line each; expand into
   broader contract fixtures.
 - **Flex ergonomics**. Historical backfill validation, archive metadata,
   stale XML diagnostics.
-- **Commodity spread risk treatment**. Config-driven CM multi-leg spread
-  synthesis for NG first: collapse same-account/root/exchange futures legs
-  into one risk row; EWMA-weighted Huber regression for front-contract beta;
-  seven-day cache for beta/spread analytics.
+- **`generate_portfolio_report.py` monolith split**. 2k lines mixing Flex
+  archive ops (~940), live TWS + security enrichment (~350), facades, and row
+  mapping. Seam map in the devplan §"Pipeline structure"; extract
+  `flex_archive.py` + `live_security_enrichment.py` first, keep the module as
+  a re-exporting facade so test imports survive.
+- **`page.py` action-dispatch dedupe**. The 8-branch if/elif ladder in
+  `run_action` works and is tested; collapse to a dispatch dict of per-action
+  closures only when a new action would otherwise copy-paste a 9th branch.
 
 ## Cross-domain
 
@@ -31,7 +35,6 @@ Concise future-work items. One line each; expand into
 ## Keep for later, not active
 
 These are useful but explicitly **not** on deck:
-- Covariance-consistent marginal/component risk attribution.
 - Richer derivatives normalization for options, inverse products, and
   unusual futures exposure.
 - Broader country/sector/FI-tenor look-through coverage.

@@ -62,6 +62,7 @@ def add_dashboard_styles() -> None:
           .pm-status-neutral { background: var(--surface-2); color: var(--muted-ink); }
           .pm-status-running { background: var(--info-soft); color: var(--info); }
           .pm-status-success { background: var(--pos-soft); color: var(--pos); }
+          .pm-status-warning { background: var(--warn-soft); color: var(--warn); }
           .pm-status-error { background: var(--neg-soft); color: var(--neg); }
 
           /* Static tab buttons (used by the embedded reports' fallbacks). */
@@ -208,6 +209,7 @@ def render_status_badge(status: str) -> None:
     css_class = {
         "running": "pm-status-running",
         "success": "pm-status-success",
+        "warning": "pm-status-warning",
         "error": "pm-status-error",
     }.get(normalized, "pm-status-neutral")
     ui.label(status.title()).classes(f"pm-status-chip {css_class}")

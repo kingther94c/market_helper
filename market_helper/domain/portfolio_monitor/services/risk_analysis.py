@@ -18,12 +18,9 @@ from market_helper.reporting.risk_html import (
     RiskInputRow,
     RiskMetricsRow,
     build_allocation_summary,
-    build_estimated_correlation,
-    build_historical_correlation,
     estimated_asset_class_vol,
     historical_geomean_vol,
     load_position_rows,
-    portfolio_volatility,
 )
 
 
@@ -76,11 +73,8 @@ __all__ = [
     "RiskMetricsRow",
     "RiskReportBundle",
     "build_allocation_summary",
-    "build_estimated_correlation",
-    "build_historical_correlation",
     "estimated_asset_class_vol",
     "historical_geomean_vol",
     "load_risk_inputs",
     "load_position_rows",
-    "portfolio_volatility",
 ]

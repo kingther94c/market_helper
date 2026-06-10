@@ -24,14 +24,23 @@ unchanged; 755 unit tests green. Detail:
 
 ## Portfolio Monitor
 
-**State**: **stable. No near-term scope open.** All landed work — FX Hedging
-Advisor, regime/FRED fetch resilience, Flex hardening, report restructure
-(Regime tab + Performance merge), mobile/responsive framework, GDrive mirroring,
-daily cron, loopback+Tailscale serving, regime-orchestration ownership (ADR
-`0005-combined-report-owns-regime-orchestration.md`) — is archived in
-`memory/archive/landed/portfolio_monitor_landed.md`; architecture in
-[`portfolio_monitor.md`](../docs/architecture/devplans/portfolio_monitor.md).
-Open items rotate in via [`backlog.md`](backlog.md).
+**State**: **stable; full-stack redesign pass landed 2026-06-10.** A
+five-layer re-audit (domain / pipeline / application / dashboard / reporting)
+upgraded the risk attribution from standalone `|w x vol|` columns to **signed
+Euler component contributions** (sum to portfolio vol; hedges negative;
+breakdown "Vol" columns keep a parallel standalone mass), added effective-N /
+top-5 / 1d-95% VaR summary stats, contribution-sorted position tables, a
+diverging commodity-corr palette, a `warning` action status for the
+TWS-unreachable cached-snapshot fallback (with snapshot age), surfaced the
+already-computed freshness note on the dashboard, removed the dead
+unsigned-weight `portfolio_volatility` trio from the domain API, and replaced
+the commodity-spread bare-except with logged degradation. Detail + audit
+verdicts in [`portfolio_monitor.md`](../docs/architecture/devplans/portfolio_monitor.md)
+§"Redesign pass"; new pins in `tests/unit/reporting/test_risk_euler_attribution.py`.
+Earlier landed work archived in
+`memory/archive/landed/portfolio_monitor_landed.md`. Open items rotate in via
+[`backlog.md`](backlog.md) (now incl. the pipeline-monolith seam map + the
+action-dispatch dedupe).
 
 ## Regime Engine
 

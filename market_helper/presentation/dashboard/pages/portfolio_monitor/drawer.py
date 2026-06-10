@@ -65,6 +65,10 @@ def _render_operate_drawer(state: PortfolioPageState) -> None:
             _render_logs(state)
 
 
+def _state_is_busy(state: PortfolioPageState) -> bool:
+    return state.is_loading or state.active_job is not None
+
+
 def _render_granular_buttons(state: PortfolioPageState) -> None:
     """Granular Report Controls — moved into the operate drawer in P7."""
     load_report_data = getattr(state, "_load_report_data", None)
@@ -92,6 +96,7 @@ def _render_granular_buttons(state: PortfolioPageState) -> None:
 
 def _render_action_console(state: PortfolioPageState) -> None:
     run_action = getattr(state, "_run_action", None)
+    is_busy = state.is_loading or state.active_job is not None
     with ui.row().classes("w-full gap-4 wrap"):
         render_action_card(
             title="Refresh Pipeline",
@@ -100,7 +105,7 @@ def _render_action_console(state: PortfolioPageState) -> None:
             message=state.action_statuses["refresh"].message,
             progress_summary=_action_progress_summary(state, "refresh"),
             last_output_path=state.action_statuses["refresh"].last_output_path,
-            body=lambda: _render_action_button(run_action, "refresh", "Run Full Refresh"),
+            body=lambda: _render_action_button(run_action, "refresh", "Run Full Refresh", is_busy=is_busy),
         )
         render_action_card(
             title="Live Refresh",
@@ -127,7 +132,7 @@ def _render_action_console(state: PortfolioPageState) -> None:
             message=state.action_statuses["combined"].message,
             progress_summary=_action_progress_summary(state, "combined"),
             last_output_path=state.action_statuses["combined"].last_output_path,
-            body=lambda: _render_action_button(run_action, "combined", "Generate HTML Report"),
+            body=lambda: _render_action_button(run_action, "combined", "Generate HTML Report", is_busy=is_busy),
         )
         render_action_card(
             title="Regime Engine v2",
@@ -179,7 +184,7 @@ def _render_live_action_form(state: PortfolioPageState, run_action) -> None:
             ui.input("Account ID").bind_value(state.live_form, "account_id").classes("w-full")
             ui.input("Timeout").bind_value(state.live_form, "timeout").classes("w-full")
             ui.input("As of").bind_value(state.live_form, "as_of").classes("w-full")
-        _render_action_button(run_action, "live", "Run Live Refresh")
+        _render_action_button(run_action, "live", "Run Live Refresh", is_busy=_state_is_busy(state))
 
 
 def _render_flex_action_form(state: PortfolioPageState, run_action) -> None:
@@ -193,7 +198,7 @@ def _render_flex_action_form(state: PortfolioPageState, run_action) -> None:
             ui.input("To date").bind_value(state.flex_form, "to_date").classes("w-full")
             ui.input("Period").bind_value(state.flex_form, "period").classes("w-full")
             ui.input("XML output path").bind_value(state.flex_form, "xml_output_path").classes("w-full")
-        _render_action_button(run_action, "flex", "Run Flex Refresh")
+        _render_action_button(run_action, "flex", "Run Flex Refresh", is_busy=_state_is_busy(state))
 
 
 def _render_regime_action_form(state: PortfolioPageState, run_action) -> None:
@@ -205,8 +210,8 @@ def _render_regime_action_form(state: PortfolioPageState, run_action) -> None:
             ui.checkbox("Force refresh").bind_value(state.regime_form, "force_refresh")
             ui.checkbox("Latest only").bind_value(state.regime_form, "latest_only")
         with ui.row().classes("gap-2 wrap"):
-            _render_action_button(run_action, "regime-run", "Run Cached Regime")
-            _render_action_button(run_action, "regime-refresh", "Refresh Regime")
+            _render_action_button(run_action, "regime-run", "Run Cached Regime", is_busy=_state_is_busy(state))
+            _render_action_button(run_action, "regime-refresh", "Refresh Regime", is_busy=_state_is_busy(state))
 
 
 def _render_reference_action_form(state: PortfolioPageState, run_action) -> None:
@@ -219,12 +224,17 @@ def _render_reference_action_form(state: PortfolioPageState, run_action) -> None
             ui.input("ETF output path").bind_value(state.reference_form, "etf_output_path").classes("w-full")
             ui.input("API key").bind_value(state.reference_form, "api_key").classes("w-full")
         with ui.row().classes("gap-2 wrap"):
-            _render_action_button(run_action, "security-reference", "Sync Security Reference")
-            _render_action_button(run_action, "etf", "Sync ETF Lookthrough")
+            _render_action_button(run_action, "security-reference", "Sync Security Reference", is_busy=_state_is_busy(state))
+            _render_action_button(run_action, "etf", "Sync ETF Lookthrough", is_busy=_state_is_busy(state))
 
 
-def _render_action_button(run_action, action_name: str, label: str) -> None:
-    ui.button(label, on_click=lambda: asyncio.create_task(run_action(action_name)))
+def _render_action_button(run_action, action_name: str, label: str, *, is_busy: bool = False) -> None:
+    button = ui.button(
+        label,
+        on_click=(lambda: asyncio.create_task(run_action(action_name))) if run_action is not None else None,
+    )
+    if is_busy or run_action is None:
+        button.props("disable")
 
 
 def _render_logs(state: PortfolioPageState) -> None:
@@ -246,11 +256,10 @@ def _render_job_history(state: PortfolioPageState) -> None:
         return
     with ui.column().classes("w-full gap-1 pm-history"):
         for entry in reversed(state.job_history):
-            chip_class = (
-                "pm-status-chip pm-status-success"
-                if entry.status == "success"
-                else "pm-status-chip pm-status-error"
-            )
+            chip_class = {
+                "success": "pm-status-chip pm-status-success",
+                "warning": "pm-status-chip pm-status-warning",
+            }.get(entry.status, "pm-status-chip pm-status-error")
             pretty_action = _ACTION_PRETTY_NAMES.get(entry.action_name, entry.action_name)
             time_label = entry.finished_at.strftime("%H:%M:%S")
             duration_label = f"{entry.duration_seconds:.1f}s"

@@ -529,6 +529,15 @@ def _calculate_metrics_from_frame(
     risk_free_rate_annual: float,
     require_daily_coverage: bool = False,
 ) -> dict[str, float | None]:
+    """Window metrics from a NAV/return frame whose first row is the opening NAV.
+
+    Conventions:
+    - The first row's return is excluded (it belongs to the prior window).
+    - TWR compounds missing daily returns as 0% (flat), matching the
+      benchmark-side handling; annualized stats instead *drop* NaN days and are
+      gated by ``_has_trustworthy_daily_coverage`` so sparse series yield None
+      rather than a mis-annualized number.
+    """
     if history.empty:
         return _empty_metrics()
 
@@ -778,6 +787,13 @@ def _has_trustworthy_daily_coverage(returns: pd.Series) -> bool:
 
 
 def _annualized_return_from_returns(returns: pd.Series) -> float | None:
+    """Geometric annualization over *observed* trading days.
+
+    The exponent uses the count of non-NaN observations, not the calendar
+    span — callers must gate on ``_has_trustworthy_daily_coverage`` (>=60%
+    business-day coverage, max 10-day gap) so gaps cannot stretch a short
+    sample into a misleading annual figure.
+    """
     clean = pd.Series(pd.to_numeric(returns, errors="coerce").dropna(), dtype=float)
     if clean.empty:
         return None

@@ -90,11 +90,20 @@ def _render_toolbar(state: PortfolioPageState) -> None:
     # P7: granular action buttons (Recompute / Reload / Generate) + the Artifact
     # Paths expansion moved into the operate drawer. The toolbar now carries only
     # the status row + quick-link so /portfolio first-paint is form-free.
+    report_detail = None
+    if state.report_data is not None:
+        report_detail = format_local_datetime(state.report_data.as_of)
+        # Surface the freshness note the application layer already computes —
+        # "as-of N hours/days old" is the difference between trusting and
+        # re-running the numbers, so it belongs next to the timestamp.
+        freshness_note = getattr(state.report_data, "as_of_freshness_note", None)
+        if freshness_note:
+            report_detail = f"{report_detail} — {freshness_note}"
     with ui.row().classes("w-full gap-3 wrap"):
         render_status_card(
             title="Report Data",
             value=state.status_message,
-            detail=(format_local_datetime(state.report_data.as_of) if state.report_data is not None else None),
+            detail=report_detail,
         )
         render_status_card(
             title="Generated HTML",

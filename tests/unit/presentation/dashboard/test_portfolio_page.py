@@ -602,3 +602,42 @@ def test_module_logger_is_defined() -> None:
     import logging
 
     assert isinstance(pm_page._logger, logging.Logger)
+
+
+def test_set_action_warning_marks_degraded_completion() -> None:
+    """The TWS-unreachable cached-snapshot fallback must surface as a warning,
+    never as a green success — stale positions behind a success chip is how
+    risk decisions get made on old data without anyone noticing."""
+    from market_helper.presentation.dashboard.pages.portfolio_monitor.actions import (
+        _set_action_warning,
+    )
+
+    state = PortfolioPageState(
+        artifact_form=PortfolioArtifactFormState(),
+        live_form=LiveActionFormState(),
+        flex_form=FlexActionFormState(),
+        regime_form=RegimeActionFormState(),
+        export_form=ExportActionFormState(),
+        reference_form=ReferenceActionFormState(),
+        progress_sink=InMemoryUiProgressSink(),
+        action_statuses={"live": ActionStatusState()},
+    )
+    _set_action_warning(
+        state,
+        "live",
+        message="TWS / IB Gateway unreachable; showing cached snapshot positions.csv from 2026-06-08 (2 days old)",
+        output_path="data/positions.csv",
+    )
+    status = state.action_statuses["live"]
+    assert status.status == "warning"
+    assert "cached snapshot" in status.message
+    assert status.last_output_path == "data/positions.csv"
+
+
+def test_snapshot_age_label_reports_date_and_age(tmp_path) -> None:
+    csv = tmp_path / "positions.csv"
+    csv.write_text("as_of\n", encoding="utf-8")
+    label = pm_page._snapshot_age_label(csv)
+    assert "today" in label or "day" in label
+    # Missing file degrades to an explicit unknown, not an exception.
+    assert pm_page._snapshot_age_label(tmp_path / "missing.csv") == "an unknown date"

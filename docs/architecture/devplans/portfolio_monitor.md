@@ -2,10 +2,62 @@
 
 ## Current Focus
 
-The portfolio monitor is the primary operator surface. As of the latest
-architectural review the stack is at a **stable shape** — no near-term scope
-is open here. Further work moves through the PLAN.md Backlog as discrete asks
-land.
+The portfolio monitor is the primary operator surface. A **full-stack
+redesign pass (2026-06-10)** re-audited every layer (domain analytics,
+pipeline, application, dashboard, HTML reporting) and landed the items below;
+the stack is again at a **stable shape** with no near-term scope open.
+Further work moves through the PLAN.md Backlog as discrete asks land.
+
+### Redesign pass (2026-06-10) — what changed and why
+
+- **Risk attribution is now covariance-consistent (Euler).** The
+  `risk_contribution_*` columns previously held standalone `|weight x vol|`
+  mass — correlation-blind, always positive, never summing to portfolio vol
+  (an FX-hedge short *added* "contribution"). They now hold signed Euler
+  component contributions under the snapshot inter-asset correlation:
+  ``l_i * sum_D rho(C_i,D) L_D / sigma_p``. They sum exactly to the portfolio
+  vol per method; hedges show negative. The breakdown tables keep a parallel
+  `standalone_risk_*` mass so their per-bucket "Vol" column still means
+  standalone vol (`standalone / |dollar_weight|`), not a correlation-scaled
+  hybrid. Pinned by `tests/unit/reporting/test_risk_euler_attribution.py`.
+- **Concentration + tail stats on the summary card**: effective positions
+  (1/HHI on gross shares), top-5 gross share, and 1-day 95% VaR (normal,
+  selected vol method).
+- **Position tables sort by |contribution| desc** (excluded rows last) — the
+  risk drivers lead instead of CSV file order.
+- **Commodity correlation heatmap uses a diverging palette** (blue negative /
+  white zero / red positive) with signed values — negative correlation is the
+  diversification signal and used to be clamped to white.
+- **Dead toy risk API removed**: `portfolio_volatility` (unsigned weights —
+  wrong for shorts), `build_historical_correlation`, and
+  `build_estimated_correlation` had zero production/test call sites but were
+  re-exported by `domain/.../risk_analysis.py` as if canonical. Deleted; the
+  group-loadings model (`_build_group_loadings` →
+  `_portfolio_vol_from_group_loadings`, signed exposures) is the only vol
+  aggregation path.
+- **Degraded completions are warnings, not successes**: the TWS-unreachable →
+  cached-snapshot fallback now sets a `warning` action status (amber chip +
+  persistent toast) and the message carries the snapshot's mtime + age via
+  `_snapshot_age_label`. Drawer job history renders the amber state.
+- **Dashboard freshness**: the `as_of_freshness_note` the application layer
+  always computed is now rendered in the Report Data status card; drawer
+  action buttons disable while a job runs (previously only the app-bar
+  Refresh did).
+- **Silent failure hygiene**: commodity-spread risk computation logs a
+  warning with root/exchange/legs before degrading to per-leg vol (was a bare
+  `except Exception: None`); performance analytics document the TWR
+  fillna(0) convention and the observed-days annualization basis inline.
+
+### Pipeline structure (seam map for the future split)
+
+`domain/portfolio_monitor/pipelines/generate_portfolio_report.py` (~2k lines)
+audited 2026-06-10; behavior fine, structure mixed. Natural seams, in extract
+order: Flex archive ops (lines ~150-1090: fetch/parse/promote/batch-poll) →
+`flex_archive.py`; live security enrichment (~1640-1860: contract details +
+runtime remap, the densest block) → `live_security_enrichment.py`; row field
+mapping (~1915-2040). Risk/config facades stay. Keep the module re-exporting
+so CLI/test imports survive. Tracked in backlog; do not split casually — the
+suite pins import paths.
 
 Current ownership rules:
 - `market_helper/application/portfolio_monitor/` owns GUI-triggered actions,
@@ -72,18 +124,9 @@ Reference, in priority order if any one becomes a real ask:
 4. **Flex ergonomics**
    Historical backfill validation, archive metadata, stale XML diagnostics.
 
-5. **Commodity spread risk treatment**
-   Config-driven CM multi-leg spread synthesis for NG first: collapse
-   same-account/root/exchange futures legs into one risk row, estimate
-   front-contract beta with EWMA-weighted Huber regression, cache beta/spread
-   risk analytics for seven days, and combine cached spread diagnostics with
-   each selected front-contract vol method behind the normal commodity
-   position table.
-
 ## Deferred
 
 These are useful but not next:
-- Covariance-consistent marginal/component risk attribution.
 - Options and unusual derivative exposure normalization.
 - Manual override layer for account-specific provisional universe entries.
 - Broader country/sector/FI-tenor look-through coverage.

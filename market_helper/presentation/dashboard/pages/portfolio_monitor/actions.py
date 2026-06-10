@@ -183,6 +183,19 @@ def _set_action_success(state: PortfolioPageState, action_name: str, *, message:
     status.progress_summary = _summarize_progress(state)
 
 
+def _set_action_warning(state: PortfolioPageState, action_name: str, *, message: str, output_path: str) -> None:
+    """Completed, but degraded — e.g. live refresh fell back to a cached snapshot.
+
+    Distinct from success so stale data is never presented behind a green chip,
+    and distinct from error because the pipeline did produce a usable artifact.
+    """
+    status = state.action_statuses[action_name]
+    status.status = "warning"
+    status.message = message
+    status.last_output_path = output_path
+    status.progress_summary = _summarize_progress(state)
+
+
 def _set_action_error(state: PortfolioPageState, action_name: str, message: str) -> None:
     status = state.action_statuses[action_name]
     status.status = "error"
@@ -256,26 +269,26 @@ def _record_job_completion(state: PortfolioPageState, action_name: str) -> None:
 
 
 def _push_completion_toast(state: PortfolioPageState, action_name: str) -> None:
-    """Surface a Quasar toast on success/error so a finished background job is visible."""
+    """Surface a Quasar toast on success/warning/error so a finished background job is visible."""
     status = state.action_statuses.get(action_name)
-    if status is None or status.status not in {"success", "error"}:
+    if status is None or status.status not in {"success", "warning", "error"}:
         return
     duration = ""
     if state.active_job_started_at is not None:
         elapsed = (datetime.now() - state.active_job_started_at).total_seconds()
         duration = f" ({elapsed:.1f}s)"
-    toast_type = "positive" if status.status == "success" else "negative"
+    toast_type = {"success": "positive", "warning": "warning"}.get(status.status, "negative")
     pretty = _ACTION_PRETTY_NAMES.get(action_name, action_name.replace("-", " ").title())
     try:
         ui.notify(
             f"{pretty}: {status.message}{duration}",
             type=toast_type,
             position="top-right",
-            timeout=6000 if status.status == "success" else 0,  # error toasts persist
+            timeout=6000 if status.status == "success" else 0,  # warning/error toasts persist
             close_button="Dismiss",
         )
     except Exception as exc:  # noqa: BLE001 — toast failure must not bubble back into the action handler
-        logging.getLogger(__name__).debug("ui.notify failed: %s", exc)
+        logging.getLogger(__name__).warning("ui.notify failed (completion still recorded in drawer): %s", exc)
 
 
 _ACTION_PRETTY_NAMES: dict[str, str] = {

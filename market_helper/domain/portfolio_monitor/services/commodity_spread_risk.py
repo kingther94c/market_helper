@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import logging
 import math
 from dataclasses import dataclass
 from pathlib import Path
@@ -188,7 +189,15 @@ def compute_or_load_commodity_spread_risk(
             cache_key=cache_key,
             trading_days=trading_days,
         )
-    except Exception:
+    except Exception as exc:  # noqa: BLE001 — degrade to per-leg vol, but never silently
+        logging.getLogger(__name__).warning(
+            "Commodity spread risk computation failed for %s/%s legs=%s: %s — "
+            "falling back to per-leg vol treatment",
+            config.root,
+            config.exchange,
+            [leg.local_symbol for leg in materialized_legs],
+            exc,
+        )
         computed = None
     if computed is None:
         return None

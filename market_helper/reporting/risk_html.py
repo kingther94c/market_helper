@@ -267,6 +267,14 @@ class CategorySummaryRow:
 
 @dataclass(frozen=True)
 class BreakdownRow:
+    """Per-bucket aggregate.
+
+    ``risk_contribution_*`` fields are signed Euler component contributions
+    (they sum to the portfolio vol across buckets); ``standalone_risk_*``
+    fields are the correlation-free |weight x vol| mass used to derive the
+    bucket's standalone vol column.
+    """
+
     bucket: str
     bucket_label: str
     parent: str
@@ -277,6 +285,10 @@ class BreakdownRow:
     risk_contribution_geomean_1m_3m: float = 0.0
     risk_contribution_5y_realized: float = 0.0
     risk_contribution_forward_looking: float = 0.0
+    standalone_risk_estimated: float = 0.0
+    standalone_risk_geomean_1m_3m: float = 0.0
+    standalone_risk_5y_realized: float = 0.0
+    standalone_risk_forward_looking: float = 0.0
 
 
 @dataclass(frozen=True)
@@ -319,6 +331,10 @@ class PortfolioRiskSummary:
     net_exposure: float
     mapped_positions: int
     total_positions: int
+    # Concentration + tail-risk derived stats (None when not computable).
+    effective_positions: float | None = None
+    top5_gross_share: float | None = None
+    var_1d_95_usd: float | None = None
 
 
 @dataclass(frozen=True)
@@ -738,6 +754,43 @@ def build_risk_report_view_model(
         ewma=security_ewma_loadings,
         forward_looking=security_forward_looking_loadings,
     )
+    # Euler (covariance-consistent) component contributions per vol method,
+    # under the snapshot inter-asset correlation. Signed; sum = portfolio vol.
+    euler_geomean = _euler_security_contributions(
+        rows,
+        security_geomean_loadings,
+        geomean_group_loadings,
+        selected_group_corr,
+        portfolio_vol=portfolio_vol_geomean_1m_3m,
+    )
+    euler_realized = _euler_security_contributions(
+        rows,
+        security_realized_loadings,
+        realized_5y_group_loadings,
+        selected_group_corr,
+        portfolio_vol=portfolio_vol_5y_realized,
+    )
+    euler_ewma = _euler_security_contributions(
+        rows,
+        security_ewma_loadings,
+        ewma_group_loadings,
+        selected_group_corr,
+        portfolio_vol=portfolio_vol_ewma,
+    )
+    euler_forward = _euler_security_contributions(
+        rows,
+        security_forward_looking_loadings,
+        forward_looking_group_loadings,
+        selected_group_corr,
+        portfolio_vol=portfolio_vol_forward_looking,
+    )
+    euler_selected = _select_security_loadings(
+        vol_method=vol_method,
+        geomean=euler_geomean,
+        realized_5y=euler_realized,
+        ewma=euler_ewma,
+        forward_looking=euler_forward,
+    )
     risk_rows = [
         RiskMetricsRow(
             internal_id=row.internal_id,
@@ -762,12 +815,12 @@ def build_risk_report_view_model(
             vol_ewma=vols_ewma[row.internal_id],
             vol_forward_looking=vols_forward_looking[row.internal_id],
             sparkline_3m_svg=_sparkline_svg_for_returns(returns.get(row.internal_id, [])),
-            risk_contribution_historical=abs(security_geomean_loadings.get(row.internal_id, 0.0)),
-            risk_contribution_estimated=abs(selected_security_loadings.get(row.internal_id, 0.0)),
-            risk_contribution_geomean_1m_3m=abs(security_geomean_loadings.get(row.internal_id, 0.0)),
-            risk_contribution_5y_realized=abs(security_realized_loadings.get(row.internal_id, 0.0)),
-            risk_contribution_ewma=abs(security_ewma_loadings.get(row.internal_id, 0.0)),
-            risk_contribution_forward_looking=abs(security_forward_looking_loadings.get(row.internal_id, 0.0)),
+            risk_contribution_historical=euler_geomean.get(row.internal_id, 0.0),
+            risk_contribution_estimated=euler_selected.get(row.internal_id, 0.0),
+            risk_contribution_geomean_1m_3m=euler_geomean.get(row.internal_id, 0.0),
+            risk_contribution_5y_realized=euler_realized.get(row.internal_id, 0.0),
+            risk_contribution_ewma=euler_ewma.get(row.internal_id, 0.0),
+            risk_contribution_forward_looking=euler_forward.get(row.internal_id, 0.0),
             mapping_status=row.mapping_status,
             report_scope=_report_scope_label(row),
             dir_exposure=row.dir_exposure,
@@ -780,21 +833,29 @@ def build_risk_report_view_model(
     ]
     included_risk_rows = [row for row in risk_rows if row.report_scope == "included"]
     allocation_summary = build_allocation_summary(included_risk_rows)
+    breakdown_contributions = {
+        "estimated": euler_selected,
+        "geomean_1m_3m": euler_geomean,
+        "5y_realized": euler_realized,
+        "forward_looking": euler_forward,
+    }
+    breakdown_standalones = {
+        "estimated": selected_security_loadings,
+        "geomean_1m_3m": security_geomean_loadings,
+        "5y_realized": security_realized_loadings,
+        "forward_looking": security_forward_looking_loadings,
+    }
     country_breakdown = _build_eq_country_breakdown(
         included_rows,
-        selected_security_loadings,
-        security_geomean_loadings,
-        security_realized_loadings,
-        security_forward_looking_loadings,
+        breakdown_contributions,
+        breakdown_standalones,
         lookthrough_path=risk_report_config.eq_country_lookthrough_path,
         manual_lookthrough_path=risk_report_config.eq_country_manual_lookthrough_path,
     )
     sector_breakdown = _build_us_sector_breakdown(
         included_rows,
-        selected_security_loadings,
-        security_geomean_loadings,
-        security_realized_loadings,
-        security_forward_looking_loadings,
+        breakdown_contributions,
+        breakdown_standalones,
         lookthrough_path=risk_report_config.us_sector_lookthrough_path,
         manual_lookthrough_path=risk_report_config.us_sector_manual_lookthrough_path,
     )
@@ -807,10 +868,8 @@ def build_risk_report_view_model(
     )
     fi_tenor_breakdown = _build_fi_tenor_breakdown(
         included_rows,
-        selected_security_loadings,
-        security_geomean_loadings,
-        security_realized_loadings,
-        security_forward_looking_loadings,
+        breakdown_contributions,
+        breakdown_standalones,
     )
     policy_drift_asset_class = _build_asset_class_policy_drift(
         allocation_summary=allocation_summary,
@@ -840,6 +899,12 @@ def build_risk_report_view_model(
             lookthrough=sector_lookthrough_combined,
         ),
     )
+    selected_portfolio_vol = {
+        "geomean_1m_3m": portfolio_vol_geomean_1m_3m,
+        "5y_realized": portfolio_vol_5y_realized,
+        "ewma": portfolio_vol_ewma,
+        "forward_looking": portfolio_vol_forward_looking,
+    }.get(vol_method, portfolio_vol_geomean_1m_3m)
     summary = PortfolioRiskSummary(
         portfolio_vol_geomean_1m_3m=portfolio_vol_geomean_1m_3m,
         portfolio_vol_5y_realized=portfolio_vol_5y_realized,
@@ -851,6 +916,13 @@ def build_risk_report_view_model(
         net_exposure=sum(row.display_exposure_usd for row in included_rows),
         mapped_positions=sum(1 for row in included_rows if row.mapping_status == "mapped"),
         total_positions=len(included_rows),
+        effective_positions=_effective_position_count(included_rows),
+        top5_gross_share=_top5_gross_share(included_rows),
+        var_1d_95_usd=(
+            funded_aum_usd * selected_portfolio_vol / math.sqrt(TRADING_DAYS) * 1.645
+            if funded_aum_usd > 0 and selected_portfolio_vol > 0
+            else None
+        ),
     )
     current_step += 1
     reporter.stage("Risk HTML: risk metrics computed", current=current_step, total=total_steps)
@@ -1490,37 +1562,6 @@ def estimated_asset_class_vol(
     return proxy.get("DEFAULT", proxy.get("VIX", default_vix)) / 100.0
 
 
-def build_historical_correlation(
-    rows: list[RiskInputRow],
-    returns: Mapping[str, pd.Series | list[float]],
-) -> dict[tuple[str, str], float]:
-    corr: dict[tuple[str, str], float] = {}
-    for left in rows:
-        for right in rows:
-            key = (left.internal_id, right.internal_id)
-            if left.internal_id == right.internal_id:
-                corr[key] = 1.0
-                continue
-            corr[key] = pairwise_corr(returns.get(left.internal_id, []), returns.get(right.internal_id, []))
-    return corr
-
-
-def build_estimated_correlation(rows: list[RiskInputRow]) -> dict[tuple[str, str], float]:
-    corr: dict[tuple[str, str], float] = {}
-    for left in rows:
-        for right in rows:
-            key = (left.internal_id, right.internal_id)
-            if left.internal_id == right.internal_id:
-                corr[key] = 1.0
-            elif "CASH" in {left.asset_class, right.asset_class}:
-                corr[key] = 0.0
-            elif left.asset_class == right.asset_class:
-                corr[key] = 1.0
-            else:
-                corr[key] = 0.25
-    return corr
-
-
 def pairwise_corr(left: list[float], right: list[float]) -> float:
     left_series = _coerce_return_series(left)
     right_series = _coerce_return_series(right)
@@ -1531,24 +1572,6 @@ def pairwise_corr(left: list[float], right: list[float]) -> float:
     if corr is None or pd.isna(corr):
         return 0.0
     return float(max(-1.0, min(1.0, corr)))
-
-
-def portfolio_volatility(
-    rows: list[RiskInputRow],
-    vols: Mapping[str, float],
-    corr: Mapping[tuple[str, str], float],
-) -> float:
-    variance = 0.0
-    for left in rows:
-        for right in rows:
-            variance += (
-                left.weight
-                * right.weight
-                * vols.get(left.internal_id, 0.0)
-                * vols.get(right.internal_id, 0.0)
-                * corr.get((left.internal_id, right.internal_id), 0.0)
-            )
-    return math.sqrt(max(variance, 0.0))
 
 
 def build_allocation_summary(rows: list[RiskMetricsRow]) -> list[CategorySummaryRow]:
@@ -1792,12 +1815,18 @@ def _build_currency_breakdown(country_rows: Iterable[BreakdownRow]) -> list[Brea
         a["rcg"] = a.get("rcg", 0.0) + row.risk_contribution_geomean_1m_3m
         a["rc5"] = a.get("rc5", 0.0) + row.risk_contribution_5y_realized
         a["rcf"] = a.get("rcf", 0.0) + row.risk_contribution_forward_looking
+        a["sae"] = a.get("sae", 0.0) + row.standalone_risk_estimated
+        a["sag"] = a.get("sag", 0.0) + row.standalone_risk_geomean_1m_3m
+        a["sa5"] = a.get("sa5", 0.0) + row.standalone_risk_5y_realized
+        a["saf"] = a.get("saf", 0.0) + row.standalone_risk_forward_looking
     rows = [
         BreakdownRow(
             bucket=ccy, bucket_label=ccy, parent="EQ",
             exposure_usd=a["exposure_usd"], gross_exposure_usd=a["gross"], dollar_weight=a["dw"],
             risk_contribution_estimated=a["rce"], risk_contribution_geomean_1m_3m=a["rcg"],
             risk_contribution_5y_realized=a["rc5"], risk_contribution_forward_looking=a["rcf"],
+            standalone_risk_estimated=a["sae"], standalone_risk_geomean_1m_3m=a["sag"],
+            standalone_risk_5y_realized=a["sa5"], standalone_risk_forward_looking=a["saf"],
         )
         for ccy, a in agg.items()
     ]
@@ -1927,6 +1956,9 @@ def render_risk_tab(view_model: RiskReportViewModel) -> str:
       <div class='metric'><span>Gross exposure (FI 10Y eq)</span><strong>{summary.gross_exposure:,.0f}</strong></div>
       <div class='metric'><span>Net exposure (FI 10Y eq)</span><strong>{summary.net_exposure:,.0f}</strong></div>
       <div class='metric'><span>Mapping coverage (included rows)</span><strong>{summary.mapped_positions}/{summary.total_positions}</strong></div>
+      <div class='metric'><span>Effective positions (1/HHI, gross)</span><strong>{_format_optional_ratio(summary.effective_positions)}</strong></div>
+      <div class='metric'><span>Top-5 concentration (gross)</span><strong>{_format_optional_percent(summary.top5_gross_share)}</strong></div>
+      <div class='metric'><span>1-day 95% VaR (normal, {html.escape(_vol_method_label(vol_method))})</span><strong>{_format_optional_amount(summary.var_1d_95_usd)}</strong></div>
     </div>
     <p>{html.escape(FI_10Y_EQ_DISPLAY_NOTE)}</p>
     </div>
@@ -1935,6 +1967,11 @@ def render_risk_tab(view_model: RiskReportViewModel) -> str:
     <h2>Portfolio Vol Matrix &amp; Risk Assumptions</h2>
     <p>Rows are correlation assumptions. Columns are volatility methods. The vol-method
     toggle below drives the highlighted column here and the vol/contribution columns in every table.</p>
+    <p class='risk-assumption-copy'>Vol Contribution columns are <strong>Euler component
+    contributions</strong> under the report's snapshot correlation ({html.escape(inter_asset_corr)}):
+    signed, and they sum to the portfolio vol. Negative values are diversifiers/hedges —
+    a short leg that reduces portfolio vol shows a negative contribution instead of being
+    counted as if it added risk.</p>
     {_render_vol_method_control_html(vol_method)}
     {_build_portfolio_vol_matrix_html(view_model)}
     </div>
@@ -2086,6 +2123,18 @@ def _format_optional_amount(value: float | None) -> str:
     return f"{value:,.0f}"
 
 
+def _format_optional_ratio(value: float | None) -> str:
+    if value is None:
+        return "n/a"
+    return f"{value:.1f}"
+
+
+def _format_optional_percent(value: float | None) -> str:
+    if value is None:
+        return "n/a"
+    return f"{value:.1%}"
+
+
 def _allocation_columns() -> list[HtmlTableColumn]:
     return [
         HtmlTableColumn("asset_class", "Asset Class"),
@@ -2157,11 +2206,24 @@ def _risk_contribution_value(row: BreakdownRow, vol_method: str) -> float:
     return row.risk_contribution_geomean_1m_3m
 
 
+def _standalone_risk_value(row: BreakdownRow, vol_method: str) -> float:
+    if vol_method == "5y_realized":
+        return row.standalone_risk_5y_realized
+    if vol_method == "forward_looking":
+        return row.standalone_risk_forward_looking
+    return row.standalone_risk_geomean_1m_3m
+
+
 def _breakdown_selected_vol(row: BreakdownRow, vol_method: str) -> float:
+    """Bucket standalone vol = gross-weighted average member vol.
+
+    Derived from the correlation-free |weight x vol| mass, NOT from the Euler
+    contribution (which is correlation-scaled and signed).
+    """
     denominator = abs(row.dollar_weight)
     if denominator <= 0:
         return 0.0
-    return _risk_contribution_value(row, vol_method) / denominator
+    return _standalone_risk_value(row, vol_method) / denominator
 
 
 def _is_report_included(row: RiskInputRow | RiskMetricsRow) -> bool:
@@ -2341,8 +2403,18 @@ def _position_columns() -> list[HtmlTableColumn]:
 
 
 def _position_table_rows(rows: Iterable[RiskMetricsRow]) -> list[HtmlTableRow]:
+    # Lead with the risk drivers: included rows first, by |component contribution|
+    # (selected method), then by gross exposure for vol-less rows.
+    ordered = sorted(
+        rows,
+        key=lambda row: (
+            row.report_scope == "excluded",
+            -abs(row.risk_contribution_estimated),
+            -row.gross_exposure_usd,
+        ),
+    )
     output: list[HtmlTableRow] = []
-    for row in rows:
+    for row in ordered:
         scope_label = (
             "<span class='tag tag--warning'>excluded</span>"
             if row.report_scope == "excluded"
@@ -2510,7 +2582,7 @@ def _build_commodity_corr_table_html(
         parts.append(f"<tr><td>{html.escape(row_label)}</td>")
         for value in row_values:
             parts.append(
-                f"<td style='background:{_red_heat_color(value)};text-align:right;font-weight:700'>{value:.2f}</td>"
+                f"<td style='background:{_corr_heat_color(value)};text-align:right;font-weight:700'>{value:+.2f}</td>"
             )
         parts.append("</tr>")
     parts.append("</tbody></table>")
@@ -2521,9 +2593,15 @@ def _orange_heat_color(value: float, *, min_value: float, max_value: float) -> s
     return _blend_heat_color(value, min_value=min_value, max_value=max_value, start=(255, 247, 237), end=(194, 65, 12))
 
 
-def _red_heat_color(value: float) -> str:
-    clipped = max(value, 0.0)
-    return _blend_heat_color(clipped, min_value=0.0, max_value=1.0, start=(255, 245, 245), end=(153, 27, 27))
+def _corr_heat_color(value: float) -> str:
+    """Diverging palette: blue for negative correlation, white ~0, red positive.
+
+    Clamping negatives to white (the old behavior) hid exactly the cells that
+    matter most — negative correlation is the diversification signal.
+    """
+    if value < 0:
+        return _blend_heat_color(-value, min_value=0.0, max_value=1.0, start=(245, 248, 255), end=(29, 78, 216))
+    return _blend_heat_color(value, min_value=0.0, max_value=1.0, start=(255, 245, 245), end=(153, 27, 27))
 
 
 def _blend_heat_color(
@@ -2981,6 +3059,56 @@ def _build_security_loadings(
         )
         for row in rows
     }
+
+
+def _euler_security_contributions(
+    rows: list[RiskInputRow],
+    security_loadings: Mapping[str, float],
+    group_loadings: Mapping[str, float],
+    group_corr: Mapping[tuple[str, str], float],
+    *,
+    portfolio_vol: float,
+) -> dict[str, float]:
+    """Covariance-consistent (Euler) per-position vol contributions.
+
+    Under the group model ``sigma_p^2 = sum_{C,D} L_C L_D rho(C,D)`` with
+    ``L_C = sum_{i in C} l_i`` (signed security loadings), position *i* in
+    class *C* contributes ``l_i * sum_D rho(C,D) L_D / sigma_p``. Contributions
+    are signed — hedges and short legs show up negative — and sum exactly to
+    the portfolio vol, unlike the standalone ``|l_i|`` mass.
+    """
+    if portfolio_vol <= 0.0:
+        return {row.internal_id: 0.0 for row in rows}
+    keys = list(group_loadings)
+    scale = {
+        left: sum(group_corr.get((left, right), 0.0) * group_loadings[right] for right in keys) / portfolio_vol
+        for left in keys
+    }
+    return {
+        row.internal_id: security_loadings.get(row.internal_id, 0.0) * scale.get(row.asset_class, 0.0)
+        for row in rows
+    }
+
+
+def _effective_position_count(rows: list[RiskInputRow]) -> float | None:
+    """Inverse-HHI over gross-exposure shares of vol-included positions."""
+    gross = [row.gross_exposure_usd for row in rows if _is_vol_included(row) and row.asset_class.upper() != "CASH"]
+    total = sum(gross)
+    if total <= 0:
+        return None
+    hhi = sum((value / total) ** 2 for value in gross)
+    return (1.0 / hhi) if hhi > 0 else None
+
+
+def _top5_gross_share(rows: list[RiskInputRow]) -> float | None:
+    gross = sorted(
+        (row.gross_exposure_usd for row in rows if _is_vol_included(row) and row.asset_class.upper() != "CASH"),
+        reverse=True,
+    )
+    total = sum(gross)
+    if total <= 0:
+        return None
+    return sum(gross[:5]) / total
 
 
 def _build_group_loadings(
@@ -3643,10 +3771,8 @@ def _expand_eq_country_policy_mix(
 
 def _build_eq_country_breakdown(
     rows: list[RiskInputRow],
-    estimated_loadings: Mapping[str, float],
-    geomean_loadings: Mapping[str, float],
-    realized_5y_loadings: Mapping[str, float],
-    forward_looking_loadings: Mapping[str, float],
+    contributions: Mapping[str, Mapping[str, float]],
+    standalones: Mapping[str, Mapping[str, float]],
     *,
     lookthrough_path: Path = DEFAULT_EQ_COUNTRY_LOOKTHROUGH_PATH,
     manual_lookthrough_path: Path = DEFAULT_EQ_COUNTRY_MANUAL_LOOKTHROUGH_PATH,
@@ -3655,10 +3781,8 @@ def _build_eq_country_breakdown(
     manual = _load_weight_table(manual_lookthrough_path, "symbol", "country_bucket")
     breakdown = _build_breakdown(
         rows=rows,
-        estimated_loadings=estimated_loadings,
-        geomean_loadings=geomean_loadings,
-        realized_5y_loadings=realized_5y_loadings,
-        forward_looking_loadings=forward_looking_loadings,
+        contributions=contributions,
+        standalones=standalones,
         expander=lambda row: _expand_country_allocations(row, manual=manual, taxonomy=taxonomy),
         parent="EQ",
     )
@@ -3667,10 +3791,8 @@ def _build_eq_country_breakdown(
 
 def _build_us_sector_breakdown(
     rows: list[RiskInputRow],
-    estimated_loadings: Mapping[str, float],
-    geomean_loadings: Mapping[str, float],
-    realized_5y_loadings: Mapping[str, float],
-    forward_looking_loadings: Mapping[str, float],
+    contributions: Mapping[str, Mapping[str, float]],
+    standalones: Mapping[str, Mapping[str, float]],
     *,
     lookthrough_path: Path = DEFAULT_US_SECTOR_LOOKTHROUGH_PATH,
     manual_lookthrough_path: Path = DEFAULT_US_SECTOR_MANUAL_LOOKTHROUGH_PATH,
@@ -3679,10 +3801,8 @@ def _build_us_sector_breakdown(
     manual = _load_weight_table(manual_lookthrough_path, "symbol", "sector")
     return _build_breakdown(
         rows=rows,
-        estimated_loadings=estimated_loadings,
-        geomean_loadings=geomean_loadings,
-        realized_5y_loadings=realized_5y_loadings,
-        forward_looking_loadings=forward_looking_loadings,
+        contributions=contributions,
+        standalones=standalones,
         expander=lambda row: _expand_us_sector_allocations(row, api_cache=api_cache, manual=manual),
         parent="EQ",
     )
@@ -3784,17 +3904,13 @@ def _build_country_sector_breakdown(
 
 def _build_fi_tenor_breakdown(
     rows: list[RiskInputRow],
-    estimated_loadings: Mapping[str, float],
-    geomean_loadings: Mapping[str, float],
-    realized_5y_loadings: Mapping[str, float],
-    forward_looking_loadings: Mapping[str, float],
+    contributions: Mapping[str, Mapping[str, float]],
+    standalones: Mapping[str, Mapping[str, float]],
 ) -> list[BreakdownRow]:
     breakdown = _build_breakdown(
         rows=rows,
-        estimated_loadings=estimated_loadings,
-        geomean_loadings=geomean_loadings,
-        realized_5y_loadings=realized_5y_loadings,
-        forward_looking_loadings=forward_looking_loadings,
+        contributions=contributions,
+        standalones=standalones,
         expander=lambda row: [(row.fi_tenor or "UNASSIGNED", 1.0)] if row.asset_class == "FI" else [],
         parent="FI",
         bucket_labeler=_fi_tenor_bucket_label,
@@ -3813,54 +3929,58 @@ def _build_fi_tenor_breakdown(
 def _build_breakdown(
     *,
     rows: list[RiskInputRow],
-    estimated_loadings: Mapping[str, float],
-    geomean_loadings: Mapping[str, float],
-    realized_5y_loadings: Mapping[str, float],
-    forward_looking_loadings: Mapping[str, float],
+    contributions: Mapping[str, Mapping[str, float]],
+    standalones: Mapping[str, Mapping[str, float]],
     expander: Any,
     parent: str,
     bucket_labeler: Any | None = None,
 ) -> list[BreakdownRow]:
-    aggregated: dict[str, BreakdownRow] = {}
+    """Aggregate positions into buckets via ``expander`` lookthrough weights.
+
+    ``contributions`` holds the signed Euler component contributions per vol
+    method ("estimated" / "geomean_1m_3m" / "5y_realized" / "forward_looking");
+    splitting them by lookthrough weight keeps them additive, so bucket rows sum
+    back to the class component. ``standalones`` holds the |weight x vol|
+    loadings used to derive each bucket's standalone vol column.
+    """
+    aggregated: dict[str, dict[str, float]] = {}
+    labels: dict[str, str] = {}
     funded_aum = _funded_aum(rows)
+    method_keys = ("estimated", "geomean_1m_3m", "5y_realized", "forward_looking")
     for row in rows:
         for bucket, weight in expander(row):
-            existing = aggregated.get(bucket)
-            net_exposure = row.display_exposure_usd * weight
-            gross_exposure = row.display_gross_exposure_usd * weight
-            contribution = abs(estimated_loadings.get(row.internal_id, 0.0) * weight)
-            geomean_contribution = abs(geomean_loadings.get(row.internal_id, 0.0) * weight)
-            realized_5y_contribution = abs(realized_5y_loadings.get(row.internal_id, 0.0) * weight)
-            forward_looking_contribution = abs(forward_looking_loadings.get(row.internal_id, 0.0) * weight)
-            if existing is None:
-                aggregated[bucket] = BreakdownRow(
-                    bucket=bucket,
-                    bucket_label=bucket_labeler(bucket) if bucket_labeler is not None else "",
-                    parent=parent,
-                    exposure_usd=net_exposure,
-                    gross_exposure_usd=gross_exposure,
-                    dollar_weight=(gross_exposure / funded_aum) if funded_aum > 0 else 0.0,
-                    risk_contribution_estimated=contribution,
-                    risk_contribution_geomean_1m_3m=geomean_contribution,
-                    risk_contribution_5y_realized=realized_5y_contribution,
-                    risk_contribution_forward_looking=forward_looking_contribution,
+            agg = aggregated.setdefault(bucket, {})
+            if bucket not in labels:
+                labels[bucket] = bucket_labeler(bucket) if bucket_labeler is not None else ""
+            agg["net"] = agg.get("net", 0.0) + row.display_exposure_usd * weight
+            agg["gross"] = agg.get("gross", 0.0) + row.display_gross_exposure_usd * weight
+            for key in method_keys:
+                agg[f"rc_{key}"] = agg.get(f"rc_{key}", 0.0) + (
+                    contributions[key].get(row.internal_id, 0.0) * weight
                 )
-                continue
-            aggregated[bucket] = BreakdownRow(
-                bucket=existing.bucket,
-                bucket_label=existing.bucket_label,
-                parent=existing.parent,
-                exposure_usd=existing.exposure_usd + net_exposure,
-                gross_exposure_usd=existing.gross_exposure_usd + gross_exposure,
-                dollar_weight=((existing.gross_exposure_usd + gross_exposure) / funded_aum) if funded_aum > 0 else 0.0,
-                risk_contribution_estimated=existing.risk_contribution_estimated + contribution,
-                risk_contribution_geomean_1m_3m=existing.risk_contribution_geomean_1m_3m + geomean_contribution,
-                risk_contribution_5y_realized=existing.risk_contribution_5y_realized + realized_5y_contribution,
-                risk_contribution_forward_looking=(
-                    existing.risk_contribution_forward_looking + forward_looking_contribution
-                ),
-            )
-    return sorted(aggregated.values(), key=lambda item: item.gross_exposure_usd, reverse=True)
+                agg[f"sa_{key}"] = agg.get(f"sa_{key}", 0.0) + abs(
+                    standalones[key].get(row.internal_id, 0.0) * weight
+                )
+    output = [
+        BreakdownRow(
+            bucket=bucket,
+            bucket_label=labels[bucket],
+            parent=parent,
+            exposure_usd=agg.get("net", 0.0),
+            gross_exposure_usd=agg.get("gross", 0.0),
+            dollar_weight=(agg.get("gross", 0.0) / funded_aum) if funded_aum > 0 else 0.0,
+            risk_contribution_estimated=agg.get("rc_estimated", 0.0),
+            risk_contribution_geomean_1m_3m=agg.get("rc_geomean_1m_3m", 0.0),
+            risk_contribution_5y_realized=agg.get("rc_5y_realized", 0.0),
+            risk_contribution_forward_looking=agg.get("rc_forward_looking", 0.0),
+            standalone_risk_estimated=agg.get("sa_estimated", 0.0),
+            standalone_risk_geomean_1m_3m=agg.get("sa_geomean_1m_3m", 0.0),
+            standalone_risk_5y_realized=agg.get("sa_5y_realized", 0.0),
+            standalone_risk_forward_looking=agg.get("sa_forward_looking", 0.0),
+        )
+        for bucket, agg in aggregated.items()
+    ]
+    return sorted(output, key=lambda item: item.gross_exposure_usd, reverse=True)
 
 
 def _eq_country_breakdown_sort_key(row: BreakdownRow) -> tuple[int, int, str, float, str]:
@@ -3910,6 +4030,10 @@ def _sum_breakdown_rows(rows: Iterable[BreakdownRow], *, bucket: str, parent: st
         risk_contribution_geomean_1m_3m=sum(row.risk_contribution_geomean_1m_3m for row in materialized),
         risk_contribution_5y_realized=sum(row.risk_contribution_5y_realized for row in materialized),
         risk_contribution_forward_looking=sum(row.risk_contribution_forward_looking for row in materialized),
+        standalone_risk_estimated=sum(row.standalone_risk_estimated for row in materialized),
+        standalone_risk_geomean_1m_3m=sum(row.standalone_risk_geomean_1m_3m for row in materialized),
+        standalone_risk_5y_realized=sum(row.standalone_risk_5y_realized for row in materialized),
+        standalone_risk_forward_looking=sum(row.standalone_risk_forward_looking for row in materialized),
     )
 
 

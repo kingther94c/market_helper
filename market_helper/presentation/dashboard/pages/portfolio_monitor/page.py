@@ -33,6 +33,7 @@ from market_helper.presentation.dashboard.pages.portfolio_monitor.actions import
     _set_action_error,
     _set_action_running,
     _set_action_success,
+    _set_action_warning,
 )
 from market_helper.presentation.dashboard.pages.portfolio_monitor.routes import (
     _current_report_output_path,
@@ -58,6 +59,23 @@ _logger = logging.getLogger(__name__)
 _REGISTERED = False
 _QUERY_SERVICE: PortfolioMonitorQueryService = PortfolioMonitorQueryService()
 _ACTION_SERVICE: PortfolioMonitorActionService = PortfolioMonitorActionService()
+
+
+def _snapshot_age_label(path) -> str:
+    """Human age of a cached artifact, e.g. '2026-06-08 (2 days old)' — so a
+    fallback to stale positions is never presented as if it were fresh."""
+    try:
+        mtime = datetime.fromtimestamp(path.stat().st_mtime)
+    except OSError:
+        return "an unknown date"
+    age_days = (datetime.now() - mtime).days
+    if age_days <= 0:
+        age = "today"
+    elif age_days == 1:
+        age = "1 day old"
+    else:
+        age = f"{age_days} days old"
+    return f"{mtime.strftime('%Y-%m-%d %H:%M')} ({age})"
 
 
 def register_portfolio_page(
@@ -179,10 +197,13 @@ def register_portfolio_page(
                         )
                         state.artifact_form.positions_csv_path = str(cached)
                         state.live_form.output_path = str(cached)
-                        _set_action_success(
+                        _set_action_warning(
                             state,
                             "live",
-                            message=f"TWS / IB Gateway unreachable; using cached {cached.name}",
+                            message=(
+                                "TWS / IB Gateway unreachable; showing cached snapshot "
+                                f"{cached.name} from {_snapshot_age_label(cached)}"
+                            ),
                             output_path=str(cached),
                         )
                         await load_report_data()
@@ -280,6 +301,7 @@ def register_portfolio_page(
                     await load_report_data()
                 elif action_name == "refresh":
                     live_inputs = _live_inputs_from_form(state.live_form)
+                    live_degraded = False
                     try:
                         live_output = await asyncio.to_thread(
                             _ACTION_SERVICE.refresh_live_positions,
@@ -297,10 +319,17 @@ def register_portfolio_page(
                             cached,
                         )
                         live_output = cached
-                        live_message = f"TWS / IB Gateway unreachable; using cached {cached.name}"
+                        live_degraded = True
+                        live_message = (
+                            "TWS / IB Gateway unreachable; continuing with cached snapshot "
+                            f"{cached.name} from {_snapshot_age_label(cached)}"
+                        )
                     state.artifact_form.positions_csv_path = str(live_output)
                     state.live_form.output_path = str(live_output)
-                    _set_action_success(state, "live", message=live_message, output_path=str(live_output))
+                    if live_degraded:
+                        _set_action_warning(state, "live", message=live_message, output_path=str(live_output))
+                    else:
+                        _set_action_success(state, "live", message=live_message, output_path=str(live_output))
 
                     flex_inputs = _flex_inputs_from_form(state.flex_form)
                     flex_output = await asyncio.to_thread(
@@ -326,7 +355,15 @@ def register_portfolio_page(
                         combined_message = "HTML report generated and mirrored to Google Drive"
                         refresh_message = "Refresh completed and mirrored to Google Drive"
                     _set_action_success(state, "combined", message=combined_message, output_path=str(artifact.output_path))
-                    _set_action_success(state, "refresh", message=refresh_message, output_path=str(artifact.output_path))
+                    if live_degraded:
+                        _set_action_warning(
+                            state,
+                            "refresh",
+                            message=f"{refresh_message} — positions are a cached snapshot (TWS unreachable)",
+                            output_path=str(artifact.output_path),
+                        )
+                    else:
+                        _set_action_success(state, "refresh", message=refresh_message, output_path=str(artifact.output_path))
                 else:
                     raise ValueError(f"Unsupported action: {action_name}")
                 state.status_message = state.action_statuses[action_name].message
