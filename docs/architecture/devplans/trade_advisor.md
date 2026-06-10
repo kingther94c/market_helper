@@ -460,6 +460,18 @@ every pane's registry (9 tools total); the FX decision join moved to
 option/FX asks point at the authoritative tools. Verified live against the
 running OpenClaw gateway: the model called `get_fx_decision` + `get_roll_yields`
 unprompted and answered with the real gap (AUD 7ct vs 2ct) and the real NG carry.
+· ✅ **V8 — guided-creativity ideagen (2026-06-10).** The operator's
+idea-generation-macro skill internalized as the Tactical AI Plus pane's engine:
+`IDEAGEN_STYLE` (operators · divergence-on-a-leash · presets-last),
+`draw_random_stimulus` tool (mandatory divergence engine, non-financial concept
+pool), `return_sources` + `idea_filters` knowledge (5-family taxonomy + the
+six-point hard filter + score anchors), and the capture protocol extended with
+MECHANISM / SKEPTIC / CHEAPEST_TEST (shown on captured cards). The source skill
+itself was reviewed + fixed first (an append-only `idea_ledger.md` now gives its
+novelty/dedup checks the memory the overwritten brief destroyed). Live-verified:
+the model drew stimuli first, seeded cards from the draws ("deadlock" → policy-
+divergence USD fade), anchored every card in a return-source family with skeptic
++ cheapest-test, and all blocks parsed for capture.
 
 ---
 

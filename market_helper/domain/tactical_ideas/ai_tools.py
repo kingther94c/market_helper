@@ -23,9 +23,48 @@ from market_helper.trade_advisor.ai.skills import KnowledgeEntry, PromptSkill
 from market_helper.trade_advisor.ai.tools import AiToolRegistry
 
 from .signals import build_tactical_context, generate_tactical_ideas
-from .synthesis import DEFAULT_STYLE, _ORDER_GUARD
+from .synthesis import DEFAULT_STYLE, IDEAGEN_STYLE, _ORDER_GUARD
 
 _NO_PARAMS: dict[str, Any] = {"type": "object", "properties": {}, "additionalProperties": False}
+
+# Random-stimulus pool for the guided-creativity ideagen (adapted from the
+# operator's idea-generation-macro skill). Deliberately OUTSIDE finance: the
+# divergence effect comes from force-fitting a non-financial concept's STRUCTURE
+# onto a market. Hand-picked "random" words cluster on near-neighbours and kill
+# the effect — always draw via the tool.
+_STIMULUS_POOL = (
+    # natural phenomena (cyclical, deterministic, mechanical)
+    "tide", "monsoon", "geyser", "avalanche", "rip current", "thermocline", "wildfire",
+    "permafrost", "eclipse", "solstice", "tornado", "tsunami", "magma chamber", "aurora",
+    "magnetic field reversal", "river meander",
+    # biology (feedback loops, predator-prey, contagion)
+    "mycorrhiza", "lichen", "molting", "hibernation", "swarming", "stampede", "antibody",
+    "vaccine", "metamorphosis", "symbiosis", "parasite", "bloom", "migration",
+    "echolocation", "camouflage", "mimicry",
+    # engineering / infrastructure (load, redundancy, failure modes)
+    "dam spillway", "transformer", "circuit breaker", "load balancer", "shock absorber",
+    "flywheel", "ratchet", "governor (engine)", "fuse", "expansion joint", "blast furnace",
+    "cooling tower", "pressure valve",
+    # craft / kitchen / textile (technique, sequencing)
+    "kneading", "fermentation", "tempering", "marbling", "lamination", "weaving",
+    "felting", "smelting", "annealing", "quenching", "etching",
+    # sport / movement (timing, leverage)
+    "feint", "draft (cycling)", "tackle", "counter-punch", "checkmate setup", "rebound",
+    "tip-off", "slipstream",
+    # art / music (composition, dynamics)
+    "counterpoint", "fugue", "ostinato", "chiaroscuro", "negative space", "vanishing point",
+    "rubato", "polyrhythm", "syncopation",
+    # old technology
+    "semaphore", "telegraph", "abacus", "sundial", "windmill", "watermill", "lighthouse",
+    "lever arm", "pulley system",
+    # abstract structural concepts
+    "phase transition", "cascade", "threshold effect", "tipping point", "feedback loop",
+    "deadlock", "bottleneck", "starvation (in CS)", "garbage collection", "memoization",
+    "hysteresis", "resonance", "interference pattern", "standing wave", "critical mass",
+    # information / social dynamics
+    "rumour", "gossip cascade", "stampede (panic)", "queue jumping", "rationing",
+    "fire drill", "evacuation", "muster point",
+)
 
 
 def build_tactical_tool_registry(*, regime_path=None) -> AiToolRegistry:
@@ -110,6 +149,24 @@ def build_tactical_tool_registry(*, regime_path=None) -> AiToolRegistry:
             for c in cards
         ]
 
+    @reg.tool(
+        "draw_random_stimulus",
+        "Draw N genuinely random non-financial concepts (the ideagen divergence engine). Force-fit each "
+        "draw's STRUCTURE onto a market; most won't connect — discard those. Draws are prompts, not "
+        "commitments. Never pick your own 'random' words — they cluster on near-neighbours.",
+        {"type": "object", "properties": {"n": {"type": "integer", "description": "number of draws (default 5)"}},
+         "additionalProperties": False},
+    )
+    def draw_random_stimulus(n: int = 5) -> dict:
+        import random
+
+        k = max(1, min(int(n or 5), 10))
+        return {
+            "draws": random.sample(_STIMULUS_POOL, k=k),
+            "how_to_use": "For each: where does this concept's STRUCTURE show up in the cross-asset world? "
+                          "Build ideas only where a real mechanism appears.",
+        }
+
     return reg
 
 
@@ -160,22 +217,45 @@ def tactical_skills() -> list[PromptSkill]:
         ),
         _ADVERSARIAL,
         _TERSE,
+        PromptSkill(
+            name="tactical_ideagen",
+            task="tactical_brief",
+            when_to_use="Idea GENERATION (the accumulate loop): divergent, off-preset ideas via creativity "
+                        "operators + random stimulus, evaluated by the return-source hard filter. Use when the "
+                        "operator wants NEW ideas rather than a synthesis of the existing anchors. (Internalized "
+                        "from the operator's idea-generation-macro skill; pane default for Tactical AI Plus.)",
+            system=IDEAGEN_STYLE.system,
+            ask=IDEAGEN_STYLE.ask,
+            notes=f"backed by synthesis.IDEAGEN_STYLE ({IDEAGEN_STYLE.name}); pairs with the "
+                  "draw_random_stimulus tool + return_sources/idea_filters knowledge",
+        ),
     ]
 
 
-def tactical_tool_messages(context, ideas, registry: AiToolRegistry) -> list[dict]:
+def tactical_tool_messages(context, ideas, registry: AiToolRegistry, *, style=None) -> list[dict]:
     """Initial messages for a TOOL-ENABLED tactical brief: the style system turn (with the
     tool protocol baked in) + the user turn (context + anchors + ask). The caller drives
     the loop with ``run_tool_chat(..., inject_protocol=False)`` so the protocol is added once.
+    ``style`` selects the injected prompt (default: the harness-selected DEFAULT_STYLE).
     """
     from market_helper.trade_advisor.ai.tools import tool_protocol_instructions
 
     from .synthesis import build_tactical_messages
 
-    messages = build_tactical_messages(context, ideas)
+    messages = build_tactical_messages(context, ideas, style=style or DEFAULT_STYLE)
     if registry is not None and len(registry):
         messages[0]["content"] = messages[0]["content"] + tool_protocol_instructions(registry)
     return messages
+
+
+def tactical_knowledge_block(names: "list[str] | None" = None) -> str:
+    """Selected tactical knowledge rendered as a system-prompt block (for builders)."""
+    from market_helper.trade_advisor.ai.skills import KnowledgeBook, knowledge_system_block
+
+    kb = KnowledgeBook()
+    for entry in tactical_knowledge():
+        kb.register(entry)
+    return knowledge_system_block(kb, names=names)
 
 
 def tactical_knowledge() -> list[KnowledgeEntry]:
@@ -196,5 +276,47 @@ def tactical_knowledge() -> list[KnowledgeEntry]:
             "A Goldilocks-forward (policy-expert) vs Reflation-momentum (trending) divergence means lower "
             "conviction — prefer targeted expressions over broad beta.",
             ("tactical", "macro"),
+        ),
+        KnowledgeEntry(
+            "return_sources", "Ideagen",
+            "Return-source families — anchor every idea in exactly ONE; name the crowded default form and "
+            "your incremental edge (conditioner / horizon / universe / flow / structure):\n"
+            "1) RISK PREMIA — ERP (default: long SPY; edge: regime-conditioned overlay, equal-weight tilt) · "
+            "term premium (long TLT; edge: cross-country spreads ZB/Bund/JGB, policy-regime steepeners) · "
+            "credit (long HYG; edge: HY/IG ratio, OAS-regime tilt) · vol risk premium (short VIX naked — "
+            "blew up 2018; edge: /VX calendar by term-structure regime, cross-asset vol relative cheapness) · "
+            "FX carry (long EM vs USD; edge: vol-adjusted, risk-regime-gated, funder rotation JPY/CHF) · "
+            "commodity carry (long backwardation; edge: calendar spreads, seasonality) · liquidity (edge: "
+            "ETF-vs-NAV stress deviations, rebal-flow capture).\n"
+            "2) ANOMALIES — trend/TS-momentum (12-1 equities; edge: cross-asset futures, regime-gated, "
+            "horizon variation) · cross-sectional momentum (edge: sector/country ETF rotation) · short-horizon "
+            "mean-reversion (edge: ADR-vs-local, ETF-vs-NAV, correlated futures pairs CL-BZ/GC-SI/ZN-ZB) · "
+            "value (edge: gold-vs-real-yields, commodity 5y lows, bond yield z-scores) · defensive/low-vol.\n"
+            "3) FLOWS & POSITIONING — pension month/quarter-end rebal · dealer gamma (OPEX pinning vs "
+            "amplification) · CTA forced de-leveraging on vol spikes · CB flows (BoJ/ECB/PBoC, QT, "
+            "intervention) · index reconstitution · 0DTE dealer flow · EM CB peg defense.\n"
+            "4) BEHAVIORAL — post-news over/under-reaction (fade CPI/NFP/FOMC gaps conditioned on "
+            "positioning) · sentiment extremes (contrarian at 95th pct) · disposition effect.\n"
+            "5) MICROSTRUCTURE / REGIME / EVENT — regime shifts (multi-asset overlays with confirmation "
+            "rules) · cross-asset vol dispersion · skew extremes · curve-shape change (DV01-weighted "
+            "spreads) · scheduled-event vol calendars.",
+            ("ideagen", "taxonomy"),
+        ),
+        KnowledgeEntry(
+            "idea_filters", "Ideagen",
+            "The HARD FILTER — every idea clears all six or is flagged failing: (1) MECHANISM: a named "
+            "return-source family — 'the chart looks good' is not a mechanism. (2) ORTHOGONALITY: state the "
+            "crowded default form + the incremental edge; the default itself is a robustness sweep, not an "
+            "idea. (3) LEAK-SAFE: the signal at time t uses only data ≤ t. (4) RETAIL-IMPLEMENTABLE: a "
+            "specific LISTED instrument (ETF ticker / futures code / listed options structure); single "
+            "stocks are an auto-reject. (5) SKEPTIC'S VIEW: the single strongest reason it fails (crowding / "
+            "slippage / decay / borrow / regime dependence). (6) CHEAPEST FIRST TEST: one observation or "
+            "paper-trade in ≤ 2 weeks that confirms or kills.\n"
+            "SCORES 1-5 each (all-5 = not being honest): Novelty (5 = new source / off-preset; 1 = textbook "
+            "default) · Mechanism plausibility (5 = documented economic force; 1 = chart pattern) · "
+            "Tradability (retail-friction-adjusted: spread, decay, borrow, capacity) · Conviction-today "
+            "(are the conditioners aligned RIGHT NOW). Maturity verdict: Raw = park · Developing = next "
+            "test defined · Ready = mechanism + cheapest-test + instrument all line up.",
+            ("ideagen", "discipline"),
         ),
     ]

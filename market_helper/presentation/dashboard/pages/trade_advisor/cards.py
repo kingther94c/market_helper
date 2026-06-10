@@ -208,6 +208,10 @@ def tactical_facts(detail: dict) -> list[tuple[str, str]]:
         ("regime_kill", "Regime that kills it"),
         ("confirm", "Confirms it's working"),
         ("invalidation", "Invalidation"),
+        # The ideagen discipline fields (captured AI ideas carry these).
+        ("mechanism", "Mechanism (return source)"),
+        ("skeptic", "Skeptic's view"),
+        ("cheapest_test", "Cheapest first test"),
     ):
         val = str(detail.get(key, "") or "").strip()
         if val:

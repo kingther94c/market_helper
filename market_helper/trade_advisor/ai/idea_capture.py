@@ -41,6 +41,8 @@ from ..contracts import (
 )
 
 # Appended to the AI pane's system framing so replies carry capturable blocks.
+# MECHANISM / SKEPTIC / CHEAPEST_TEST carry the ideagen hard-filter discipline
+# (return-source anchoring, strongest counter-case, ≤2-week confirm-or-kill).
 IDEA_BLOCK_INSTRUCTIONS = (
     "\n\nWhen you propose trade ideas, ALSO emit each one as a fenced block so it can be "
     "captured into the idea journal — exactly this shape (one block per idea, keys on their "
@@ -50,17 +52,21 @@ IDEA_BLOCK_INSTRUCTIONS = (
     "STANCE: <long|short|neutral>\n"
     "SUBJECT: <ticker / theme>\n"
     "THESIS: <one or two sentences>\n"
-    "EXPRESSION: <how a retail account would express it — instrument, NOT a size>\n"
+    "MECHANISM: <return-source family -> specific economic force>\n"
+    "EXPRESSION: <how a retail account would express it — listed instrument, NOT a size>\n"
     "CONFIDENCE: <high|medium|low|speculative>\n"
     "RISK: <principal risk>\n"
     "INVALIDATION: <what observable would prove it wrong>\n"
+    "SKEPTIC: <the single strongest case against>\n"
+    "CHEAPEST_TEST: <one observation / paper-trade in <=2 weeks that confirms or kills>\n"
     "HORIZON: <e.g. 1-3 months>\n"
     "```"
 )
 
 _FENCE_RE = re.compile(r"```idea\s*\n(.*?)```", re.DOTALL | re.IGNORECASE)
 _KEY_RE = re.compile(
-    r"^(TITLE|STANCE|SUBJECT|THESIS|EXPRESSION|CONFIDENCE|RISK|INVALIDATION|HORIZON)\s*:\s*(.*)$",
+    r"^(TITLE|STANCE|SUBJECT|THESIS|MECHANISM|EXPRESSION|CONFIDENCE|RISK|INVALIDATION|SKEPTIC|CHEAPEST_TEST|HORIZON)"
+    r"\s*:\s*(.*)$",
     re.IGNORECASE,
 )
 
@@ -111,6 +117,11 @@ def captured_suggestion(fields: dict, *, as_of: str) -> Suggestion:
         "expression": str(fields.get("expression", "—")).strip() or "—",
         "source": "ai_plus_capture",
     }
+    # The ideagen discipline fields ride into the card body when present.
+    for key in ("mechanism", "skeptic", "cheapest_test"):
+        val = str(fields.get(key, "")).strip()
+        if val:
+            detail[key] = val
     return Suggestion(
         advisor="tactical",
         suggestion_id=f"tactical_ai:{_slug(title)}:{as_of}",

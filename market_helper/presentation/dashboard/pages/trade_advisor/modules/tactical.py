@@ -39,19 +39,30 @@ def build_tactical_suggestions(*, include_edge: bool = True, edge_root=None) -> 
 
 
 def _tactical_ai_builder():
-    """Initial messages for the tool-enabled tactical brief (the harness-selected prompt).
+    """Initial messages for the tool-enabled IDEA-GENERATION brief.
 
-    v2.1: the idea-block capture protocol rides on the system turn so every
-    proposed idea is also emitted as a fenced ``idea`` block the pane can capture.
+    v2.1: the pane runs the **guided-creativity ideagen** style (operators +
+    random stimulus + the return-source hard filter — internalized from the
+    operator's idea-generation-macro skill), grounded by the `return_sources` /
+    `idea_filters` knowledge, with the idea-block capture protocol riding on the
+    system turn so every proposed idea is also emitted as a capturable block.
     """
     from market_helper.domain.tactical_ideas import build_tactical_context, generate_tactical_ideas
-    from market_helper.domain.tactical_ideas.ai_tools import build_tactical_tool_registry, tactical_tool_messages
+    from market_helper.domain.tactical_ideas.ai_tools import (
+        build_tactical_tool_registry,
+        tactical_knowledge_block,
+        tactical_tool_messages,
+    )
+    from market_helper.domain.tactical_ideas.synthesis import IDEAGEN_STYLE
     from market_helper.trade_advisor.ai.advisor_tools import register_advisor_tools
     from market_helper.trade_advisor.ai.idea_capture import IDEA_BLOCK_INSTRUCTIONS
 
     ctx = build_tactical_context()
     reg = register_advisor_tools(build_tactical_tool_registry())  # + book/FX/roll/scan (v2.1)
-    messages = tactical_tool_messages(ctx, generate_tactical_ideas(ctx), reg)
+    messages = tactical_tool_messages(ctx, generate_tactical_ideas(ctx), reg, style=IDEAGEN_STYLE)
+    block = tactical_knowledge_block(names=["return_sources", "idea_filters"])
+    if block:
+        messages[0]["content"] += "\n\n" + block
     messages[0]["content"] += IDEA_BLOCK_INSTRUCTIONS
     return messages, reg
 

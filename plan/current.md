@@ -145,7 +145,15 @@ landed (`advisor_tools.py`: portfolio book / FX decision gap / cached roll yield
 persisted option scan; 9 tools total in every AI pane), the FX decision join moved to
 `application/trade_advisor/fx_decision.py` (one home for panel + strip + AI), and the
 upgrade was verified end-to-end against the live gateway (the model pulled the real
-AUD 7ct-vs-2ct gap + NG roll yields unprompted). Suite 915 passed / 1 skipped.
+AUD 7ct-vs-2ct gap + NG roll yields unprompted). **(V8) Guided-creativity ideagen** —
+the operator's idea-generation-macro skill (the engine behind the daily Tactical Edge
+brief) reviewed + fixed (append-only `idea_ledger.md` restores the novelty/dedup memory
+its single-overwritten-file scheme destroyed; watchlist check-back step added), then
+internalized as the Tactical AI Plus pane's engine: `IDEAGEN_STYLE` prompt,
+`draw_random_stimulus` tool, `return_sources`/`idea_filters` knowledge, capture protocol
+extended with MECHANISM/SKEPTIC/CHEAPEST_TEST. Live-verified: stimulus drawn first,
+cards seeded from draws, every card return-source-anchored with skeptic + cheapest-test,
+all blocks capturable. Suite 920 passed / 1 skipped.
 **Still open:** option IV-percentile over a history cache; single-name / EUME-split
 currency precision; GSCI F1/F7 full curve (forward-curve-blocked; the two-contract
 slice deliberately doesn't pretend to be it).

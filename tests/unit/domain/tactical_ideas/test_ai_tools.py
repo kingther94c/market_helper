@@ -46,3 +46,50 @@ def test_tool_messages_bake_the_protocol_into_system():
     msgs = tactical_tool_messages(ctx, generate_tactical_ideas(ctx), reg)
     assert msgs[0]["role"] == "system" and "tool_call" in msgs[0]["content"]
     assert msgs[1]["role"] == "user"
+
+
+# --------------------------------------------------------------------------- #
+# Ideagen internalization (guided creativity — operators + filter + stimulus)
+# --------------------------------------------------------------------------- #
+
+
+def test_draw_random_stimulus_tool():
+    import json
+
+    from market_helper.domain.tactical_ideas.ai_tools import _STIMULUS_POOL
+
+    reg = build_tactical_tool_registry()
+    assert "draw_random_stimulus" in reg
+    out = json.loads(reg.dispatch("draw_random_stimulus", {"n": 5}))
+    assert len(out["draws"]) == 5
+    assert all(d in _STIMULUS_POOL for d in out["draws"])           # from the pool, never invented
+    assert len(set(out["draws"])) == 5                              # sampled without replacement
+    capped = json.loads(reg.dispatch("draw_random_stimulus", {"n": 99}))
+    assert len(capped["draws"]) == 10                               # bounded
+
+
+def test_ideagen_skill_registered_with_order_guard():
+    from market_helper.domain.tactical_ideas.synthesis import IDEAGEN_STYLE
+
+    skills = {s.name: s for s in tactical_skills()}
+    assert "tactical_ideagen" in skills
+    sk = skills["tactical_ideagen"]
+    assert sk.system == IDEAGEN_STYLE.system and sk.ask == IDEAGEN_STYLE.ask
+    assert "never output an order" in sk.system.lower()             # the guard is non-negotiable
+    assert "draw_random_stimulus" in sk.system                      # the divergence engine is mandatory
+    assert "single-stock" in sk.system or "single stocks" in sk.system.lower()
+
+
+def test_ideagen_knowledge_and_style_wiring():
+    from market_helper.domain.tactical_ideas.ai_tools import tactical_knowledge_block
+    from market_helper.domain.tactical_ideas.synthesis import IDEAGEN_STYLE
+
+    names = {e.name for e in tactical_knowledge()}
+    assert {"return_sources", "idea_filters"} <= names
+    block = tactical_knowledge_block(names=["return_sources", "idea_filters"])
+    assert "RISK PREMIA" in block and "HARD FILTER" in block
+
+    ctx = TacticalContext(regime_effective="Reflation", growth_score=0.1, inflation_score=0.2, risk_score=0.2)
+    msgs = tactical_tool_messages(ctx, [], build_tactical_tool_registry(), style=IDEAGEN_STYLE)
+    assert "GUIDED-CREATIVITY" in msgs[0]["content"]                # the style actually drives the system turn
+    assert "tool_call" in msgs[0]["content"]                        # protocol still baked in

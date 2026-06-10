@@ -52,27 +52,34 @@ received real data (Reflation; SPY vol term-structure + "up" trend), and cited i
 ## Current manifest
 
 ```
-## Tools (9) — read-only functions the AI can call
+## Tools (10) — read-only functions the AI can call
 # research tools (domain/tactical_ideas/ai_tools.py)
 - get_regime_snapshot(): latest macro regime quadrant + growth/inflation/risk scores + crisis flag
 - get_policy_expert(): forward policy-expert tilt (leading expert, sleeve weights) + trending momentum
 - get_tactical_anchors(): the rule-based tactical idea anchors that fired (theme/thesis/evidence/invalidation)
 - get_price_trend(symbol): realized vol (1m/3m/6m/1y) + SMA trend for one ticker
 - get_tactical_edge(): the external daily Tactical Edge brief cards (title/status/mechanism/skeptic/scores)
+- draw_random_stimulus(n): genuinely random non-financial concepts — the ideagen divergence engine
 # cross-module tools (trade_advisor/ai/advisor_tools.py, v2.1) — the AI sees what the modules see
 - get_portfolio_book(): live book — funded AUM, stock holdings, held options + futures (signed notionals)
 - get_fx_decision(): FX target-vs-current join — per-ccy gap (ct + USD) + the "at target" mix (cached artifact)
 - get_roll_yields(): held-roots two-contract roll yields from the CACHED quote artifact (never fetches itself)
 - get_option_scan(): the latest persisted rule-based option scan (inputs + per-idea screen/label/yield/IV/RV)
 
-## Skills (3) — injected prompts for the `tactical_brief` task
+## Skills (4) — injected prompts for the `tactical_brief` task
 - tactical_default     : conviction table + "Anchors I'd fade" + monitorable invalidation (harness-selected production prompt)
 - tactical_adversarial : every leading idea stress-tested with an explicit bear case
 - tactical_terse       : compact conviction table + a single top pick (quick scan)
+- tactical_ideagen     : guided-creativity idea GENERATION — operators + mandatory random stimulus + the
+                         return-source hard filter; the Tactical AI Plus pane's default (internalized from
+                         the operator's idea-generation-macro skill, 2026-06-10)
 
-## Knowledge (7) — facts the AI is grounded on
+## Knowledge (9) — facts the AI is grounded on
 - read_only_invariant, data_mode_ladder, triage_labels, regime_quadrants, cockpit_modules   (core)
 - tactical_themes, derived_quadrant                                                          (tactical)
+- return_sources (5-family taxonomy: crowded defaults + retail edges), idea_filters          (ideagen)
+  (hard filter: mechanism / orthogonality / leak-safe / listed-instruments-only / skeptic /
+   cheapest-first-test; score anchors Novelty·Mechanism·Tradability·Conviction)
 ```
 
 Every AI Plus pane gets the full 9-tool registry (`build_advisor_tool_registry()`),

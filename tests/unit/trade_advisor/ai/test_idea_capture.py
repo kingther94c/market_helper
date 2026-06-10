@@ -83,3 +83,39 @@ def test_protocol_bans_order_size_fields():
     assert "NO ORDER/SIZE FIELDS" in up
     for banned_key in ("SIZE:", "QUANTITY:", "CONTRACTS:", "ORDER:", "NOTIONAL:"):
         assert banned_key not in up
+
+
+_DISCIPLINED = """```idea
+TITLE: OPEX gamma tide
+STANCE: long
+SUBJECT: VIX
+THESIS: Negative dealer gamma amplifies the pre-OPEX window.
+MECHANISM: flows/positioning -> dealer gamma hedging around monthly OPEX
+EXPRESSION: long /VX front calendar via listed options
+CONFIDENCE: low
+RISK: positive-gamma pin kills the move
+INVALIDATION: gamma flips positive on the rally
+SKEPTIC: OPEX effects are well-known and mostly arbitraged at index level
+CHEAPEST_TEST: paper-track VX1-VX2 into the next two OPEX weeks
+HORIZON: 2-6 weeks
+```"""
+
+
+def test_ideagen_discipline_fields_parse_and_map():
+    blocks = parse_idea_blocks(_DISCIPLINED)
+    assert len(blocks) == 1
+    s = captured_suggestion(blocks[0], as_of="2026-06-10")
+    assert s.detail["mechanism"].startswith("flows/positioning")
+    assert "arbitraged" in s.detail["skeptic"]
+    assert "paper-track" in s.detail["cheapest_test"]
+    # And the card body surfaces them (presentation contract).
+    from market_helper.presentation.dashboard.pages.trade_advisor.cards import tactical_facts
+
+    facts = dict(tactical_facts(s.detail))
+    assert facts["Mechanism (return source)"].startswith("flows/positioning")
+    assert facts["Skeptic's view"] and facts["Cheapest first test"]
+
+
+def test_discipline_fields_optional():
+    s = captured_suggestion({"title": "Bare idea", "thesis": "x"}, as_of="2026-06-10")
+    assert "mechanism" not in s.detail and "skeptic" not in s.detail   # absent, not fabricated
