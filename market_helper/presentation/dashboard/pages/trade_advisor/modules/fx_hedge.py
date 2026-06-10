@@ -25,14 +25,13 @@ import asyncio
 
 from nicegui import ui
 
+from market_helper.application.trade_advisor.fx_decision import build_fx_decision
 from market_helper.trade_advisor.contracts import AdvisorContext
 
 from ..ai_pane import module_ai_initial, render_ai_pane
 from ..cards import _num, _ui_table, fx_alloc_table, fx_carry_table, fx_carry_tilt_table
 
-# The hedge instrument for CNY exposure is the offshore CNH future — join them as
-# one bucket in the decision table (documented coarseness, not a hidden merge).
-_CCY_ALIAS = {"CNH": "CNY"}
+__all__ = ["build_fx_decision"]  # re-export: the join lives in application (one home)
 
 
 # --------------------------------------------------------------------------- #
@@ -94,68 +93,6 @@ def build_fx_exposure() -> dict:
         "lookthrough": exp.get("lookthrough", False),
         "fx_overlay_by_currency": dict(exp.get("fx_overlay_by_currency") or {}),
     }
-
-
-def build_fx_decision(panel: dict, exposure: dict) -> dict:
-    """The decision join: per-currency target hedge leg vs the held FX-futures overlay.
-
-    Pure. Returns ``{"available", "rows", "at_target", "note"}`` where each row is
-    ``{ccy, book_usd, book_w, cur_qty, cur_usd, tgt_ct, tgt_usd, gap_ct, gap_usd}``
-    (signed notionals: long foreign = positive). ``at_target`` is the book's
-    currency mix if the FX-futures overlay matched the target legs — same gross,
-    single-assignment frame as the exposure table (no double counting of the
-    implicit USD short).
-    """
-    if not panel.get("available") or not exposure.get("available"):
-        return {"available": False, "rows": [], "at_target": [], "note": ""}
-
-    book = {c: (usd, w) for c, usd, w in exposure["by_currency"]}
-    overlay = {
-        _CCY_ALIAS.get(c, c): dict(v) for c, v in (exposure.get("fx_overlay_by_currency") or {}).items()
-    }
-    targets: dict[str, dict] = {}
-    for leg in panel.get("legs_raw") or []:
-        ccy = _CCY_ALIAS.get(str(leg.get("currency", "")), str(leg.get("currency", "")))
-        slot = targets.setdefault(ccy, {"usd": 0.0, "ct": 0})
-        slot["usd"] += float(leg.get("target_notional_usd") or 0.0)
-        slot["ct"] += int(leg.get("target_contracts") or 0)
-
-    rows: list[dict] = []
-    for ccy in sorted(set(targets) | set(overlay),
-                      key=lambda c: (-abs(targets.get(c, {}).get("usd", 0.0)), c)):
-        cur = overlay.get(ccy, {})
-        tgt = targets.get(ccy, {})
-        cur_usd = float(cur.get("usd") or 0.0)
-        tgt_usd = float(tgt.get("usd") or 0.0)
-        cur_qty = float(cur.get("qty") or 0.0)
-        tgt_ct = int(tgt.get("ct") or 0)
-        b_usd, b_w = book.get(ccy, (0.0, 0.0))
-        rows.append({
-            "ccy": ccy, "book_usd": b_usd, "book_w": b_w,
-            "cur_qty": cur_qty, "cur_usd": cur_usd,
-            "tgt_ct": tgt_ct, "tgt_usd": tgt_usd,
-            "gap_ct": tgt_ct - cur_qty, "gap_usd": tgt_usd - cur_usd,
-        })
-
-    # "At target": replace the held overlay gross with the target gross per foreign
-    # ccy, keep everything else, renormalize. Same gross frame as the exposure table.
-    at: dict[str, float] = {c: usd for c, (usd, _w) in book.items()}
-    for ccy in set(targets) | set(overlay):
-        cur_abs = abs(float(overlay.get(ccy, {}).get("usd") or 0.0))
-        tgt_abs = abs(float(targets.get(ccy, {}).get("usd") or 0.0))
-        at[ccy] = max(at.get(ccy, 0.0) - cur_abs + tgt_abs, 0.0)
-    total = sum(at.values())
-    at_target = sorted(
-        ((c, v, (v / total if total else 0.0)) for c, v in at.items() if v > 0.5),
-        key=lambda x: -x[1],
-    )
-
-    note = (
-        "Signed FX-futures notionals vs the cached target legs (CNH joins the CNY bucket). Book weights are "
-        "gross-MV, single-assignment. A gap is information about distance-to-target, not an instruction — "
-        "read-only, no orders."
-    )
-    return {"available": True, "rows": rows, "at_target": at_target, "note": note}
 
 
 def fx_decision_table(decision: dict) -> tuple[list[str], list[list[str]]]:
@@ -336,8 +273,9 @@ def _fx_ai_builder(cache: dict):
         "across CME FX futures (EUR/GBP/AUD/JPY/CNH). Analyze whether to TILT the mix given carry, the book's "
         "FX exposure, and the gap between the held FX futures and the target legs — e.g. is a higher-carry "
         "currency like AUD worth overweighting, and at what basis-risk cost? Be explicit that carry here is a "
-        "rate-differential approximation, not futures-implied. You may call read-only tools (regime, "
-        "price-trend) to support the read. Never output an order, contract count to execute, or size."
+        "rate-differential approximation, not futures-implied. You may call read-only tools (get_fx_decision "
+        "for the live target-vs-current gap, get_portfolio_book, regime, price-trend) to support the read. "
+        "Never output an order, contract count to execute, or size."
     )
     ask = (
         f"Current hedge legs: {mix_lines}. Book FX exposure (lookthrough): {exp_line}. "

@@ -451,7 +451,15 @@ render path) · ✅ V5 (`idea_capture.py` fenced ``idea``-block protocol + parse
 on `ai_pane.py`; tactical wires it with a captured-ideas shelf + dedupe) · ✅ V6
 (`option_rules.py` bounded clamp + targeted-line-edit YAML save that preserves
 comments; the Option scan now passes `advisor_rules.yaml` as `rules_path`, so the
-crystallize loop is live end-to-end).
+crystallize loop is live end-to-end) · ✅ **V7 — AI harness upgrade (2026-06-10,
+gateway live).** The AI panes previously could not *see* any of the above: four
+cross-module read-only tools (`trade_advisor/ai/advisor_tools.py` — portfolio
+book / FX decision gap / cached roll yields / persisted option scan) now ride in
+every pane's registry (9 tools total); the FX decision join moved to
+`application/trade_advisor/fx_decision.py` (one home for panel + strip + AI);
+option/FX asks point at the authoritative tools. Verified live against the
+running OpenClaw gateway: the model called `get_fx_decision` + `get_roll_yields`
+unprompted and answered with the real gap (AUD 7ct vs 2ct) and the real NG carry.
 
 ---
 

@@ -38,8 +38,10 @@ def module_ai_initial(
     included) plus the module's own framing, and — when ``with_tools`` — bakes the
     read-only tool protocol into the system turn so the pane can run with
     ``inject_protocol=False`` (the persistent-conversation contract). The tools are
-    the shared read-only set (regime / policy-expert / anchors / price-trend /
-    tactical-edge), which are generically useful to every module.
+    the full shared read-only set: the research tools (regime / policy-expert /
+    anchors / price-trend / tactical-edge) **plus the cross-module v2.1 tools**
+    (portfolio book / FX decision gap / roll yields / persisted option scan), so
+    every pane's AI can see what the modules see.
     """
     from market_helper.trade_advisor.ai.skills import build_core_knowledge, knowledge_system_block
 
@@ -51,10 +53,10 @@ def module_ai_initial(
 
     registry = None
     if with_tools:
-        from market_helper.domain.tactical_ideas.ai_tools import build_tactical_tool_registry
+        from market_helper.trade_advisor.ai.advisor_tools import build_advisor_tool_registry
         from market_helper.trade_advisor.ai.tools import tool_protocol_instructions
 
-        registry = build_tactical_tool_registry()
+        registry = build_advisor_tool_registry()
         system += tool_protocol_instructions(registry)
 
     return [{"role": "system", "content": system}, {"role": "user", "content": user_ask}], registry

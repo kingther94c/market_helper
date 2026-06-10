@@ -140,6 +140,12 @@ hedge legs per ccy (gap in ct + USD), "at target" mix, side-by-side input cards;
 cards** (T4 · WATCHLIST · synthetic-tagged — the accumulate loop closed); **(V6)** a
 bounded **crystallize editor** writes the premium-screen knobs into
 `advisor_rules.yaml` (comment-preserving line edits) and the scan now honors that YAML.
+**(V7) AI harness** — with the OpenClaw gateway live, four cross-module read-only tools
+landed (`advisor_tools.py`: portfolio book / FX decision gap / cached roll yields /
+persisted option scan; 9 tools total in every AI pane), the FX decision join moved to
+`application/trade_advisor/fx_decision.py` (one home for panel + strip + AI), and the
+upgrade was verified end-to-end against the live gateway (the model pulled the real
+AUD 7ct-vs-2ct gap + NG roll yields unprompted). Suite 915 passed / 1 skipped.
 **Still open:** option IV-percentile over a history cache; single-name / EUME-split
 currency precision; GSCI F1/F7 full curve (forward-curve-blocked; the two-contract
 slice deliberately doesn't pretend to be it).

@@ -104,8 +104,13 @@ def _render_option_results(results, suggestions, journal, on_decision) -> None:
             _render_module(box, items, journal, on_decision, empty_note=empty)
 
 
-def _make_option_ai_builder(sym_sel, held_sel):
-    """Factory: an AI-pane initial_builder that reads the live universe/held inputs."""
+def _make_option_ai_builder(sym_sel, held_sel, port_sw):
+    """Factory: an AI-pane initial_builder that reads the live universe/held inputs.
+
+    With "use my portfolio" on, the AI is pointed at the ``get_portfolio_book``
+    tool (authoritative) instead of the greyed-out manual held list; it can also
+    pull the persisted rule-based scan (``get_option_scan``) to critique it.
+    """
 
     def _builder():
         syms = list(sym_sel.value or [])
@@ -115,14 +120,20 @@ def _make_option_ai_builder(sym_sel, held_sel):
             "are worth an option structure under two screens: (a) a zero-cost / protective COLLAR over names I "
             "HOLD (hedge the downside), and (b) SELLING premium (covered call / cash-secured put / defined-risk "
             "spread) across the universe where it's worth it. Judge whether each opportunity is good enough on "
-            "IV level, liquidity, and event risk. You may call read-only tools (price-trend, regime) to support "
-            "the read. Frame premium sales by their tail/assignment risk, never as a 'yield'. Never output an "
-            "order, contract count to execute, or size."
+            "IV level, liquidity, and event risk. You may call read-only tools (portfolio book, the last "
+            "rule-based scan, price-trend, regime) to support the read. Frame premium sales by their "
+            "tail/assignment risk, never as a 'yield'. Never output an order, contract count to execute, or size."
+        )
+        holdings_line = (
+            "Holdings: call get_portfolio_book — it is authoritative (the live book drives the scan)."
+            if port_sw.value
+            else f"Holdings: {', '.join(held) or '(none specified)'}."
         )
         ask = (
-            f"Holdings: {', '.join(held) or '(none specified)'}. Scan universe: {', '.join(syms) or '(none)'}. "
-            "For the most attractive few names, say: the structure, the one-line reason, the main risk, and your "
-            "confidence. Separate hedge (collar) ideas from premium-income ideas. No orders, no sizes."
+            f"{holdings_line} Scan universe: {', '.join(syms) or '(none)'}. "
+            "If a rule-based scan is cached (get_option_scan), compare your read against it — what it missed or "
+            "over-ranked. For the most attractive few names, say: the structure, the one-line reason, the main "
+            "risk, and your confidence. Separate hedge (collar) ideas from premium-income ideas. No orders, no sizes."
         )
         return module_ai_initial(framing, ask)
 
@@ -245,7 +256,7 @@ def render_option_module(journal, refresh_inbox) -> None:
         # ---- AI Plus pane ----
         with ui.column().classes("grow gap-2").style("min-width: 360px"):
             render_ai_pane(
-                _make_option_ai_builder(sym_sel, held_sel),
+                _make_option_ai_builder(sym_sel, held_sel, port_sw),
                 intro="Opt-in: given your holdings + universe, the AI evaluates which names are worth a collar or "
                       "a premium sale (calling read-only tools to judge IV / trend / regime). After a brief, type "
                       "feedback to refine — analysis only, never orders.",
