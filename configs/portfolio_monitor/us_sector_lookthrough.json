@@ -1,7 +1,7 @@
 {
   "api_usage": {
-    "count": 20,
-    "date": "2026-05-22"
+    "count": 6,
+    "date": "2026-06-10"
   },
   "daily_call_limit": 20,
   "provider": "alpha_vantage",
@@ -152,6 +152,7 @@
     },
     "SPYL": {
       "error_message": "Alpha Vantage ETF profile for SPYL did not include sectors",
+      "last_attempt_at": "2026-06-10",
       "sectors": [
         {
           "sector": "Technology",
@@ -202,7 +203,8 @@
       "updated_at": "2026-04-16"
     },
     "SQQQ": {
-      "error_message": "Alpha Vantage returned no ETF sector rows for SQQQ",
+      "error_message": "Alpha Vantage ETF profile request failed for SQQQ: Thank you for using Alpha Vantage! Please consider spreading out your free API requests more sparingly (1 request per second). You may subscribe to any of the premium plans at https://www.alphavantage.co/premium/ to lift the free key rate limit (25 requests per day), raise the per-second burst limit, and instantly unlock all premium endpoints",
+      "last_attempt_at": "2026-06-10",
       "sectors": [
         {
           "sector": "Technology",

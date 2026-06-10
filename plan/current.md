@@ -37,7 +37,13 @@ unsigned-weight `portfolio_volatility` trio from the domain API, and replaced
 the commodity-spread bare-except with logged degradation. Detail + audit
 verdicts in [`portfolio_monitor.md`](../docs/architecture/devplans/portfolio_monitor.md)
 §"Redesign pass"; new pins in `tests/unit/reporting/test_risk_euler_attribution.py`.
-Earlier landed work archived in
+A follow-up **performance pass (same day)** profiled report generation on the
+real book and took it from **54.7s to ~2s typical**: vectorized the
+per-element date parsing in the Yahoo/commodity-spread cache loaders (~40s),
+added a 7-day retry backoff for permanently-failing Alpha Vantage symbols +
+a 5-fetch/build cap on the report path, and replaced the AV client's fixed
+12s spacing with a paced-burst limiter (devplan §"Redesign pass" final
+bullet). Earlier landed work archived in
 `memory/archive/landed/portfolio_monitor_landed.md`. Open items rotate in via
 [`backlog.md`](backlog.md) (now incl. the pipeline-monolith seam map + the
 action-dispatch dedupe).

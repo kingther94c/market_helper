@@ -9,7 +9,14 @@ from market_helper.data_sources.base import DEFAULT_TIMEOUT, build_url, download
 
 DEFAULT_ALPHA_VANTAGE_QUERY_URL = "https://www.alphavantage.co/query"
 ETF_PROFILE_FUNCTION = "ETF_PROFILE"
-DEFAULT_ALPHA_VANTAGE_REQUEST_SPACING_SECONDS = 12.0
+# Free-tier limits observed in practice: ~1 request/second burst cap (AV
+# rejects back-to-back requests with a "spread out your requests" payload)
+# plus the daily quota. We pace requests at a small fixed gap and keep a
+# conservative 5-per-minute sliding window — the old fixed 12s spacing made
+# even a 2-symbol refresh stall a report build for ~12s.
+DEFAULT_ALPHA_VANTAGE_MAX_REQUESTS_PER_WINDOW = 5
+DEFAULT_ALPHA_VANTAGE_WINDOW_SECONDS = 60.0
+DEFAULT_ALPHA_VANTAGE_MIN_REQUEST_INTERVAL_SECONDS = 1.2
 AlphaVantageDownloader = Callable[[str], object]
 Clock = Callable[[], float]
 Sleep = Callable[[float], None]
@@ -34,11 +41,13 @@ class AlphaVantageClient:
     downloader: AlphaVantageDownloader | None = None
     base_url: str = DEFAULT_ALPHA_VANTAGE_QUERY_URL
     timeout: int = DEFAULT_TIMEOUT
-    request_spacing_seconds: float = DEFAULT_ALPHA_VANTAGE_REQUEST_SPACING_SECONDS
+    max_requests_per_window: int = DEFAULT_ALPHA_VANTAGE_MAX_REQUESTS_PER_WINDOW
+    window_seconds: float = DEFAULT_ALPHA_VANTAGE_WINDOW_SECONDS
+    min_request_interval_seconds: float = DEFAULT_ALPHA_VANTAGE_MIN_REQUEST_INTERVAL_SECONDS
     clock: Clock = time.monotonic
     sleep: Sleep = time.sleep
-    _next_request_not_before: float = field(
-        default=0.0,
+    _request_times: list[float] = field(
+        default_factory=list,
         init=False,
         repr=False,
         compare=False,
@@ -74,21 +83,30 @@ class AlphaVantageClient:
         return download_json(url, params=params, timeout=self.timeout)
 
     def _respect_request_spacing(self) -> None:
-        spacing_seconds = max(0.0, float(self.request_spacing_seconds))
-        if spacing_seconds <= 0:
-            return
+        """Two-level limiter matching AV's observed free-tier behavior.
+
+        A short fixed gap between consecutive requests (AV rejects true
+        back-to-back calls with a "spread out your requests" payload) plus a
+        sliding ``max_requests_per_window`` / ``window_seconds`` cap. Small
+        batches pace at ~1s per request instead of the old 12s spacing."""
+        limit = int(self.max_requests_per_window)
+        window = max(0.0, float(self.window_seconds))
+        min_gap = max(0.0, float(self.min_request_interval_seconds))
         now = float(self.clock())
-        next_allowed = float(self._next_request_not_before)
-        wait_seconds = next_allowed - now
-        if wait_seconds > 0:
-            self.sleep(wait_seconds)
-            now = float(self.clock())
-            next_allowed = float(self._next_request_not_before)
-        object.__setattr__(
-            self,
-            "_next_request_not_before",
-            max(now, next_allowed) + spacing_seconds,
-        )
+        recent = [stamp for stamp in self._request_times if window > 0 and now - stamp < window]
+        if min_gap > 0 and recent:
+            gap_wait = recent[-1] + min_gap - now
+            if gap_wait > 0:
+                self.sleep(gap_wait)
+                now = float(self.clock())
+        if limit > 0 and window > 0 and len(recent) >= limit:
+            wait_seconds = recent[0] + window - now
+            if wait_seconds > 0:
+                self.sleep(wait_seconds)
+                now = float(self.clock())
+            recent = [stamp for stamp in recent if now - stamp < window]
+        recent.append(now)
+        object.__setattr__(self, "_request_times", recent)
 
 
 def _parse_sector_rows(

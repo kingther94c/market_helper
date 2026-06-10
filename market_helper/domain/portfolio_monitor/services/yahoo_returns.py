@@ -100,21 +100,12 @@ def load_symbol_return_cache(path: str | Path) -> YahooReturnCache | None:
     if not isinstance(loaded, dict):
         raise ValueError("Yahoo return cache must be a JSON object")
     series_payload = loaded.get("series")
-    if not isinstance(series_payload, dict):
+    if not isinstance(series_payload, dict) or not series_payload:
         series = pd.Series(dtype=float)
     else:
-        pairs = sorted(
-            (
-                pd.to_datetime(str(date_key)).normalize(),
-                float(value),
-            )
-            for date_key, value in series_payload.items()
-        )
-        series = pd.Series(
-            data=[value for _, value in pairs],
-            index=pd.DatetimeIndex([timestamp for timestamp, _ in pairs]),
-            dtype=float,
-        )
+        # One vectorized to_datetime per file — per-element parsing here was
+        # the dominant report-build cost (~67k single-string parses per build).
+        series = _dated_return_mapping_to_series(series_payload)
     return YahooReturnCache(
         symbol=str(loaded.get("symbol") or ""),
         currency=str(loaded.get("currency") or ""),
@@ -186,7 +177,13 @@ def ensure_symbol_return_cache(
     price_field: str = DEFAULT_YAHOO_PRICE_FIELD,
     force_refresh: bool = False,
     now: pd.Timestamp | None = None,
+    preloaded: YahooReturnCache | None = None,
 ) -> YahooReturnCache:
+    """Return a fresh-enough return cache for ``symbol``, fetching if needed.
+
+    ``preloaded`` lets a caller that already read the disk cache pass it in so
+    this function does not re-read the same JSON file.
+    """
     session_key = _session_cache_key(
         symbol=symbol,
         cache_dir=cache_dir,
@@ -202,7 +199,7 @@ def ensure_symbol_return_cache(
             return hit[1]
 
     cache_path = yahoo_symbol_cache_path(symbol, cache_dir=cache_dir)
-    cached = load_symbol_return_cache(cache_path)
+    cached = preloaded if preloaded is not None else load_symbol_return_cache(cache_path)
     if (
         not force_refresh
         and cached is not None
@@ -292,6 +289,7 @@ def build_internal_id_return_series_from_yahoo(
                     interval=interval,
                     return_method=return_method,
                     price_field=price_field,
+                    preloaded=cached,
                 )
             except YahooFinanceTransientError:
                 if progress is not None and yahoo_symbol not in processed_symbols:
@@ -346,12 +344,15 @@ def _legacy_list_returns_to_series(values: list[Any]) -> pd.Series:
 
 
 def _dated_return_mapping_to_series(values: Mapping[str, Any]) -> pd.Series:
-    pairs = sorted((pd.to_datetime(str(key)).normalize(), float(value)) for key, value in values.items())
-    return pd.Series(
-        data=[value for _, value in pairs],
-        index=pd.DatetimeIndex([timestamp for timestamp, _ in pairs]),
+    if not values:
+        return pd.Series(dtype=float)
+    index = pd.DatetimeIndex(pd.to_datetime([str(key) for key in values.keys()])).normalize()
+    series = pd.Series(
+        data=[float(value) for value in values.values()],
+        index=index,
         dtype=float,
     )
+    return series.sort_index()
 
 
 def _is_cache_stale(

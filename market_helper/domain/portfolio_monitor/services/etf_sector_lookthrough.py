@@ -22,6 +22,13 @@ DEFAULT_LOOKTHROUGH_SCHEMA_VERSION = 1
 DEFAULT_LOOKTHROUGH_INITIAL_UPDATED_AT = "2000-01-01"
 DEFAULT_LOOKTHROUGH_MAX_AGE_DAYS = 30
 DEFAULT_AV_DAILY_CALL_LIMIT = 20
+# Symbols whose last fetch errored (e.g. AV has no sector profile for the
+# ticker) are not retried on every report build — only after this backoff.
+DEFAULT_ERROR_RETRY_BACKOFF_DAYS = 7
+# The report path drips at most this many fetches per build so a monthly TTL
+# expiry never turns one report into a rate-limited multi-minute wall; the
+# explicit sync action (force_refresh=True) still does full batches.
+DEFAULT_REPORT_REFRESH_MAX_FETCHES = 5
 
 AV_SECTOR_TO_INTERNAL_BUCKET = {
     "basic materials": "Materials",
@@ -57,6 +64,7 @@ def sync_us_sector_lookthrough(
     today: date | None = None,
     max_age_days: int = DEFAULT_LOOKTHROUGH_MAX_AGE_DAYS,
     daily_call_limit: int = DEFAULT_AV_DAILY_CALL_LIMIT,
+    max_fetches_per_run: int | None = None,
     progress: ProgressReporter | None = None,
 ) -> Path:
     normalized_symbols = _normalize_symbols(symbols)
@@ -80,6 +88,7 @@ def sync_us_sector_lookthrough(
             today=materialized_today,
             max_age_days=max_age_days,
             daily_call_limit=daily_call_limit,
+            max_fetches_per_run=max_fetches_per_run,
             progress=progress,
         )
 
@@ -96,6 +105,7 @@ def refresh_us_sector_lookthrough_for_report(
     today: date | None = None,
     max_age_days: int = DEFAULT_LOOKTHROUGH_MAX_AGE_DAYS,
     daily_call_limit: int = DEFAULT_AV_DAILY_CALL_LIMIT,
+    max_fetches_per_run: int | None = DEFAULT_REPORT_REFRESH_MAX_FETCHES,
     progress: ProgressReporter | None = None,
 ) -> Path:
     return sync_us_sector_lookthrough(
@@ -107,6 +117,7 @@ def refresh_us_sector_lookthrough_for_report(
         today=today,
         max_age_days=max_age_days,
         daily_call_limit=daily_call_limit,
+        max_fetches_per_run=max_fetches_per_run,
         progress=progress,
     )
 
@@ -168,6 +179,7 @@ def _refresh_store(
     today: date,
     max_age_days: int,
     daily_call_limit: int,
+    max_fetches_per_run: int | None = None,
     progress: ProgressReporter | None,
 ) -> None:
     usage = _normalize_api_usage(store, today=today)
@@ -179,6 +191,8 @@ def _refresh_store(
         today=today,
         max_age_days=max_age_days,
     )
+    if max_fetches_per_run is not None and len(stale_symbols) > max_fetches_per_run:
+        stale_symbols = stale_symbols[: max(0, int(max_fetches_per_run))]
     if progress is not None and stale_symbols:
         progress.stage("ETF sector sync", current=0, total=len(stale_symbols))
     if remaining_budget <= 0:
@@ -203,6 +217,7 @@ def _refresh_store(
                 )
             continue
         entry = _store_symbols(store)[symbol]
+        entry["last_attempt_at"] = today.isoformat()
         try:
             normalized_rows = _normalize_av_rows(
                 client.fetch_etf_sector_weightings(symbol),
@@ -249,8 +264,16 @@ def _stale_symbols(
     stale: list[tuple[date, str]] = []
     for symbol, payload in symbols.items():
         updated_at = _parse_iso_date(payload.get("updated_at"))
-        if (today - updated_at).days > max_age_days:
-            stale.append((updated_at, symbol))
+        if (today - updated_at).days <= max_age_days:
+            continue
+        # Error-status symbols (e.g. AV has no sector profile for the ticker)
+        # back off instead of being retried on every report build — each retry
+        # costs a rate-limit wait + daily budget and almost always fails again.
+        if str(payload.get("status") or "").strip().lower() == "error":
+            last_attempt = _parse_iso_date(payload.get("last_attempt_at") or payload.get("updated_at"))
+            if (today - last_attempt).days < DEFAULT_ERROR_RETRY_BACKOFF_DAYS:
+                continue
+        stale.append((updated_at, symbol))
     stale.sort(key=lambda item: (item[0], item[1]))
     return [symbol for _, symbol in stale]
 
@@ -363,6 +386,9 @@ def _normalize_store(payload: Mapping[str, Any], *, daily_call_limit: int) -> di
             "error_message": str(entry.get("error_message") or "").strip(),
             "sectors": normalized_sectors,
         }
+        raw_last_attempt = str(entry.get("last_attempt_at") or "").strip()
+        if raw_last_attempt:
+            symbols[symbol]["last_attempt_at"] = _parse_iso_date(raw_last_attempt).isoformat()
     store["symbols"] = symbols
     return store
 

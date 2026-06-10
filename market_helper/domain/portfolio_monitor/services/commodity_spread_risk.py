@@ -647,20 +647,20 @@ def _optional_timestamp(value: Any) -> pd.Timestamp | None:
 def _dated_mapping_to_series(value: Any) -> pd.Series:
     if not isinstance(value, Mapping):
         return pd.Series(dtype=float)
-    pairs = []
+    dates: list[str] = []
+    values: list[float] = []
     for raw_date, raw_value in value.items():
         parsed = _finite_float(raw_value)
         if parsed is None:
             continue
-        pairs.append((pd.to_datetime(str(raw_date)).normalize(), parsed))
-    if not pairs:
+        dates.append(str(raw_date))
+        values.append(parsed)
+    if not dates:
         return pd.Series(dtype=float)
-    pairs.sort(key=lambda item: item[0])
-    return pd.Series(
-        [item[1] for item in pairs],
-        index=pd.DatetimeIndex([item[0] for item in pairs]),
-        dtype=float,
-    )
+    # One vectorized to_datetime per mapping — per-element parsing here cost
+    # ~1.5s per report build on the cached spread payloads.
+    index = pd.DatetimeIndex(pd.to_datetime(dates)).normalize()
+    return pd.Series(values, index=index, dtype=float).sort_index()
 
 
 def _normalize_date_key(index: Any) -> str:

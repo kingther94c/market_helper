@@ -47,6 +47,20 @@ Further work moves through the PLAN.md Backlog as discrete asks land.
   warning with root/exchange/legs before degrading to per-leg vol (was a bare
   `except Exception: None`); performance analytics document the TWR
   fillna(0) convention and the observed-days annualization basis inline.
+- **Report generation: 54.7s → ~2s typical** (profiled on the real book).
+  Three structural causes fixed, not micro-tuning: (1) the Yahoo return
+  cache loader parsed ~67k date strings one `pd.to_datetime` call at a time
+  (format-guess + dateutil per element, ~38s/build) — now one vectorized
+  parse per file; same fix in the commodity-spread cache loader and the
+  `iterrows` loop in `_dollar_frame_from_history`. (2) Permanently-failing
+  Alpha Vantage symbols (SPYL/SQQQ have no AV sector profile; errors never
+  bumped `updated_at`) were re-fetched on *every* build, each paying the
+  fixed 12s spacing — error entries now carry `last_attempt_at` with a 7-day
+  retry backoff, and the report path drips at most 5 fetches/build
+  (`DEFAULT_REPORT_REFRESH_MAX_FETCHES`; the explicit sync action still does
+  full batches). (3) The AV client's fixed 12s inter-request spacing became a
+  two-level limiter: ~1.2s min gap (AV rejects back-to-back requests) + a
+  5-per-minute sliding window — a 5-symbol batch costs ~5s, not 60s.
 
 ### Pipeline structure (seam map for the future split)
 

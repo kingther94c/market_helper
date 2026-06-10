@@ -181,3 +181,132 @@ def test_refresh_us_sector_lookthrough_reads_api_key_from_gdrive_root(
     )
 
     assert captured["api_key"] == "synced-key"
+
+
+def _store_with(symbols: dict, *, usage_date: str = "", count: int = 0) -> dict:
+    return {
+        "schema_version": 1,
+        "provider": "alpha_vantage",
+        "daily_call_limit": 20,
+        "api_usage": {"date": usage_date, "count": count},
+        "symbols": symbols,
+    }
+
+
+class _CountingClient:
+    def __init__(self, *, fail: bool = False) -> None:
+        self.calls: list[str] = []
+        self.fail = fail
+
+    def fetch_etf_sector_weightings(self, symbol: str):
+        self.calls.append(symbol)
+        if self.fail:
+            raise RuntimeError(f"no sector rows for {symbol}")
+        return [AlphaVantageEtfSectorWeight(symbol=symbol, sector="Technology", weight=1.0)]
+
+
+def test_report_refresh_backs_off_recent_error_symbols(tmp_path) -> None:
+    """An error-status symbol (e.g. AV has no profile for SQQQ) must not be
+    retried on every report build — each retry burns rate-limit wait + daily
+    budget and almost always fails again."""
+    path = tmp_path / "store.json"
+    path.write_text(
+        json.dumps(
+            _store_with(
+                {
+                    "SQQQ": {
+                        "updated_at": "2026-03-01",
+                        "last_attempt_at": "2026-04-06",
+                        "status": "error",
+                        "error_message": "no sector rows",
+                        "sectors": [],
+                    }
+                }
+            )
+        ),
+        encoding="utf-8",
+    )
+    client = _CountingClient(fail=True)
+
+    refresh_us_sector_lookthrough_for_report(
+        symbols=["SQQQ"],
+        output_path=path,
+        client=client,
+        today=date(2026, 4, 8),
+    )
+
+    assert client.calls == []  # within the 7-day backoff window
+
+    # After the backoff elapses the report path retries once (self-healing).
+    refresh_us_sector_lookthrough_for_report(
+        symbols=["SQQQ"],
+        output_path=path,
+        client=client,
+        today=date(2026, 4, 14),
+    )
+    assert client.calls == ["SQQQ"]
+    payload = json.loads(path.read_text(encoding="utf-8"))
+    assert payload["symbols"]["SQQQ"]["last_attempt_at"] == "2026-04-14"
+
+
+def test_force_sync_retries_error_symbols_immediately(tmp_path) -> None:
+    path = tmp_path / "store.json"
+    path.write_text(
+        json.dumps(
+            _store_with(
+                {
+                    "SQQQ": {
+                        "updated_at": "2026-03-01",
+                        "last_attempt_at": "2026-04-07",
+                        "status": "error",
+                        "error_message": "no sector rows",
+                        "sectors": [],
+                    }
+                }
+            )
+        ),
+        encoding="utf-8",
+    )
+    client = _CountingClient(fail=False)
+
+    sync_us_sector_lookthrough(
+        symbols=["SQQQ"],
+        output_path=path,
+        client=client,
+        force_refresh=True,
+        today=date(2026, 4, 8),
+    )
+
+    assert client.calls == ["SQQQ"]
+
+
+def test_report_refresh_caps_fetches_per_run(tmp_path) -> None:
+    """The report path drips at most DEFAULT_REPORT_REFRESH_MAX_FETCHES per
+    build so a monthly TTL expiry never turns one report into a rate-limited
+    multi-minute wall."""
+    symbols = {
+        f"ETF{i}": {
+            "updated_at": "2000-01-01",
+            "status": "pending",
+            "error_message": "",
+            "sectors": [],
+        }
+        for i in range(8)
+    }
+    path = tmp_path / "store.json"
+    path.write_text(json.dumps(_store_with(symbols)), encoding="utf-8")
+    client = _CountingClient()
+
+    refresh_us_sector_lookthrough_for_report(
+        symbols=list(symbols),
+        output_path=path,
+        client=client,
+        today=date(2026, 4, 8),
+    )
+
+    assert len(client.calls) == etf_sector_lookthrough.DEFAULT_REPORT_REFRESH_MAX_FETCHES
+    payload = json.loads(path.read_text(encoding="utf-8"))
+    fetched = [s for s, e in payload["symbols"].items() if e["status"] == "ok"]
+    pending = [s for s, e in payload["symbols"].items() if e["status"] == "pending"]
+    assert len(fetched) == 5
+    assert len(pending) == 3

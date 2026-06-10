@@ -736,12 +736,9 @@ def _dollar_frame_from_history(history: pd.DataFrame, currency: str) -> pd.DataF
     start_nav = float(available.iloc[0][nav_col])
     flows = pd.to_numeric(available.iloc[1:][flow_col], errors="coerce").fillna(0.0)
     dates = pd.to_datetime(available["date"], errors="coerce")
-    pnl_values = [0.0]
-    cumulative_flow = 0.0
-    for flow, (_, row) in zip(flows, available.iloc[1:].iterrows(), strict=False):
-        cumulative_flow += float(flow)
-        pnl_values.append(float(row[nav_col]) - start_nav - cumulative_flow)
-    pnl = pd.Series(pnl_values, index=dates, dtype=float)
+    navs_tail = pd.to_numeric(available.iloc[1:][nav_col], errors="coerce").to_numpy(dtype=float)
+    pnl_tail = navs_tail - start_nav - flows.cumsum().to_numpy(dtype=float)
+    pnl = pd.Series([0.0, *pnl_tail], index=dates, dtype=float)
     drawdown = pnl - pnl.cummax()
     return pd.DataFrame(
         {
