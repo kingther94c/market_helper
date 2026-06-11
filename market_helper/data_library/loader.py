@@ -157,8 +157,17 @@ def download_fred_series_csv(
     returned. Incremental syncs pass True so "no new prints since the last
     cached observation" is treated as an up-to-date no-op rather than a
     download failure.
+
+    The window is also pushed server-side via fredgraph's ``cosd``/``coed``
+    params so an incremental sync downloads days of data instead of a series'
+    full multi-decade history; the client-side filter stays as a safety net.
     """
-    rows = _download_fred_graph_csv_rows(series_id, timeout=timeout)
+    rows, fieldnames = _download_fred_graph_csv_rows(
+        series_id,
+        timeout=timeout,
+        observation_start=observation_start,
+        observation_end=observation_end,
+    )
     observations: List[Observation] = []
     for row in rows:
         raw_date = row.get("observation_date") or row.get("DATE") or row.get("date")
@@ -179,12 +188,15 @@ def download_fred_series_csv(
         # An empty *filtered* result is a valid no-op for incremental syncs:
         # a monthly series (e.g. UNRATE) whose latest print is already cached
         # has no new observations after ``observation_start`` until the next
-        # release. Require ``rows`` to be non-empty so the no-op only applies
-        # when fredgraph actually returned the series history (just nothing new
-        # in the window). A malformed / empty 200 body (no rows at all) still
-        # raises, so the API fallback can try rather than silently freezing the
-        # cache. Callers that genuinely expect data leave ``allow_empty`` False.
-        if allow_empty and rows:
+        # release. With the window now applied server-side (cosd/coed) the
+        # response may legitimately carry zero data rows — accept the no-op
+        # when the CSV header still echoes the series column, which a
+        # malformed / empty 200 body does not. A header-less body still
+        # raises, so the API fallback can try rather than silently freezing
+        # the cache. Callers that genuinely expect data leave ``allow_empty``
+        # False.
+        header_echoes_series = bool(fieldnames) and series_id in fieldnames
+        if allow_empty and (rows or header_echoes_series):
             return EconomicSeries(
                 series_id=series_id,
                 title=title or series_id,
@@ -218,8 +230,21 @@ def _download_fred_graph_csv_rows(
     series_id: str,
     *,
     timeout: int,
-) -> List[Dict[str, str]]:
-    url = build_url(FRED_GRAPH_CSV_URL, {"id": series_id})
+    observation_start: Optional[str] = None,
+    observation_end: Optional[str] = None,
+) -> tuple[List[Dict[str, str]], List[str]]:
+    """Return ``(rows, header_fieldnames)`` from the fredgraph CSV endpoint.
+
+    The header is returned separately so callers can distinguish a legitimate
+    empty window (header echoes the series column, zero data rows) from a
+    malformed body.
+    """
+    params: Dict[str, object] = {"id": series_id}
+    if observation_start:
+        params["cosd"] = observation_start
+    if observation_end:
+        params["coed"] = observation_end
+    url = build_url(FRED_GRAPH_CSV_URL, params)
     try:
         result = subprocess.run(
             ["curl", "-fL", "--max-time", str(timeout), "-sS", url],
@@ -228,13 +253,18 @@ def _download_fred_graph_csv_rows(
             text=True,
             timeout=timeout + 5,
         )
-        return [dict(row) for row in csv.DictReader(io.StringIO(result.stdout))]
+        reader = csv.DictReader(io.StringIO(result.stdout))
+        rows = [dict(row) for row in reader]
+        return rows, list(reader.fieldnames or [])
     except (FileNotFoundError, subprocess.CalledProcessError, subprocess.TimeoutExpired):
-        return download_csv(
+        csv_text = download_text(
             FRED_GRAPH_CSV_URL,
-            params={"id": series_id},
+            params=params,
             timeout=timeout,
         )
+        reader = csv.DictReader(io.StringIO(csv_text))
+        rows = [dict(row) for row in reader]
+        return rows, list(reader.fieldnames or [])
 
 
 def download_fred_series(

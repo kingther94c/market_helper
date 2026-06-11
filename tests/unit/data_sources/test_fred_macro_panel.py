@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from pathlib import Path
 from typing import List
 
@@ -166,10 +167,12 @@ def test_sync_series_incremental_merges(
     monkeypatch.setattr(mp, "download_fred_series_csv", _fake_download_csv)
     spec = SeriesSpec(series_id="TEST", axis="growth", transform="level")
 
-    first = sync_series(spec, "key", cache_dir=tmp_path)
+    first, first_outcome = sync_series(spec, "key", cache_dir=tmp_path)
     assert first["value"].tolist() == [1.0, 2.0]
+    assert first_outcome.status == "ok"
+    assert first_outcome.source == "fred_api"
 
-    second = sync_series(spec, "key", cache_dir=tmp_path)
+    second, _ = sync_series(spec, "key", cache_dir=tmp_path)
     assert second["value"].tolist() == [1.0, 2.0, 3.0]
 
     # Second call should have passed observation_start past the last cached date.
@@ -233,10 +236,11 @@ def test_sync_series_uses_fred_csv_before_api(
     monkeypatch.setattr(mp.time, "sleep", lambda seconds: None)
 
     spec = SeriesSpec(series_id="NAPM", axis="growth", transform="level")
-    synced = sync_series(spec, "key", cache_dir=tmp_path)
+    synced, outcome = sync_series(spec, "key", cache_dir=tmp_path)
 
     assert api_calls == []
     assert synced["value"].tolist() == [1.0, 2.0]
+    assert outcome.source == "fred_graph_csv"
 
 
 def test_resolve_fred_http_timeout_respects_env_override(
@@ -255,23 +259,25 @@ def test_sync_series_passes_http_timeout_and_backs_off_on_api_retry(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """The CSV + API fetches carry the resolved (generous) HTTP timeout, and a
-    transient API timeout is retried with exponential backoff rather than
-    failing the whole macro sync (which would fail the regime refresh)."""
+    transient (non-timeout) API failure gets one backed-off retry rather than
+    failing the whole macro sync. Timeout-class CSV failures skip the retry
+    loop entirely (covered separately) — repeated 30-60s timeouts were the
+    observed multi-minute stall mode."""
     api_calls: List[dict] = []
     sleeps: List[float] = []
 
     def _fake_download_csv(series_id: str, **kwargs):
         # Simulate a genuine fredgraph transport failure (curl/connection
-        # error) so the API fallback (with retry + backoff) takes over. An
-        # *empty* incremental window is now a no-op (covered by the dedicated
+        # error, NOT a timeout) so the API fallback with retry takes over. An
+        # *empty* incremental window is a no-op (covered by the dedicated
         # test below) and would NOT reach the API path.
         assert kwargs.get("timeout") == mp.DEFAULT_FRED_HTTP_TIMEOUT_SECONDS
-        raise mp.DownloadError("fredgraph CSV fetch failed: connection reset")
+        raise mp.DownloadError("fredgraph CSV fetch failed: bad gateway")
 
     def _fake_download(series_id: str, api_key: str, **kwargs):
         api_calls.append({"series_id": series_id, **kwargs})
-        if len(api_calls) < 3:
-            raise mp.DownloadError("api timed out")
+        if len(api_calls) < 2:
+            raise mp.DownloadError("api transport error")
         return EconomicSeries(
             series_id=series_id,
             title=series_id,
@@ -285,14 +291,49 @@ def test_sync_series_passes_http_timeout_and_backs_off_on_api_retry(
     monkeypatch.setattr(mp.time, "sleep", lambda seconds: sleeps.append(seconds))
 
     spec = SeriesSpec(series_id="UNRATE", axis="growth", transform="level")
-    synced = sync_series(spec, "key", cache_dir=tmp_path)
+    synced, outcome = sync_series(spec, "key", cache_dir=tmp_path)
 
     assert synced["value"].tolist() == [1.0]
-    assert len(api_calls) == 3  # failed twice, succeeded on the third attempt
+    assert outcome.status == "ok"
+    assert len(api_calls) == 2  # failed once, succeeded on the retry
     assert all(
         call.get("timeout") == mp.DEFAULT_FRED_HTTP_TIMEOUT_SECONDS for call in api_calls
     )
-    assert sleeps == [2.0, 4.0]  # exponential backoff between the three attempts
+    assert sleeps == [2.0]  # backoff between the two attempts
+
+
+def test_sync_series_timeout_csv_failure_skips_api_retry_loop(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """When the CSV transport *timed out*, the network path to FRED is the
+    problem — the API gets a single attempt, no retry loop (each attempt costs
+    a 30-60s timeout)."""
+    api_calls: List[dict] = []
+    sleeps: List[float] = []
+
+    def _fake_download_csv(series_id: str, **kwargs):
+        raise mp.DownloadError("Timeout while requesting https://fred.stlouisfed.org/...")
+
+    def _fake_download(series_id: str, api_key: str, **kwargs):
+        api_calls.append({"series_id": series_id})
+        raise mp.DownloadError("Timeout while requesting https://api.stlouisfed.org/...")
+
+    monkeypatch.setattr(mp, "download_fred_series_csv", _fake_download_csv)
+    monkeypatch.setattr(mp, "download_fred_series", _fake_download)
+    monkeypatch.setattr(mp.time, "sleep", lambda seconds: sleeps.append(seconds))
+
+    seed = pd.DataFrame({"date": pd.to_datetime(["2026-06-01"]), "value": [4.0]})
+    mp.write_cached_series(tmp_path, "UNRATE", seed)
+    spec = SeriesSpec(series_id="UNRATE", axis="growth", transform="level")
+
+    synced, outcome = sync_series(spec, "key", cache_dir=tmp_path)
+
+    assert len(api_calls) == 1
+    assert sleeps == []
+    # Cached real observations are preserved and the degradation is explicit.
+    assert outcome.status == "cached"
+    assert "cached observations through 2026-06-01" in outcome.detail
+    assert synced["value"].tolist() == [4.0]
 
 
 def test_sync_series_incremental_empty_window_is_noop_without_api_call(
@@ -318,7 +359,12 @@ def test_sync_series_incremental_empty_window_is_noop_without_api_call(
         {"observation_date": "2026-04-01", "UNRATE": "4.2"},
     ]
     monkeypatch.setattr(
-        loader, "_download_fred_graph_csv_rows", lambda series_id, *, timeout: full_rows
+        loader,
+        "_download_fred_graph_csv_rows",
+        lambda series_id, *, timeout, observation_start=None, observation_end=None: (
+            full_rows,
+            ["observation_date", "UNRATE"],
+        ),
     )
 
     api_calls: List[dict] = []
@@ -342,9 +388,10 @@ def test_sync_series_incremental_empty_window_is_noop_without_api_call(
     )
     mp.write_cached_series(tmp_path, "UNRATE", seed)
 
-    synced = sync_series(spec, "key", cache_dir=tmp_path)
+    synced, outcome = sync_series(spec, "key", cache_dir=tmp_path)
 
     assert api_calls == []  # no JSON API call -> no timeout surface
+    assert outcome.status == "ok"
     assert synced["value"].tolist() == [4.0, 4.1, 4.2]  # cache preserved
     reloaded = load_cached_series(tmp_path, "UNRATE")
     assert reloaded["value"].tolist() == [4.0, 4.1, 4.2]
@@ -443,3 +490,176 @@ def test_build_panel_empty_when_no_caches(tmp_path: Path) -> None:
     specs = [SeriesSpec(series_id="MISSING", axis="growth", transform="level")]
     panel = build_panel(specs, cache_dir=tmp_path)
     assert panel.empty
+
+
+# ---------------------------------------------------------------------------
+# Treasury fallback + per-series tolerance + circuit breaker
+# ---------------------------------------------------------------------------
+
+
+def test_sync_series_falls_back_to_treasury_for_derivable_series(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """When both FRED transports fail for a treasury-derivable series, the
+    observations are rebuilt from treasury.gov (real published data) and the
+    outcome is tagged as a fallback — never silently, never fabricated."""
+
+    def _csv_boom(series_id: str, **kwargs):
+        raise mp.DownloadError("Timeout while requesting fredgraph")
+
+    def _api_boom(series_id: str, api_key: str, **kwargs):
+        raise mp.DownloadError("Timeout while requesting api.stlouisfed.org")
+
+    def _fake_treasury(series_id: str, **kwargs):
+        assert series_id == "T10Y2Y"
+        return EconomicSeries(
+            series_id=series_id,
+            title=series_id,
+            units="lin",
+            frequency="daily",
+            observations=[Observation(date="2026-06-10", value=0.42)],
+            metadata={"source": "treasury_par_yield_curve"},
+        )
+
+    monkeypatch.setattr(mp, "download_fred_series_csv", _csv_boom)
+    monkeypatch.setattr(mp, "download_fred_series", _api_boom)
+    monkeypatch.setattr(mp, "download_treasury_derived_series", _fake_treasury)
+    monkeypatch.setattr(mp.time, "sleep", lambda seconds: None)
+
+    spec = SeriesSpec(series_id="T10Y2Y", axis="growth", transform="level")
+    synced, outcome = sync_series(spec, "key", cache_dir=tmp_path)
+
+    assert outcome.status == "fallback"
+    assert outcome.source == "treasury_par_yield_curve"
+    assert synced["value"].tolist() == [0.42]
+    # The treasury observations are merged into the same real-data cache.
+    reloaded = load_cached_series(tmp_path, "T10Y2Y")
+    assert reloaded["value"].tolist() == [0.42]
+
+
+def test_sync_all_series_tolerates_one_failure_and_trips_breaker(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """One failing series must not abort the others (the 2026-06-10 outage
+    aborted a 24-series sync on its 6th series). After two timeout-class
+    failures the breaker opens — but only for *treasury-derivable* series
+    (the observed failure class): other series still get their FRED attempt,
+    because monthly/weekly fetches were healthy throughout the outage."""
+    csv_calls: List[str] = []
+
+    def _fake_csv(series_id: str, **kwargs):
+        csv_calls.append(series_id)
+        if series_id in ("BAD1", "BAD2"):
+            raise mp.DownloadError("Timeout while requesting fredgraph")
+        return EconomicSeries(
+            series_id=series_id,
+            title=series_id,
+            units="lin",
+            frequency="m",
+            observations=[Observation(date="2026-06-01", value=1.0)],
+        )
+
+    def _api_boom(series_id: str, api_key: str, **kwargs):
+        raise mp.DownloadError("Timeout while requesting api.stlouisfed.org")
+
+    def _fake_treasury(series_id: str, **kwargs):
+        return EconomicSeries(
+            series_id=series_id,
+            title=series_id,
+            units="lin",
+            frequency="daily",
+            observations=[Observation(date="2026-06-10", value=0.42)],
+            metadata={"source": "treasury_par_yield_curve"},
+        )
+
+    monkeypatch.setattr(mp, "download_fred_series_csv", _fake_csv)
+    monkeypatch.setattr(mp, "download_fred_series", _api_boom)
+    monkeypatch.setattr(mp, "download_treasury_derived_series", _fake_treasury)
+    monkeypatch.setattr(mp.time, "sleep", lambda seconds: None)
+
+    # Seed caches for the failing series so their real history survives.
+    seed = pd.DataFrame({"date": pd.to_datetime(["2026-05-30"]), "value": [9.0]})
+    mp.write_cached_series(tmp_path, "BAD1", seed)
+    mp.write_cached_series(tmp_path, "BAD2", seed)
+
+    specs = [
+        SeriesSpec(series_id="GOOD1", axis="growth", transform="level"),
+        SeriesSpec(series_id="BAD1", axis="growth", transform="level"),
+        SeriesSpec(series_id="BAD2", axis="growth", transform="level"),
+        # Treasury-derivable: breaker sends it straight to treasury.gov.
+        SeriesSpec(series_id="T5YIE", axis="inflation", transform="level"),
+        # Not derivable: still gets its normal FRED attempt.
+        SeriesSpec(series_id="GOOD2", axis="growth", transform="level"),
+    ]
+    frames, outcomes = mp.sync_all_series(specs, "key", cache_dir=tmp_path)
+
+    assert outcomes["GOOD1"].status == "ok"
+    assert outcomes["BAD1"].status == "cached"
+    assert outcomes["BAD2"].status == "cached"
+    # Breaker open after BAD1+BAD2 timeouts: the derivable series skips FRED
+    # and lands on treasury.gov without burning another 60-120s of timeouts...
+    assert "T5YIE" not in csv_calls
+    assert outcomes["T5YIE"].status == "fallback"
+    assert outcomes["T5YIE"].source == "treasury_par_yield_curve"
+    # ...while the non-derivable series still tries (and here succeeds on) FRED.
+    assert "GOOD2" in csv_calls
+    assert outcomes["GOOD2"].status == "ok"
+    # Failing series kept their cached real observations.
+    assert frames["BAD1"]["value"].tolist() == [9.0]
+
+
+def test_sync_macro_panel_builds_panel_despite_partial_failure(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    config = tmp_path / "fred_series.yml"
+    config.write_text(
+        """
+series:
+  - series_id: GOODM
+    axis: growth
+    transform: level
+    frequency_hint: monthly
+  - series_id: BADM
+    axis: inflation
+    transform: level
+    frequency_hint: monthly
+""",
+        encoding="utf-8",
+    )
+
+    def _fake_csv(series_id: str, **kwargs):
+        if series_id == "BADM":
+            raise mp.DownloadError("Timeout while requesting fredgraph")
+        return EconomicSeries(
+            series_id=series_id,
+            title=series_id,
+            units="lin",
+            frequency="m",
+            observations=[
+                Observation(date="2026-05-01", value=1.0),
+                Observation(date="2026-06-01", value=2.0),
+            ],
+        )
+
+    def _api_boom(series_id: str, api_key: str, **kwargs):
+        raise mp.DownloadError("Timeout while requesting api.stlouisfed.org")
+
+    monkeypatch.setattr(mp, "download_fred_series_csv", _fake_csv)
+    monkeypatch.setattr(mp, "download_fred_series", _api_boom)
+    monkeypatch.setattr(mp.time, "sleep", lambda seconds: None)
+
+    cache_dir = tmp_path / "cache"
+    seed = pd.DataFrame({"date": pd.to_datetime(["2026-04-01"]), "value": [7.0]})
+    mp.write_cached_series(cache_dir, "BADM", seed)
+
+    panel_path = mp.sync_macro_panel(config, "key", cache_dir=cache_dir)
+
+    # Panel rebuilt with the good series fresh and the bad series from cache.
+    panel = mp.load_panel(panel_path)
+    assert "GOODM" in panel.columns
+    assert "BADM" in panel.columns
+
+    status = json.loads((cache_dir / mp.DEFAULT_SYNC_STATUS_FILENAME).read_text(encoding="utf-8"))
+    assert status["series"]["GOODM"]["status"] == "ok"
+    assert status["series"]["BADM"]["status"] == "cached"
+    assert "cached observations through 2026-04-01" in status["series"]["BADM"]["detail"]

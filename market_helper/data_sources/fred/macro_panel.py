@@ -15,9 +15,12 @@ columns ``_axis:{series_id}`` (not stored) exposed via :func:`load_series_meta`.
 """
 from __future__ import annotations
 
+import json
+import logging
 import os
 import time
 from dataclasses import dataclass
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Dict, Iterable, List, Mapping, Optional, Sequence
 
@@ -30,12 +33,25 @@ from market_helper.data_library.loader import (
     download_fred_series,
     download_fred_series_csv,
 )
+from market_helper.data_sources.treasury.yield_curve import (
+    TREASURY_DERIVABLE_SERIES,
+    TREASURY_SOURCE_NAME,
+    download_treasury_derived_series,
+)
 from market_helper.models import EconomicSeries
+
+logger = logging.getLogger(__name__)
 
 DEFAULT_CACHE_DIR = Path("data/interim/fred")
 DEFAULT_PANEL_FILENAME = "macro_panel.feather"
 DEFAULT_META_FILENAME = "macro_panel_meta.yml"
+DEFAULT_SYNC_STATUS_FILENAME = "macro_panel_sync_status.json"
 FRESHNESS_AGE_COLUMN_PREFIX = "_age_bdays:"
+# After this many series fail with transport timeouts in one sync run, stop
+# hitting FRED for the remaining series (each timeout costs 60-120s of wall
+# clock) and go straight to the treasury.gov fallback or the cached
+# observations. Resets per sync run.
+TRANSPORT_FAILURE_CIRCUIT_BREAKER_THRESHOLD = 2
 
 
 def _resolve_fred_http_timeout() -> int:
@@ -352,6 +368,44 @@ def write_cached_series(cache_dir: Path, series_id: str, frame: pd.DataFrame) ->
     return path
 
 
+@dataclass
+class SyncTransportState:
+    """Per-run circuit breaker over FRED transport timeouts.
+
+    Scope is deliberately narrow: the observed failure mode (2026-06) is
+    *series-class* specific — the daily treasury series stall on both FRED
+    endpoints while monthly/weekly series fetch instantly. So once
+    ``TRANSPORT_FAILURE_CIRCUIT_BREAKER_THRESHOLD`` series have failed with
+    timeout-class errors, only the *treasury-derivable* series skip FRED
+    (each timeout costs 60-120s) and go straight to treasury.gov; every other
+    series still gets its normal FRED attempt.
+    """
+
+    timeout_failures: int = 0
+    skip_fred_for_derivable: bool = False
+
+    def record_timeout_failure(self) -> None:
+        self.timeout_failures += 1
+        if self.timeout_failures >= TRANSPORT_FAILURE_CIRCUIT_BREAKER_THRESHOLD:
+            self.skip_fred_for_derivable = True
+
+
+@dataclass(frozen=True)
+class SeriesSyncOutcome:
+    series_id: str
+    status: str  # "ok" | "fallback" | "cached" | "failed"
+    source: str  # "fred_graph_csv" | "fred_api" | TREASURY_SOURCE_NAME | "cache" | ""
+    detail: str = ""
+    new_observations: int = 0
+
+
+def _looks_like_timeout(exc: Exception) -> bool:
+    if isinstance(exc, (TimeoutError, ConnectionResetError, ConnectionAbortedError)):
+        return True
+    text = str(exc).lower()
+    return "timeout" in text or "timed out" in text or "forcibly closed" in text
+
+
 def sync_series(
     spec: SeriesSpec,
     api_key: str,
@@ -359,11 +413,16 @@ def sync_series(
     cache_dir: Path = DEFAULT_CACHE_DIR,
     observation_start: Optional[str] = None,
     force: bool = False,
-) -> pd.DataFrame:
+    transport_state: SyncTransportState | None = None,
+) -> tuple[pd.DataFrame, SeriesSyncOutcome]:
     """Fetch new observations for ``spec`` and merge into the raw-cache feather.
 
     Incremental: on re-run, queries FRED only from the day *after* the last
     cached observation. Set ``force=True`` to re-fetch full history.
+
+    Never fabricates data: when every transport fails, the cached (real,
+    possibly older) observations are kept and the outcome reports
+    ``status="cached"`` / ``"failed"`` so callers can warn precisely.
     """
     cache_dir = Path(cache_dir)
     cached = load_cached_series(cache_dir, spec.series_id)
@@ -380,9 +439,34 @@ def sync_series(
         # empty window as "already current" instead of a hard download failure.
         allow_empty = True
 
-    series = _download_series_for_sync(
-        spec, api_key, observation_start=start, allow_empty=allow_empty
-    )
+    try:
+        series, source = _download_series_for_sync(
+            spec,
+            api_key,
+            observation_start=start,
+            allow_empty=allow_empty,
+            transport_state=transport_state,
+        )
+    except Exception as exc:
+        if cached.empty:
+            outcome = SeriesSyncOutcome(
+                series_id=spec.series_id,
+                status="failed",
+                source="",
+                detail=str(exc)[:300],
+            )
+            return cached, outcome
+        outcome = SeriesSyncOutcome(
+            series_id=spec.series_id,
+            status="cached",
+            source="cache",
+            detail=(
+                f"all transports failed; serving cached observations through "
+                f"{cached['date'].max().date().isoformat()}. {str(exc)[:240]}"
+            ),
+        )
+        return cached, outcome
+
     fresh = _series_to_frame(series)
 
     if cached.empty:
@@ -398,7 +482,14 @@ def sync_series(
         )
 
     write_cached_series(cache_dir, spec.series_id, merged)
-    return merged
+    outcome = SeriesSyncOutcome(
+        series_id=spec.series_id,
+        status="fallback" if source == TREASURY_SOURCE_NAME else "ok",
+        source=source,
+        new_observations=len(fresh),
+        detail="" if source != TREASURY_SOURCE_NAME else "FRED unreachable; rebuilt from treasury.gov par yield curves",
+    )
+    return merged, outcome
 
 
 def _download_series_for_sync(
@@ -407,46 +498,88 @@ def _download_series_for_sync(
     *,
     observation_start: Optional[str],
     allow_empty: bool = False,
-) -> EconomicSeries:
-    csv_error: Exception | None = None
-    try:
-        # With ``allow_empty`` the CSV path returns an empty series (no-op) for
-        # an empty incremental window instead of raising, so we never fall
-        # through to the JSON API just because there's no new monthly print
-        # yet. The JSON fallback below is then reserved for genuine CSV
-        # transport failures.
-        return download_fred_series_csv(
-            spec.series_id,
-            title=spec.title,
-            observation_start=observation_start,
-            timeout=DEFAULT_FRED_HTTP_TIMEOUT_SECONDS,
-            allow_empty=allow_empty,
-        )
-    except (DownloadError, ValueError) as exc:
-        csv_error = exc
+    transport_state: SyncTransportState | None = None,
+) -> tuple[EconomicSeries, str]:
+    """Fetch one series: windowed CSV -> JSON API -> treasury.gov derivation.
 
-    attempts = 3
-    last_error: Exception | None = None
-    for attempt in range(1, attempts + 1):
+    Returns ``(series, source_label)``. Every tier serves *published* data —
+    the treasury.gov tier rebuilds the same FRED series from the primary
+    par-yield-curve publisher using FRED's documented constructions.
+    """
+    csv_error: Exception | None = None
+    api_error: Exception | None = None
+    skip_fred = (
+        transport_state is not None
+        and transport_state.skip_fred_for_derivable
+        and spec.series_id in TREASURY_DERIVABLE_SERIES
+    )
+
+    if not skip_fred:
         try:
-            return download_fred_series(
-                series_id=spec.series_id,
-                api_key=api_key,
+            # With ``allow_empty`` the CSV path returns an empty series (no-op)
+            # for an empty incremental window instead of raising, so we never
+            # fall through just because there's no new monthly print yet.
+            series = download_fred_series_csv(
+                spec.series_id,
                 title=spec.title,
                 observation_start=observation_start,
                 timeout=DEFAULT_FRED_HTTP_TIMEOUT_SECONDS,
+                allow_empty=allow_empty,
             )
-        except (DownloadError, TimeoutError, OSError) as exc:
-            last_error = exc
-            if attempt >= attempts:
-                break
-            # Exponential backoff (2s, 4s) to ride out a transient slow patch on
-            # api.stlouisfed.org rather than re-hitting it on a fixed cadence.
-            time.sleep(2.0 * attempt)
+            return series, "fred_graph_csv"
+        except (DownloadError, ValueError) as exc:
+            csv_error = exc
+
+        # When the CSV transport *timed out* the network path to FRED is the
+        # problem and the API host (observed: api.stlouisfed.org unreachable
+        # from some networks) rarely saves us — one attempt, no backoff loop.
+        attempts = 1 if _looks_like_timeout(csv_error) else 2
+        for attempt in range(1, attempts + 1):
+            try:
+                series = download_fred_series(
+                    series_id=spec.series_id,
+                    api_key=api_key,
+                    title=spec.title,
+                    observation_start=observation_start,
+                    timeout=DEFAULT_FRED_HTTP_TIMEOUT_SECONDS,
+                )
+                return series, "fred_api"
+            except (DownloadError, TimeoutError, OSError) as exc:
+                api_error = exc
+                if attempt < attempts:
+                    time.sleep(2.0 * attempt)
+        if transport_state is not None and (
+            _looks_like_timeout(csv_error) or (api_error is not None and _looks_like_timeout(api_error))
+        ):
+            transport_state.record_timeout_failure()
+
+    if spec.series_id in TREASURY_DERIVABLE_SERIES:
+        try:
+            series = download_treasury_derived_series(
+                spec.series_id,
+                observation_start=observation_start,
+                title=spec.title,
+            )
+            logger.warning(
+                "FRED unavailable for %s (csv=%s api=%s); rebuilt %d observations "
+                "from treasury.gov par yield curves",
+                spec.series_id,
+                csv_error,
+                api_error,
+                len(series.observations),
+            )
+            return series, TREASURY_SOURCE_NAME
+        except Exception as treasury_error:  # noqa: BLE001 — fall through to the caller's cache handling
+            raise RuntimeError(
+                f"FRED download failed for {spec.series_id} (CSV error: {csv_error}; "
+                f"API error: {api_error}) and treasury.gov fallback also failed: {treasury_error}"
+            ) from treasury_error
+
     raise RuntimeError(
-        f"FRED download failed for {spec.series_id} after CSV fallback and "
-        f"{attempts} API attempts. CSV error: {csv_error}. Last API error: {last_error}"
-    ) from last_error
+        f"FRED download failed for {spec.series_id}. "
+        f"CSV error: {csv_error}. Last API error: {api_error}."
+        + (" FRED transports skipped (circuit breaker open)." if skip_fred else "")
+    ) from api_error
 
 
 def sync_all_series(
@@ -456,17 +589,33 @@ def sync_all_series(
     cache_dir: Path = DEFAULT_CACHE_DIR,
     observation_start: Optional[str] = None,
     force: bool = False,
-) -> Dict[str, pd.DataFrame]:
-    return {
-        spec.series_id: sync_series(
+) -> tuple[Dict[str, pd.DataFrame], Dict[str, SeriesSyncOutcome]]:
+    """Sync every series with per-series fault tolerance.
+
+    One failing series no longer aborts the panel rebuild: its cached (real)
+    observations are kept and its outcome reports the failure. Unique
+    series_ids are fetched once even when several specs reuse the same id
+    under different transforms.
+    """
+    frames: Dict[str, pd.DataFrame] = {}
+    outcomes: Dict[str, SeriesSyncOutcome] = {}
+    transport_state = SyncTransportState()
+    for spec in specs:
+        if spec.series_id in frames:
+            continue
+        frame, outcome = sync_series(
             spec,
             api_key,
             cache_dir=cache_dir,
             observation_start=observation_start,
             force=force,
+            transport_state=transport_state,
         )
-        for spec in specs
-    }
+        frames[spec.series_id] = frame
+        outcomes[spec.series_id] = outcome
+        if outcome.status in ("cached", "failed"):
+            logger.warning("FRED sync degraded for %s: %s", spec.series_id, outcome.detail)
+    return frames, outcomes
 
 
 # ---------------------------------------------------------------------------
@@ -728,16 +877,36 @@ def sync_macro_panel(
 ) -> Path:
     """End-to-end: read config, sync each series, build + persist panel.
 
+    Per-series failures degrade to that series' cached observations instead
+    of aborting the whole refresh — the panel is rebuilt from whatever real
+    data is freshest, per-series staleness is visible via the panel's
+    ``_age_bdays:`` columns, and a machine-readable summary is written next
+    to the panel (``macro_panel_sync_status.json``). Raises only when *no*
+    series has any data at all.
+
     Returns the path to the panel feather.
     """
     specs = load_series_specs(config_path)
-    sync_all_series(
+    frames, outcomes = sync_all_series(
         specs,
         api_key,
         cache_dir=cache_dir,
         observation_start=observation_start,
         force=force,
     )
+    degraded = {sid: o for sid, o in outcomes.items() if o.status in ("cached", "failed")}
+    if degraded and all(frame.empty for frame in frames.values()):
+        details = "; ".join(f"{sid}: {o.detail}" for sid, o in degraded.items())
+        raise RuntimeError(f"FRED macro sync produced no data for any series. {details}")
+    if degraded:
+        logger.warning(
+            "FRED macro sync degraded for %d/%d series (%s) — panel rebuilt from "
+            "cached observations for those series; the engine's freshness decay "
+            "downweights them automatically.",
+            len(degraded),
+            len(frames),
+            ", ".join(sorted(degraded)),
+        )
     panel = build_panel(
         specs,
         cache_dir=cache_dir,
@@ -745,7 +914,33 @@ def sync_macro_panel(
         end_date=end_date,
     )
     write_series_meta(specs, cache_dir=cache_dir)
+    _write_sync_status(outcomes, cache_dir=cache_dir)
     return write_panel(panel, cache_dir=cache_dir)
+
+
+def _write_sync_status(
+    outcomes: Mapping[str, SeriesSyncOutcome],
+    *,
+    cache_dir: Path,
+) -> Path:
+    """Persist a per-run, per-series sync summary for diagnostics."""
+    cache_dir = Path(cache_dir)
+    cache_dir.mkdir(parents=True, exist_ok=True)
+    path = cache_dir / DEFAULT_SYNC_STATUS_FILENAME
+    payload = {
+        "synced_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
+        "series": {
+            sid: {
+                "status": outcome.status,
+                "source": outcome.source,
+                "new_observations": outcome.new_observations,
+                "detail": outcome.detail,
+            }
+            for sid, outcome in sorted(outcomes.items())
+        },
+    }
+    path.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
+    return path
 
 
 def specs_by_axis(specs: Iterable[SeriesSpec]) -> Dict[str, List[SeriesSpec]]:
@@ -758,9 +953,12 @@ def specs_by_axis(specs: Iterable[SeriesSpec]) -> Dict[str, List[SeriesSpec]]:
 __all__ = [
     "SeriesSpec",
     "ConceptSpec",
+    "SeriesSyncOutcome",
+    "SyncTransportState",
     "DEFAULT_CACHE_DIR",
     "DEFAULT_PANEL_FILENAME",
     "DEFAULT_META_FILENAME",
+    "DEFAULT_SYNC_STATUS_FILENAME",
     "FRESHNESS_AGE_COLUMN_PREFIX",
     "FREQUENCY_HINT_TO_HALF_LIFE_BDAYS",
     "resolve_decay_half_life_bdays",

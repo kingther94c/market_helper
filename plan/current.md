@@ -61,6 +61,17 @@ allocation-layer ML predictor below. Detail:
 `memory/archive/landed/regime_engine_landed.md`,
 [`regime_engine.md`](../docs/architecture/devplans/regime_engine.md).
 
+**FRED loading hardened (2026-06-11).** The recurring regime-refresh failure
+(daily treasury series stall on both FRED endpoints from this network; one
+failed series aborted the whole 24-series sync — regime was stuck at 05-29)
+is fixed four ways: window-scoped fredgraph fetches (`cosd`/`coed`),
+per-series fault tolerance (cached real observations + status JSON instead of
+abort), a **treasury.gov par-yield fallback** for the five daily treasury
+series (primary publisher, verified exact vs FRED history — never fabricated
+data), and a timeout circuit breaker scoped to the derivable series. Detail in
+`memory/hot/gotchas.md` §"FRED data loading". Production panel + regime
+artifact healed through 2026-06-11 (full ensemble).
+
 **Open near-term work:**
 1. **(Optional)** Pin per-anchor macro fixtures from `macro_scout_q9_after.json`
    into the anchor-period harness for a CI guardrail on the macro layer. Not

@@ -85,6 +85,31 @@ back to the 1D country / sector breakdowns and their policy-drift tables as
 the authoritative source for sleeve-level allocation decisions. **Keep that
 disclaimer in any layout/refactor work.**
 
+## FRED data loading (regime macro panel)
+
+The network path to stlouisfed.org is **series-class flaky**: monthly/weekly
+fredgraph CSVs fetch instantly while the daily treasury series (T10Y2Y,
+T10Y3M, T5YIE, DFII10, T5YIFR) intermittently stall on BOTH endpoints, and
+`api.stlouisfed.org` is often unreachable outright. Defense layers (2026-06,
+`data_sources/fred/macro_panel.py`):
+
+1. fredgraph CSV fetches are **window-scoped** (`cosd`/`coed`) — incremental
+   syncs move ~1 KB, not full multi-decade history.
+2. **Per-series fault tolerance** — one failing series keeps its cached real
+   observations + a warning; the panel still rebuilds (engine freshness decay
+   downweights stale series). `sync_all_series` returns outcomes; status JSON
+   at `data/interim/fred/macro_panel_sync_status.json`.
+3. **treasury.gov par-yield fallback** for the daily treasury series — same
+   primary source FRED derives them from; verified exact (diff 0.0000-0.0002)
+   vs FRED history. `data_sources/treasury/yield_curve.py`. Never fabricates.
+4. **Circuit breaker**: after 2 timeout-class failures, *treasury-derivable*
+   series skip FRED and go straight to treasury.gov; other series still try
+   FRED (their fetches stay healthy during these outages).
+
+The macro panel legitimately extends 1+ bday past today (publication-lag
+release shifting), so the trailing snapshot can be `macro_only` until market
+data exists for that date — it self-heals on the next refresh.
+
 ## Regime engine
 
 - **Risk/stress is NOT a macro axis.** It is an independent overlay, dashboard
